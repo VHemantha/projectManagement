@@ -1,0 +1,75 @@
+.page {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tf-bg);
+  padding: var(--tf-space-6);
+}
+
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-lg);
+  padding: var(--tf-space-8);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-6);
+}
+
+.logoMark {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-blue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.logoText {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.title {
+  font-size: var(--tf-font-size-lg);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-4);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+}
+
+.submit {
+  width: 100%;
+  margin-top: var(--tf-space-2);
+}
+
+.formError {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-2) var(--tf-space-3);
+  font-size: 13px;
+}
+
+.footer {
+  margin-top: var(--tf-space-5);
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+  text-align: center;
+}

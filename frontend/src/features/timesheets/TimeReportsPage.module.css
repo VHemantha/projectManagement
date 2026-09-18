@@ -1,0 +1,121 @@
+.page {
+  padding: var(--tf-space-5) var(--tf-space-6);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--tf-space-4);
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-4);
+}
+
+.select {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--tf-radius-sm);
+  border: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+}
+
+.dateSep {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-4);
+}
+
+.statCard {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-4);
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.statLabel {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+  margin-top: 2px;
+}
+
+.card {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-4);
+  margin-bottom: var(--tf-space-4);
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--tf-space-3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: var(--tf-space-2) var(--tf-space-3);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tf-text-subtle);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--tf-border);
+  background: var(--tf-surface-sunken);
+}
+
+.table td {
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-bottom: 1px solid var(--tf-border);
+}
+
+.description {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hoursCell {
+  font-weight: 600;
+}
+
+.empty {
+  color: var(--tf-text-subtle);
+  padding: var(--tf-space-4);
+  text-align: center;
+}

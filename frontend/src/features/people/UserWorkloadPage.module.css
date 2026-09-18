@@ -1,0 +1,49 @@
+.page {
+  padding: var(--tf-space-6);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-5);
+}
+
+.name {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+}
+
+.role {
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-5);
+  max-width: 480px;
+}
+
+.statCard {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-3);
+  text-align: center;
+}
+
+.statValue {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+  text-transform: uppercase;
+}

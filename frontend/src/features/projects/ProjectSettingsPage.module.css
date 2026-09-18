@@ -1,0 +1,83 @@
+.page {
+  padding: var(--tf-space-6);
+  max-width: 720px;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-4);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-4);
+  max-width: 480px;
+}
+
+.memberRow {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-2) 0;
+  border-bottom: 1px solid var(--tf-border);
+}
+
+.memberRow:last-child {
+  border-bottom: none;
+}
+
+.memberName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.memberEmail {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.roleSelect {
+  margin-left: auto;
+  height: 28px;
+  border-radius: var(--tf-radius-md);
+  border: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+  padding: 0 var(--tf-space-2);
+  font-size: 13px;
+}
+
+.addMemberRow {
+  display: flex;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-4);
+  align-items: flex-end;
+}
+
+.statusRow {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-2) 0;
+  border-bottom: 1px solid var(--tf-border);
+}
+.statusRow:last-child {
+  border-bottom: none;
+}
+
+.statusName {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+  margin-bottom: var(--tf-space-3);
+}
+
+.savedMsg {
+  color: var(--tf-success);
+  font-size: 13px;
+}

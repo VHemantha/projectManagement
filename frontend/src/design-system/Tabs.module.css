@@ -1,0 +1,28 @@
+.list {
+  display: flex;
+  gap: var(--tf-space-4);
+  border-bottom: 2px solid var(--tf-border);
+}
+
+.trigger {
+  background: none;
+  border: none;
+  padding: var(--tf-space-2) 2px;
+  margin-bottom: -2px;
+  border-bottom: 2px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tf-text-subtle);
+  cursor: pointer;
+}
+.trigger:hover {
+  color: var(--tf-text);
+}
+.trigger[data-state='active'] {
+  color: var(--tf-blue);
+  border-bottom-color: var(--tf-blue);
+}
+
+.content {
+  padding-top: var(--tf-space-4);
+}

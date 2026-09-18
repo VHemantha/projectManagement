@@ -1,0 +1,99 @@
+:root {
+  /* Brand */
+  --tf-blue: #0c66e4;
+  --tf-blue-hover: #0055cc;
+  --tf-blue-subtle: #deebff;
+
+  /* Surfaces */
+  --tf-bg: #f7f8f9;
+  --tf-surface: #ffffff;
+  --tf-surface-sunken: #fafbfc;
+  --tf-surface-hover: #f1f2f4;
+  --tf-surface-pressed: #dcdfe4;
+  --tf-sidebar-bg: #0c1421;
+  --tf-sidebar-hover: #1d2939;
+
+  /* Borders */
+  --tf-border: #dcdfe4;
+  --tf-border-subtle: rgba(9, 30, 66, 0.14);
+  --tf-border-focus: var(--tf-blue);
+
+  /* Text */
+  --tf-text: #172b4d;
+  --tf-text-secondary: #44546f;
+  --tf-text-subtle: #626f86;
+  --tf-text-inverse: #ffffff;
+  --tf-text-link: var(--tf-blue);
+
+  /* Status category colors */
+  --tf-status-todo-bg: #dcdfe4;
+  --tf-status-todo-text: #44546f;
+  --tf-status-inprogress-bg: #deebff;
+  --tf-status-inprogress-text: #0c66e4;
+  --tf-status-done-bg: #dcfff1;
+  --tf-status-done-text: #1f845a;
+
+  /* Priority colors */
+  --tf-priority-highest: #cd1317;
+  --tf-priority-high: #e2680f;
+  --tf-priority-medium: #e2b203;
+  --tf-priority-low: #2684ff;
+  --tf-priority-lowest: #2684ff;
+
+  /* Issue type colors */
+  --tf-type-epic: #8777d9;
+  --tf-type-story: #36b37e;
+  --tf-type-task: #0c66e4;
+  --tf-type-bug: #e5493a;
+  --tf-type-subtask: #0c66e4;
+
+  /* Semantic */
+  --tf-danger: #ae2e24;
+  --tf-danger-bg: #ffebe6;
+  --tf-warning: #e2b203;
+  --tf-warning-bg: #fff7d6;
+  --tf-success: #1f845a;
+  --tf-success-bg: #dcfff1;
+
+  /* Spacing (4px/8px grid) */
+  --tf-space-1: 4px;
+  --tf-space-2: 8px;
+  --tf-space-3: 12px;
+  --tf-space-4: 16px;
+  --tf-space-5: 20px;
+  --tf-space-6: 24px;
+  --tf-space-8: 32px;
+  --tf-space-10: 40px;
+
+  /* Radius */
+  --tf-radius-sm: 3px;
+  --tf-radius-md: 4px;
+  --tf-radius-lg: 8px;
+  --tf-radius-full: 999px;
+
+  /* Shadow (used sparingly — Jira is border-heavy, not shadow-heavy) */
+  --tf-shadow-sm: 0 1px 2px rgba(9, 30, 66, 0.15);
+  --tf-shadow-md: 0 4px 8px -2px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+  --tf-shadow-lg: 0 8px 16px -4px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+
+  /* Layout */
+  --tf-sidebar-width-collapsed: 64px;
+  --tf-sidebar-width-expanded: 240px;
+  --tf-topnav-height: 48px;
+  --tf-project-sidebar-width: 240px;
+
+  /* Font */
+  --tf-font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --tf-font-size-sm: 12px;
+  --tf-font-size-base: 14px;
+  --tf-font-size-md: 16px;
+  --tf-font-size-lg: 20px;
+  --tf-font-size-xl: 24px;
+
+  --tf-z-sidebar: 100;
+  --tf-z-topnav: 110;
+  --tf-z-dropdown: 200;
+  --tf-z-modal: 300;
+  --tf-z-toast: 400;
+}

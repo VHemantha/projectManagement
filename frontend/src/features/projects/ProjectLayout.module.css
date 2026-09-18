@@ -1,0 +1,80 @@
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: var(--tf-project-sidebar-width);
+  background: var(--tf-surface-sunken);
+  border-right: 1px solid var(--tf-border);
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-4) var(--tf-space-3);
+}
+
+.projectAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--tf-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.projectName {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tf-text);
+  line-height: 1.2;
+}
+
+.projectType {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+  text-transform: capitalize;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 var(--tf-space-2);
+}
+
+.navItem {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  height: 32px;
+  padding: 0 var(--tf-space-3);
+  border-radius: var(--tf-radius-md);
+  color: var(--tf-text-secondary);
+  font-size: 14px;
+}
+.navItem:hover {
+  background: var(--tf-surface-hover);
+  text-decoration: none;
+}
+.navItem.active {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-blue);
+  font-weight: 500;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}

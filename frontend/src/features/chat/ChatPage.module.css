@@ -1,0 +1,252 @@
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: 260px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--tf-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--tf-surface-sunken);
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--tf-space-3) var(--tf-space-3) var(--tf-space-2);
+}
+
+.sidebarTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.channelGroupLabel {
+  padding: var(--tf-space-3) var(--tf-space-3) 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--tf-text-subtle);
+}
+
+.channelRow {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: 6px var(--tf-space-3);
+  margin: 0 var(--tf-space-2);
+  border-radius: var(--tf-radius-md);
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--tf-text-secondary);
+}
+.channelRow:hover {
+  background: var(--tf-surface-hover);
+}
+.channelRow.active {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-blue);
+}
+.channelRow.unread {
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.channelName {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unreadBadge {
+  background: var(--tf-blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: var(--tf-radius-full);
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty {
+  padding: var(--tf-space-6);
+  color: var(--tf-text-subtle);
+  text-align: center;
+  font-size: 13px;
+}
+
+/* Thread pane */
+.thread {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.threadHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border-bottom: 1px solid var(--tf-border);
+  flex-shrink: 0;
+}
+
+.threadTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.threadDescription {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.connectionDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-left: auto;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--tf-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+}
+
+.loadOlderBtn {
+  align-self: center;
+  margin-bottom: var(--tf-space-2);
+}
+
+.typingIndicator {
+  padding: 0 var(--tf-space-4);
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+  height: 18px;
+}
+
+.composerWrap {
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border-top: 1px solid var(--tf-border);
+  flex-shrink: 0;
+}
+
+.composerActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-2);
+}
+
+/* Message bubble */
+.messageRow {
+  display: flex;
+  gap: var(--tf-space-2);
+  position: relative;
+}
+
+.messageBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.messageMeta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.messageAuthor {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--tf-text);
+}
+
+.messageTime {
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+}
+
+.messagePending {
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+  font-style: italic;
+}
+
+.systemMessage {
+  font-size: 13px;
+  color: var(--tf-text-secondary);
+  background: var(--tf-surface-hover);
+  border-radius: var(--tf-radius-md);
+  padding: 6px var(--tf-space-3);
+  display: inline-flex;
+}
+
+.messageHoverActions {
+  position: absolute;
+  top: -14px;
+  right: 0;
+  display: none;
+  gap: 2px;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: 2px;
+  box-shadow: var(--tf-shadow-sm);
+}
+.messageRow:hover .messageHoverActions {
+  display: flex;
+}
+
+.reactionRow {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.reactionChip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 1px 6px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-hover);
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.reactionChip.mine {
+  background: var(--tf-blue-subtle);
+  border-color: var(--tf-blue);
+}
+
+.taskChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  cursor: pointer;
+  color: var(--tf-text-link);
+}

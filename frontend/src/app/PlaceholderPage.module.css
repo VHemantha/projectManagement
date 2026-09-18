@@ -1,0 +1,17 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--tf-space-2);
+  color: var(--tf-text-subtle);
+  padding: var(--tf-space-8);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--tf-font-size-lg);
+  font-weight: 600;
+  color: var(--tf-text);
+}

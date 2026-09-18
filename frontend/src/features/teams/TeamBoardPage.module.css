@@ -1,0 +1,31 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-5) var(--tf-space-6) 0;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--tf-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+
+.board {
+  height: calc(100% - 80px);
+}

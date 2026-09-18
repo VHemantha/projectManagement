@@ -1,0 +1,112 @@
+.page {
+  padding: var(--tf-space-6);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--tf-space-5);
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+}
+
+.tableWrap {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.table th {
+  text-align: left;
+  padding: var(--tf-space-2) var(--tf-space-4);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 1px solid var(--tf-border);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border-bottom: 1px solid var(--tf-border);
+  vertical-align: middle;
+}
+
+.table tbody tr {
+  cursor: pointer;
+}
+.table tbody tr:hover {
+  background: var(--tf-surface-hover);
+}
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.projectCell {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+}
+
+.projectAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--tf-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.projectName {
+  font-weight: 500;
+  color: var(--tf-text);
+}
+
+.projectKey {
+  color: var(--tf-text-subtle);
+  font-size: 12px;
+}
+
+.leadCell {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+}
+
+.typeBadge {
+  display: inline-flex;
+  padding: 2px var(--tf-space-2);
+  border-radius: var(--tf-radius-sm);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--tf-surface-hover);
+  color: var(--tf-text-secondary);
+  text-transform: capitalize;
+}
+
+.empty {
+  padding: var(--tf-space-8);
+  text-align: center;
+  color: var(--tf-text-subtle);
+}

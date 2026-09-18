@@ -1,0 +1,16 @@
+.page {
+  display: flex;
+  padding: var(--tf-space-5) var(--tf-space-6);
+  height: 100%;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-4);
+}

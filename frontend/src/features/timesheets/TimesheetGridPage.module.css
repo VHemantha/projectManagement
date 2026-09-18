@@ -1,0 +1,143 @@
+.page {
+  padding: var(--tf-space-5) var(--tf-space-6);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-4);
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+}
+
+.weekNav {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin-left: var(--tf-space-4);
+}
+
+.weekLabel {
+  font-size: 14px;
+  color: var(--tf-text-secondary);
+  min-width: 160px;
+  text-align: center;
+}
+
+.statusBadge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: var(--tf-radius-full);
+}
+.statusDraft {
+  background: var(--tf-status-todo-bg);
+  color: var(--tf-status-todo-text);
+}
+.statusSubmitted {
+  background: var(--tf-status-inprogress-bg);
+  color: var(--tf-status-inprogress-text);
+}
+.statusApproved {
+  background: var(--tf-status-done-bg);
+  color: var(--tf-status-done-text);
+}
+.statusRejected {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+
+.reviewerNote {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-2) var(--tf-space-3);
+  font-size: 13px;
+  margin-bottom: var(--tf-space-4);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: center;
+  padding: var(--tf-space-2);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tf-text-subtle);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--tf-border);
+  background: var(--tf-surface-sunken);
+}
+.table th:first-child {
+  text-align: left;
+  min-width: 220px;
+}
+
+.table td {
+  padding: 6px;
+  border-bottom: 1px solid var(--tf-border);
+  text-align: center;
+  vertical-align: middle;
+}
+.table td:first-child {
+  text-align: left;
+  padding-left: var(--tf-space-3);
+}
+
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cell {
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--tf-radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+.cell:hover {
+  background: var(--tf-surface-hover);
+}
+.cell.empty {
+  color: var(--tf-text-subtle);
+  font-weight: 400;
+}
+.cell.locked {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.totalCell {
+  font-weight: 700;
+}
+
+.totalsRow td {
+  background: var(--tf-surface-sunken);
+  font-weight: 700;
+}
+
+.empty {
+  color: var(--tf-text-subtle);
+  padding: var(--tf-space-4);
+  text-align: center;
+}

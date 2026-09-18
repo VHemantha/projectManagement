@@ -1,0 +1,110 @@
+.page {
+  padding: var(--tf-space-5) var(--tf-space-6);
+  height: 100%;
+  overflow: auto;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-5);
+}
+
+.chart {
+  min-width: 720px;
+}
+
+.monthHeader {
+  display: flex;
+  border-bottom: 1px solid var(--tf-border);
+  margin-bottom: var(--tf-space-2);
+  padding-left: 220px;
+}
+
+.monthCell {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+  text-transform: uppercase;
+  padding-bottom: 6px;
+  border-left: 1px solid var(--tf-border);
+  padding-left: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  border-bottom: 1px solid var(--tf-border);
+}
+
+.rowLabel {
+  width: 220px;
+  flex-shrink: 0;
+  padding-right: var(--tf-space-3);
+  font-size: 13px;
+  color: var(--tf-text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowLabel:hover {
+  text-decoration: underline;
+}
+
+.track {
+  flex: 1;
+  position: relative;
+  height: 26px;
+}
+
+.bar {
+  position: absolute;
+  top: 0;
+  height: 26px;
+  border-radius: var(--tf-radius-sm);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #172b4d;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: grab;
+}
+
+.handle {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: ew-resize;
+}
+.handleLeft {
+  left: 0;
+}
+.handleRight {
+  right: 0;
+}
+
+.todayLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--tf-danger);
+  opacity: 0.6;
+}
+
+.empty {
+  padding: var(--tf-space-8);
+  text-align: center;
+  color: var(--tf-text-subtle);
+}

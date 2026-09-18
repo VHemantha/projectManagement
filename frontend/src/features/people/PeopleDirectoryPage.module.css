@@ -1,0 +1,41 @@
+.page {
+  padding: var(--tf-space-6);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--tf-space-3);
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-4);
+  cursor: pointer;
+}
+.card:hover {
+  border-color: var(--tf-blue);
+}
+
+.name {
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+.role {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}

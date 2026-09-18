@@ -1,0 +1,105 @@
+.page {
+  padding: var(--tf-space-6);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: var(--tf-font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--tf-space-5);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: var(--tf-space-4);
+}
+
+@media (max-width: 800px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-4);
+  margin-bottom: var(--tf-space-4);
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: var(--tf-space-3);
+}
+
+.issueRow {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tf-border);
+  font-size: 13px;
+  cursor: pointer;
+}
+.issueRow:last-child {
+  border-bottom: none;
+}
+.issueRow:hover {
+  color: var(--tf-blue);
+}
+
+.summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activityRow {
+  display: flex;
+  gap: var(--tf-space-2);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tf-border);
+  font-size: 13px;
+}
+.activityRow:last-child {
+  border-bottom: none;
+}
+
+.activityText {
+  color: var(--tf-text-secondary);
+}
+
+.activityTime {
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+}
+
+.pieBox {
+  height: 220px;
+}
+
+.pieLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: var(--tf-space-2);
+}
+
+.pieLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--tf-text-secondary);
+}
+
+.empty {
+  color: var(--tf-text-subtle);
+  font-size: 13px;
+  padding: var(--tf-space-3) 0;
+}
