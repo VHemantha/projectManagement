@@ -31,14 +31,16 @@ export function EpicBoardPage() {
           isLoading={boardLoading || issuesLoading}
           availableSwimlanes={['none', 'assignee']}
           emptyMessage="No issues under this epic yet."
-          onMoveIssue={({ issue, column, beforeId, afterId }) =>
+          onMoveIssue={({ issue, column, beforeId, afterId }) => {
+            const statusId = resolveDropStatusId(issue, column)
+            if (statusId === null) return
             moveIssue.mutate({
               key: issue.key,
-              status_id: resolveDropStatusId(issue, column),
+              status_id: statusId,
               before_id: beforeId,
               after_id: afterId,
             })
-          }
+          }}
         />
       </div>
     </div>

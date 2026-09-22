@@ -113,7 +113,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
             label="Key"
             required
             value={key}
-            maxLength={10}
+            maxLength={100}
             onChange={(e) => {
               setKeyTouched(true)
               setKey(e.target.value.toUpperCase())

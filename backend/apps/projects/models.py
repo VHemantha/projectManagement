@@ -2,10 +2,10 @@ from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
 
-KEY_PATTERN = r"^[A-Z][A-Z0-9]{1,9}$"
+KEY_PATTERN = r"^[A-Z][A-Z0-9]{1,99}$"
 key_validator = RegexValidator(
     regex=KEY_PATTERN,
-    message="Project key must be 2-10 uppercase letters/digits, starting with a letter.",
+    message="Project key must be 2-100 uppercase letters/digits, starting with a letter.",
 )
 
 
@@ -30,7 +30,7 @@ class Project(models.Model):
     organization = models.ForeignKey(
         "orgs.Organization", on_delete=models.CASCADE, related_name="projects"
     )
-    key = models.CharField(max_length=10, unique=True, validators=[key_validator])
+    key = models.CharField(max_length=100, unique=True, validators=[key_validator])
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)
     project_type = models.CharField(

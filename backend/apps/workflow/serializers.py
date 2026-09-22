@@ -40,6 +40,10 @@ class BoardConfigSerializer(serializers.ModelSerializer):
             if not isinstance(col, dict) or "name" not in col:
                 raise serializers.ValidationError(f"Column {i} must be an object with a 'name'.")
             status_ids = col.get("status_ids") or []
+            if not status_ids:
+                raise serializers.ValidationError(
+                    f"Column '{col['name']}' needs at least one status — cards can't be moved into an empty column."
+                )
             unknown = set(status_ids) - valid_status_ids
             if unknown:
                 raise serializers.ValidationError(f"Column '{col['name']}' references unknown status ids: {unknown}")

@@ -44,6 +44,32 @@ def test_create_project_makes_creator_an_admin_member(api_client, user):
     assert resp.data["lead"]["id"] == user.id
 
 
+def test_project_key_accepts_up_to_100_characters(api_client, user):
+    long_key = "A" + "B" * 99
+    assert len(long_key) == 100
+    resp = api_client.post(
+        "/api/projects/", {"key": long_key, "name": "Long Key Project", "project_type": "kanban"}, format="json"
+    )
+    assert resp.status_code == 201
+    project = Project.objects.get(key=long_key)
+    assert project.key == long_key
+
+    # And an issue created under it gets a PROJECTKEY-N key that fits without truncation.
+    workflow = Workflow.objects.get(project=project)
+    status = workflow.statuses.first()
+    issue_type, _ = IssueType.objects.get_or_create(name="Task", project=None)
+    issue = Issue.objects.create(project=project, issue_type=issue_type, summary="Test", status=status, reporter=user)
+    assert issue.key == f"{long_key}-1"
+
+
+def test_project_key_over_100_characters_is_rejected(api_client, user):
+    too_long_key = "A" + "B" * 100
+    resp = api_client.post(
+        "/api/projects/", {"key": too_long_key, "name": "Too Long", "project_type": "kanban"}, format="json"
+    )
+    assert resp.status_code == 400
+
+
 def test_project_list_reports_issue_counts(api_client, user):
     project = Project.objects.create(
         organization=Organization.get_solo(), key="CNT", name="Counter Project", lead=user

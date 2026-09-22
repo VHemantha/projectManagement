@@ -66,14 +66,16 @@ export function ProjectBoardPage() {
             </Button>
           )
         }
-        onMoveIssue={({ issue, column, beforeId, afterId }) =>
+        onMoveIssue={({ issue, column, beforeId, afterId }) => {
+          const statusId = resolveDropStatusId(issue, column)
+          if (statusId === null) return
           moveIssue.mutate({
             key: issue.key,
-            status_id: resolveDropStatusId(issue, column),
+            status_id: statusId,
             before_id: beforeId,
             after_id: afterId,
           })
-        }
+        }}
       />
       {board && (
         <BoardSettingsPanel

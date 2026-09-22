@@ -115,6 +115,10 @@ export function BoardSettingsPanel({ board, projectKey, open, onOpenChange }: Bo
         setError('Every column needs a name.')
         return
       }
+      if (col.status_ids.length === 0) {
+        setError(`Column "${col.name}" needs at least one status — cards can't be moved into an empty column.`)
+        return
+      }
     }
     updateConfig.mutate(
       { column_config: columns, swimlane_mode: swimlaneMode, card_fields: cardFields, card_color_rule: cardColorRule },

@@ -75,7 +75,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
 
 
 class ProjectDetailSerializer(serializers.ModelSerializer):
-    key = serializers.CharField(max_length=10)
+    key = serializers.CharField(max_length=100)
     lead = UserSerializer(read_only=True)
     lead_id = serializers.IntegerField(write_only=True, required=False)
     memberships = ProjectMembershipSerializer(many=True, read_only=True)
@@ -129,7 +129,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         value = value.upper()
         if not re.match(KEY_PATTERN, value):
             raise serializers.ValidationError(
-                "Project key must be 2-10 letters/digits, starting with a letter."
+                "Project key must be 2-100 letters/digits, starting with a letter."
             )
         qs = Project.objects.filter(key=value)
         if self.instance:

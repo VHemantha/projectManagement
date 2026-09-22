@@ -30,7 +30,9 @@ class Issue(models.Model):
         LOWEST = "lowest", "Lowest"
 
     project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="issues")
-    key = models.CharField(max_length=20, unique=True, editable=False)
+    # PROJECTKEY-N — project keys can now be up to 100 chars, so this needs enough headroom
+    # for the longest key plus "-" plus a large issue number.
+    key = models.CharField(max_length=120, unique=True, editable=False)
     issue_type = models.ForeignKey("workflow.IssueType", on_delete=models.PROTECT, related_name="issues")
     summary = models.CharField(max_length=500)
     description = models.JSONField(null=True, blank=True)
