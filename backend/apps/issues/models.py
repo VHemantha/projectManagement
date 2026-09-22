@@ -45,6 +45,20 @@ class Issue(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reported_issues"
     )
 
+    # RACI-style roles layered on top of assignee/reporter (not replacing them): preparer is
+    # who drafted the work, reviewer is who's expected to review it, current_responsible is
+    # "whoever currently has the ball" and is meant to move as the issue goes through review
+    # (see WorkflowTransition.set_current_responsible_to), unlike assignee which stays fixed.
+    preparer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="prepared_issues"
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="review_issues"
+    )
+    current_responsible = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="responsible_for_issues"
+    )
+
     # An Epic is just an Issue with issue_type=Epic; these two fields carry epic-only data.
     epic_name = models.CharField(max_length=150, blank=True)
     epic_color = models.CharField(max_length=7, blank=True, default="#8777D9")
@@ -60,6 +74,11 @@ class Issue(models.Model):
     )
 
     story_points = models.FloatField(null=True, blank=True)
+    # Optional issue-level budget override, for teams that want granularity below the
+    # project-level Project.budgeted_hours/job_value. Both nullable — most teams only set the
+    # project-level figures and never touch these.
+    budgeted_hours = models.FloatField(null=True, blank=True)
+    allocated_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     original_estimate = models.DurationField(null=True, blank=True)
     time_spent = models.DurationField(null=True, blank=True)
     start_date = models.DateField(null=True, blank=True)

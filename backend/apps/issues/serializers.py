@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -8,7 +9,7 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify, notify_many
 from apps.projects.models import Component, Label, Project, Version
 from apps.sprints.models import Sprint
-from apps.workflow.models import IssueType, WorkflowStatus
+from apps.workflow.models import IssueType, WorkflowStatus, WorkflowTransition
 from apps.workflow.serializers import IssueTypeSerializer, WorkflowStatusSerializer
 
 from .models import Attachment, Comment, Issue, IssueHistory, IssueLink, Watcher
@@ -17,6 +18,9 @@ from .rank import rank_after
 FIELD_DISPLAY_ATTR = {
     "status": "name",
     "assignee": "display_name",
+    "preparer": "display_name",
+    "reviewer": "display_name",
+    "current_responsible": "display_name",
     "epic": "key",
     "parent": "key",
     "sprint": "name",
@@ -35,12 +39,46 @@ HISTORY_TRACKED_FIELDS = [
     "status",
     "priority",
     "assignee",
+    "preparer",
+    "reviewer",
+    "current_responsible",
     "epic",
     "parent",
     "sprint",
     "story_points",
     "due_date",
 ]
+
+
+def _apply_transition_reassignment(instance, old_status):
+    """If a WorkflowTransition matching (old_status -> instance.status) has an auto-reassign
+    rule configured, apply it to current_responsible. Transitions themselves are still
+    unenforced (any status can move to any other) — this only fires a side effect when a
+    transition row happens to match; it's a no-op when none does, so it can never block a
+    status change that already worked before this addendum."""
+    old_status_id = getattr(old_status, "id", None)
+    if old_status_id == instance.status_id:
+        return
+    workflow = getattr(instance.project, "workflow", None)
+    if not workflow:
+        return
+    transition = (
+        WorkflowTransition.objects.filter(workflow=workflow, to_status_id=instance.status_id)
+        .filter(Q(from_status=old_status) | Q(from_status__isnull=True))
+        .exclude(set_current_responsible_to=WorkflowTransition.ReassignRule.NO_CHANGE)
+        .order_by("-from_status_id")  # an exact from-status match beats an "any status" wildcard
+        .first()
+    )
+    if not transition:
+        return
+    new_responsible = {
+        WorkflowTransition.ReassignRule.PREPARER: instance.preparer,
+        WorkflowTransition.ReassignRule.REVIEWER: instance.reviewer,
+        WorkflowTransition.ReassignRule.ASSIGNEE: instance.assignee,
+    }.get(transition.set_current_responsible_to)
+    if new_responsible and new_responsible != instance.current_responsible:
+        instance.current_responsible = new_responsible
+        instance.save(update_fields=["current_responsible"])
 
 
 class LabelMiniSerializer(serializers.ModelSerializer):
@@ -78,6 +116,9 @@ class IssueListSerializer(serializers.ModelSerializer):
     status = WorkflowStatusSerializer(read_only=True)
     assignee = UserSerializer(read_only=True)
     reporter = UserSerializer(read_only=True)
+    preparer = UserSerializer(read_only=True)
+    reviewer = UserSerializer(read_only=True)
+    current_responsible = UserSerializer(read_only=True)
     epic = EpicMiniSerializer(read_only=True)
     sprint = SprintMiniSerializer(read_only=True)
     labels = LabelMiniSerializer(many=True, read_only=True)
@@ -95,6 +136,9 @@ class IssueListSerializer(serializers.ModelSerializer):
             "priority",
             "assignee",
             "reporter",
+            "preparer",
+            "reviewer",
+            "current_responsible",
             "epic",
             "parent_id",
             "sprint",
@@ -123,6 +167,18 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         source="assignee", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
     )
     reporter = UserSerializer(read_only=True)
+    preparer = UserSerializer(read_only=True)
+    preparer_id = serializers.PrimaryKeyRelatedField(
+        source="preparer", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
+    )
+    reviewer = UserSerializer(read_only=True)
+    reviewer_id = serializers.PrimaryKeyRelatedField(
+        source="reviewer", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
+    )
+    current_responsible = UserSerializer(read_only=True)
+    current_responsible_id = serializers.PrimaryKeyRelatedField(
+        source="current_responsible", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
+    )
     epic = EpicMiniSerializer(read_only=True)
     epic_id = serializers.PrimaryKeyRelatedField(
         source="epic", queryset=Issue.objects.filter(issue_type__name="Epic"),
@@ -169,6 +225,12 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "assignee",
             "assignee_id",
             "reporter",
+            "preparer",
+            "preparer_id",
+            "reviewer",
+            "reviewer_id",
+            "current_responsible",
+            "current_responsible_id",
             "epic",
             "epic_id",
             "epic_name",
@@ -178,6 +240,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "sprint",
             "sprint_id",
             "story_points",
+            "budgeted_hours",
+            "allocated_value",
             "original_estimate",
             "time_spent",
             "start_date",
@@ -213,6 +277,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         validated_data.setdefault("reporter", request.user)
+        validated_data.setdefault("preparer", request.user)
+        validated_data.setdefault("current_responsible", validated_data.get("preparer"))
         project = validated_data["project"]
         if "status" not in validated_data:
             workflow = getattr(project, "workflow", None)
@@ -229,9 +295,11 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         request = self.context["request"]
         old_values = {f: getattr(instance, f) for f in HISTORY_TRACKED_FIELDS}
+        old_status = instance.status if instance.status_id else None
         was_done = instance.status.category == "done" if instance.status_id else False
 
         instance = super().update(instance, validated_data)
+        _apply_transition_reassignment(instance, old_status)
 
         history_rows = []
         for field in HISTORY_TRACKED_FIELDS:

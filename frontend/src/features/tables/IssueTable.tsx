@@ -34,7 +34,7 @@ function TimerCell({ issueId }: { issueId: number }) {
   )
 }
 
-export type GroupByOption = 'none' | 'status' | 'assignee' | 'project'
+export type GroupByOption = 'none' | 'status' | 'assignee' | 'project' | 'reviewer' | 'current_responsible'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
@@ -90,6 +90,39 @@ function AssigneeCell({ issue }: { issue: IssueListItem }) {
         }
       >
         <option value="">Unassigned</option>
+        {users?.map((u) => (
+          <option key={u.id} value={u.id}>
+            {u.display_name}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+type RoleField = 'preparer' | 'reviewer' | 'current_responsible'
+
+/** Same avatar + <select> pattern as AssigneeCell, parametrized by which role field it edits
+ * — Preparer/Reviewer/Current Responsible share this instead of three more near-copies. */
+function RoleCell({ issue, field, patchKey }: { issue: IssueListItem; field: RoleField; patchKey: string }) {
+  const patch = usePatchIssueField()
+  const { data: users } = useUsers()
+  const user = issue[field]
+  return (
+    <div className={styles.assigneeCell}>
+      <Avatar name={user?.display_name ?? 'Unset'} src={user?.avatar} size={22} />
+      <select
+        className={styles.inlineSelect}
+        value={user?.id ?? ''}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) =>
+          patch.mutate({
+            key: issue.key,
+            patch: { [patchKey]: e.target.value ? Number(e.target.value) : null },
+          })
+        }
+      >
+        <option value="">Unset</option>
         {users?.map((u) => (
           <option key={u.id} value={u.id}>
             {u.display_name}
@@ -177,6 +210,27 @@ function buildColumns(showProjectColumn: boolean, projectStatuses: WorkflowStatu
       sortFn: 'alphanumeric',
       cell: (ctx) => <AssigneeCell issue={ctx.row.original} />,
     }),
+    helper.accessor((row) => row.preparer?.display_name ?? '', {
+      id: 'preparer',
+      header: 'Preparer',
+      size: 170,
+      sortFn: 'alphanumeric',
+      cell: (ctx) => <RoleCell issue={ctx.row.original} field="preparer" patchKey="preparer_id" />,
+    }),
+    helper.accessor((row) => row.reviewer?.display_name ?? '', {
+      id: 'reviewer',
+      header: 'Reviewer',
+      size: 170,
+      sortFn: 'alphanumeric',
+      cell: (ctx) => <RoleCell issue={ctx.row.original} field="reviewer" patchKey="reviewer_id" />,
+    }),
+    helper.accessor((row) => row.current_responsible?.display_name ?? '', {
+      id: 'current_responsible',
+      header: 'Current responsible',
+      size: 180,
+      sortFn: 'alphanumeric',
+      cell: (ctx) => <RoleCell issue={ctx.row.original} field="current_responsible" patchKey="current_responsible_id" />,
+    }),
     helper.accessor('priority', {
       header: 'Priority',
       size: 130,
@@ -219,6 +273,12 @@ function groupRows(rows: Row<typeof issueTableFeatures, IssueListItem>[], groupB
     } else if (groupBy === 'assignee') {
       key = issue.assignee ? String(issue.assignee.id) : 'unassigned'
       label = issue.assignee?.display_name ?? 'Unassigned'
+    } else if (groupBy === 'reviewer') {
+      key = issue.reviewer ? String(issue.reviewer.id) : 'unassigned'
+      label = issue.reviewer?.display_name ?? 'Unassigned'
+    } else if (groupBy === 'current_responsible') {
+      key = issue.current_responsible ? String(issue.current_responsible.id) : 'unassigned'
+      label = issue.current_responsible?.display_name ?? 'Unassigned'
     } else {
       key = issue.project_key
       label = issue.project_key
@@ -238,6 +298,8 @@ const GROUP_LABELS: Record<GroupByOption, string> = {
   status: 'Group by status',
   assignee: 'Group by assignee',
   project: 'Group by project',
+  reviewer: 'Group by reviewer',
+  current_responsible: 'Group by current responsible',
 }
 
 export function IssueTable({
@@ -265,6 +327,10 @@ export function IssueTable({
       columns,
       data: filtered,
       columnResizeMode: 'onChange',
+      // Preparer/Reviewer/Current Responsible are available via the Columns picker but hidden
+      // by default so existing dense table views (backlog, project issues, workload) don't
+      // suddenly grow three columns wider than before this addendum.
+      initialState: { columnVisibility: { preparer: false, reviewer: false, current_responsible: false } },
     },
     (state) => ({ sorting: state.sorting, columnSizing: state.columnSizing, columnVisibility: state.columnVisibility }),
   )

@@ -1,10 +1,12 @@
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -66,6 +68,66 @@ class ChannelListCreateView(generics.ListCreateAPIView):
         member_ids = self.request.data.get("member_ids", [])
         for uid in member_ids:
             ChannelMembership.objects.get_or_create(channel=channel, user_id=uid)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.IsAuthenticated])
+def find_or_create_dm(request):
+    """POST /api/chat/dm/ {participant_ids: [...]} — find-or-create a direct/group-DM channel
+    with the requester + the given participants. Dedupes by exact participant set (there's no
+    DB-level uniqueness constraint for this — a channel's membership is a M2M, which can't
+    carry a "this exact set" constraint — so the lookup does the dedup): a second call with the
+    same participants returns the same channel (200) rather than creating a duplicate. Doesn't
+    fully rule out a true simultaneous-first-message race under real concurrency, but neither
+    does the identical pattern already used for Timesheet.create()'s idempotency."""
+    from apps.orgs.models import Organization
+
+    participant_ids = {int(pid) for pid in request.data.get("participant_ids", [])}
+    participant_ids.add(request.user.id)
+    if len(participant_ids) < 2:
+        raise ValidationError("A direct message needs at least one other participant.")
+
+    channel_type = Channel.ChannelType.DIRECT_MESSAGE if len(participant_ids) == 2 else Channel.ChannelType.GROUP_DM
+
+    with transaction.atomic():
+        # Chaining .filter(memberships__user_id=uid) per participant plus a Count() annotation
+        # is a well-known Django ORM footgun here — each chained filter joins independently, and
+        # the aggregate can end up counting across the resulting join cross-product instead of
+        # per-channel membership rows. Simpler and correct: narrow to channels that have AT
+        # LEAST these members via one IN-filter, then verify the EXACT set in Python — the
+        # candidate list is always small (nobody has thousands of DM channels).
+        candidate_ids = (
+            Channel.objects.filter(
+                channel_type=channel_type, archived_at__isnull=True, memberships__user_id__in=participant_ids
+            )
+            .values_list("id", flat=True)
+            .distinct()
+        )
+        existing = None
+        for cid in candidate_ids:
+            member_ids = set(ChannelMembership.objects.filter(channel_id=cid).values_list("user_id", flat=True))
+            if member_ids == participant_ids:
+                existing = Channel.objects.get(id=cid)
+                break
+        if existing:
+            return Response(ChannelSerializer(existing, context={"request": request}).data)
+
+        participants = list(User.objects.filter(id__in=participant_ids))
+        # A DM's stored `name` isn't shown to users (ChannelSerializer.participants is what the
+        # frontend renders instead, computed per-viewer) — this is just an admin-readable label.
+        label = ", ".join(sorted(u.username for u in participants))
+        channel = Channel.objects.create(
+            organization=Organization.get_solo(),
+            name=label[:100],
+            channel_type=channel_type,
+            created_by=request.user,
+        )
+        ChannelMembership.objects.bulk_create(
+            [ChannelMembership(channel=channel, user=u) for u in participants]
+        )
+        return Response(
+            ChannelSerializer(channel, context={"request": request}).data, status=status.HTTP_201_CREATED
+        )
 
 
 class ChannelDetailView(generics.RetrieveUpdateAPIView):

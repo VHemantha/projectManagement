@@ -88,6 +88,12 @@ export interface UpdateProjectPayload {
   name?: string
   description?: string
   lead_id?: number
+  client_id?: number | null
+  primary_team_id?: number | null
+  contributing_team_ids?: number[]
+  budgeted_hours?: number | null
+  job_value?: string | null
+  job_value_currency?: string
 }
 
 export function useUpdateProject(key: string) {
@@ -100,6 +106,8 @@ export function useUpdateProject(key: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects', key] })
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      // Client/team assignment changes the tree-nav view's shape.
+      queryClient.invalidateQueries({ queryKey: ['reports', 'nav-tree'] })
     },
   })
 }

@@ -18,6 +18,8 @@ class ChannelSerializer(serializers.ModelSerializer):
     unread_count = serializers.SerializerMethodField()
     project_key = serializers.CharField(source="linked_project.key", read_only=True, default=None)
     team_id = serializers.IntegerField(source="linked_team_id", read_only=True, default=None)
+    participants = serializers.SerializerMethodField()
+    has_messages = serializers.SerializerMethodField()
 
     class Meta:
         model = Channel
@@ -35,8 +37,17 @@ class ChannelSerializer(serializers.ModelSerializer):
             "created_at",
             "archived_at",
             "unread_count",
+            "participants",
+            "has_messages",
         ]
         read_only_fields = ["created_by", "archived_at"]
+
+    def get_has_messages(self, obj):
+        # A freshly find-or-created DM has no messages yet — the frontend uses this to keep
+        # empty DMs out of the sidebar until the first message is actually sent, per the "don't
+        # clutter the sidebar with empty DMs" requirement, without needing to defer the
+        # channel's creation itself (which stays a simple, idempotent find-or-create).
+        return obj.messages.exists()
 
     def get_unread_count(self, obj):
         request = self.context.get("request")
@@ -47,6 +58,14 @@ class ChannelSerializer(serializers.ModelSerializer):
         if membership and membership.last_read_at:
             qs = qs.filter(created_at__gt=membership.last_read_at)
         return qs.count()
+
+    def get_participants(self, obj):
+        # Only DMs/group-DMs need this — their `name` isn't a meaningful display label (see
+        # apps.chat.views.find_or_create_dm), so the frontend renders "Jane Doe" from this
+        # instead. Skipped for every other channel type to avoid an extra query per row.
+        if obj.channel_type not in (Channel.ChannelType.DIRECT_MESSAGE, Channel.ChannelType.GROUP_DM):
+            return []
+        return UserSerializer([m.user for m in obj.memberships.select_related("user").all()], many=True).data
 
 
 class MessageReactionSerializer(serializers.ModelSerializer):

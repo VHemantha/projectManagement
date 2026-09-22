@@ -18,6 +18,8 @@ class IssueFilter(django_filters.FilterSet):
     assignee_in = NumberInFilter(field_name="assignee_id", lookup_expr="in")
     unassigned = django_filters.BooleanFilter(field_name="assignee", lookup_expr="isnull")
     reporter = django_filters.NumberFilter(field_name="reporter_id")
+    reviewer = django_filters.NumberFilter(field_name="reviewer_id")
+    current_responsible = django_filters.NumberFilter(field_name="current_responsible_id")
     sprint = django_filters.NumberFilter(field_name="sprint_id")
     no_sprint = django_filters.BooleanFilter(field_name="sprint", lookup_expr="isnull")
     epic = django_filters.NumberFilter(field_name="epic_id")
@@ -47,6 +49,8 @@ class IssueFilter(django_filters.FilterSet):
             "assignee_in",
             "unassigned",
             "reporter",
+            "reviewer",
+            "current_responsible",
             "sprint",
             "no_sprint",
             "epic",

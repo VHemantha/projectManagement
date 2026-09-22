@@ -3,6 +3,7 @@ import { AtSign, Paperclip, Send, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import styles from './ChatPage.module.css'
+import { channelDisplayName } from './channelDisplay'
 import { extractPlainText } from './richTextPlainText'
 import { useChannelMembers, useSendMessageWithAttachment } from '@/api/chat'
 import type { Channel, User } from '@/api/types'
@@ -16,6 +17,7 @@ import {
   RichTextEditor,
   isDocEmpty,
 } from '@/design-system'
+import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
 
 interface MessageComposerProps {
@@ -25,6 +27,7 @@ interface MessageComposerProps {
 }
 
 export function MessageComposer({ channel, onSend, onTyping }: MessageComposerProps) {
+  const currentUser = useAuthStore((s) => s.user)
   const [draft, setDraft] = useState<JSONContent | null>(null)
   const [mentioned, setMentioned] = useState<User[]>([])
   const [file, setFile] = useState<File | null>(null)
@@ -121,7 +124,7 @@ export function MessageComposer({ channel, onSend, onTyping }: MessageComposerPr
         content={draft}
         onChange={handleChange}
         editable
-        placeholder={`Message #${channel.name}… (try /task or /timer TRK-1)`}
+        placeholder={`Message ${channelDisplayName(channel, currentUser?.id)}… (try /task or /timer TRK-1)`}
       />
       <div className={styles.composerActions}>
         <Button

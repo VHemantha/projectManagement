@@ -51,6 +51,12 @@ class WorkflowStatus(models.Model):
 
 
 class WorkflowTransition(models.Model):
+    class ReassignRule(models.TextChoices):
+        NO_CHANGE = "no_change", "No change"
+        PREPARER = "preparer", "Set to preparer"
+        REVIEWER = "reviewer", "Set to reviewer"
+        ASSIGNEE = "assignee", "Set to assignee"
+
     workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name="transitions")
     name = models.CharField(max_length=50)
     from_status = models.ForeignKey(
@@ -59,16 +65,34 @@ class WorkflowTransition(models.Model):
     to_status = models.ForeignKey(
         WorkflowStatus, on_delete=models.CASCADE, related_name="transitions_to"
     )
+    # Optional: on this transition, auto-set Issue.current_responsible. Purely additive —
+    # transitions themselves are still unenforced (any status can move to any other), this
+    # only fires a side effect when a transition row happens to match the status change made.
+    set_current_responsible_to = models.CharField(
+        max_length=20, choices=ReassignRule.choices, default=ReassignRule.NO_CHANGE
+    )
 
     def __str__(self):
         src = self.from_status.name if self.from_status else "Any"
         return f"{src} -> {self.to_status.name}"
 
 
+def _default_card_fields():
+    # Matches what BoardCard.tsx rendered before this became configurable, so existing
+    # boards look unchanged until someone opens board settings.
+    return ["epic_tag", "story_points", "priority", "assignee"]
+
+
 class Board(models.Model):
     class BoardType(models.TextChoices):
         KANBAN = "kanban", "Kanban"
         SCRUM = "scrum", "Scrum"
+
+    class CardColorRule(models.TextChoices):
+        NONE = "none", "None"
+        PRIORITY = "priority", "By priority"
+        ISSUE_TYPE = "issue_type", "By issue type"
+        LABEL = "label", "By label"
 
     project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="boards")
     name = models.CharField(max_length=100)
@@ -84,6 +108,13 @@ class Board(models.Model):
             ("parent", "By Parent"),
         ],
         default="none",
+    )
+    # ordered list of field keys (e.g. "assignee", "story_points", "priority", "labels",
+    # "due_date", "epic_tag", "current_responsible", "time_logged") rendered on card faces.
+    card_fields = models.JSONField(default=_default_card_fields)
+    card_color_rule = models.CharField(max_length=20, choices=CardColorRule.choices, default=CardColorRule.NONE)
+    filters = models.ForeignKey(
+        "search.Filter", null=True, blank=True, on_delete=models.SET_NULL, related_name="boards"
     )
 
     def __str__(self):

@@ -6,13 +6,14 @@ import { useIssues } from '@/api/issues'
 import { useProjectBoard } from '@/api/projects'
 import { EMPTY_FILTERS, IssueFilterPanel, type IssueFilters, applyIssueFilters } from '@/features/tables/IssueFilterPanel'
 import { IssueTable } from '@/features/tables/IssueTable'
+import type { GroupByOption } from '@/features/tables/IssueTable'
 
 export function ProjectIssuesPage() {
   const { project } = useProjectContext()
   const { data: issuesPage, isLoading } = useIssues({ project: project.key, page_size: 300, ordering: 'rank' })
   const { data: board } = useProjectBoard(project.key)
   const [filters, setFilters] = useState<IssueFilters>(EMPTY_FILTERS)
-  const [groupBy, setGroupBy] = useState<'none' | 'status' | 'assignee' | 'project'>('status')
+  const [groupBy, setGroupBy] = useState<GroupByOption>('status')
 
   const issues = issuesPage?.results ?? []
   const filtered = applyIssueFilters(issues, filters)

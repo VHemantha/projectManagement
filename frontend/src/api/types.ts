@@ -10,6 +10,17 @@ export interface User {
 
 export type ProjectType = 'scrum' | 'kanban'
 
+export interface ClientMini {
+  id: number
+  name: string
+}
+
+export interface TeamMini {
+  id: number
+  name: string
+  avatar_color: string
+}
+
 export interface ProjectSummary {
   id: number
   key: string
@@ -20,6 +31,8 @@ export interface ProjectSummary {
   avatar_color: string
   is_archived: boolean
   issue_count: number
+  client: ClientMini | null
+  primary_team: TeamMini | null
   created_at: string
   updated_at: string
 }
@@ -59,6 +72,10 @@ export interface ProjectDetail extends Omit<ProjectSummary, 'issue_count'> {
   labels: Label[]
   components: Component[]
   versions: Version[]
+  contributing_teams: TeamMini[]
+  budgeted_hours: number | null
+  job_value: string | null
+  job_value_currency: string
 }
 
 export interface WorkflowStatus {
@@ -77,13 +94,48 @@ export interface BoardColumn {
   category?: 'todo' | 'in_progress' | 'done'
 }
 
+export type CardFieldKey =
+  | 'epic_tag'
+  | 'story_points'
+  | 'priority'
+  | 'assignee'
+  | 'labels'
+  | 'due_date'
+  | 'linked_issue_count'
+  | 'time_logged'
+  | 'current_responsible'
+
+export type CardColorRule = 'none' | 'priority' | 'issue_type' | 'label'
+
 export interface Board {
   id: number
   name: string
   board_type: ProjectType
   column_config: BoardColumn[]
   swimlane_mode: 'none' | 'epic' | 'assignee' | 'parent'
+  card_fields: CardFieldKey[]
+  card_color_rule: CardColorRule
+  filters: number | null
   statuses: WorkflowStatus[]
+}
+
+export interface BoardConfig {
+  id: number
+  column_config: BoardColumn[]
+  swimlane_mode: 'none' | 'epic' | 'assignee' | 'parent'
+  card_fields: CardFieldKey[]
+  card_color_rule: CardColorRule
+  filters: number | null
+}
+
+export interface WorkflowTransitionItem {
+  id: number
+  name: string
+  from_status: number | null
+  from_status_name: string
+  to_status: number
+  to_status_name: string
+  set_current_responsible_to: 'no_change' | 'preparer' | 'reviewer' | 'assignee'
 }
 
 export interface Paginated<T> {
@@ -176,6 +228,9 @@ export interface IssueListItem {
   priority: Priority
   assignee: User | null
   reporter: User
+  preparer: User | null
+  reviewer: User | null
+  current_responsible: User | null
   epic: EpicMini | null
   parent_id: number | null
   sprint: SprintMini | null
@@ -213,12 +268,17 @@ export interface IssueDetail {
   priority: Priority
   assignee: User | null
   reporter: User
+  preparer: User | null
+  reviewer: User | null
+  current_responsible: User | null
   epic: EpicMini | null
   epic_name: string
   epic_color: string
   parent: IssueMini | null
   sprint: SprintMini | null
   story_points: number | null
+  budgeted_hours: number | null
+  allocated_value: string | null
   original_estimate: string | null
   time_spent: string | null
   start_date: string | null
@@ -251,6 +311,11 @@ export interface Channel {
   created_at: string
   archived_at: string | null
   unread_count: number
+  /** Populated only for direct_message/group_dm channels — see ChannelSerializer.participants
+   * on the backend. Used to render a per-viewer "Jane Doe" label since a DM's stored `name`
+   * isn't a meaningful display value (it's the same string shown to every participant). */
+  participants: User[]
+  has_messages: boolean
 }
 
 export interface ChannelMembership {

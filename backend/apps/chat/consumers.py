@@ -13,6 +13,61 @@ def group_name(channel_id) -> str:
     return f"chat_{channel_id}"
 
 
+PRESENCE_GROUP = "presence"
+
+# Module-level, in-memory, single-process presence registry (consistent with this project's
+# InMemoryChannelLayer — Redis was explicitly ruled out, so this can't be a distributed store).
+# Keyed by user id -> open-connection count, since one user can have multiple tabs open; a
+# user only flips to "offline" once their LAST connection closes.
+ONLINE_USER_CONNECTIONS: dict[int, int] = {}
+
+
+class PresenceConsumer(AsyncJsonWebsocketConsumer):
+    """A single always-on socket per browser tab (mounted app-wide, not per chat channel) that
+    reports "does this user currently have the app open" — deliberately two-state
+    (online/offline), not three-state with "away", since there's no idle-detection
+    infrastructure elsewhere in the app to drive a meaningful away state yet."""
+
+    async def connect(self):
+        user = self.scope["user"]
+        if not user or not user.is_authenticated:
+            await self.close(code=4003)
+            return
+        self.user_id = user.id
+        await self.channel_layer.group_add(PRESENCE_GROUP, self.channel_name)
+        await self.accept()
+
+        was_offline = ONLINE_USER_CONNECTIONS.get(self.user_id, 0) == 0
+        ONLINE_USER_CONNECTIONS[self.user_id] = ONLINE_USER_CONNECTIONS.get(self.user_id, 0) + 1
+        if was_offline:
+            await self.channel_layer.group_send(
+                PRESENCE_GROUP, {"type": "presence.update", "user_id": self.user_id, "online": True}
+            )
+        await self.send_json({"type": "presence.snapshot", "user_ids": list(ONLINE_USER_CONNECTIONS.keys())})
+
+    async def disconnect(self, close_code):
+        if not hasattr(self, "user_id"):
+            return
+        await self.channel_layer.group_discard(PRESENCE_GROUP, self.channel_name)
+        remaining = ONLINE_USER_CONNECTIONS.get(self.user_id, 1) - 1
+        if remaining <= 0:
+            ONLINE_USER_CONNECTIONS.pop(self.user_id, None)
+            await self.channel_layer.group_send(
+                PRESENCE_GROUP, {"type": "presence.update", "user_id": self.user_id, "online": False}
+            )
+        else:
+            ONLINE_USER_CONNECTIONS[self.user_id] = remaining
+
+    async def presence_update(self, event):
+        # Same self-filtering as ChatConsumer.chat_typing — a user doesn't need to be told
+        # about their own connect/disconnect, and without this they'd see their own "online"
+        # echo arrive before the snapshot (group_add happens before the broadcast, so the
+        # newly-joined socket is already a member of the group it's about to broadcast to).
+        if event["user_id"] == self.user_id:
+            return
+        await self.send_json({"type": "presence.update", "user_id": event["user_id"], "online": event["online"]})
+
+
 class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.channel_id = self.scope["url_route"]["kwargs"]["channel_id"]

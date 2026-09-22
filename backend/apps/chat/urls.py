@@ -10,11 +10,13 @@ from .views import (
     MessageListCreateView,
     MessageThreadRepliesView,
     create_task_from_message,
+    find_or_create_dm,
     link_task_to_message,
     toggle_reaction,
 )
 
 urlpatterns = [
+    path("dm/", find_or_create_dm, name="chat-dm"),
     path("channels/", ChannelListCreateView.as_view(), name="channel-list"),
     path("channels/<int:pk>/", ChannelDetailView.as_view(), name="channel-detail"),
     path("channels/<int:pk>/members/", ChannelMembersView.as_view(), name="channel-members"),

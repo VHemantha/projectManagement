@@ -9,12 +9,13 @@ import { useTimeEntries } from '@/api/timesheets'
 import type { TeamDetail } from '@/api/types'
 import { Avatar } from '@/design-system'
 import { IssueTable } from '@/features/tables/IssueTable'
+import type { GroupByOption } from '@/features/tables/IssueTable'
 
 const PERIOD_DAYS = 30
 
 export function TeamIssuesTab({ team }: { team: TeamDetail }) {
   const memberIds = useMemo(() => team.memberships.map((m) => m.user.id), [team])
-  const [groupBy, setGroupBy] = useState<'none' | 'status' | 'assignee' | 'project'>('project')
+  const [groupBy, setGroupBy] = useState<GroupByOption>('project')
   const [sortKey, setSortKey] = useState<'issues' | 'hours'>('hours')
   const [sortDesc, setSortDesc] = useState(true)
   const navigate = useNavigate()
@@ -96,7 +97,7 @@ export function TeamIssuesTab({ team }: { team: TeamDetail }) {
           {sortedRows.map((row) => (
             <tr key={row.user.id} style={{ cursor: 'pointer' }} onClick={() => navigate(`/people/${row.user.id}`)}>
               <td style={{ padding: '8px 12px', borderBottom: '1px solid var(--tf-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Avatar name={row.user.display_name} src={row.user.avatar} size={24} />
+                <Avatar name={row.user.display_name} src={row.user.avatar} size={24} userId={row.user.id} interactive />
                 {row.user.display_name}
               </td>
               <td style={{ padding: '8px 12px', textAlign: 'right', borderBottom: '1px solid var(--tf-border)' }}>{row.issues}</td>

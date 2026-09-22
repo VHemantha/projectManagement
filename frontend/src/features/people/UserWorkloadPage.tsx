@@ -8,15 +8,25 @@ import { useTimeEntries } from '@/api/timesheets'
 import { useUsers } from '@/api/users'
 import { Avatar } from '@/design-system'
 import { IssueTable } from '@/features/tables/IssueTable'
+import type { GroupByOption } from '@/features/tables/IssueTable'
+
+type RoleScope = 'assignee' | 'reviewer' | 'current_responsible'
+
+const ROLE_SCOPE_LABELS: Record<RoleScope, string> = {
+  assignee: 'My work',
+  reviewer: 'My reviews',
+  current_responsible: 'With me',
+}
 
 export function UserWorkloadPage() {
   const { userId } = useParams<{ userId: string }>()
   const { data: users } = useUsers()
   const user = users?.find((u) => u.id === Number(userId))
-  const [groupBy, setGroupBy] = useState<'none' | 'status' | 'assignee' | 'project'>('project')
+  const [groupBy, setGroupBy] = useState<GroupByOption>('project')
+  const [roleScope, setRoleScope] = useState<RoleScope>('assignee')
 
   const { data: issuesPage, isLoading } = useIssues(
-    { assignee: Number(userId), page_size: 300, ordering: 'rank' },
+    { [roleScope]: Number(userId), page_size: 300, ordering: 'rank' },
     !!userId,
   )
   const issues = issuesPage?.results ?? []
@@ -88,6 +98,27 @@ export function UserWorkloadPage() {
         </div>
       </div>
 
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+        {(Object.keys(ROLE_SCOPE_LABELS) as RoleScope[]).map((scope) => (
+          <button
+            key={scope}
+            onClick={() => setRoleScope(scope)}
+            style={{
+              fontSize: 13,
+              padding: '5px 12px',
+              borderRadius: 999,
+              border: '1px solid var(--tf-border)',
+              cursor: 'pointer',
+              background: roleScope === scope ? 'var(--tf-blue-subtle)' : 'var(--tf-surface)',
+              color: roleScope === scope ? 'var(--tf-blue)' : 'var(--tf-text)',
+              fontWeight: roleScope === scope ? 600 : 400,
+            }}
+          >
+            {ROLE_SCOPE_LABELS[scope]}
+          </button>
+        ))}
+      </div>
+
       <IssueTable
         issues={issues}
         isLoading={isLoading}
@@ -95,7 +126,7 @@ export function UserWorkloadPage() {
         onGroupByChange={setGroupBy}
         availableGroupBy={['none', 'project', 'status']}
         showProjectColumn
-        emptyMessage="No issues assigned."
+        emptyMessage="No issues found for this filter."
       />
     </div>
   )

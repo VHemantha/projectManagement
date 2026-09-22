@@ -21,6 +21,7 @@ from .serializers import (
     IssueLinkSerializer,
     IssueListSerializer,
     RecentActivitySerializer,
+    _apply_transition_reassignment,
 )
 
 KEY_LOOKUP_REGEX = r"[A-Za-z0-9]+-\d+"
@@ -74,10 +75,14 @@ class IssueViewSet(viewsets.ModelViewSet):
                         new_value=issue.sprint.name if issue.sprint_id else "",
                     )
                 )
+        status_changed = False
+        old_status = None
+        old_current_responsible = issue.current_responsible
         if "status_id" in request.data:
             old_status = issue.status
             issue.status_id = request.data["status_id"]
-            if issue.status_id != old_status.id:
+            status_changed = issue.status_id != old_status.id
+            if status_changed:
                 history_rows.append(
                     IssueHistory(
                         issue=issue, user=request.user, field_changed="status",
@@ -100,6 +105,20 @@ class IssueViewSet(viewsets.ModelViewSet):
                 )
 
         issue.save()
+        if status_changed:
+            # Same optional workflow-transition auto-reassignment hook as the regular issue
+            # PATCH path (IssueDetailSerializer.update) — duplicated here rather than shared
+            # via a bigger refactor because this action mutates `issue` directly instead of
+            # going through the serializer's update().
+            _apply_transition_reassignment(issue, old_status)
+            if issue.current_responsible_id != (old_current_responsible.id if old_current_responsible else None):
+                history_rows.append(
+                    IssueHistory(
+                        issue=issue, user=request.user, field_changed="current_responsible",
+                        old_value=str(old_current_responsible) if old_current_responsible else "",
+                        new_value=str(issue.current_responsible) if issue.current_responsible else "",
+                    )
+                )
         if history_rows:
             IssueHistory.objects.bulk_create(history_rows)
         return Response(IssueDetailSerializer(issue, context=self.get_serializer_context()).data)

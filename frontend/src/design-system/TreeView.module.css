@@ -1,0 +1,40 @@
+.tree {
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border-radius: var(--tf-radius-sm);
+  cursor: pointer;
+  color: var(--tf-text);
+  white-space: nowrap;
+}
+
+.row:hover {
+  background: var(--tf-surface-hover);
+}
+
+.chevron {
+  color: var(--tf-text-subtle);
+  flex-shrink: 0;
+}
+
+.chevronSpacer {
+  display: inline-block;
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  padding: var(--tf-space-4);
+  color: var(--tf-text-subtle);
+  font-size: 13px;
+}

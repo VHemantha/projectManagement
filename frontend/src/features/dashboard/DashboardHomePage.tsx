@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import styles from './DashboardHomePage.module.css'
+import { DailyGoalsWidget } from './DailyGoalsWidget'
 import { useIssues, useRecentActivity } from '@/api/issues'
 import { IssueKey, IssueTypeIcon, StatusBadge } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
@@ -49,6 +50,8 @@ export function DashboardHomePage() {
 
       <div className={styles.grid}>
         <div>
+          <DailyGoalsWidget />
+
           <div className={styles.card}>
             <div className={styles.cardTitle}>Assigned to me ({myIssues.length})</div>
             {myIssues.length === 0 ? (

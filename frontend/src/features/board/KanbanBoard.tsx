@@ -12,12 +12,12 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 
 import styles from './KanbanBoard.module.css'
 import { BoardCard } from './BoardCard'
 import { type Lane, type SwimlaneMode, computeLanes } from './laneUtils'
-import type { BoardColumn, IssueListItem } from '@/api/types'
+import type { BoardColumn, CardColorRule, CardFieldKey, IssueListItem } from '@/api/types'
 import { Avatar, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
@@ -28,6 +28,12 @@ interface KanbanBoardProps {
   defaultSwimlaneMode?: SwimlaneMode
   showSwimlanePicker?: boolean
   availableSwimlanes?: SwimlaneMode[]
+  /** Extra toolbar content rendered at the end of the filters bar — e.g. a "Configure board"
+   * button. Kept as an injected node rather than a boards-API-aware prop so this component
+   * stays generic across all four board scopes (project, epic, team, my-work). */
+  toolbarExtra?: ReactNode
+  cardFields?: CardFieldKey[]
+  cardColorRule?: CardColorRule
   onMoveIssue: (params: {
     issue: IssueListItem
     column: BoardColumn
@@ -56,6 +62,9 @@ export function KanbanBoard({
   defaultSwimlaneMode = 'none',
   showSwimlanePicker = true,
   availableSwimlanes = ['none', 'epic', 'assignee'],
+  toolbarExtra,
+  cardFields,
+  cardColorRule,
   onMoveIssue,
   emptyMessage = 'No issues to show.',
 }: KanbanBoardProps) {
@@ -70,6 +79,14 @@ export function KanbanBoard({
   const [dragging, setDragging] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  // Board settings can now persist a swimlane_mode server-side; when that saved default
+  // changes (e.g. after editing it in Configure Board), adopt it as the new baseline. The
+  // picker below still lets a viewer locally override it for their own session without
+  // writing anything back.
+  useEffect(() => {
+    setSwimlaneMode(defaultSwimlaneMode)
+  }, [defaultSwimlaneMode])
 
   const filteredIssues = useMemo(() => {
     return issues.filter((issue) => {
@@ -219,6 +236,7 @@ export function KanbanBoard({
             ))}
           </select>
         )}
+        {toolbarExtra}
       </div>
 
       <div className={styles.scrollArea}>
@@ -238,9 +256,13 @@ export function KanbanBoard({
               collapsed={collapsed}
               setCollapsed={setCollapsed}
               issuesById={issuesById}
+              cardFields={cardFields}
+              cardColorRule={cardColorRule}
             />
           ))}
-          <DragOverlay>{activeIssue ? <BoardCard issue={activeIssue} /> : null}</DragOverlay>
+          <DragOverlay>
+            {activeIssue ? <BoardCard issue={activeIssue} cardFields={cardFields} cardColorRule={cardColorRule} /> : null}
+          </DragOverlay>
         </DndContext>
       </div>
     </div>
@@ -254,6 +276,8 @@ function BoardLane({
   collapsed,
   setCollapsed,
   issuesById,
+  cardFields,
+  cardColorRule,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -261,6 +285,8 @@ function BoardLane({
   collapsed: Set<number>
   setCollapsed: (fn: (prev: Set<number>) => Set<number>) => void
   issuesById: Record<number, IssueListItem>
+  cardFields?: CardFieldKey[]
+  cardColorRule?: CardColorRule
 }) {
   return (
     <div className={styles.lane}>
@@ -295,6 +321,8 @@ function BoardLane({
               }
               issueIds={ids}
               issuesById={issuesById}
+              cardFields={cardFields}
+              cardColorRule={cardColorRule}
             />
           )
         })}
@@ -313,6 +341,8 @@ function BoardColumnView({
   onToggleCollapse,
   issueIds,
   issuesById,
+  cardFields,
+  cardColorRule,
 }: {
   containerId: string
   title: string
@@ -323,6 +353,8 @@ function BoardColumnView({
   onToggleCollapse: () => void
   issueIds: number[]
   issuesById: Record<number, IssueListItem>
+  cardFields?: CardFieldKey[]
+  cardColorRule?: CardColorRule
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
@@ -346,7 +378,17 @@ function BoardColumnView({
             {issueIds.length === 0 ? (
               <div className={styles.emptyColumn}>—</div>
             ) : (
-              issueIds.map((id) => issuesById[id] && <BoardCard key={id} issue={issuesById[id]} />)
+              issueIds.map(
+                (id) =>
+                  issuesById[id] && (
+                    <BoardCard
+                      key={id}
+                      issue={issuesById[id]}
+                      cardFields={cardFields}
+                      cardColorRule={cardColorRule}
+                    />
+                  ),
+              )
             )}
           </div>
         </SortableContext>

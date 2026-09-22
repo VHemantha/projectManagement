@@ -2,8 +2,9 @@ import { useParams } from 'react-router-dom'
 
 import styles from './TeamBoardPage.module.css'
 import { useTeam } from '@/api/teams'
-import { TeamIssuesTab } from './TeamIssuesTab'
 import { TeamBoard } from './TeamBoard'
+import { TeamGoalsTab } from './TeamGoalsTab'
+import { TeamIssuesTab } from './TeamIssuesTab'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 
 export function TeamDetailPage() {
@@ -29,6 +30,7 @@ export function TeamDetailPage() {
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="issues">Issues</TabsTrigger>
+            <TabsTrigger value="goals">Team Goals</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="board" style={{ flex: 1, minHeight: 0 }}>
@@ -36,6 +38,9 @@ export function TeamDetailPage() {
         </TabsContent>
         <TabsContent value="issues">
           <TeamIssuesTab team={team} />
+        </TabsContent>
+        <TabsContent value="goals">
+          <TeamGoalsTab team={team} />
         </TabsContent>
       </Tabs>
     </div>

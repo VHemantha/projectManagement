@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 
 import styles from './ChatPage.module.css'
+import { channelDisplayTitle } from './channelDisplay'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { useMarkChannelRead, useMessages, useThreadReplies } from '@/api/chat'
 import { useChatSocket } from '@/api/useChatSocket'
 import type { Channel, ChatMessage } from '@/api/types'
 import { Skeleton } from '@/design-system'
+import { useAuthStore } from '@/store/authStore'
 
 function ThreadPanel({ parent, channel, onClose }: { parent: ChatMessage; channel: Channel; onClose: () => void }) {
   const { data: replies } = useThreadReplies(parent.id)
@@ -36,6 +38,7 @@ function ThreadPanel({ parent, channel, onClose }: { parent: ChatMessage; channe
 }
 
 export function MessageThread({ channel }: { channel: Channel }) {
+  const currentUser = useAuthStore((s) => s.user)
   const { data: messages, isLoading } = useMessages(channel.id)
   const { sendMessage, sendTyping, typingUser, connectionState } = useChatSocket(channel.id)
   const markRead = useMarkChannelRead()
@@ -56,7 +59,7 @@ export function MessageThread({ channel }: { channel: Channel }) {
       <div className={styles.thread}>
         <div className={styles.threadHeader}>
           <div>
-            <div className={styles.threadTitle}>#{channel.name}</div>
+            <div className={styles.threadTitle}>{channelDisplayTitle(channel, currentUser?.id)}</div>
             {channel.description && <div className={styles.threadDescription}>{channel.description}</div>}
           </div>
           <span

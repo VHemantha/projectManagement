@@ -17,7 +17,7 @@ export function PeopleDirectoryPage() {
         <div className={styles.grid}>
           {users?.map((user) => (
             <div key={user.id} className={styles.card} onClick={() => navigate(`/people/${user.id}`)}>
-              <Avatar name={user.display_name} src={user.avatar} size={40} />
+              <Avatar name={user.display_name} src={user.avatar} size={40} userId={user.id} interactive />
               <div>
                 <div className={styles.name}>{user.display_name}</div>
                 <div className={styles.role}>{user.job_title || user.email}</div>

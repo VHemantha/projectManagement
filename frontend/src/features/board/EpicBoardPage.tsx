@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom'
 
 import { KanbanBoard } from './KanbanBoard'
+import { resolveDropStatusId } from './laneUtils'
 import { useIssue, useIssues, useMoveIssue } from '@/api/issues'
 import { useProjectBoard } from '@/api/projects'
 
@@ -31,7 +32,12 @@ export function EpicBoardPage() {
           availableSwimlanes={['none', 'assignee']}
           emptyMessage="No issues under this epic yet."
           onMoveIssue={({ issue, column, beforeId, afterId }) =>
-            moveIssue.mutate({ key: issue.key, status_id: column.status_ids[0], before_id: beforeId, after_id: afterId })
+            moveIssue.mutate({
+              key: issue.key,
+              status_id: resolveDropStatusId(issue, column),
+              before_id: beforeId,
+              after_id: afterId,
+            })
           }
         />
       </div>

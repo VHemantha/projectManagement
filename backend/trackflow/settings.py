@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     # trackflow apps
     "apps.orgs",
     "apps.accounts",
+    "apps.clients",
     "apps.projects",
     "apps.workflow",
     "apps.issues",
@@ -60,6 +61,7 @@ INSTALLED_APPS = [
     "apps.reports",
     "apps.chat",
     "apps.timesheets",
+    "apps.daily_goals",
 ]
 
 MIDDLEWARE = [

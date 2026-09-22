@@ -5,11 +5,13 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import styles from './ProjectsListPage.module.css'
+import { CreateClientDialog } from './CreateClientDialog'
 import { CreateProjectDialog } from './CreateProjectDialog'
+import { useNavTree } from '@/api/reports'
 import { useProjects } from '@/api/projects'
 import type { ProjectSummary } from '@/api/types'
 import { tfTableFeatures } from '@/lib/tableFeatures'
-import { Avatar, Button, Skeleton } from '@/design-system'
+import { Avatar, Button, Skeleton, TreeView, type TreeNode } from '@/design-system'
 
 const EMPTY: ProjectSummary[] = []
 const helper = createColumnHelper<typeof tfTableFeatures, ProjectSummary>()
@@ -61,10 +63,16 @@ const columns = helper.columns([
   }),
 ])
 
+type ViewMode = 'flat' | 'team' | 'client'
+
 export function ProjectsListPage() {
   const { data: projects, isLoading } = useProjects()
   const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
+  const [createClientOpen, setCreateClientOpen] = useState(false)
+  const [viewMode, setViewMode] = useState<ViewMode>('flat')
+  const [treeSearch, setTreeSearch] = useState('')
+  const { data: treeNodes, isLoading: treeLoading } = useNavTree(viewMode === 'client' ? 'client' : 'team')
 
   const table = useTable(
     {
@@ -75,6 +83,11 @@ export function ProjectsListPage() {
     (state) => ({ sorting: state.sorting }),
   )
 
+  const handleTreeLeafClick = (node: TreeNode) => {
+    if (node.type === 'board' && typeof node.project_key === 'string') navigate(`/projects/${node.project_key}/board`)
+    else if (node.type === 'project' && typeof node.key === 'string') navigate(`/projects/${node.key}`)
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -84,6 +97,71 @@ export function ProjectsListPage() {
         </Button>
       </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'inline-flex', border: '1px solid var(--tf-border)', borderRadius: 6, overflow: 'hidden' }}>
+          {([
+            ['flat', 'Flat'],
+            ['team', 'By Team'],
+            ['client', 'By Client'],
+          ] as const).map(([mode, label]) => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              style={{
+                fontSize: 13,
+                padding: '6px 14px',
+                border: 'none',
+                cursor: 'pointer',
+                background: viewMode === mode ? 'var(--tf-blue-subtle)' : 'var(--tf-surface)',
+                color: viewMode === mode ? 'var(--tf-blue)' : 'var(--tf-text)',
+                fontWeight: viewMode === mode ? 600 : 400,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {viewMode !== 'flat' && (
+          <input
+            placeholder="Search team, client, project or board…"
+            value={treeSearch}
+            onChange={(e) => setTreeSearch(e.target.value)}
+            style={{
+              flex: 1,
+              maxWidth: 320,
+              height: 32,
+              borderRadius: 6,
+              border: '1px solid var(--tf-border)',
+              padding: '0 10px',
+              fontSize: 13,
+            }}
+          />
+        )}
+        {viewMode !== 'flat' && (
+          <Button variant="secondary" size="sm" onClick={() => setCreateClientOpen(true)}>
+            <Plus size={14} /> New client
+          </Button>
+        )}
+      </div>
+
+      {viewMode !== 'flat' ? (
+        <div className={styles.tableWrap} style={{ padding: 8 }}>
+          {treeLoading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 8 }}>
+              {[0, 1, 2].map((row) => (
+                <Skeleton key={row} height={13} width={row % 2 === 0 ? '50%' : '35%'} />
+              ))}
+            </div>
+          ) : (
+            <TreeView
+              nodes={treeNodes ?? []}
+              onLeafClick={handleTreeLeafClick}
+              filterQuery={treeSearch}
+              emptyMessage={viewMode === 'team' ? 'No teams yet.' : 'No clients yet.'}
+            />
+          )}
+        </div>
+      ) : (
       <div className={styles.tableWrap}>
         {isLoading ? (
           <div style={{ padding: 'var(--tf-space-3) var(--tf-space-4)' }}>
@@ -133,8 +211,10 @@ export function ProjectsListPage() {
           </table>
         )}
       </div>
+      )}
 
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateClientDialog open={createClientOpen} onOpenChange={setCreateClientOpen} />
     </div>
   )
 }

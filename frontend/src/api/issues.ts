@@ -35,6 +35,8 @@ export interface IssueQueryParams {
   assignee?: number
   assignee_in?: string
   unassigned?: boolean
+  reviewer?: number
+  current_responsible?: number
   epic?: number
   parent?: number
   no_parent?: boolean

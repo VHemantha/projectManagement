@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.chat.models import Channel, ChannelMembership, Message, MessageIssueLink
+from apps.clients.models import Client
 from apps.issues.models import Comment, Issue, IssueHistory, Watcher
 from apps.issues.rank import rank_after, rank_first
 from apps.orgs.models import Organization
@@ -15,7 +16,7 @@ from apps.sprints.models import Sprint
 from apps.teams.models import Team, TeamMembership
 from apps.timesheets.models import TimeEntry
 from apps.workflow.models import IssueType
-from apps.workflow.services import create_default_board, create_default_workflow
+from apps.workflow.services import create_default_board, create_default_transitions, create_default_workflow
 
 DEMO_USERS = [
     # (username, email, display_name, job_title)
@@ -107,6 +108,7 @@ class Command(BaseCommand):
             org, key="OPS", name="Platform Ops", project_type=Project.ProjectType.KANBAN,
             lead=users["sofia"], users=users, avatar_color="#36B37E",
         )
+        self._seed_clients_and_team_links(scrum_project, kanban_project, teams)
 
         self._seed_general_channel(org)
 
@@ -179,6 +181,24 @@ class Command(BaseCommand):
             )
         return {"platform": platform, "growth": growth}
 
+    def _seed_clients_and_team_links(self, scrum_project, kanban_project, teams):
+        # Gives the tree-nav ("By Team" / "By Client") view real structure to show, including
+        # one project under two team branches (TRK) to demonstrate the many-to-many case.
+        acme, _ = Client.objects.get_or_create(
+            organization=Organization.get_solo(), name="Acme Corp",
+            defaults=dict(primary_contact_name="Jordan Blake", primary_contact_email="jordan@acme.example"),
+        )
+        scrum_project.client = acme
+        scrum_project.primary_team = teams["platform"]
+        scrum_project.budgeted_hours = 40
+        scrum_project.job_value = 8000
+        scrum_project.save(update_fields=["client", "primary_team", "budgeted_hours", "job_value"])
+        scrum_project.contributing_teams.set([teams["growth"]])
+
+        kanban_project.primary_team = teams["platform"]
+        kanban_project.save(update_fields=["primary_team"])
+        # OPS has no client set — exercises the "Internal / No Client" catch-all branch.
+
     # -- project scaffolding -------------------------------------------------
 
     def _seed_project(self, org, key, name, project_type, lead, users, avatar_color):
@@ -196,7 +216,9 @@ class Command(BaseCommand):
         return project
 
     def _seed_workflow(self, project):
-        return create_default_workflow(project)
+        statuses = create_default_workflow(project)
+        create_default_transitions(project, statuses)
+        return statuses
 
     def _seed_board(self, project, statuses):
         create_default_board(project, statuses)

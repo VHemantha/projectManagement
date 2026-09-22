@@ -20,7 +20,7 @@ import {
   useUploadAttachment,
 } from '@/api/issues'
 import type { IssueLinkType, IssueMini } from '@/api/types'
-import { Button, IssueKey, IssueTypeIcon, PriorityIcon, RichTextEditor, Skeleton, StatusBadge, isDocEmpty } from '@/design-system'
+import { Avatar, Button, IssueKey, IssueTypeIcon, PriorityIcon, RichTextEditor, Skeleton, StatusBadge, isDocEmpty } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
@@ -279,6 +279,24 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           <IssueTypeIcon typeName={issue.issue_type.name} size={16} />
           <IssueKey value={issue.key} />
           <StatusBadge label={issue.status.name} category={issue.status.category as StatusCategory} />
+          {issue.current_responsible && (
+            <span
+              title="Currently responsible"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 12,
+                color: 'var(--tf-text-subtle)',
+                background: 'var(--tf-surface-sunken)',
+                borderRadius: 999,
+                padding: '2px 8px 2px 2px',
+              }}
+            >
+              <Avatar name={issue.current_responsible.display_name} src={issue.current_responsible.avatar} size={16} />
+              with: {issue.current_responsible.display_name}
+            </span>
+          )}
           <PriorityIcon priority={issue.priority} />
           <TimerButton issueId={issue.id} iconOnly={false} size="sm" />
         </div>

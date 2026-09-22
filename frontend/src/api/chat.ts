@@ -37,6 +37,17 @@ export function useChannelMembers(channelId: number | undefined) {
   })
 }
 
+export function useCreateDm() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (participantIds: number[]) => {
+      const { data } = await apiClient.post<Channel>('/chat/dm/', { participant_ids: participantIds })
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chat', 'channels'] }),
+  })
+}
+
 export function useCreateChannel() {
   const queryClient = useQueryClient()
   return useMutation({

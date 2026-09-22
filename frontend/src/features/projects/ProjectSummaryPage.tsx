@@ -4,8 +4,71 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import styles from './ProjectSummaryPage.module.css'
 import { useProjectContext } from './useProjectContext'
+import { useBudgetVsActual } from '@/api/reports'
 import { useTimeEntries } from '@/api/timesheets'
 import { Avatar } from '@/design-system'
+
+function BudgetPanel({ projectKey }: { projectKey: string }) {
+  const { data } = useBudgetVsActual(projectKey)
+  const row = data && 'project' in data ? data.project : undefined
+  if (!row) return null
+
+  const hasBudget = row.budgeted_hours != null
+  const pct = row.pct_complete ?? 0
+  // Same amber/red visual language as the board's WIP-limit warning: amber once you're
+  // getting close, red once you've actually gone over.
+  const barColor = pct > 100 ? 'var(--tf-danger)' : pct >= 80 ? 'var(--tf-warning)' : 'var(--tf-blue)'
+  const hasJobValue = row.job_value != null
+
+  if (!hasBudget && !hasJobValue) return null
+
+  return (
+    <div className={styles.section}>
+      <div className={styles.sectionTitle}>Budget</div>
+      {hasBudget && (
+        <div style={{ marginBottom: hasJobValue ? 16 : 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 6 }}>
+            <span>
+              {row.actual_hours.toFixed(1)}h of {row.budgeted_hours}h budgeted
+            </span>
+            <span style={{ color: barColor, fontWeight: 600 }}>{pct.toFixed(0)}%</span>
+          </div>
+          <div style={{ height: 8, borderRadius: 4, background: 'var(--tf-surface-sunken)', overflow: 'hidden' }}>
+            <div
+              style={{ height: '100%', width: `${Math.min(pct, 100)}%`, background: barColor, borderRadius: 4 }}
+            />
+          </div>
+        </div>
+      )}
+      {hasJobValue && (
+        <div style={{ display: 'flex', gap: 24, fontSize: 13 }}>
+          <div>
+            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>Job value</div>
+            <div style={{ fontWeight: 600 }}>
+              {row.job_value_currency} {Number(row.job_value).toLocaleString()}
+            </div>
+          </div>
+          <div>
+            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>
+              Effective cost
+            </div>
+            <div style={{ fontWeight: 600 }}>
+              {row.job_value_currency} {Number(row.effective_cost).toLocaleString()}
+            </div>
+          </div>
+          {row.margin != null && (
+            <div>
+              <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>Margin</div>
+              <div style={{ fontWeight: 600, color: Number(row.margin) < 0 ? 'var(--tf-danger)' : 'var(--tf-success)' }}>
+                {row.job_value_currency} {Number(row.margin).toLocaleString()}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const PERIOD_DAYS = 30
 
@@ -61,6 +124,8 @@ export function ProjectSummaryPage() {
           <div className={styles.statLabel}>Time logged (30d)</div>
         </div>
       </div>
+
+      <BudgetPanel projectKey={project.key} />
 
       {project.description && (
         <div className={styles.section}>

@@ -103,3 +103,45 @@
   font-size: 13px;
   padding: var(--tf-space-3) 0;
 }
+
+.goalRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tf-border);
+}
+.goalRow:last-child {
+  border-bottom: none;
+}
+
+.goalDragHandle {
+  cursor: grab;
+  color: var(--tf-text-subtle);
+  font-size: 13px;
+  line-height: 20px;
+  user-select: none;
+}
+
+.goalCheck {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border-radius: 4px;
+  border: 1.5px solid var(--tf-border);
+  background: var(--tf-surface);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  padding: 0;
+}
+.goalCheck[data-status='achieved'] {
+  background: var(--tf-success);
+  border-color: var(--tf-success);
+}
+.goalCheck[data-status='not_achieved'] {
+  border-color: var(--tf-danger);
+}

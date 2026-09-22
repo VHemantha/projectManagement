@@ -42,6 +42,25 @@ class Project(models.Model):
     lead = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, related_name="led_projects"
     )
+    client = models.ForeignKey(
+        "clients.Client", null=True, blank=True, on_delete=models.SET_NULL, related_name="projects"
+    )
+    # The tree-nav "By Team" view groups projects under teams. A project's main team (if any)
+    # plus any other contributing teams via the ProjectTeam M2M below — Project and Team had no
+    # relationship at all before this addendum.
+    primary_team = models.ForeignKey(
+        "teams.Team", null=True, blank=True, on_delete=models.SET_NULL, related_name="primary_projects"
+    )
+    contributing_teams = models.ManyToManyField(
+        "teams.Team", through="ProjectTeam", blank=True, related_name="contributing_projects"
+    )
+    # Reporting/visibility only — no invoicing or automatic billing, matching the scope
+    # boundary already set for Timesheets. job_value is a separate, often fixed-fee number
+    # that doesn't derive from rate × hours (BillableRate), which matters for services
+    # businesses tracking margin (job_value - effective cost) alongside hours budget vs actual.
+    budgeted_hours = models.FloatField(null=True, blank=True)
+    job_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    job_value_currency = models.CharField(max_length=3, default="USD")
     avatar_color = models.CharField(max_length=7, default="#0C66E4")
     default_assignee_rule = models.CharField(
         max_length=20,
@@ -84,6 +103,21 @@ class ProjectMembership(models.Model):
 
     def __str__(self):
         return f"{self.user} in {self.project} ({self.role})"
+
+
+class ProjectTeam(models.Model):
+    """Additional teams contributing to a project, beyond its primary_team — a project with
+    multiple contributing teams should appear under each relevant team branch in the tree-nav
+    view rather than being forced into a single-parent tree."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="project_team_rows")
+    team = models.ForeignKey("teams.Team", on_delete=models.CASCADE, related_name="project_team_rows")
+
+    class Meta:
+        unique_together = ("project", "team")
+
+    def __str__(self):
+        return f"{self.team} on {self.project}"
 
 
 class Label(models.Model):

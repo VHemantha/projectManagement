@@ -6,6 +6,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { GlobalSidebar } from './GlobalSidebar'
 import { TopNav } from './TopNav'
 import { useCurrentUser } from '@/api/auth'
+import { usePresenceSocket } from '@/api/usePresenceSocket'
 import { CreateIssueModal } from '@/features/issues/CreateIssueModal'
 import { IssueDetailModal } from '@/features/issues/IssueDetailModal'
 import { QuickSearchModal } from '@/features/search/QuickSearchModal'
@@ -14,6 +15,7 @@ export function AppShell() {
   const [expanded, setExpanded] = useState(false)
   const location = useLocation()
   useCurrentUser()
+  usePresenceSocket()
 
   return (
     <div className={styles.shell}>

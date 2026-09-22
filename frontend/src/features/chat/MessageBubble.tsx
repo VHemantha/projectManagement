@@ -46,7 +46,7 @@ export function MessageBubble({ message, channelId, onOpenThread }: MessageBubbl
 
   return (
     <div className={styles.messageRow}>
-      <Avatar name={message.author.display_name} src={message.author.avatar} size={32} />
+      <Avatar name={message.author.display_name} src={message.author.avatar} size={32} userId={message.author.id} interactive />
       <div className={styles.messageBody}>
         <div className={styles.messageMeta}>
           <span className={styles.messageAuthor}>{message.author.display_name}</span>
