@@ -37,6 +37,11 @@ export function ProjectsSectionLayout() {
   const handleTreeLeafClick = (node: TreeNode) => {
     if (node.type === 'board' && typeof node.project_key === 'string') navigate(`/projects/${node.project_key}/board`)
     else if (node.type === 'project' && typeof node.key === 'string') navigate(`/projects/${node.key}`)
+    // A team/group with no projects yet has no children to expand into, so TreeView treats it
+    // as a leaf too — send it to the team's own detail page instead of doing nothing.
+    else if ((node.type === 'team' || node.type === 'group') && typeof node.team_id === 'number') {
+      navigate(`/teams/${node.team_id}`)
+    }
   }
 
   return (

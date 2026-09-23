@@ -151,6 +151,20 @@ def test_by_group_a_plain_top_level_team_is_its_own_group(api_client, user, team
     assert "Growth" in labels
 
 
+def test_a_team_with_no_projects_still_carries_its_team_id(api_client, teams):
+    # A childless team/group node is a leaf in the tree UI (nothing to expand into), so the
+    # frontend needs team_id on it to route a click to the team's own detail page instead of
+    # silently doing nothing.
+    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
+    growth_node = next(n for n in resp.data["nodes"] if n["label"] == "Growth")
+    assert growth_node["children"] == []
+    assert growth_node["team_id"] == teams["growth"].id
+
+    resp = api_client.get("/api/reports/nav-tree/?group_by=group")
+    growth_group_node = next(n for n in resp.data["nodes"] if n["label"] == "Growth")
+    assert growth_group_node["team_id"] == teams["growth"].id
+
+
 def test_client_crud(api_client):
     create = api_client.post("/api/clients/", {"name": "Globex"}, format="json")
     assert create.status_code == 201

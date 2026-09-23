@@ -2,6 +2,7 @@ import type { JSONContent } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 
 import styles from './CreateIssueModal.module.css'
+import { useClients } from '@/api/clients'
 import { extractErrorMessage } from '@/api/errors'
 import { useCreateIssue, useIssueTypes, useIssues } from '@/api/issues'
 import { useProject, useProjects } from '@/api/projects'
@@ -21,6 +22,7 @@ export function CreateIssueModal() {
 
   const { data: projects } = useProjects()
   const { data: teams } = useTeams()
+  const { data: clients } = useClients()
   const [teamId, setTeamId] = useState('')
   const [clientId, setClientId] = useState('')
   const [projectKey, setProjectKey] = useState<string>('')
@@ -45,13 +47,14 @@ export function CreateIssueModal() {
 
   // Team + Client narrow which projects are offered, cascading Team -> Client -> Project;
   // the issue itself stays project-centric (project.primary_team/client remain the source of
-  // truth), these pickers just make it faster to find the right project.
+  // truth), these pickers just make it faster to find the right project. Client options list
+  // every client that exists (not just ones some project already happens to be attached to) —
+  // a client with no project yet still needs to be pickable so its gap is visible, rather than
+  // silently missing from the dropdown.
+  const clientOptions = clients ?? []
   const projectsInTeam = teamId
     ? (projects ?? []).filter((p) => p.primary_team?.id === Number(teamId))
     : (projects ?? [])
-  const clientOptions = Array.from(
-    new Map(projectsInTeam.filter((p) => p.client).map((p) => [p.client!.id, p.client!])).values(),
-  )
   const availableProjects = clientId
     ? projectsInTeam.filter((p) => p.client?.id === Number(clientId))
     : projectsInTeam
@@ -66,8 +69,8 @@ export function CreateIssueModal() {
   }, [open, projects, defaultProjectKey, projectKey])
 
   useEffect(() => {
-    if (availableProjects.length > 0 && !availableProjects.some((p) => p.key === projectKey)) {
-      setProjectKey(availableProjects[0].key)
+    if (!availableProjects.some((p) => p.key === projectKey)) {
+      setProjectKey(availableProjects[0]?.key ?? '')
     }
   }, [teamId, clientId, availableProjects, projectKey])
 
@@ -196,6 +199,7 @@ export function CreateIssueModal() {
                 value={projectKey}
                 onChange={(e) => setProjectKey(e.target.value)}
               >
+                {availableProjects.length === 0 && <option value="">No project for this team/client yet</option>}
                 {availableProjects.map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.name} ({p.key})
@@ -352,7 +356,7 @@ export function CreateIssueModal() {
               <Button type="button" variant="subtle" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim()}>
+              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim() || !projectKey}>
                 {createIssue.isPending ? 'Creating…' : 'Create'}
               </Button>
             </div>

@@ -8,6 +8,7 @@ export interface NavTreeNode extends TreeNode {
   key?: string
   board_id?: number
   project_key?: string
+  team_id?: number
   children: NavTreeNode[]
 }
 

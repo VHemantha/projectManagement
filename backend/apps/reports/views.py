@@ -94,6 +94,7 @@ def _tree_by_team():
                 "id": f"team-{team.id}",
                 "type": "team",
                 "label": team.name,
+                "team_id": team.id,
                 "children": _group_projects_by_client(projects, f"team-{team.id}"),
             }
         )
@@ -128,6 +129,7 @@ def _tree_by_group():
                 "id": f"group-{group_team.id}",
                 "type": "group",
                 "label": group_team.name,
+                "team_id": group_team.id,
                 "children": _group_projects_by_client(projects, f"group-{group_team.id}"),
             }
         )
