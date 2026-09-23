@@ -1,0 +1,80 @@
+.layout {
+  display: flex;
+  height: 100%;
+}
+
+.sidebar {
+  width: 300px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--tf-border);
+  display: flex;
+  flex-direction: column;
+  background: var(--tf-surface-sunken);
+  overflow: hidden;
+}
+
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--tf-space-3) var(--tf-space-3) var(--tf-space-2);
+}
+
+.sidebarTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.modeRow {
+  display: flex;
+  gap: 4px;
+  padding: 0 var(--tf-space-3) var(--tf-space-2);
+}
+
+.modeBtn {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+.modeBtn[data-active='true'] {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-blue);
+  border-color: var(--tf-blue);
+}
+
+.searchRow {
+  display: flex;
+  gap: 6px;
+  padding: 0 var(--tf-space-3) var(--tf-space-2);
+}
+
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  border-radius: var(--tf-radius-sm);
+  border: 1px solid var(--tf-border);
+  padding: 0 8px;
+  font-size: 12px;
+  background: var(--tf-surface);
+  color: var(--tf-text);
+}
+
+.tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--tf-space-2) var(--tf-space-3);
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}

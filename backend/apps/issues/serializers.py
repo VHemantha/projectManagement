@@ -9,6 +9,7 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify, notify_many
 from apps.projects.models import Component, Label, Project, Version
 from apps.sprints.models import Sprint
+from apps.teams.models import TeamMembership
 from apps.workflow.models import IssueType, WorkflowStatus, WorkflowTransition
 from apps.workflow.serializers import IssueTypeSerializer, WorkflowStatusSerializer
 
@@ -167,6 +168,9 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         source="assignee", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
     )
     reporter = UserSerializer(read_only=True)
+    reporter_id = serializers.PrimaryKeyRelatedField(
+        source="reporter", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
+    )
     preparer = UserSerializer(read_only=True)
     preparer_id = serializers.PrimaryKeyRelatedField(
         source="preparer", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
@@ -225,6 +229,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "assignee",
             "assignee_id",
             "reporter",
+            "reporter_id",
             "preparer",
             "preparer_id",
             "reviewer",
@@ -260,7 +265,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "updated_at",
             "resolved_at",
         ]
-        read_only_fields = ["key", "reporter", "rank"]
+        read_only_fields = ["key", "rank"]
 
     def get_components(self, obj):
         return [{"id": c.id, "name": c.name} for c in obj.components.all()]
@@ -276,10 +281,18 @@ class IssueDetailSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context["request"]
-        validated_data.setdefault("reporter", request.user)
+        project = validated_data["project"]
+        if "reporter" not in validated_data:
+            team_lead = None
+            if project.primary_team_id:
+                membership = TeamMembership.objects.filter(
+                    team_id=project.primary_team_id, role=TeamMembership.Role.LEAD
+                ).first()
+                if membership:
+                    team_lead = membership.user
+            validated_data["reporter"] = team_lead or request.user
         validated_data.setdefault("preparer", request.user)
         validated_data.setdefault("current_responsible", validated_data.get("preparer"))
-        project = validated_data["project"]
         if "status" not in validated_data:
             workflow = getattr(project, "workflow", None)
             if workflow:
