@@ -18,6 +18,7 @@ import { ProjectLayout } from '@/features/projects/ProjectLayout'
 import { ProjectSettingsPage } from '@/features/projects/ProjectSettingsPage'
 import { ProjectSummaryPage } from '@/features/projects/ProjectSummaryPage'
 import { ProjectsListPage } from '@/features/projects/ProjectsListPage'
+import { ProjectsSectionLayout } from '@/features/projects/ProjectsSectionLayout'
 import { DashboardHomePage } from '@/features/dashboard/DashboardHomePage'
 import { SprintReportPage } from '@/features/reports/SprintReportPage'
 import { FiltersPage } from '@/features/search/FiltersPage'
@@ -39,20 +40,26 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <MyWorkPage /> },
-          { path: '/projects', element: <ProjectsListPage /> },
           { path: '/projects/:key/issues/:issueKey', element: <IssueDetailPage /> },
           { path: '/projects/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
           {
-            path: '/projects/:key',
-            element: <ProjectLayout />,
+            path: '/projects',
+            element: <ProjectsSectionLayout />,
             children: [
-              { index: true, element: <ProjectSummaryPage /> },
-              { path: 'board', element: <ProjectBoardPage /> },
-              { path: 'backlog', element: <BacklogPage /> },
-              { path: 'timeline', element: <TimelinePage /> },
-              { path: 'issues', element: <ProjectIssuesPage /> },
-              { path: 'reports', element: <SprintReportPage /> },
-              { path: 'settings', element: <ProjectSettingsPage /> },
+              { index: true, element: <ProjectsListPage /> },
+              {
+                path: ':key',
+                element: <ProjectLayout />,
+                children: [
+                  { index: true, element: <ProjectSummaryPage /> },
+                  { path: 'board', element: <ProjectBoardPage /> },
+                  { path: 'backlog', element: <BacklogPage /> },
+                  { path: 'timeline', element: <TimelinePage /> },
+                  { path: 'issues', element: <ProjectIssuesPage /> },
+                  { path: 'reports', element: <SprintReportPage /> },
+                  { path: 'settings', element: <ProjectSettingsPage /> },
+                ],
+              },
             ],
           },
           { path: '/teams', element: <TeamsListPage /> },

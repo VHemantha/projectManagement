@@ -79,6 +79,7 @@ export interface CreateIssuePayload {
   status_id?: number
   priority?: string
   assignee_id?: number | null
+  reporter_id?: number | null
   epic_id?: number | null
   sprint_id?: number | null
   story_points?: number | null

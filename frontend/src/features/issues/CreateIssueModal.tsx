@@ -2,9 +2,11 @@ import type { JSONContent } from '@tiptap/react'
 import { useEffect, useState } from 'react'
 
 import styles from './CreateIssueModal.module.css'
+import { useClients } from '@/api/clients'
 import { extractErrorMessage } from '@/api/errors'
 import { useCreateIssue, useIssueTypes, useIssues } from '@/api/issues'
 import { useProject, useProjects } from '@/api/projects'
+import { useTeam, useTeams } from '@/api/teams'
 import type { Priority } from '@/api/types'
 import { useUsers } from '@/api/users'
 import { Button, Dialog, DialogContent, Input, RichTextEditor } from '@/design-system'
@@ -19,10 +21,15 @@ export function CreateIssueModal() {
   const openIssueModal = useUiStore((s) => s.openIssueModal)
 
   const { data: projects } = useProjects()
+  const { data: teams } = useTeams()
+  const { data: clients } = useClients()
+  const [teamId, setTeamId] = useState('')
+  const [clientId, setClientId] = useState('')
   const [projectKey, setProjectKey] = useState<string>('')
   const { data: project } = useProject(projectKey || undefined)
   const { data: issueTypes } = useIssueTypes(projectKey || undefined, false)
   const { data: users } = useUsers()
+  const { data: selectedTeam } = useTeam(teamId ? Number(teamId) : undefined)
   const { data: epicsPage } = useIssues({ project: projectKey, issue_type: 'Epic', page_size: 100 }, !!projectKey)
   const epics = epicsPage?.results ?? []
   const createIssue = useCreateIssue()
@@ -38,6 +45,23 @@ export function CreateIssueModal() {
   const [labelIds, setLabelIds] = useState<number[]>([])
   const [createAnother, setCreateAnother] = useState(false)
 
+  // Team + Client narrow which projects are offered, cascading Team -> Client -> Project;
+  // the issue itself stays project-centric (project.primary_team/client remain the source of
+  // truth), these pickers just make it faster to find the right project. Client options list
+  // every client that exists (not just ones some project already happens to be attached to) —
+  // a client with no project yet still needs to be pickable so its gap is visible, rather than
+  // silently missing from the dropdown.
+  const clientOptions = clients ?? []
+  const projectsInTeam = teamId
+    ? (projects ?? []).filter((p) => p.primary_team?.id === Number(teamId))
+    : (projects ?? [])
+  const availableProjects = clientId
+    ? projectsInTeam.filter((p) => p.client?.id === Number(clientId))
+    : projectsInTeam
+
+  // Assignee is restricted to the selected team's members once a team is chosen.
+  const assigneeCandidates = selectedTeam ? selectedTeam.memberships.map((m) => m.user) : (users ?? [])
+
   useEffect(() => {
     if (open && !projectKey && projects && projects.length > 0) {
       setProjectKey(defaultProjectKey ?? projects[0].key)
@@ -45,10 +69,22 @@ export function CreateIssueModal() {
   }, [open, projects, defaultProjectKey, projectKey])
 
   useEffect(() => {
+    if (!availableProjects.some((p) => p.key === projectKey)) {
+      setProjectKey(availableProjects[0]?.key ?? '')
+    }
+  }, [teamId, clientId, availableProjects, projectKey])
+
+  useEffect(() => {
     if (issueTypes && issueTypes.length > 0 && !issueTypes.some((t) => String(t.id) === issueTypeId)) {
       setIssueTypeId(String(issueTypes[0].id))
     }
   }, [issueTypes, issueTypeId])
+
+  useEffect(() => {
+    if (assigneeId && !assigneeCandidates.some((u) => String(u.id) === assigneeId)) {
+      setAssigneeId('')
+    }
+  }, [teamId, assigneeId, assigneeCandidates])
 
   const resetFields = () => {
     setSummary('')
@@ -64,6 +100,8 @@ export function CreateIssueModal() {
   const handleClose = () => {
     closeCreateIssue()
     setProjectKey('')
+    setTeamId('')
+    setClientId('')
     resetFields()
     setCreateAnother(false)
     createIssue.reset()
@@ -110,6 +148,48 @@ export function CreateIssueModal() {
 
           <div className={styles.row}>
             <div className={styles.field}>
+              <label className={styles.label} htmlFor="ci-team">
+                Team
+              </label>
+              <select
+                id="ci-team"
+                className={styles.select}
+                value={teamId}
+                onChange={(e) => {
+                  setTeamId(e.target.value)
+                  setClientId('')
+                }}
+              >
+                <option value="">Any team</option>
+                {teams?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ci-client">
+                Client
+              </label>
+              <select
+                id="ci-client"
+                className={styles.select}
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+              >
+                <option value="">Any client</option>
+                {clientOptions.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className={styles.row}>
+            <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-project">
                 Project
               </label>
@@ -119,7 +199,8 @@ export function CreateIssueModal() {
                 value={projectKey}
                 onChange={(e) => setProjectKey(e.target.value)}
               >
-                {projects?.map((p) => (
+                {availableProjects.length === 0 && <option value="">No project for this team/client yet</option>}
+                {availableProjects.map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.name} ({p.key})
                   </option>
@@ -172,7 +253,7 @@ export function CreateIssueModal() {
                 onChange={(e) => setAssigneeId(e.target.value)}
               >
                 <option value="">Unassigned</option>
-                {users?.map((u) => (
+                {assigneeCandidates.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.display_name}
                   </option>
@@ -275,7 +356,7 @@ export function CreateIssueModal() {
               <Button type="button" variant="subtle" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim()}>
+              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim() || !projectKey}>
                 {createIssue.isPending ? 'Creating…' : 'Create'}
               </Button>
             </div>

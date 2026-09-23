@@ -8,8 +8,14 @@ import { Button, Dialog, DialogContent, Input } from '@/design-system'
 
 function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   const [name, setName] = useState('')
+  const [parentId, setParentId] = useState('')
+  const { data: teams } = useTeams()
   const createTeam = useCreateTeam()
   const navigate = useNavigate()
+
+  // Only top-level teams (no parent of their own) are offered as a parent — matches the org
+  // chart's exact 2-level depth (Group -> Team), same as the nav-tree's "By Group" mode.
+  const topLevelTeams = (teams ?? []).filter((t) => !t.parent)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -19,11 +25,12 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           onSubmit={(e) => {
             e.preventDefault()
             createTeam.mutate(
-              { name },
+              { name, parent_id: parentId ? Number(parentId) : undefined },
               {
                 onSuccess: (team) => {
                   onOpenChange(false)
                   setName('')
+                  setParentId('')
                   navigate(`/teams/${team.id}`)
                 },
               },
@@ -31,6 +38,26 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           }}
         >
           <Input id="team-name" label="Team name" required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+              Part of (optional)
+            </label>
+            <select
+              style={{
+                width: '100%', height: 36, borderRadius: 4, border: '1px solid var(--tf-border)',
+                padding: '0 10px', fontSize: 13, background: 'var(--tf-surface)', color: 'var(--tf-text)',
+              }}
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+            >
+              <option value="">No group (top-level)</option>
+              {topLevelTeams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button type="button" variant="subtle" onClick={() => onOpenChange(false)}>
               Cancel
@@ -69,7 +96,9 @@ export function TeamsListPage() {
               </span>
               <div>
                 <div className={styles.name}>{team.name}</div>
-                <div className={styles.meta}>{team.member_count} members</div>
+                <div className={styles.meta}>
+                  {team.member_count} members{team.parent && ` · ${team.parent.name}`}
+                </div>
               </div>
             </div>
           ))}

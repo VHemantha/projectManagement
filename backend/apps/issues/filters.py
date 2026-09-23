@@ -28,6 +28,8 @@ class IssueFilter(django_filters.FilterSet):
     priority = django_filters.CharFilter(field_name="priority")
     label = django_filters.NumberFilter(field_name="labels__id")
     component = django_filters.NumberFilter(field_name="components__id")
+    team = django_filters.NumberFilter(field_name="project__primary_team_id")
+    client = django_filters.NumberFilter(field_name="project__client_id")
 
     def filter_exclude_type(self, queryset, name, value):
         return queryset.exclude(issue_type__name=value)
@@ -59,4 +61,6 @@ class IssueFilter(django_filters.FilterSet):
             "priority",
             "label",
             "component",
+            "team",
+            "client",
         ]

@@ -5,6 +5,7 @@ from apps.accounts.models import User
 from apps.issues.models import Issue, IssueHistory
 from apps.orgs.models import Organization
 from apps.projects.models import Project
+from apps.teams.models import Team, TeamMembership
 from apps.workflow.models import IssueType, WorkflowStatus
 from apps.workflow.services import provision_project_defaults
 
@@ -121,4 +122,68 @@ def test_reviewer_and_current_responsible_filters(api_client, project, issue, re
     assert any(i["key"] == issue.key for i in resp.data["results"])
 
     resp2 = api_client.get(f"/api/issues/?current_responsible={issue.preparer_id}")
+    assert any(i["key"] == issue.key for i in resp2.data["results"])
+
+
+def test_creating_an_issue_defaults_reporter_to_the_projects_team_lead(api_client, project, task_type):
+    team = Team.objects.create(organization=Organization.get_solo(), name="Reporter Test Team")
+    lead = User.objects.create_user(username="ir_team_lead", email="ir_team_lead@example.com", password="x")
+    TeamMembership.objects.create(team=team, user=lead, role=TeamMembership.Role.LEAD)
+    project.primary_team = team
+    project.save(update_fields=["primary_team"])
+
+    resp = api_client.post(
+        "/api/issues/", {"project": "ROL", "summary": "Team-led task", "issue_type_id": task_type.id}, format="json"
+    )
+    assert resp.status_code == 201
+    assert resp.data["reporter"]["id"] == lead.id
+
+
+def test_creating_an_issue_without_a_team_lead_falls_back_to_the_requester(api_client, project, task_type):
+    resp = api_client.post(
+        "/api/issues/", {"project": "ROL", "summary": "No team task", "issue_type_id": task_type.id}, format="json"
+    )
+    assert resp.status_code == 201
+    assert resp.data["reporter"]["username"] == "ir_preparer"
+
+
+def test_creating_an_issue_with_an_explicit_reporter_id_overrides_the_team_lead_default(api_client, project, task_type):
+    team = Team.objects.create(organization=Organization.get_solo(), name="Reporter Override Team")
+    lead = User.objects.create_user(username="ir_override_lead", email="ir_override_lead@example.com", password="x")
+    TeamMembership.objects.create(team=team, user=lead, role=TeamMembership.Role.LEAD)
+    project.primary_team = team
+    project.save(update_fields=["primary_team"])
+
+    explicit_reporter = User.objects.create_user(
+        username="ir_explicit_reporter", email="ir_explicit_reporter@example.com", password="x"
+    )
+    resp = api_client.post(
+        "/api/issues/",
+        {
+            "project": "ROL",
+            "summary": "Explicit reporter task",
+            "issue_type_id": task_type.id,
+            "reporter_id": explicit_reporter.id,
+        },
+        format="json",
+    )
+    assert resp.status_code == 201
+    assert resp.data["reporter"]["id"] == explicit_reporter.id
+
+
+def test_team_and_client_issue_filters(api_client, project, issue):
+    from apps.clients.models import Client
+
+    team = Team.objects.create(organization=Organization.get_solo(), name="Filter Test Team")
+    client_obj = Client.objects.create(organization=Organization.get_solo(), name="Filter Test Client")
+    project.primary_team = team
+    project.client = client_obj
+    project.save(update_fields=["primary_team", "client"])
+
+    resp = api_client.get(f"/api/issues/?team={team.id}")
+    assert resp.status_code == 200
+    assert any(i["key"] == issue.key for i in resp.data["results"])
+
+    resp2 = api_client.get(f"/api/issues/?client={client_obj.id}")
+    assert resp2.status_code == 200
     assert any(i["key"] == issue.key for i in resp2.data["results"])

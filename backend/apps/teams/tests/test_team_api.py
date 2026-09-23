@@ -38,6 +38,37 @@ def test_team_list_reports_member_count(api_client, user):
     assert row["member_count"] == 2
 
 
+def test_creating_a_team_with_a_parent_nests_it(api_client, user):
+    from apps.orgs.models import Organization
+
+    group = Team.objects.create(organization=Organization.get_solo(), name="Group 1")
+    resp = api_client.post("/api/teams/", {"name": "Team 1", "parent_id": group.id}, format="json")
+    assert resp.status_code == 201
+    assert resp.data["parent"]["id"] == group.id
+
+    group_detail = api_client.get(f"/api/teams/{group.id}/")
+    assert [t["id"] for t in group_detail.data["sub_teams"]] == [resp.data["id"]]
+
+
+def test_a_team_cannot_be_parented_to_itself(api_client, user):
+    from apps.orgs.models import Organization
+
+    team = Team.objects.create(organization=Organization.get_solo(), name="Self Team")
+    resp = api_client.patch(f"/api/teams/{team.id}/", {"parent_id": team.id}, format="json")
+    assert resp.status_code == 400
+
+
+def test_a_team_cannot_be_parented_to_its_own_sub_team(api_client, user):
+    from apps.orgs.models import Organization
+
+    org = Organization.get_solo()
+    parent = Team.objects.create(organization=org, name="Parent Team")
+    child = Team.objects.create(organization=org, name="Child Team", parent=parent)
+
+    resp = api_client.patch(f"/api/teams/{parent.id}/", {"parent_id": child.id}, format="json")
+    assert resp.status_code == 400
+
+
 def test_add_and_remove_team_member(api_client, user):
     from apps.orgs.models import Organization
 

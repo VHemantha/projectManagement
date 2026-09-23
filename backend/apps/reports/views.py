@@ -11,6 +11,7 @@ from apps.timesheets.budget import issue_actual_hours, project_actual_hours, pro
 
 NO_TEAM_LABEL = "No Team"
 NO_CLIENT_LABEL = "Internal / No Client"
+NO_GROUP_LABEL = "Ungrouped"
 
 
 def _project_node(project: Project) -> dict:
@@ -71,22 +72,29 @@ def _group_projects_by_client(projects, id_prefix: str) -> list[dict]:
     return children
 
 
+def _projects_for_teams(teams) -> list[Project]:
+    """Every project any of the given teams is the primary team for, or contributes to,
+    deduped. Used both per-team (a single-team list) and per-group (a top-level team plus its
+    direct sub_teams), so a Group's project set is exactly the union of its teams' own sets."""
+    qs = Project.objects.none()
+    for team in teams:
+        qs = qs | Project.objects.filter(primary_team=team) | Project.objects.filter(contributing_teams=team)
+    return list(qs.distinct().order_by("key"))
+
+
 def _tree_by_team():
     nodes = []
     teams = Team.objects.all().order_by("name")
     seen_project_ids = set()
     for team in teams:
-        projects = list(
-            (
-                Project.objects.filter(primary_team=team) | Project.objects.filter(contributing_teams=team)
-            ).distinct().order_by("key")
-        )
+        projects = _projects_for_teams([team])
         seen_project_ids.update(p.id for p in projects)
         nodes.append(
             {
                 "id": f"team-{team.id}",
                 "type": "team",
                 "label": team.name,
+                "team_id": team.id,
                 "children": _group_projects_by_client(projects, f"team-{team.id}"),
             }
         )
@@ -99,6 +107,41 @@ def _tree_by_team():
                 "type": "team",
                 "label": NO_TEAM_LABEL,
                 "children": _group_projects_by_client(orphans, "team-none"),
+            }
+        )
+    return nodes
+
+
+def _tree_by_group():
+    """A "Group" is just a top-level Team (parent is null); its node's projects are the union
+    of its own projects plus every direct sub_team's projects (one level, matching the org
+    chart's exact 2-level depth) — reuses the same _group_projects_by_client() client-grouping
+    every other tree mode uses, so Group -> Client -> Project -> Board stays consistent."""
+    nodes = []
+    top_level_teams = Team.objects.filter(parent__isnull=True).prefetch_related("sub_teams").order_by("name")
+    seen_project_ids = set()
+    for group_team in top_level_teams:
+        team_and_children = [group_team, *group_team.sub_teams.all()]
+        projects = _projects_for_teams(team_and_children)
+        seen_project_ids.update(p.id for p in projects)
+        nodes.append(
+            {
+                "id": f"group-{group_team.id}",
+                "type": "group",
+                "label": group_team.name,
+                "team_id": group_team.id,
+                "children": _group_projects_by_client(projects, f"group-{group_team.id}"),
+            }
+        )
+
+    orphans = list(Project.objects.exclude(id__in=seen_project_ids).order_by("key"))
+    if orphans:
+        nodes.append(
+            {
+                "id": "group-none",
+                "type": "group",
+                "label": NO_GROUP_LABEL,
+                "children": _group_projects_by_client(orphans, "group-none"),
             }
         )
     return nodes
@@ -127,12 +170,14 @@ def _tree_by_client():
 
 
 class NavTreeView(APIView):
-    """GET /api/reports/nav-tree/?group_by=team|client — returns the nested Team/Client ->
-    Project -> Board structure for the Projects page's tree-nav view in one call, rather than
-    making the frontend stitch together separate project/team/client list endpoints itself.
-    A project with multiple contributing teams appears once under each relevant team branch
-    (this is a navigation/view concept, not a schema change — nothing here restructures where
-    boards actually live)."""
+    """GET /api/reports/nav-tree/?group_by=team|client|group — returns the nested
+    Team/Client/Group -> Project -> Board structure for the Projects page's tree-nav view in
+    one call, rather than making the frontend stitch together separate project/team/client
+    list endpoints itself. A project with multiple contributing teams appears once under each
+    relevant team (or group) branch. "group" mode collapses to top-level Teams (Team.parent is
+    null) each expanded straight to Client, skipping the sub-team level entirely — this is a
+    navigation/view concept, not a schema change — nothing here restructures where boards
+    actually live)."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -140,6 +185,8 @@ class NavTreeView(APIView):
         group_by = request.query_params.get("group_by", "team")
         if group_by == "client":
             nodes = _tree_by_client()
+        elif group_by == "group":
+            nodes = _tree_by_group()
         else:
             nodes = _tree_by_team()
         return Response({"group_by": group_by, "nodes": nodes})

@@ -113,6 +113,58 @@ def test_project_leaf_includes_a_board_child_when_one_exists(api_client, user, t
     assert project_node["children"][0]["type"] == "board"
 
 
+def _project_keys_under_group(group_node) -> list[str]:
+    keys = []
+    for client_node in group_node["children"]:
+        keys.extend(c["key"] for c in client_node["children"])
+    return keys
+
+
+def test_by_group_merges_a_top_level_teams_own_and_sub_teams_projects(api_client, user, teams):
+    org = teams["platform"].organization
+    from apps.teams.models import Team as TeamModel
+
+    group = TeamModel.objects.create(organization=org, name="Group 1")
+    teams["platform"].parent = group
+    teams["platform"].save(update_fields=["parent"])
+    teams["growth"].parent = group
+    teams["growth"].save(update_fields=["parent"])
+
+    _make_project("NVK", user, primary_team=teams["platform"])
+    _make_project("NVL", user, primary_team=teams["growth"])
+
+    resp = api_client.get("/api/reports/nav-tree/?group_by=group")
+    assert resp.status_code == 200
+    group_node = next(n for n in resp.data["nodes"] if n["label"] == "Group 1")
+    keys = _project_keys_under_group(group_node)
+    assert set(keys) == {"NVK", "NVL"}
+    # The sub-teams themselves shouldn't appear as their own top-level group nodes.
+    assert not any(n["label"] in ("Platform", "Growth") for n in resp.data["nodes"])
+
+
+def test_by_group_a_plain_top_level_team_is_its_own_group(api_client, user, teams):
+    _make_project("NVM", user, primary_team=teams["platform"])
+
+    resp = api_client.get("/api/reports/nav-tree/?group_by=group")
+    labels = {n["label"] for n in resp.data["nodes"]}
+    assert "Platform" in labels
+    assert "Growth" in labels
+
+
+def test_a_team_with_no_projects_still_carries_its_team_id(api_client, teams):
+    # A childless team/group node is a leaf in the tree UI (nothing to expand into), so the
+    # frontend needs team_id on it to route a click to the team's own detail page instead of
+    # silently doing nothing.
+    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
+    growth_node = next(n for n in resp.data["nodes"] if n["label"] == "Growth")
+    assert growth_node["children"] == []
+    assert growth_node["team_id"] == teams["growth"].id
+
+    resp = api_client.get("/api/reports/nav-tree/?group_by=group")
+    growth_group_node = next(n for n in resp.data["nodes"] if n["label"] == "Growth")
+    assert growth_group_node["team_id"] == teams["growth"].id
+
+
 def test_client_crud(api_client):
     create = api_client.post("/api/clients/", {"name": "Globex"}, format="json")
     assert create.status_code == 201

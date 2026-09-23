@@ -12,6 +12,13 @@ class Team(models.Model):
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL, through="TeamMembership", related_name="teams"
     )
+    # Self-referential rather than a separate "Group" model — a Group is just a top-level Team
+    # (parent is null) whose children are ordinary Teams (e.g. "Group 1" has parent=None;
+    # "Team 1"/"Team 2" have parent=<Group 1>). Reuses every existing Team/TeamMembership CRUD
+    # and lead convention for both levels instead of a parallel model.
+    parent = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="sub_teams"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

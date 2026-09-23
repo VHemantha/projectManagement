@@ -27,11 +27,25 @@ export function useTeam(id: number | string | undefined) {
 export function useCreateTeam() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { name: string; description?: string }) => {
+    mutationFn: async (payload: { name: string; description?: string; parent_id?: number | null }) => {
       const { data } = await apiClient.post<TeamDetail>('/teams/', payload)
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] }),
+  })
+}
+
+export function useUpdateTeam(teamId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { name?: string; description?: string; parent_id?: number | null }) => {
+      const { data } = await apiClient.patch<TeamDetail>(`/teams/${teamId}/`, payload)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] })
+      queryClient.invalidateQueries({ queryKey: ['teams', teamId] })
+    },
   })
 }
 
@@ -40,6 +54,17 @@ export function useAddTeamMember(teamId: number) {
   return useMutation({
     mutationFn: async (payload: { user_id: number; role: string }) => {
       const { data } = await apiClient.post<TeamMembership>(`/teams/${teamId}/members/`, payload)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams', teamId] }),
+  })
+}
+
+export function useUpdateTeamMember(teamId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ membershipId, role }: { membershipId: number; role: string }) => {
+      const { data } = await apiClient.patch<TeamMembership>(`/teams/${teamId}/members/${membershipId}/`, { role })
       return data
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams', teamId] }),

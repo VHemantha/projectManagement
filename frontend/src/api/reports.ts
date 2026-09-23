@@ -4,14 +4,15 @@ import { apiClient } from './client'
 import type { TreeNode } from '@/design-system'
 
 export interface NavTreeNode extends TreeNode {
-  type: 'team' | 'client' | 'project' | 'board'
+  type: 'group' | 'team' | 'client' | 'project' | 'board'
   key?: string
   board_id?: number
   project_key?: string
+  team_id?: number
   children: NavTreeNode[]
 }
 
-export function useNavTree(groupBy: 'team' | 'client') {
+export function useNavTree(groupBy: 'team' | 'client' | 'group') {
   return useQuery({
     queryKey: ['reports', 'nav-tree', groupBy],
     queryFn: async () => {

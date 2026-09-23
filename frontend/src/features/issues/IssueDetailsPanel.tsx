@@ -4,8 +4,9 @@ import { Link } from 'react-router-dom'
 
 import styles from './IssueView.module.css'
 import { RolePicker } from './RolePicker'
-import { useProjectBoard } from '@/api/projects'
+import { useProject, useProjectBoard } from '@/api/projects'
 import { useToggleWatch, useUpdateIssue } from '@/api/issues'
+import { useTeam } from '@/api/teams'
 import type { IssueDetail, Priority } from '@/api/types'
 import { useTimeEntries } from '@/api/timesheets'
 import { useUsers } from '@/api/users'
@@ -18,6 +19,11 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
   const toggleWatch = useToggleWatch(issue.key)
   const { data: users } = useUsers()
   const { data: board } = useProjectBoard(issue.project)
+  const { data: project } = useProject(issue.project)
+  const { data: projectTeam } = useTeam(project?.primary_team?.id)
+  // Assignee is restricted to the issue's project's team once one is set; every other role
+  // picker (Preparer/Reviewer/Current responsible) keeps the full org list.
+  const assigneeCandidates = projectTeam ? projectTeam.memberships.map((m) => m.user) : users
   const { data: issueEntries } = useTimeEntries({ issue: issue.id, page_size: 500 }, issue.budgeted_hours != null)
   const actualHours = (issueEntries ?? []).reduce((sum, e) => sum + e.duration_seconds, 0) / 3600
 
@@ -51,7 +57,7 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       <RolePicker
         label="Assignee"
         value={issue.assignee}
-        users={users}
+        users={assigneeCandidates}
         onChange={(id) => updateIssue.mutate({ assignee_id: id })}
       />
 
