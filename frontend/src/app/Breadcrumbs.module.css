@@ -1,0 +1,45 @@
+.breadcrumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-1);
+  flex-wrap: wrap;
+  padding: var(--tf-space-2) var(--tf-space-6);
+  font-size: 12px;
+  border-bottom: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+}
+
+/* Each clickable segment. Links are subtle by default and darken on hover so
+   the trail reads like plain text until you reach for it. */
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tf-space-1);
+  color: var(--tf-text-subtle);
+  text-decoration: none;
+  padding: 2px 4px;
+  border-radius: var(--tf-radius-sm);
+}
+
+a.crumb:hover {
+  color: var(--tf-text);
+  background: var(--tf-surface-hover);
+}
+
+/* The current page — last in the trail — is emphasised and not a link. */
+.current {
+  color: var(--tf-text);
+  font-weight: 600;
+}
+
+.separator {
+  color: var(--tf-text-subtle);
+  user-select: none;
+}
+
+/* Tighter side gutter on phones so the trail lines up with page content. */
+@media (max-width: 768px) {
+  .breadcrumbs {
+    padding: var(--tf-space-2) var(--tf-space-4);
+  }
+}

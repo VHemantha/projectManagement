@@ -82,6 +82,13 @@
   --tf-topnav-height: 48px;
   --tf-project-sidebar-width: 240px;
 
+  /* Content width caps (responsive design — "smart hybrid").
+     Wide, data-dense pages (lists, tables, dashboards) use --tf-content-max so
+     they fill large monitors instead of leaving big empty margins; text-heavy
+     reading/form pages use --tf-reading-max to keep line lengths comfortable. */
+  --tf-content-max: 2000px;
+  --tf-reading-max: 860px;
+
   /* Font */
   --tf-font-family:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

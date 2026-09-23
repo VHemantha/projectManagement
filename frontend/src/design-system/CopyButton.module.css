@@ -1,0 +1,17 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--tf-text-subtle);
+  border-radius: var(--tf-radius-sm);
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+}

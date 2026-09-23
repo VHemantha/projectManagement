@@ -7,12 +7,16 @@ import './design-system/global.css'
 import { ErrorBoundary } from './app/ErrorBoundary'
 import { QueryProvider } from './app/QueryProvider'
 import { router } from './app/router'
+import { TooltipProvider } from './design-system'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
       <QueryProvider>
-        <RouterProvider router={router} />
+        {/* One provider at the root gives every tooltip in the app shared timing. */}
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
       </QueryProvider>
     </ErrorBoundary>
   </StrictMode>,

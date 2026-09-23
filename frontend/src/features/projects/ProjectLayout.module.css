@@ -78,3 +78,31 @@
   min-width: 0;
   overflow-y: auto;
 }
+
+/* Mobile: stack the per-project nav above the content and turn the vertical nav
+   into a horizontally-scrolling tab bar so it never squeezes the page. */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid var(--tf-border);
+    overflow: visible;
+  }
+  .nav {
+    flex-direction: row;
+    overflow-x: auto;
+    gap: 4px;
+    padding: 0 var(--tf-space-2) var(--tf-space-2);
+  }
+  .navItem {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .content {
+    overflow-y: visible;
+  }
+}

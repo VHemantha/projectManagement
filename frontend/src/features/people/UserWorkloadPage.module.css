@@ -1,6 +1,6 @@
 .page {
   padding: var(--tf-space-6);
-  max-width: 1100px;
+  max-width: var(--tf-content-max);
   margin: 0 auto;
 }
 
@@ -19,6 +19,23 @@
 .role {
   font-size: 13px;
   color: var(--tf-text-subtle);
+}
+
+.emailRow {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-1);
+  margin-top: 2px;
+}
+
+.email {
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+  text-decoration: none;
+}
+.email:hover {
+  color: var(--tf-blue);
+  text-decoration: underline;
 }
 
 .statsRow {

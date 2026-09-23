@@ -70,18 +70,32 @@
   display: flex;
   gap: var(--tf-space-3);
   align-items: flex-start;
+  /* Once columns hit their max-width on very wide screens, centre the leftover
+     space so it splits evenly instead of pooling on the right. "safe" keeps the
+     first column reachable (falls back to start-alignment) when there are more
+     columns than fit and the board needs to scroll. */
+  justify-content: safe center;
 }
 
 .column {
-  width: 260px;
-  flex-shrink: 0;
+  /* Fluid columns: grow to share the available width evenly so the board fills
+     the screen instead of leaving a large empty area on wide monitors. They
+     stay at least 280px (readable cards) and stop growing at 600px so cards
+     never stretch awkwardly; when there are more columns than fit, the min-width
+     keeps them usable and the board scrolls horizontally instead. */
+  flex: 1 1 0;
+  min-width: 280px;
+  max-width: 600px;
   background: var(--tf-surface-sunken);
   border-radius: var(--tf-radius-md);
   display: flex;
   flex-direction: column;
 }
 .column.collapsed {
-  width: 44px;
+  /* A collapsed column is a thin fixed strip and must not grow. */
+  flex: 0 0 44px;
+  min-width: 44px;
+  max-width: 44px;
 }
 
 .columnHeader {

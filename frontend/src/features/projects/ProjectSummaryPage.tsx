@@ -99,7 +99,7 @@ export function ProjectSummaryPage() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.breadcrumb}>Projects / {project.key}</div>
+      {/* Breadcrumb is now rendered globally by the AppShell (<Breadcrumbs />). */}
       <h1 className={styles.title}>{project.name}</h1>
 
       <div className={styles.grid}>

@@ -62,3 +62,22 @@ p {
   scrollbar-width: thin;
   scrollbar-color: var(--tf-border) transparent;
 }
+
+/* Flexible media: images and video never overflow their container and keep
+   their aspect ratio as the layout narrows. */
+img,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* On phones, tighten the shared spacing scale so page gutters and gaps shrink
+   to a comfortable ~16px instead of the desktop 24px. Because layouts across
+   the app are built from these tokens, this single override reflows all of them
+   at once — no per-page change needed. */
+@media (max-width: 768px) {
+  :root {
+    --tf-space-6: 16px;
+    --tf-space-5: 14px;
+  }
+}

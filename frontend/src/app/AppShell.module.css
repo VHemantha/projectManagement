@@ -39,18 +39,25 @@
   height: var(--tf-topnav-height);
   padding: 0 var(--tf-space-3);
   flex-shrink: 0;
+  /* Rendered as a link (home button), so reset the default anchor styling
+     to keep the logo looking exactly as it did before. */
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
 }
 
 .sidebarLogoMark {
   width: 28px;
   height: 28px;
-  border-radius: var(--tf-radius-md);
-  background: var(--tf-blue);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
   flex-shrink: 0;
+}
+.sidebarLogoMark img {
+  width: 28px;
+  height: 28px;
+  display: block;
 }
 
 .sidebarLogoText {
@@ -84,7 +91,13 @@
   background: var(--tf-sidebar-hover);
   text-decoration: none;
 }
-.navItem.active {
+/* Active nav item. Two selectors cover both ways an item can be marked active:
+   - `.active` for links that still set it via a className function (e.g. the
+     project switcher list);
+   - `aria-current="page"`, which NavLink sets automatically — used by the main
+     nav, whose class must stay a plain string for the Tooltip's asChild. */
+.navItem.active,
+.navItem[aria-current='page'] {
   background: var(--tf-sidebar-hover);
   color: #fff;
 }
@@ -102,8 +115,68 @@
 }
 
 .sidebarFooter {
+  display: flex;
   padding: var(--tf-space-2);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Expand / collapse control.
+   It is a real <button>, so we reset the browser's default chrome and give it
+   its own clearly-visible states:
+   - original (collapsed): a soft filled pill that stands out from the rail
+   - hover: brighter, so it reacts to the pointer
+   - expanded: accent blue, signalling the sidebar is open
+   Collapsing the sidebar drops the blue and returns it to the original look. */
+.sidebarToggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--tf-space-2);
+  height: 40px;
+  padding: 0 var(--tf-space-3);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: var(--tf-radius-md);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.sidebarToggle:hover {
+  background: rgba(255, 255, 255, 0.26);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.sidebar.expanded .sidebarToggle {
+  background: var(--tf-blue);
+  border-color: var(--tf-blue);
+}
+.sidebar.expanded .sidebarToggle:hover {
+  background: var(--tf-blue-hover);
+  border-color: var(--tf-blue-hover);
+}
+
+/* Collapsed rail (64px): center each item so the icons sit in the middle of
+   the rail instead of hugging the left edge, and give them a roomy square hit
+   area that fills the width for a balanced look. */
+.sidebar:not(.expanded) .sidebarNav {
+  align-items: center;
+}
+.sidebar:not(.expanded) .navItem {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  justify-content: center;
+}
+.sidebar:not(.expanded) .sidebarHeader {
+  justify-content: center;
+  padding: 0;
+}
+.sidebar:not(.expanded) .sidebarToggle {
+  flex: none;
+  width: 44px;
+  padding: 0;
+  margin: 0 auto;
 }
 
 /* Top nav */
@@ -200,4 +273,94 @@
   cursor: pointer;
   display: flex;
   border-radius: 50%;
+}
+
+/* ===========================================================================
+   Responsive behaviour
+   Breakpoint: <= 768px is treated as "mobile" — the sidebar turns into a
+   slide-out drawer and the top bar tightens up. Above that is the desktop rail.
+   =========================================================================== */
+
+/* Hamburger button (top bar) — hidden on desktop, revealed on mobile. */
+.hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  color: var(--tf-text-subtle);
+  border-radius: var(--tf-radius-md);
+  cursor: pointer;
+}
+.hamburger:hover {
+  background: var(--tf-surface-hover);
+}
+
+/* Dimmed layer behind the open mobile drawer. */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 30, 66, 0.54);
+  z-index: calc(var(--tf-z-modal) - 1);
+}
+/* Never dim the desktop layout — the drawer only exists on mobile. This also
+   covers the case where the drawer was left open while resizing up to desktop. */
+@media (min-width: 769px) {
+  .backdrop {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* Sidebar leaves the layout flow and slides in from the left over the page.
+     Width is pinned to the full drawer size so the translateX(-100%) percentage
+     base stays constant — otherwise the slide animation fights the width change
+     and gets stuck. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: var(--tf-sidebar-width-expanded);
+    z-index: var(--tf-z-modal);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: var(--tf-shadow-lg);
+  }
+  .sidebar.drawerOpen {
+    transform: translateX(0);
+  }
+  /* The desktop collapse control has no purpose inside the drawer. */
+  .sidebarFooter {
+    display: none;
+  }
+
+  /* Reveal the hamburger and tighten the top bar for narrow screens. */
+  .hamburger {
+    display: flex;
+  }
+  .topnav {
+    gap: var(--tf-space-2);
+    padding: 0 var(--tf-space-3);
+  }
+  /* Search collapses to an icon-only button; its label and shortcut are hidden
+     but the flexible container still pushes the right-hand icons to the edge. */
+  .topnavSearch {
+    max-width: none;
+    margin: 0;
+  }
+  .searchInput {
+    width: 36px;
+    justify-content: center;
+  }
+  .searchInput span,
+  .searchKbd {
+    display: none;
+  }
+  /* "Create" collapses to just its + icon to save horizontal room. */
+  .createLabel {
+    display: none;
+  }
 }

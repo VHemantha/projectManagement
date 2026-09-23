@@ -1,6 +1,6 @@
 .page {
   padding: var(--tf-space-6);
-  max-width: 900px;
+  max-width: var(--tf-content-max);
 }
 
 .breadcrumb {

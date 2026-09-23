@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 
 import styles from './PeopleDirectoryPage.module.css'
 import { useUsers } from '@/api/users'
-import { Avatar } from '@/design-system'
+import { Avatar, CopyButton } from '@/design-system'
 
 export function PeopleDirectoryPage() {
   const { data: users, isLoading } = useUsers()
@@ -17,10 +17,23 @@ export function PeopleDirectoryPage() {
         <div className={styles.grid}>
           {users?.map((user) => (
             <div key={user.id} className={styles.card} onClick={() => navigate(`/people/${user.id}`)}>
-              <Avatar name={user.display_name} src={user.avatar} size={40} userId={user.id} interactive />
-              <div>
+              <Avatar name={user.display_name} src={user.avatar} size={44} userId={user.id} interactive />
+              <div className={styles.info}>
                 <div className={styles.name}>{user.display_name}</div>
-                <div className={styles.role}>{user.job_title || user.email}</div>
+                {user.job_title && <div className={styles.role}>{user.job_title}</div>}
+                <div className={styles.emailRow}>
+                  {/* mailto link + copy button; both stop the click from opening
+                      the person page so the email actions work in isolation. */}
+                  <a
+                    className={styles.email}
+                    href={`mailto:${user.email}`}
+                    title={user.email}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {user.email}
+                  </a>
+                  <CopyButton value={user.email} label="email" />
+                </div>
               </div>
             </div>
           ))}

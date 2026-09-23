@@ -5,6 +5,8 @@
   justify-content: center;
   background: var(--tf-bg);
   padding: var(--tf-space-6);
+  /* Anchor for the company credit pinned to the bottom of the page. */
+  position: relative;
 }
 
 .card {
@@ -72,4 +74,22 @@
   font-size: 13px;
   color: var(--tf-text-subtle);
   text-align: center;
+}
+
+/* Small "powered by AXISPEX Ltd" credit pinned to the bottom of the login page.
+   Deliberately understated — small, letter-spaced and muted — so it reads as a
+   quiet brand signature rather than competing with the login form. */
+.brandCredit {
+  position: absolute;
+  bottom: var(--tf-space-5);
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--tf-text-subtle);
+}
+.brandCredit strong {
+  font-weight: 600;
+  color: var(--tf-text-secondary);
 }

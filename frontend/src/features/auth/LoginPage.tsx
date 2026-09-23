@@ -69,6 +69,11 @@ export function LoginPage() {
           Don&apos;t have an account? <Link to="/signup">Sign up</Link>
         </div>
       </div>
+      {/* Company attribution — a small "powered by" credit with the current
+          copyright year, generated at render time so it never goes stale. */}
+      <div className={styles.brandCredit}>
+        Powered by <strong>AXISPEX&nbsp;Ltd</strong> &middot; &copy; {new Date().getFullYear()}
+      </div>
     </div>
   )
 }

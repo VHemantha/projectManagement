@@ -7,6 +7,7 @@ import styles from './NotificationBell.module.css'
 import { useMarkAllNotificationsRead, useMarkNotificationRead, useNotifications, useUnreadCount } from '@/api/notifications'
 import type { NotificationItem } from '@/api/types'
 import { useUiStore } from '@/store/uiStore'
+import { Tooltip } from '@/design-system'
 
 const VERB_TEXT: Record<NotificationItem['verb'], string> = {
   assigned: 'assigned you',
@@ -30,12 +31,14 @@ export function NotificationBell() {
 
   return (
     <RadixPopover.Root>
-      <RadixPopover.Trigger asChild>
-        <button className={navStyles.iconBtn} aria-label="Notifications">
-          <Bell size={18} />
-          {!!unreadCount && <span className={navStyles.badgeDot} />}
-        </button>
-      </RadixPopover.Trigger>
+      <Tooltip label="Notifications">
+        <RadixPopover.Trigger asChild>
+          <button className={navStyles.iconBtn} aria-label="Notifications">
+            <Bell size={18} />
+            {!!unreadCount && <span className={navStyles.badgeDot} />}
+          </button>
+        </RadixPopover.Trigger>
+      </Tooltip>
       <RadixPopover.Portal>
         <RadixPopover.Content className={styles.content} align="end" sideOffset={6}>
           <div className={styles.header}>

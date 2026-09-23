@@ -191,3 +191,20 @@
   border-color: var(--tf-border-focus);
   background: var(--tf-surface);
 }
+
+/* Mobile: stack the epic filter panel above the backlog list. */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .epicPanel {
+    width: 100%;
+    max-height: 30vh;
+    border-right: none;
+    border-bottom: 1px solid var(--tf-border);
+  }
+  .main {
+    min-width: 0;
+  }
+}

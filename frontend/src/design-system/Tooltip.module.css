@@ -1,0 +1,19 @@
+.content {
+  /* Dark bubble with light text — high contrast against any page background. */
+  background: var(--tf-text);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: var(--tf-radius-sm);
+  box-shadow: var(--tf-shadow-lg);
+  max-width: 240px;
+  /* Above modals and popovers so a hint is never clipped. */
+  z-index: var(--tf-z-toast);
+  user-select: none;
+}
+
+.arrow {
+  fill: var(--tf-text);
+}

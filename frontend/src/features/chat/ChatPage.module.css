@@ -250,3 +250,22 @@
   cursor: pointer;
   color: var(--tf-text-link);
 }
+
+/* Mobile: stack the channel list above the conversation; the list gets a capped
+   height and the thread keeps a usable minimum height below it. */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+  }
+  .sidebar {
+    width: 100%;
+    max-height: 32vh;
+    border-right: none;
+    border-bottom: 1px solid var(--tf-border);
+    overflow-y: auto;
+  }
+  .thread {
+    min-height: 60vh;
+  }
+}

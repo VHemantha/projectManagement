@@ -133,7 +133,10 @@ export function TimesheetGridPage() {
         <div className={styles.reviewerNote}>Rejected: {timesheet.reviewer_note}</div>
       )}
 
-      <table className={styles.table}>
+      {/* Scroll wrapper so the wide weekly grid scrolls sideways on narrow
+          screens instead of stretching the whole page. */}
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
         <thead>
           <tr>
             <th>Task</th>
@@ -196,7 +199,8 @@ export function TimesheetGridPage() {
             <td>{grandTotal.toFixed(2)}</td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
 
       {!isLocked && (
         <div style={{ marginTop: 16 }}>

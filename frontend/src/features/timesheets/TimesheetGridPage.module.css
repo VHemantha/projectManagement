@@ -1,6 +1,6 @@
 .page {
   padding: var(--tf-space-5) var(--tf-space-6);
-  max-width: 1100px;
+  max-width: var(--tf-content-max);
   margin: 0 auto;
 }
 
@@ -140,4 +140,9 @@
   color: var(--tf-text-subtle);
   padding: var(--tf-space-4);
   text-align: center;
+}
+
+/* Horizontal scroll wrapper for the weekly grid on narrow screens. */
+.tableScroll {
+  overflow-x: auto;
 }

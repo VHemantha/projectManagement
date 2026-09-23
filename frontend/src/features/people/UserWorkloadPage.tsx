@@ -6,7 +6,7 @@ import styles from './UserWorkloadPage.module.css'
 import { useIssues } from '@/api/issues'
 import { useTimeEntries } from '@/api/timesheets'
 import { useUsers } from '@/api/users'
-import { Avatar } from '@/design-system'
+import { Avatar, CopyButton } from '@/design-system'
 import { IssueTable } from '@/features/tables/IssueTable'
 import type { GroupByOption } from '@/features/tables/IssueTable'
 
@@ -69,7 +69,13 @@ export function UserWorkloadPage() {
         <Avatar name={user.display_name} src={user.avatar} size={48} />
         <div>
           <div className={styles.name}>{user.display_name}</div>
-          <div className={styles.role}>{user.job_title || user.email}</div>
+          {user.job_title && <div className={styles.role}>{user.job_title}</div>}
+          <div className={styles.emailRow}>
+            <a className={styles.email} href={`mailto:${user.email}`}>
+              {user.email}
+            </a>
+            <CopyButton value={user.email} label="email" />
+          </div>
         </div>
       </div>
 
