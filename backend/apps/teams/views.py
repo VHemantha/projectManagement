@@ -7,7 +7,7 @@ from .serializers import TeamDetailSerializer, TeamListSerializer, TeamMembershi
 
 
 class TeamViewSet(viewsets.ModelViewSet):
-    queryset = Team.objects.annotate(member_count=Count("memberships")).order_by("name")
+    queryset = Team.objects.annotate(member_count=Count("memberships")).select_related("parent").order_by("name")
     permission_classes = [permissions.IsAuthenticated]
 
     def get_serializer_class(self):
@@ -18,7 +18,7 @@ class TeamViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         if self.action == "retrieve":
-            qs = qs.prefetch_related("memberships__user")
+            qs = qs.prefetch_related("memberships__user", "sub_teams")
         return qs
 
 

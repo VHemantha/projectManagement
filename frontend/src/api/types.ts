@@ -158,6 +158,7 @@ export interface TeamSummary {
   description: string
   avatar_color: string
   member_count: number
+  parent: TeamMini | null
   created_at: string
 }
 
@@ -167,6 +168,8 @@ export interface TeamDetail {
   description: string
   avatar_color: string
   memberships: TeamMembership[]
+  parent: TeamMini | null
+  sub_teams: TeamMini[]
   created_at: string
 }
 

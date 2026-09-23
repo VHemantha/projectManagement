@@ -63,16 +63,23 @@ const columns = helper.columns([
   }),
 ])
 
-type ViewMode = 'flat' | 'team' | 'client'
+type ViewMode = 'flat' | 'group' | 'team' | 'client'
+
+const TREE_EMPTY_MESSAGE: Record<Exclude<ViewMode, 'flat'>, string> = {
+  group: 'No groups yet.',
+  team: 'No teams yet.',
+  client: 'No clients yet.',
+}
 
 export function ProjectsListPage() {
   const { data: projects, isLoading } = useProjects()
   const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
   const [createClientOpen, setCreateClientOpen] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('flat')
+  // "By Group" first — that's the primary way the org browses work day-to-day.
+  const [viewMode, setViewMode] = useState<ViewMode>('group')
   const [treeSearch, setTreeSearch] = useState('')
-  const { data: treeNodes, isLoading: treeLoading } = useNavTree(viewMode === 'client' ? 'client' : 'team')
+  const { data: treeNodes, isLoading: treeLoading } = useNavTree(viewMode === 'flat' ? 'group' : viewMode)
 
   const table = useTable(
     {
@@ -101,6 +108,7 @@ export function ProjectsListPage() {
         <div style={{ display: 'inline-flex', border: '1px solid var(--tf-border)', borderRadius: 6, overflow: 'hidden' }}>
           {([
             ['flat', 'Flat'],
+            ['group', 'By Group'],
             ['team', 'By Team'],
             ['client', 'By Client'],
           ] as const).map(([mode, label]) => (
@@ -157,7 +165,7 @@ export function ProjectsListPage() {
               nodes={treeNodes ?? []}
               onLeafClick={handleTreeLeafClick}
               filterQuery={treeSearch}
-              emptyMessage={viewMode === 'team' ? 'No teams yet.' : 'No clients yet.'}
+              emptyMessage={TREE_EMPTY_MESSAGE[viewMode as Exclude<ViewMode, 'flat'>]}
             />
           )}
         </div>

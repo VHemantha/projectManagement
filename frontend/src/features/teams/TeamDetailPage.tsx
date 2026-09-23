@@ -1,10 +1,11 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import styles from './TeamBoardPage.module.css'
 import { useTeam } from '@/api/teams'
 import { TeamBoard } from './TeamBoard'
 import { TeamGoalsTab } from './TeamGoalsTab'
 import { TeamIssuesTab } from './TeamIssuesTab'
+import { TeamMembersTab } from './TeamMembersTab'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 
 export function TeamDetailPage() {
@@ -21,7 +22,23 @@ export function TeamDetailPage() {
         </span>
         <div>
           <div className={styles.title}>{team.name}</div>
-          <div className={styles.subtitle}>{team.memberships.length} members</div>
+          <div className={styles.subtitle}>
+            {team.memberships.length} members
+            {team.parent && (
+              <>
+                {' · Part of '}
+                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-blue)' }}>
+                  {team.parent.name}
+                </Link>
+              </>
+            )}
+            {team.sub_teams.length > 0 && (
+              <>
+                {' · '}
+                {team.sub_teams.length} sub-team{team.sub_teams.length > 1 ? 's' : ''}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -31,6 +48,7 @@ export function TeamDetailPage() {
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="issues">Issues</TabsTrigger>
             <TabsTrigger value="goals">Team Goals</TabsTrigger>
+            <TabsTrigger value="members">Members</TabsTrigger>
           </TabsList>
         </div>
         <TabsContent value="board" style={{ flex: 1, minHeight: 0 }}>
@@ -41,6 +59,9 @@ export function TeamDetailPage() {
         </TabsContent>
         <TabsContent value="goals">
           <TeamGoalsTab team={team} />
+        </TabsContent>
+        <TabsContent value="members">
+          <TeamMembersTab team={team} />
         </TabsContent>
       </Tabs>
     </div>
