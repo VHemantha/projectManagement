@@ -21,7 +21,8 @@ from ._constants import (_EMOJI_ZWJ_SET,
                          _FITZPATRICK_RANGE,
                          _REGIONAL_INDICATOR_SET,
                          resolve_terminal,
-                         get_term_overrides)
+                         get_term_overrides,
+                         _clamp_ambiguous_width)
 from .table_vs15 import VS15_WIDE_TO_NARROW
 from .table_vs16 import VS16_NARROW_TO_WIDE
 from .table_grapheme import GRAPHEME_EXTEND
@@ -96,6 +97,8 @@ def wcswidth(
     if n is None and pwcs.isascii() and pwcs.isprintable():
         return len(pwcs)
 
+    ambiguous_width = _clamp_ambiguous_width(ambiguous_width)
+
     _wcwidth = wcwidth if ambiguous_width == 1 else lambda c: wcwidth(c, 'auto', ambiguous_width)
 
     end = len(pwcs) if n is None else min(n, len(pwcs))
@@ -144,6 +147,7 @@ def wcswidth(
         if ucs == 0xFE0E and last_measured_idx >= 0:
             if bisearch(last_measured_ucs, vs15_wn_table) and last_measured_w == 2:
                 total_width -= 1
+            last_measured_idx = -2
             idx += 1
             continue
 
@@ -235,6 +239,8 @@ def wcstwidth(
     # Fast path: pure ASCII printable strings are always width == length
     if n is None and pwcs.isascii() and pwcs.isprintable():
         return len(pwcs)
+
+    ambiguous_width = _clamp_ambiguous_width(ambiguous_width)
 
     # Resolve terminal software for override lookup
     term_canonical = resolve_terminal(term_program)
@@ -331,7 +337,7 @@ def wcstwidth(
                 pass
             elif _bisearch(last_measured_ucs, vs16_nw_table):
                 cluster_width = 2
-            last_measured_idx = -2  # prevent double application
+            last_measured_idx = -2
             idx += 1
             continue
 
@@ -343,6 +349,7 @@ def wcstwidth(
                 vs15_narrow = False
             if vs15_narrow and last_measured_w == 2:
                 total_width -= 1
+            last_measured_idx = -2
             idx += 1
             continue
 

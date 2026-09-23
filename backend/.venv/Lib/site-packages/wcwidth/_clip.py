@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 # std imports
+import sys
 import enum
 from itertools import islice
 
@@ -17,6 +18,7 @@ from .sgr_state import (_SGR_PATTERN,
                         _sgr_state_update,
                         _sgr_state_is_active,
                         _sgr_state_to_sequence)
+from ._constants import _clamp_ambiguous_width
 from .text_sizing import TextSizing, TextSizingParams
 from .escape_sequences import (_SEQUENCE_CLASSIFY,
                                _HORIZONTAL_CURSOR_MOVEMENT,
@@ -181,7 +183,7 @@ def _reconstruct_painter(
         if walk_col in cells:
             cell_text, cell_w = cells[walk_col]
             parts.append(cell_text)
-            walk_col += cell_w
+            walk_col += cell_w or 1
         else:
             if start <= walk_col <= max_cell_col:
                 parts.append(fillchar)
@@ -306,9 +308,9 @@ def _clip_simple(
 
             # OSC 66 Text Sizing.
             if (ts_meta := m.group('ts_meta')) is not None:
-                ts_text = m.group('ts_text')
+                ts_text = m.group('ts_text') or ''
                 ts_term = m.group('ts_term')
-                assert ts_text is not None and ts_term is not None
+                assert ts_term is not None
                 ts = TextSizing(
                     TextSizingParams.from_params(ts_meta, control_codes=control_codes),
                     ts_text, ts_term)
@@ -517,11 +519,21 @@ def _clip_painter(
     # is emitted, meaning captured_style is still in effect at the end.
     end_style: Optional[_SGRState] = None
     current_style = _SGR_STATE_DEFAULT if propagate_sgr else None
+    # Next movement at or after the scan position, -1 when none is left.
+    next_movement: Optional[int] = None
 
     def _write_cells(s: str, w: int, write_col: int,
                      is_hyperlink: bool = False) -> None:
         """Write *w* cells of text *s* at *write_col*, handling wide-char splitting."""
-        nonlocal captured_style
+        nonlocal captured_style, seq_order
+        if w == 0:
+            # Zero-width: a cell here would be overwritten by the next write.
+            if s:
+                sequences.append((write_col, seq_order, s))
+                seq_order += 1
+                if propagate_sgr and captured_style is None:
+                    captured_style = current_style
+            return
         for offset in range(w):
             src_col = write_col + offset
             if src_col > 0 and cells.get(src_col - 1, ('', 0))[1] == 2:
@@ -542,9 +554,24 @@ def _clip_painter(
     while idx < len(text):
         char = text[idx]
 
-        # Early exit: past visible region, SGR captured, no escape ahead.
-        if col >= end and captured_style is not None and char != '\x1b':
-            break
+        # Early exit: past visible region.
+        if col >= end and char not in '\r\x08\t\x1b':
+            # Movement right-of the window can still rewinds back into it.
+            if next_movement is None or 0 <= next_movement < idx:
+                # Any match starts with one of these, and rfind is far cheaper.
+                if max(text.rfind('\x08'), text.rfind('\r'), text.rfind('\x1b')) < idx:
+                    next_movement = -1
+                else:
+                    found = _HORIZONTAL_CURSOR_MOVEMENT.search(text, idx)
+                    next_movement = -1 if found is None else found.end()
+            if next_movement < 0:
+                if captured_style is not None:
+                    break
+                next_esc = text.find('\x1b', idx + 1)
+                if next_esc == -1:
+                    break
+                idx = next_esc
+                continue
 
         if char == '\x1b':
             m = _SEQUENCE_CLASSIFY.match(text, idx)
@@ -605,9 +632,9 @@ def _clip_painter(
 
             # OSC 66 Text Sizing.
             if (ts_meta := m.group('ts_meta')) is not None:
-                ts_text = m.group('ts_text')
+                ts_text = m.group('ts_text') or ''
                 ts_term = m.group('ts_term')
-                assert ts_text is not None and ts_term is not None
+                assert ts_term is not None
                 ts = TextSizing(
                     TextSizingParams.from_params(ts_meta, control_codes=control_codes),
                     ts_text, ts_term)
@@ -681,10 +708,9 @@ def _clip_painter(
         if char == '\t':
             if tabsize > 0:
                 next_tab = col + (tabsize - (col % tabsize))
-                while col < next_tab:
-                    if start <= col < end:
-                        _write_cells(fillchar, 1, col)
-                    col += 1
+                for fill_col in range(max(col, start), min(next_tab, end)):
+                    _write_cells(' ', 1, fill_col)
+                col = next_tab
             else:
                 sequences.append((col, seq_order, '\t'))
                 seq_order += 1
@@ -717,8 +743,8 @@ def _clip_painter(
 
 def clip(
     text: str,
-    start: int,
-    end: int,
+    start: int = 0,
+    end: int = -1,
     *,
     fillchar: str = ' ',
     tabsize: int = 8,
@@ -731,29 +757,26 @@ def clip(
     r"""
     Clip text to display columns (start, end) while preserving all terminal sequences.
 
-    This function extracts a substring based on visible column positions rather than
-    character indices. Terminal escape sequences are preserved in the output since
-    they have zero display width. If a wide character (width 2) is split at
-    either boundary, it is replaced with ``fillchar``.
+    This function extracts a substring based on visible column positions rather than character
+    indices. Terminal escape sequences are preserved in output. If a wide character (width of 2) is
+    split at a boundary, it is replaced with ``fillchar``.
 
-    TAB characters (``\t``) are expanded to spaces up to the next tab stop,
-    controlled by the ``tabsize`` parameter.
+    TAB characters (``\t``) are expanded to spaces up to the next tab stop, controlled by the
+    ``tabsize`` parameter.  When cursor movement is detected, a "painter's algorithm" is used unless
+    ``overtyping=False`` is set.  Cursor movement control codes are parsed for their effects instead
+    of ignored.  For these operations, it is assumed that ``text`` begins at column 0.
 
-    When cursor movement is detected, a "painter's algorithm" is used unless ``overtyping=False`` is
-    set.  Cursor movement control codes are parsed for their effects instead of ignored.  For all
-    such operations, it is assumed that ``text`` begins at column 0.
-
-    **OSC 8 hyperlinks** are handled specially: the visible text inside a hyperlink
-    is clipped to the requested column range, and the hyperlink is rebuilt around
-    the clipped text.  Empty hyperlinks (those with no remaining visible text after
-    clipping) are removed::
+    For text containing **OSC 8 hyperlinks**, the visible text inside a hyperlink is clipped to the
+    requested column range and the hyperlink sequence is rebuilt::
 
         >>> clip('\x1b]8;;http://example.com\x07Click This link\x1b]8;;\x07', 6, 10)
         '\x1b]8;;http://example.com\x07This\x1b]8;;\x07'
 
     :param text: String to clip, may contain terminal escape sequences.
-    :param start: Absolute starting column (inclusive, 0-indexed).
-    :param end: Absolute ending column (exclusive).
+    :param start: Absolute starting column (inclusive, 0-indexed), default ``0``.
+    :param end: Absolute ending column (exclusive).  The default value, ``-1``,
+        signifies "to the end of the line", clipping only from *start* without
+        requiring the caller to measure the display width of *text*.
     :param fillchar: Character to use when a wide character must be split at
         a boundary (default space). Must have display width of 1.
     :param tabsize: Tab stop width (default 8). Set to 0 to pass tabs through
@@ -797,15 +820,16 @@ def clip(
         with all terminal sequences preserved and wide characters at boundaries
         replaced with ``fillchar``.
 
-    :raises ValueError: If ``control_codes='strict'`` and an indeterminate-effect
-        sequence or out-of-bounds cursor movement is encountered.
+    :raises ValueError: If ``end`` is negative and not ``-1``, or if
+        ``control_codes='strict'`` and an indeterminate-effect sequence or
+        out-of-bounds cursor movement is encountered.
 
     SGR (terminal styling) sequences are propagated by default. The result
     begins with any active style and ends with a reset::
 
         >>> clip('\x1b[1;34mHello world\x1b[0m', 6, 11)
         '\x1b[1;34mworld\x1b[0m'
-        >>> wcwidth.clip('\x1b[1mbold\x1b[m normal', 1, 9)
+        >>> clip('\x1b[1mbold\x1b[m normal', 1, 9)
         '\x1b[1mold\x1b[m norm'
 
     Set ``propagate_sgr=False`` to disable this behavior.
@@ -820,6 +844,13 @@ def clip(
        OSC 8 hyperlink-aware clipping.  OSC 66 text sizing protocol support.
        Added ``overtyping`` parameter (default None, auto-detect).
 
+    .. versionchanged:: 0.8.4
+       ``start`` now defaults to ``0`` and ``end`` to ``-1``, meaning "to the
+       end of the line"::
+
+           >>> clip('\x1b[1;34mHello world\x1b[0m', 6)
+           '\x1b[1;34mworld\x1b[0m'
+
     Example::
 
         >>> clip('hello world', 0, 5)
@@ -830,12 +861,20 @@ def clip(
         'a       b'
     """
     start = max(start, 0)
+    if end < 0:
+        if end != -1:
+            raise ValueError(
+                f"end must be -1 (to end of line) or non-negative, got {end}")
+        # Unbounded: clip only from *start*, to the end of the line.
+        end = sys.maxsize
     if end <= start:
         return ''
 
     # Fast path: printable ASCII only.
     if text.isascii() and text.isprintable():
         return text[start:end]
+
+    ambiguous_width = _clamp_ambiguous_width(ambiguous_width)
 
     # No escape sequences => no SGR tracking needed.
     has_esc = '\x1b' in text
