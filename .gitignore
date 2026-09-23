@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# Python / Django (backend)
+# ---------------------------------------------------------------------------
+# Virtual environments are machine-specific (they hardcode absolute paths), so
+# every developer must create their own with `python -m venv .venv`.
+.venv/
+venv/
+env/
+
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local SQLite database. Each developer keeps their own; regenerate demo data
+# with `python manage.py migrate && python manage.py seed_demo`.
+*.sqlite3
+
+# Environment variables and secrets. Copy `.env.example` to `.env` locally
+# and fill in your own values — never commit the real `.env`.
+.env
+*.env
+!.env.example
+
+# User-uploaded media (avatars, attachments) generated at runtime.
+backend/media/
+
+# ---------------------------------------------------------------------------
+# Node / Vite (frontend)
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+*.local
+
+# ---------------------------------------------------------------------------
+# Logs and OS / editor cruft
+# ---------------------------------------------------------------------------
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
