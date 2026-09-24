@@ -93,11 +93,17 @@ class Board(models.Model):
         PRIORITY = "priority", "By priority"
         ISSUE_TYPE = "issue_type", "By issue type"
         LABEL = "label", "By label"
+        DUE_DATE = "due_date", "By due date"
+
+    class CardColorStyle(models.TextChoices):
+        STRIPE = "stripe", "Left stripe"
+        TINT = "tint", "Tinted card"
 
     project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="boards")
     name = models.CharField(max_length=100)
     board_type = models.CharField(max_length=10, choices=BoardType.choices)
-    # ordered list of {"name": str, "status_ids": [int, ...], "wip_limit": int|null}
+    # ordered list of {"name": str, "status_ids": [int, ...], "wip_limit": int|null,
+    # "color": "#rrggbb"|null}
     column_config = models.JSONField(default=list)
     swimlane_mode = models.CharField(
         max_length=20,
@@ -113,6 +119,13 @@ class Board(models.Model):
     # "due_date", "epic_tag", "current_responsible", "time_logged") rendered on card faces.
     card_fields = models.JSONField(default=_default_card_fields)
     card_color_rule = models.CharField(max_length=20, choices=CardColorRule.choices, default=CardColorRule.NONE)
+    # Per-rule colour overrides, e.g. {"priority": {"high": "#e5493a"}, "issue_type": {"3": "#36b37e"},
+    # "due_date": {"overdue": "#e5493a", "due_soon": "#ffab00", "on_track": "#36b37e"}}. Anything
+    # not overridden falls back to the built-in colour for that value.
+    card_colors = models.JSONField(default=dict, blank=True)
+    card_color_style = models.CharField(
+        max_length=10, choices=CardColorStyle.choices, default=CardColorStyle.STRIPE
+    )
     filters = models.ForeignKey(
         "search.Filter", null=True, blank=True, on_delete=models.SET_NULL, related_name="boards"
     )

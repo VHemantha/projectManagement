@@ -298,7 +298,14 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         if "status" not in validated_data:
             workflow = getattr(project, "workflow", None)
             if workflow:
-                default_status = workflow.statuses.order_by("order").first()
+                # New issues start in the board's first column, so they're always visible on it
+                # even after columns are reordered or the original first status is unmapped.
+                default_status = None
+                board = project.boards.order_by("id").first()
+                first_column = board.column_config[0] if board and board.column_config else None
+                if first_column and first_column.get("status_ids"):
+                    default_status = workflow.statuses.filter(id=first_column["status_ids"][0]).first()
+                default_status = default_status or workflow.statuses.order_by("order").first()
                 if default_status:
                     validated_data["status"] = default_status
         last = Issue.objects.filter(project=project).order_by("-rank").first()

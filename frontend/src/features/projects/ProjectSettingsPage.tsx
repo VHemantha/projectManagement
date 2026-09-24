@@ -6,6 +6,8 @@ import { Plus } from 'lucide-react'
 import styles from './ProjectSettingsPage.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
 import { TaskNamesEditor } from './TaskNamesEditor'
+import { useCanConfigureBoard } from '@/features/board/boardPermissions'
+import { BoardSettingsForm } from '@/features/board/BoardSettingsPanel'
 import { useProjectContext } from './useProjectContext'
 import { useUpdateWorkflowTransition, useWorkflowTransitions } from '@/api/boards'
 import { extractErrorMessage } from '@/api/errors'
@@ -302,8 +304,8 @@ function WorkflowTab() {
   return (
     <div>
       <div className={styles.hint}>
-        Read-only view of this project&apos;s status pipeline. Full drag-to-reorder and custom
-        transitions are a fast-follow — statuses currently mirror the board columns.
+        This project&apos;s statuses. To add a new stage, add a column in the Board tab — saving it
+        creates the status. Unused statuses can be deleted there too.
       </div>
       {board?.statuses.map((s) => (
         <div key={s.id} className={styles.statusRow}>
@@ -311,6 +313,30 @@ function WorkflowTab() {
           <StatusBadge label={s.category.replace('_', ' ')} category={s.category as StatusCategory} />
         </div>
       ))}
+    </div>
+  )
+}
+
+function BoardTab() {
+  const { project } = useProjectContext()
+  const { data: board } = useProjectBoard(project.key)
+  const canConfigure = useCanConfigureBoard(project)
+
+  if (!board) return null
+  if (!canConfigure) {
+    return (
+      <div className={styles.hint}>
+        Only the project lead, a project admin or a workspace admin can customise this board.
+      </div>
+    )
+  }
+  return (
+    <div>
+      <div className={styles.hint}>
+        Customise the {project.project_type === 'scrum' ? 'Scrum sprint' : 'Kanban'} board: add or reorder columns,
+        colour them, set WIP limits and choose how cards are coloured.
+      </div>
+      <BoardSettingsForm key={board.id} board={board} projectKey={project.key} />
     </div>
   )
 }
@@ -356,6 +382,7 @@ export function ProjectSettingsPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
           <TabsTrigger value="workflow">Workflow</TabsTrigger>
@@ -363,6 +390,9 @@ export function ProjectSettingsPage() {
         </TabsList>
         <TabsContent value="general">
           <GeneralTab />
+        </TabsContent>
+        <TabsContent value="board">
+          <BoardTab />
         </TabsContent>
         <TabsContent value="tasks">
           <TasksTab />

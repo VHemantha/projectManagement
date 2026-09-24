@@ -1,6 +1,7 @@
 import { Settings } from 'lucide-react'
 import { useState } from 'react'
 
+import { useCanConfigureBoard } from './boardPermissions'
 import { BoardSettingsPanel } from './BoardSettingsPanel'
 import { KanbanBoard } from './KanbanBoard'
 import { resolveDropStatusId } from './laneUtils'
@@ -10,11 +11,9 @@ import { useProjectBoard } from '@/api/projects'
 import { useSprints } from '@/api/sprints'
 import { Button } from '@/design-system'
 import { useProjectContext } from '@/features/projects/useProjectContext'
-import { useAuthStore } from '@/store/authStore'
 
 export function ProjectBoardPage() {
   const { project } = useProjectContext()
-  const currentUser = useAuthStore((s) => s.user)
   const { data: board, isLoading: boardLoading } = useProjectBoard(project.key)
   const { data: sprints } = useSprints(project.key)
   const moveIssue = useMoveIssue()
@@ -23,11 +22,7 @@ export function ProjectBoardPage() {
   const activeSprint = sprints?.find((s) => s.state === 'active')
   const isScrum = project.project_type === 'scrum'
 
-  const canConfigureBoard =
-    !!currentUser &&
-    (currentUser.is_staff ||
-      project.lead?.id === currentUser.id ||
-      project.memberships.some((m) => m.user.id === currentUser.id && m.role === 'admin'))
+  const canConfigureBoard = useCanConfigureBoard(project)
 
   const { data: issuesPage, isLoading: issuesLoading } = useIssues(
     {
@@ -41,10 +36,21 @@ export function ProjectBoardPage() {
     isScrum ? !!activeSprint : true,
   )
 
+  const settingsPanel = board && (
+    <BoardSettingsPanel board={board} projectKey={project.key} open={settingsOpen} onOpenChange={setSettingsOpen} />
+  )
+
   if (isScrum && !activeSprint) {
+    // Columns and colours can be set up before the first sprint starts.
     return (
       <div style={{ padding: 48, textAlign: 'center', color: 'var(--tf-text-subtle)' }}>
-        No active sprint. Start one from the Backlog to see it here.
+        <p style={{ margin: '0 0 16px' }}>No active sprint. Start one from the Backlog to see it here.</p>
+        {canConfigureBoard && board && (
+          <Button variant="subtle" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Settings size={14} /> Configure board
+          </Button>
+        )}
+        {settingsPanel}
       </div>
     )
   }
@@ -58,6 +64,8 @@ export function ProjectBoardPage() {
         defaultSwimlaneMode={(board?.swimlane_mode as SwimlaneMode) ?? 'none'}
         cardFields={board?.card_fields}
         cardColorRule={board?.card_color_rule}
+        cardColors={board?.card_colors}
+        cardColorStyle={board?.card_color_style}
         toolbarExtra={
           canConfigureBoard &&
           board && (
@@ -77,14 +85,7 @@ export function ProjectBoardPage() {
           })
         }}
       />
-      {board && (
-        <BoardSettingsPanel
-          board={board}
-          projectKey={project.key}
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-        />
-      )}
+      {settingsPanel}
     </>
   )
 }

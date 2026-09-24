@@ -17,7 +17,7 @@ import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import styles from './KanbanBoard.module.css'
 import { BoardCard } from './BoardCard'
 import { type Lane, type SwimlaneMode, computeLanes } from './laneUtils'
-import type { BoardColumn, CardColorRule, CardFieldKey, IssueListItem } from '@/api/types'
+import type { BoardColumn, CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
 import { Avatar, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
@@ -34,6 +34,8 @@ interface KanbanBoardProps {
   toolbarExtra?: ReactNode
   cardFields?: CardFieldKey[]
   cardColorRule?: CardColorRule
+  cardColors?: CardColors
+  cardColorStyle?: CardColorStyle
   onMoveIssue: (params: {
     issue: IssueListItem
     column: BoardColumn
@@ -65,6 +67,8 @@ export function KanbanBoard({
   toolbarExtra,
   cardFields,
   cardColorRule,
+  cardColors,
+  cardColorStyle,
   onMoveIssue,
   emptyMessage = 'No issues to show.',
 }: KanbanBoardProps) {
@@ -258,10 +262,20 @@ export function KanbanBoard({
               issuesById={issuesById}
               cardFields={cardFields}
               cardColorRule={cardColorRule}
+              cardColors={cardColors}
+              cardColorStyle={cardColorStyle}
             />
           ))}
           <DragOverlay>
-            {activeIssue ? <BoardCard issue={activeIssue} cardFields={cardFields} cardColorRule={cardColorRule} /> : null}
+            {activeIssue ? (
+              <BoardCard
+                issue={activeIssue}
+                cardFields={cardFields}
+                cardColorRule={cardColorRule}
+                cardColors={cardColors}
+                cardColorStyle={cardColorStyle}
+              />
+            ) : null}
           </DragOverlay>
         </DndContext>
       </div>
@@ -278,6 +292,8 @@ function BoardLane({
   issuesById,
   cardFields,
   cardColorRule,
+  cardColors,
+  cardColorStyle,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -287,6 +303,8 @@ function BoardLane({
   issuesById: Record<number, IssueListItem>
   cardFields?: CardFieldKey[]
   cardColorRule?: CardColorRule
+  cardColors?: CardColors
+  cardColorStyle?: CardColorStyle
 }) {
   return (
     <div className={styles.lane}>
@@ -307,6 +325,7 @@ function BoardLane({
               key={key}
               containerId={key}
               title={col.name}
+              color={col.color}
               count={ids.length}
               wipLimit={col.wip_limit}
               overLimit={overLimit}
@@ -323,6 +342,8 @@ function BoardLane({
               issuesById={issuesById}
               cardFields={cardFields}
               cardColorRule={cardColorRule}
+              cardColors={cardColors}
+              cardColorStyle={cardColorStyle}
             />
           )
         })}
@@ -334,6 +355,7 @@ function BoardLane({
 function BoardColumnView({
   containerId,
   title,
+  color,
   count,
   wipLimit,
   overLimit,
@@ -343,9 +365,12 @@ function BoardColumnView({
   issuesById,
   cardFields,
   cardColorRule,
+  cardColors,
+  cardColorStyle,
 }: {
   containerId: string
   title: string
+  color?: string | null
   count: number
   wipLimit: number | null
   overLimit: boolean
@@ -355,15 +380,22 @@ function BoardColumnView({
   issuesById: Record<number, IssueListItem>
   cardFields?: CardFieldKey[]
   cardColorRule?: CardColorRule
+  cardColors?: CardColors
+  cardColorStyle?: CardColorStyle
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
   return (
     <div className={`${styles.column} ${collapsed ? styles.collapsed : ''}`}>
-      <div className={styles.columnHeader} onClick={onToggleCollapse}>
+      <div
+        className={styles.columnHeader}
+        style={color ? { boxShadow: `inset 0 3px 0 ${color}` } : undefined}
+        onClick={onToggleCollapse}
+      >
         {collapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
         {!collapsed && (
           <>
+            {color && <span className={styles.columnDot} style={{ background: color }} />}
             <span>{title}</span>
             <span className={`${styles.columnCount} ${overLimit ? styles.overLimit : ''}`}>
               {count}
@@ -386,6 +418,8 @@ function BoardColumnView({
                       issue={issuesById[id]}
                       cardFields={cardFields}
                       cardColorRule={cardColorRule}
+                      cardColors={cardColors}
+                      cardColorStyle={cardColorStyle}
                     />
                   ),
               )

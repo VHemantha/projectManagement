@@ -91,6 +91,11 @@ export interface BoardColumn {
   name: string
   status_ids: number[]
   wip_limit: number | null
+  /** Header accent colour (#rrggbb), or none. */
+  color?: string | null
+  /** Only on an unsaved column with no status_ids: on save the server creates a workflow
+   * status named after the column, in this category, and maps it. */
+  new_status?: { category: WorkflowStatus['category'] }
   /** Set only on synthetic columns built for cross-project boards (Team/My Work),
    * where a single status id can't represent every project's workflow. */
   category?: 'todo' | 'in_progress' | 'done'
@@ -107,7 +112,21 @@ export type CardFieldKey =
   | 'time_logged'
   | 'current_responsible'
 
-export type CardColorRule = 'none' | 'priority' | 'issue_type' | 'label'
+export type CardColorRule = 'none' | 'priority' | 'issue_type' | 'label' | 'due_date'
+
+export type CardColorStyle = 'stripe' | 'tint'
+
+/** Per-rule colour overrides (#rrggbb); anything missing uses the built-in colour. */
+export interface CardColors {
+  priority?: Partial<Record<Priority, string>>
+  /** Keyed by issue type id. */
+  issue_type?: Record<string, string>
+  due_date?: Partial<Record<'overdue' | 'due_soon' | 'on_track', string>>
+}
+
+export interface BoardStatus extends WorkflowStatus {
+  issue_count: number
+}
 
 export interface Board {
   id: number
@@ -117,8 +136,10 @@ export interface Board {
   swimlane_mode: 'none' | 'epic' | 'assignee' | 'parent'
   card_fields: CardFieldKey[]
   card_color_rule: CardColorRule
+  card_colors: CardColors
+  card_color_style: CardColorStyle
   filters: number | null
-  statuses: WorkflowStatus[]
+  statuses: BoardStatus[]
 }
 
 export interface BoardConfig {
@@ -127,6 +148,8 @@ export interface BoardConfig {
   swimlane_mode: 'none' | 'epic' | 'assignee' | 'parent'
   card_fields: CardFieldKey[]
   card_color_rule: CardColorRule
+  card_colors: CardColors
+  card_color_style: CardColorStyle
   filters: number | null
 }
 

@@ -53,3 +53,16 @@ export function useUpdateWorkflowTransition(projectKey: string | undefined) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects', projectKey, 'workflow-transitions'] }),
   })
 }
+
+/** Deletes a workflow status nothing uses any more (no issues, not on any column). */
+export function useDeleteBoardStatus(boardId: number | undefined, projectKey: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (statusId: number) => {
+      await apiClient.delete(`/boards/${boardId}/statuses/${statusId}/`)
+    },
+    onSuccess: () => {
+      if (projectKey) queryClient.invalidateQueries({ queryKey: ['projects', projectKey, 'board'] })
+    },
+  })
+}

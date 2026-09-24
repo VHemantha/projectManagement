@@ -3,9 +3,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { Calendar } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { cardAccentColor, withAlpha } from './cardColors'
 import styles from './KanbanBoard.module.css'
 import { useRunningTimer } from '@/api/timesheets'
-import type { CardColorRule, CardFieldKey, IssueListItem } from '@/api/types'
+import type { CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
 import { Avatar, IssueKey, IssueTypeIcon, PriorityIcon } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
@@ -67,27 +68,18 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
 
 const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee']
 
-function colorForRule(issue: IssueListItem, rule: CardColorRule | undefined): string | undefined {
-  switch (rule) {
-    case 'priority':
-      return `var(--tf-priority-${issue.priority})`
-    case 'issue_type':
-      return issue.issue_type.color
-    case 'label':
-      return issue.labels[0]?.color
-    default:
-      return undefined
-  }
-}
-
 export function BoardCard({
   issue,
   cardFields = DEFAULT_CARD_FIELDS,
   cardColorRule,
+  cardColors,
+  cardColorStyle = 'stripe',
 }: {
   issue: IssueListItem
   cardFields?: CardFieldKey[]
   cardColorRule?: CardColorRule
+  cardColors?: CardColors
+  cardColorStyle?: CardColorStyle
 }) {
   const openIssueModal = useUiStore((s) => s.openIssueModal)
   const { data: running } = useRunningTimer()
@@ -101,12 +93,20 @@ export function BoardCard({
   }
   const isRunningHere = running?.issue?.id === issue.id
   const metaFields = cardFields.filter((f) => f !== 'epic_tag')
-  const accentColor = colorForRule(issue, cardColorRule)
+  const accentColor = cardAccentColor(issue, cardColorRule, cardColors)
+  const tint = accentColor && cardColorStyle === 'tint' ? withAlpha(accentColor, 0.14) : undefined
+  const colorStyle = accentColor
+    ? {
+        borderLeft: `3px solid ${accentColor}`,
+        // A non-hex colour can't be made translucent; keep just the stripe then.
+        ...(tint && tint !== accentColor ? { background: tint } : {}),
+      }
+    : {}
 
   return (
     <div
       ref={setNodeRef}
-      style={accentColor ? { ...style, borderLeft: `3px solid ${accentColor}` } : style}
+      style={{ ...style, ...colorStyle }}
       className={`${styles.card} ${isDragging ? styles.dragging : ''}`}
       onClick={() => openIssueModal(issue.key)}
       {...attributes}

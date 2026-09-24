@@ -1,11 +1,18 @@
 from django.shortcuts import get_object_or_404
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
 from rest_framework.exceptions import PermissionDenied
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.projects.models import ProjectMembership
 
-from .models import Board, IssueType, Workflow, WorkflowTransition
-from .serializers import BoardConfigSerializer, IssueTypeSerializer, WorkflowTransitionSerializer
+from .models import Board, IssueType, Workflow, WorkflowStatus, WorkflowTransition
+from .serializers import (
+    BoardConfigSerializer,
+    IssueTypeSerializer,
+    WorkflowTransitionSerializer,
+    status_issue_counts,
+)
 
 
 class IssueTypeListView(generics.ListAPIView):
@@ -51,6 +58,39 @@ class BoardConfigView(generics.RetrieveUpdateAPIView):
         super().check_object_permissions(request, obj)
         if request.method not in permissions.SAFE_METHODS and not _can_configure_board(request.user, obj):
             raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+
+
+class BoardStatusDetailView(APIView):
+    """DELETE /api/boards/<id>/statuses/<status_id>/ — remove a workflow status that nothing
+    uses any more (no issues in it, not on any of the project's board columns). Board settings
+    list such statuses as "unused" after a column is removed."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, pk, status_id):
+        board = get_object_or_404(Board.objects.select_related("project__workflow"), pk=pk)
+        if not _can_configure_board(request.user, board):
+            raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+        workflow = board.project.workflow
+        wf_status = get_object_or_404(WorkflowStatus, pk=status_id, workflow=workflow)
+
+        issue_count = status_issue_counts(workflow).get(wf_status.id, 0)
+        if issue_count:
+            return Response(
+                {"detail": f"{issue_count} issue(s) are in '{wf_status.name}'. Move them to another status first."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        for project_board in board.project.boards.all():
+            for col in project_board.column_config:
+                if wf_status.id in (col.get("status_ids") or []):
+                    return Response(
+                        {"detail": f"'{wf_status.name}' is still on the '{col['name']}' column. Remove it there first."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+        if workflow.statuses.count() <= 1:
+            return Response({"detail": "A workflow needs at least one status."}, status=status.HTTP_400_BAD_REQUEST)
+        wf_status.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class WorkflowTransitionListView(generics.ListAPIView):
