@@ -12,6 +12,10 @@ redis==5.2.1
 channels==4.2.0
 channels-redis==4.2.1
 daphne==4.1.2
+# production ASGI server: gunicorn process manager + uvicorn workers (HTTP + WebSockets)
+gunicorn==23.0.0
+uvicorn[standard]==0.32.1
+uvicorn-worker==0.2.0
 pytest==8.3.4
 pytest-django==4.9.0
 pytest-asyncio==0.24.0

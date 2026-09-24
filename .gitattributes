@@ -1,0 +1,6 @@
+# Files that run on the Linux server must keep LF endings, even when checked out or
+# archived (`git archive`) on Windows with core.autocrlf=true.
+*.sh        text eol=lf
+*.service   text eol=lf
+*.conf      text eol=lf
+deploy/**   text eol=lf

@@ -52,6 +52,12 @@ A `docker-compose.yml` at the repo root provisions Postgres 16 + Redis 7 if you'
 against those — set `DB_ENGINE=postgres` (and fill in the `DB_*` vars) in `backend/.env`,
 then `docker compose up -d` before migrating.
 
+## Production deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step AWS free-tier deployment (EC2 +
+nginx + gunicorn/uvicorn, Postgres local or RDS, React on S3 + CloudFront, CloudFormation
+template in `deploy/`).
+
 ## What's implemented
 
 - **Auth & workspace**: email/password signup+login (JWT), profile page with avatar upload

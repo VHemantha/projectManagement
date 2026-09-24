@@ -1,0 +1,549 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  TrackFlow production stack (free-tier oriented): one EC2 instance running
+  nginx + gunicorn/uvicorn (Django ASGI) + Redis, Postgres either on the same
+  instance or on RDS, and the React build on S3 behind CloudFront. CloudFront
+  also fronts the EC2 instance for /api, /ws, /admin, /static and /media, so the
+  whole app is served from one HTTPS origin (no CORS, no frontend changes).
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: "Server" }
+        Parameters: [InstanceType, UbuntuAmiId, KeyName, SshCidr]
+      - Label: { default: "Database" }
+        Parameters: [DatabaseMode, DbInstanceClass, DbPassword]
+      - Label: { default: "Edge / CloudFront" }
+        Parameters: [OriginSecret, CloudFrontPrefixListId, CustomDomainName, AcmCertificateArn]
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t2.micro, t3.micro]
+    Description: Free-tier eligible type. Use t3.micro in regions/AZs without t2.
+
+  UbuntuAmiId:
+    Type: AWS::EC2::Image::Id
+    Description: >
+      Ubuntu 24.04 amd64 AMI id. Get it with: aws ssm get-parameter --name
+      /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id
+      --query Parameter.Value --output text. (Pinned on purpose: a changing AMI would
+      make CloudFormation replace the instance, which destroys a local database.)
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing EC2 key pair used for SSH (and by the deploy scripts).
+
+  SshCidr:
+    Type: String
+    Description: >
+      CIDR allowed to SSH to the instance, e.g. 203.0.113.7/32 (your IP). Use 0.0.0.0/0
+      only if you deploy from GitHub Actions (key-only auth is still enforced).
+    AllowedPattern: '^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+
+  DatabaseMode:
+    Type: String
+    Default: local
+    AllowedValues: [local, rds]
+    Description: >
+      local = Postgres on the EC2 instance (no DB cost ever). rds = RDS Postgres
+      (free for 12 months on db.t3.micro / db.t4g.micro, billed afterwards).
+
+  DbInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro, db.t4g.micro]
+    Description: Only used when DatabaseMode=rds.
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    MaxLength: 64
+    AllowedPattern: '^[A-Za-z0-9]+$'
+    ConstraintDescription: 12-64 letters/digits only (keeps shell/URL quoting trivial).
+    Description: Password for the `trackflow` Postgres user (local or RDS).
+
+  OriginSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    MaxLength: 128
+    AllowedPattern: '^[A-Za-z0-9]+$'
+    ConstraintDescription: 32-128 letters/digits.
+    Description: >
+      Random value CloudFront sends to nginx in X-Origin-Verify. nginx rejects requests
+      without it, so nobody can bypass CloudFront by hitting the instance directly.
+
+  CloudFrontPrefixListId:
+    Type: String
+    Default: ""
+    Description: >
+      Optional. ID of the AWS-managed prefix list com.amazonaws.global.cloudfront.origin-facing
+      in this region (pl-xxxxxxxx). When set, port 80 only accepts CloudFront's IP ranges.
+
+  CustomDomainName:
+    Type: String
+    Default: ""
+    Description: Optional, e.g. app.example.com. Requires AcmCertificateArn.
+
+  AcmCertificateArn:
+    Type: String
+    Default: ""
+    Description: Optional ACM certificate ARN for CustomDomainName. MUST be in us-east-1.
+
+Conditions:
+  UseRds: !Equals [!Ref DatabaseMode, rds]
+  UsePrefixList: !Not [!Equals [!Ref CloudFrontPrefixListId, ""]]
+  HasCustomDomain: !And
+    - !Not [!Equals [!Ref CustomDomainName, ""]]
+    - !Not [!Equals [!Ref AcmCertificateArn, ""]]
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Network: a small VPC with two public subnets (RDS needs two AZs). No NAT
+  # gateway — those are not free.
+  # ---------------------------------------------------------------------------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-vpc" }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  VpcGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-public-a" }]
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-public-b" }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTable:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  # ---------------------------------------------------------------------------
+  # Security groups
+  # ---------------------------------------------------------------------------
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: TrackFlow app server (SSH + HTTP from CloudFront)
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SshCidr
+          Description: SSH
+        - !If
+          - UsePrefixList
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourcePrefixListId: !Ref CloudFrontPrefixListId
+            Description: HTTP from CloudFront only
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+            Description: HTTP (nginx still requires the CloudFront secret header)
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Condition: UseRds
+    Properties:
+      GroupDescription: TrackFlow RDS (Postgres from the app server only)
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+
+  # ---------------------------------------------------------------------------
+  # EC2 app server. The Elastic IP is attached to the network interface BEFORE
+  # the instance launches so the instance's public DNS name (used as the
+  # CloudFront origin) is stable across stop/start.
+  # ---------------------------------------------------------------------------
+  AppInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Lets you open a shell from the AWS console (Session Manager) without SSH.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  AppInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref AppInstanceRole]
+
+  AppNetworkInterface:
+    Type: AWS::EC2::NetworkInterface
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      GroupSet: [!Ref AppSecurityGroup]
+      Description: TrackFlow app server primary ENI
+
+  AppEip:
+    Type: AWS::EC2::EIP
+    DependsOn: VpcGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-app" }]
+
+  AppEipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt AppEip.AllocationId
+      NetworkInterfaceId: !Ref AppNetworkInterface
+
+  AppInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [AppEipAssociation, PublicRoute]
+    Properties:
+      ImageId: !Ref UbuntuAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !Ref KeyName
+      IamInstanceProfile: !Ref AppInstanceProfile
+      # t3 defaults to "unlimited" CPU credits, which can bill beyond the free tier.
+      CreditSpecification:
+        CPUCredits: standard
+      MetadataOptions:
+        HttpTokens: required
+      NetworkInterfaces:
+        - NetworkInterfaceId: !Ref AppNetworkInterface
+          DeviceIndex: "0"
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs:
+            VolumeSize: 20 # free tier covers up to 30 GB of EBS
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-app" }]
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            # First-boot provisioning. App code + nginx/systemd config are installed later by
+            # deploy/ec2/server_deploy.sh on every deploy. Log: /var/log/cloud-init-output.log
+            set -euxo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+
+            # 2 GB swap: a micro instance only has 1 GB of RAM.
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
+              sysctl -p /etc/sysctl.d/99-swappiness.conf
+            fi
+
+            apt-get update
+            apt-get install -y nginx redis-server python3-venv python3-dev build-essential \
+              postgresql-client curl
+
+            if [ "${DatabaseMode}" = "local" ]; then
+              apt-get install -y postgresql
+              cd /tmp
+              sudo -u postgres psql -v ON_ERROR_STOP=1 -tc \
+                "SELECT 1 FROM pg_roles WHERE rolname='trackflow'" | grep -q 1 || \
+                sudo -u postgres psql -v ON_ERROR_STOP=1 -c \
+                "CREATE ROLE trackflow LOGIN PASSWORD '${DbPassword}';"
+              sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname='trackflow'" \
+                | grep -q 1 || sudo -u postgres createdb -O trackflow trackflow
+              systemctl enable postgresql
+            fi
+
+            # Redis backs the Channels layer (chat WebSockets across gunicorn workers).
+            cat >> /etc/redis/redis.conf <<'EOF'
+            maxmemory 64mb
+            maxmemory-policy volatile-lru
+            EOF
+            systemctl enable redis-server
+            systemctl restart redis-server
+
+            id trackflow >/dev/null 2>&1 || useradd --system --create-home \
+              --home-dir /srv/trackflow --shell /usr/sbin/nologin trackflow
+            chmod 755 /srv/trackflow
+            mkdir -p /srv/trackflow/releases /srv/trackflow/shared/media \
+              /srv/trackflow/shared/static /srv/trackflow/shared/backups
+            chown trackflow:trackflow /srv/trackflow/shared/media /srv/trackflow/shared/static
+            chmod 700 /srv/trackflow/shared/backups
+
+            if [ ! -f /srv/trackflow/shared/.env ]; then
+              SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')
+              cat > /srv/trackflow/shared/.env <<EOF
+            SECRET_KEY=$SECRET_KEY
+            DEBUG=False
+            ALLOWED_HOSTS=localhost,127.0.0.1
+            DB_ENGINE=postgres
+            DB_NAME=trackflow
+            DB_USER=trackflow
+            DB_PASSWORD=${DbPassword}
+            DB_HOST=${DbHost}
+            DB_PORT=5432
+            REDIS_URL=redis://127.0.0.1:6379/0
+            CHANNEL_LAYER=redis
+            CELERY_TASK_ALWAYS_EAGER=True
+            STATIC_ROOT=/srv/trackflow/shared/static
+            MEDIA_ROOT=/srv/trackflow/shared/media
+            ORIGIN_SECRET=${OriginSecret}
+            EOF
+              chown root:trackflow /srv/trackflow/shared/.env
+              chmod 640 /srv/trackflow/shared/.env
+            fi
+
+            # nginx has no site until the first deploy installs deploy/ec2/nginx.conf.
+            rm -f /etc/nginx/sites-enabled/default
+            systemctl reload nginx || true
+          - DbHost: !If [UseRds, !GetAtt Database.Endpoint.Address, localhost]
+
+  # ---------------------------------------------------------------------------
+  # RDS Postgres (only when DatabaseMode=rds)
+  # ---------------------------------------------------------------------------
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Condition: UseRds
+    Properties:
+      DBSubnetGroupDescription: TrackFlow DB subnets
+      SubnetIds: [!Ref PublicSubnetA, !Ref PublicSubnetB]
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    Condition: UseRds
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      Engine: postgres
+      # Keep major 16: Ubuntu 24.04 ships pg_dump 16, which cannot back up a newer server.
+      EngineVersion: "16.15"
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: "20" # free tier: 20 GB
+      StorageType: gp2
+      StorageEncrypted: true
+      DBName: trackflow
+      MasterUsername: trackflow
+      MasterUserPassword: !Ref DbPassword
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups: [!Ref DbSecurityGroup]
+      PubliclyAccessible: false
+      MultiAZ: false # Multi-AZ is not free tier
+      BackupRetentionPeriod: 7
+      AutoMinorVersionUpgrade: true
+
+  # ---------------------------------------------------------------------------
+  # Frontend: private S3 bucket, readable only by CloudFront (Origin Access Control)
+  # ---------------------------------------------------------------------------
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: cloudfront.amazonaws.com }
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  FrontendOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-frontend-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Client-side routing: any path without a file extension (/projects/TRK/board, ...)
+  # is served index.html. Only attached to the S3 behaviour, so API 404s stay 404s.
+  SpaRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-spa-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Rewrite SPA routes to /index.html
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var last = request.uri.split('/').pop();
+          if (last.indexOf('.') === -1) {
+            request.uri = '/index.html';
+          }
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${AWS::StackName} TrackFlow"
+        PriceClass: PriceClass_100
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        DefaultRootObject: index.html
+        Aliases: !If [HasCustomDomain, [!Ref CustomDomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: frontend-s3
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt FrontendOriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+          - Id: app-ec2
+            DomainName: !GetAtt AppInstance.PublicDnsName
+            CustomOriginConfig:
+              HTTPPort: 80
+              OriginProtocolPolicy: http-only
+              OriginReadTimeout: 60
+            OriginCustomHeaders:
+              - HeaderName: X-Origin-Verify
+                HeaderValue: !Ref OriginSecret
+        DefaultCacheBehavior:
+          TargetOriginId: frontend-s3
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+          ResponseHeadersPolicyId: 67f7725c-6f97-4210-82d7-5512b31e9d03 # Managed-SecurityHeadersPolicy
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt SpaRewriteFunction.FunctionMetadata.FunctionARN
+        CacheBehaviors:
+          # Dynamic app traffic: never cached; all viewer headers (incl. Authorization,
+          # Host and the WebSocket upgrade headers) and query strings forwarded.
+          - PathPattern: /api/*
+            TargetOriginId: app-ec2
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # Managed-AllViewer
+          - PathPattern: /ws/*
+            TargetOriginId: app-ec2
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          - PathPattern: /admin/*
+            TargetOriginId: app-ec2
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, PATCH, POST, DELETE]
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          - PathPattern: /media/*
+            TargetOriginId: app-ec2
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+          # Django admin / Swagger assets (collectstatic); safe to cache.
+          - PathPattern: /static/*
+            TargetOriginId: app-ec2
+            ViewerProtocolPolicy: redirect-to-https
+            Compress: true
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3
+
+Outputs:
+  AppUrl:
+    Description: Open this in the browser
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${CustomDomainName}"
+      - !Sub "https://${Distribution.DomainName}"
+  AppDomains:
+    Description: Hostnames Django must accept (read by deploy_backend.sh)
+    Value: !If
+      - HasCustomDomain
+      - !Sub "${Distribution.DomainName},${CustomDomainName}"
+      - !GetAtt Distribution.DomainName
+  CloudFrontDomainName:
+    Value: !GetAtt Distribution.DomainName
+  CloudFrontDistributionId:
+    Value: !Ref Distribution
+  FrontendBucketName:
+    Value: !Ref FrontendBucket
+  InstanceId:
+    Value: !Ref AppInstance
+  InstancePublicIp:
+    Value: !Ref AppEip
+  SshCommand:
+    Value: !Sub "ssh -i <path-to-${KeyName}.pem> ubuntu@${AppEip}"
+  DatabaseEndpoint:
+    Condition: UseRds
+    Value: !GetAtt Database.Endpoint.Address
