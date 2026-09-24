@@ -83,3 +83,33 @@ def test_project_list_reports_issue_counts(api_client, user):
     resp = api_client.get("/api/projects/")
     row = next(r for r in resp.data["results"] if r["key"] == "CNT")
     assert row["issue_count"] == 2
+
+
+def test_project_task_names_set_on_create_and_editable(api_client):
+    resp = api_client.post(
+        "/api/projects/",
+        {
+            "key": "TSK",
+            "name": "Task Project",
+            "project_type": "kanban",
+            "task_names": ["  Bank   reconciliation ", "VAT return", "vat RETURN", ""],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201
+    # Whitespace is collapsed, blanks and case-insensitive duplicates are dropped, order kept.
+    assert resp.data["task_names"] == ["Bank reconciliation", "VAT return"]
+
+    resp = api_client.patch("/api/projects/TSK/", {"task_names": ["Payroll"]}, format="json")
+    assert resp.status_code == 200
+    assert Project.objects.get(key="TSK").task_names == ["Payroll"]
+
+
+def test_project_task_names_rejects_non_list(api_client):
+    resp = api_client.post(
+        "/api/projects/",
+        {"key": "BAD", "name": "Bad", "project_type": "kanban", "task_names": "Payroll"},
+        format="json",
+    )
+    assert resp.status_code == 400
+    assert "task_names" in resp.data

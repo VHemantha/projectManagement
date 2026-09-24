@@ -24,6 +24,7 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     id: 1,
     key: 'TRK-1',
     project_key: 'TRK',
+    project_name: 'TrackFlow Web App',
     summary: 'Fix the login flow',
     issue_type: { id: 1, name: 'Task', icon: 'check-square', color: '#0C66E4', is_subtask: false, order: 0 },
     status: { id: 1, name: 'To Do', category: 'todo', order: 0 },
@@ -80,6 +81,12 @@ describe('KanbanBoard', () => {
     expect(screen.getByText('Done')).toBeInTheDocument()
     expect(screen.getByText('Fix the login flow')).toBeInTheDocument()
     expect(screen.getByText('Ship the dashboard')).toBeInTheDocument()
+  })
+
+  it('shows each card as "Summary - Project Name"', () => {
+    const issues = [makeIssue({ id: 1, summary: 'Bank reconciliation', project_name: 'Pochin Group' })]
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.getByText('Bank reconciliation')).toHaveTextContent('Bank reconciliation - Pochin Group')
   })
 
   it('flags a column as over its WIP limit', () => {

@@ -124,6 +124,7 @@ class IssueListSerializer(serializers.ModelSerializer):
     sprint = SprintMiniSerializer(read_only=True)
     labels = LabelMiniSerializer(many=True, read_only=True)
     project_key = serializers.CharField(source="project.key", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
 
     class Meta:
         model = Issue
@@ -131,6 +132,7 @@ class IssueListSerializer(serializers.ModelSerializer):
             "id",
             "key",
             "project_key",
+            "project_name",
             "summary",
             "issue_type",
             "status",

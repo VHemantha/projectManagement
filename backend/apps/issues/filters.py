@@ -1,4 +1,8 @@
 import django_filters
+from django.db.models import Q
+
+from apps.projects.models import Project
+from apps.teams.models import Team
 
 from .models import Issue
 
@@ -28,8 +32,17 @@ class IssueFilter(django_filters.FilterSet):
     priority = django_filters.CharFilter(field_name="priority")
     label = django_filters.NumberFilter(field_name="labels__id")
     component = django_filters.NumberFilter(field_name="components__id")
-    team = django_filters.NumberFilter(field_name="project__primary_team_id")
+    # Matches the Projects tree: a team's projects are those it leads (primary) or contributes
+    # to, and a Group (top-level team) also covers its direct sub-teams' projects.
+    team = django_filters.NumberFilter(method="filter_team")
     client = django_filters.NumberFilter(field_name="project__client_id")
+
+    def filter_team(self, queryset, name, value):
+        team_ids = [value, *Team.objects.filter(parent_id=value).values_list("id", flat=True)]
+        project_ids = Project.objects.filter(
+            Q(primary_team_id__in=team_ids) | Q(contributing_teams__id__in=team_ids)
+        ).values("id")
+        return queryset.filter(project_id__in=project_ids)
 
     def filter_exclude_type(self, queryset, name, value):
         return queryset.exclude(issue_type__name=value)

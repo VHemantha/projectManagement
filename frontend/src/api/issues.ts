@@ -42,6 +42,9 @@ export interface IssueQueryParams {
   no_parent?: boolean
   issue_type?: string
   exclude_type?: string
+  /** A team's own + contributing projects; a Group (top-level team) includes its sub-teams. */
+  team?: number
+  client?: number
   priority?: string
   search?: string
   ordering?: string

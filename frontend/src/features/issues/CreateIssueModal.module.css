@@ -81,3 +81,17 @@
   font-size: 12px;
   color: var(--tf-danger);
 }
+
+.linkButton {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--tf-blue);
+  cursor: pointer;
+}
+.linkButton:hover {
+  text-decoration: underline;
+}

@@ -26,6 +26,27 @@
   color: var(--tf-text);
 }
 
+.allIssuesLink {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 var(--tf-space-3) var(--tf-space-2);
+  padding: 6px 8px;
+  border-radius: var(--tf-radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text-secondary);
+  text-decoration: none;
+}
+.allIssuesLink:hover {
+  background: var(--tf-surface-hover, var(--tf-surface));
+  color: var(--tf-text);
+}
+.allIssuesLinkActive {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-blue);
+}
+
 .modeRow {
   display: flex;
   gap: 4px;

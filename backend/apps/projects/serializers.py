@@ -10,6 +10,10 @@ from apps.teams.models import Team
 from .models import Component, KEY_PATTERN, Label, Project, ProjectMembership, Version
 
 
+# A task name becomes an issue summary, so it shares Issue.summary's max_length.
+MAX_TASK_NAME_LENGTH = 500
+MAX_TASK_NAMES = 200
+
 class ClientMiniSerializer(serializers.ModelSerializer):
     class Meta:
         model = Client
@@ -121,9 +125,28 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             "budgeted_hours",
             "job_value",
             "job_value_currency",
+            "task_names",
             "created_at",
             "updated_at",
         ]
+
+    def validate_task_names(self, value):
+        if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+            raise serializers.ValidationError("Must be a list of task names.")
+        cleaned, seen = [], set()
+        for name in value:
+            name = " ".join(name.split())
+            if not name or name.lower() in seen:
+                continue
+            if len(name) > MAX_TASK_NAME_LENGTH:
+                raise serializers.ValidationError(
+                    f"Task names can be at most {MAX_TASK_NAME_LENGTH} characters."
+                )
+            seen.add(name.lower())
+            cleaned.append(name)
+        if len(cleaned) > MAX_TASK_NAMES:
+            raise serializers.ValidationError(f"A project can have at most {MAX_TASK_NAMES} tasks.")
+        return cleaned
 
     def validate_key(self, value):
         value = value.upper()

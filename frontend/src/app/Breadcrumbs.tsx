@@ -11,6 +11,7 @@ import type { TeamDetail, TeamSummary, User } from '@/api/types'
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
   projects: 'Projects',
+  'all-issues': 'All issues board',
   teams: 'Teams',
   people: 'People',
   filters: 'Filters',

@@ -70,6 +70,10 @@ class Project(models.Model):
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL, through="ProjectMembership", related_name="projects"
     )
+    # The project's standard task names (e.g. "Bank reconciliation", "VAT return"), defined when
+    # the project is created and editable later. The Create issue dialog offers them as the
+    # issue summary, so recurring work is named consistently across a project.
+    task_names = models.JSONField(default=list, blank=True)
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

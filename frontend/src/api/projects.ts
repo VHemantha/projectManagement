@@ -69,6 +69,7 @@ export interface CreateProjectPayload {
   description?: string
   project_type: ProjectType
   lead_id?: number
+  task_names?: string[]
 }
 
 export function useCreateProject() {
@@ -94,6 +95,7 @@ export interface UpdateProjectPayload {
   budgeted_hours?: number | null
   job_value?: string | null
   job_value_currency?: string
+  task_names?: string[]
 }
 
 export function useUpdateProject(key: string) {

@@ -23,6 +23,7 @@ import { DashboardHomePage } from '@/features/dashboard/DashboardHomePage'
 import { SprintReportPage } from '@/features/reports/SprintReportPage'
 import { FiltersPage } from '@/features/search/FiltersPage'
 import { TimelinePage } from '@/features/timeline/TimelinePage'
+import { AllIssuesBoardPage } from '@/features/board/AllIssuesBoardPage'
 import { TeamDetailPage } from '@/features/teams/TeamDetailPage'
 import { TeamsListPage } from '@/features/teams/TeamsListPage'
 import { ChatPage } from '@/features/chat/ChatPage'
@@ -47,6 +48,9 @@ export const router = createBrowserRouter([
             element: <ProjectsSectionLayout />,
             children: [
               { index: true, element: <ProjectsListPage /> },
+              // Hyphenated on purpose: project keys are letters/digits only, so this can never
+              // shadow a real project's /projects/:key route.
+              { path: 'all-issues', element: <AllIssuesBoardPage /> },
               {
                 path: ':key',
                 element: <ProjectLayout />,

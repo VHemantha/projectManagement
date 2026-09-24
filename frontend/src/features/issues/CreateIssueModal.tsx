@@ -13,6 +13,7 @@ import { Button, Dialog, DialogContent, Input, RichTextEditor } from '@/design-s
 import { useUiStore } from '@/store/uiStore'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
+const CUSTOM_SUMMARY = '__custom__'
 
 export function CreateIssueModal() {
   const open = useUiStore((s) => s.createIssueOpen)
@@ -36,6 +37,7 @@ export function CreateIssueModal() {
 
   const [issueTypeId, setIssueTypeId] = useState<string>('')
   const [summary, setSummary] = useState('')
+  const [customSummary, setCustomSummary] = useState(false)
   const [description, setDescription] = useState<JSONContent | null>(null)
   const [assigneeId, setAssigneeId] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
@@ -58,6 +60,13 @@ export function CreateIssueModal() {
   const availableProjects = clientId
     ? projectsInTeam.filter((p) => p.client?.id === Number(clientId))
     : projectsInTeam
+
+  // A project with standard tasks (Project.task_names) offers them as the summary, with a
+  // "Custom summary…" escape hatch. A task picked under a previously selected project doesn't
+  // carry over: if it isn't one of this project's tasks, the summary counts as empty.
+  const projectTasks = project?.task_names ?? []
+  const pickFromTasks = projectTasks.length > 0 && !customSummary
+  const effectiveSummary = pickFromTasks ? (projectTasks.includes(summary) ? summary : '') : summary.trim()
 
   // A project with labels defined requires at least one on every new issue. Only count ticks
   // for labels of the currently selected project — ticks left over from a previously selected
@@ -95,6 +104,7 @@ export function CreateIssueModal() {
 
   const resetFields = () => {
     setSummary('')
+    setCustomSummary(false)
     setDescription(null)
     setAssigneeId('')
     setPriority('medium')
@@ -116,12 +126,12 @@ export function CreateIssueModal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!projectKey || !issueTypeId || !summary.trim() || labelsMissing) return
+    if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing) return
     createIssue.mutate(
       {
         project: projectKey,
         issue_type_id: Number(issueTypeId),
-        summary: summary.trim(),
+        summary: effectiveSummary,
         description,
         assignee_id: assigneeId ? Number(assigneeId) : null,
         priority,
@@ -233,15 +243,60 @@ export function CreateIssueModal() {
             </div>
           </div>
 
-          <Input
-            id="ci-summary"
-            label="Summary"
-            required
-            autoFocus
-            value={summary}
-            onChange={(e) => setSummary(e.target.value)}
-            placeholder="What needs to be done?"
-          />
+          {pickFromTasks ? (
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="ci-summary">
+                Summary
+              </label>
+              <select
+                id="ci-summary"
+                className={styles.select}
+                required
+                autoFocus
+                value={effectiveSummary}
+                onChange={(e) => {
+                  if (e.target.value === CUSTOM_SUMMARY) {
+                    setCustomSummary(true)
+                    setSummary('')
+                  } else {
+                    setSummary(e.target.value)
+                  }
+                }}
+              >
+                <option value="">Select a task…</option>
+                {projectTasks.map((task) => (
+                  <option key={task} value={task}>
+                    {task}
+                  </option>
+                ))}
+                <option value={CUSTOM_SUMMARY}>Custom summary…</option>
+              </select>
+            </div>
+          ) : (
+            <div className={styles.field}>
+              <Input
+                id="ci-summary"
+                label="Summary"
+                required
+                autoFocus
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                placeholder="What needs to be done?"
+              />
+              {projectTasks.length > 0 && (
+                <button
+                  type="button"
+                  className={styles.linkButton}
+                  onClick={() => {
+                    setCustomSummary(false)
+                    setSummary('')
+                  }}
+                >
+                  Choose from {project?.name}&apos;s tasks instead
+                </button>
+              )}
+            </div>
+          )}
 
           <div className={styles.field}>
             <label className={styles.label}>Description</label>
@@ -364,7 +419,7 @@ export function CreateIssueModal() {
               <Button type="button" variant="subtle" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim() || !projectKey || labelsMissing}>
+              <Button type="submit" variant="primary" disabled={createIssue.isPending || !effectiveSummary || !projectKey || labelsMissing}>
                 {createIssue.isPending ? 'Creating…' : 'Create'}
               </Button>
             </div>

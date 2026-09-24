@@ -169,3 +169,53 @@ def test_issue_list_filters_by_project(api_client, project, task_type):
     resp = api_client.get("/api/issues/?project=TST")
     assert resp.data["count"] == 1
     assert resp.data["results"][0]["summary"] == "A"
+
+
+def _make_project(key, name, lead, **extra):
+    project = Project.objects.create(organization=Organization.get_solo(), key=key, name=name, lead=lead, **extra)
+    workflow = Workflow.objects.create(project=project)
+    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    return project
+
+
+def test_issue_list_includes_project_name(api_client, project, task_type):
+    api_client.post("/api/issues/", {"project": "TST", "summary": "Named", "issue_type_id": task_type.id}, format="json")
+    row = api_client.get("/api/issues/", {"project": "TST"}).data["results"][0]
+    assert row["project_name"] == "Test Project"
+
+
+def test_team_filter_covers_primary_contributing_and_sub_team_projects(api_client, user, task_type):
+    from apps.clients.models import Client
+    from apps.teams.models import Team
+
+    org = Organization.get_solo()
+    group = Team.objects.create(organization=org, name="Group")
+    sub_team = Team.objects.create(organization=org, name="Sub", parent=group)
+    other_team = Team.objects.create(organization=org, name="Other")
+    client = Client.objects.create(organization=org, name="RWCA")
+
+    primary = _make_project("PRI", "Primary", user, primary_team=group, client=client)
+    contributing = _make_project("CON", "Contributing", user)
+    contributing.contributing_teams.set([group])
+    via_sub = _make_project("SUB", "Via sub-team", user, primary_team=sub_team)
+    unrelated = _make_project("UNR", "Unrelated", user, primary_team=other_team)
+    for p in (primary, contributing, via_sub, unrelated):
+        api_client.post("/api/issues/", {"project": p.key, "summary": f"{p.key} work", "issue_type_id": task_type.id}, format="json")
+
+    def keys(**params):
+        return sorted(r["project_key"] for r in api_client.get("/api/issues/", params).data["results"])
+
+    assert keys(team=group.id) == ["CON", "PRI", "SUB"]
+    assert keys(team=sub_team.id) == ["SUB"]
+    assert keys(client=client.id) == ["PRI"]
+    assert keys(team=group.id, client=client.id) == ["PRI"]
+
+
+def test_issue_list_honours_page_size(api_client, project, task_type):
+    for n in range(55):
+        api_client.post(
+            "/api/issues/", {"project": "TST", "summary": f"Issue {n}", "issue_type_id": task_type.id}, format="json"
+        )
+    resp = api_client.get("/api/issues/", {"project": "TST", "page_size": 300})
+    assert resp.data["count"] == 55
+    assert len(resp.data["results"]) == 55  # was silently capped at PAGE_SIZE (50)

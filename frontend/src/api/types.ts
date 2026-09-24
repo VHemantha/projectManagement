@@ -76,6 +76,8 @@ export interface ProjectDetail extends Omit<ProjectSummary, 'issue_count'> {
   budgeted_hours: number | null
   job_value: string | null
   job_value_currency: string
+  /** Standard task names offered as the summary in the Create issue dialog. */
+  task_names: string[]
 }
 
 export interface WorkflowStatus {
@@ -225,6 +227,7 @@ export interface IssueListItem {
   id: number
   key: string
   project_key: string
+  project_name: string
   summary: string
   issue_type: IssueType
   status: WorkflowStatus

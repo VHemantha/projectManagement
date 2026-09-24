@@ -2,6 +2,7 @@ import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import styles from './CreateProjectDialog.module.css'
+import { TaskNamesEditor } from './TaskNamesEditor'
 import { extractErrorMessage } from '@/api/errors'
 import { useCreateProject } from '@/api/projects'
 import type { ProjectType } from '@/api/types'
@@ -30,6 +31,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
   const [keyTouched, setKeyTouched] = useState(false)
   const [projectType, setProjectType] = useState<ProjectType>('scrum')
   const [leadId, setLeadId] = useState<string>('')
+  const [taskNames, setTaskNames] = useState<string[]>([])
   const { data: users } = useUsers()
   const createProject = useCreateProject()
   const navigate = useNavigate()
@@ -45,6 +47,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
     setKeyTouched(false)
     setProjectType('scrum')
     setLeadId('')
+    setTaskNames([])
     createProject.reset()
   }
 
@@ -56,6 +59,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         key,
         project_type: projectType,
         lead_id: leadId ? Number(leadId) : undefined,
+        task_names: taskNames,
       },
       {
         onSuccess: (project) => {
@@ -137,6 +141,13 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label htmlFor="project-tasks" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+              Tasks
+            </label>
+            <TaskNamesEditor id="project-tasks" value={taskNames} onChange={setTaskNames} />
           </div>
 
           <div className={styles.actions}>

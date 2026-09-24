@@ -1,6 +1,6 @@
-import { Plus } from 'lucide-react'
+import { LayoutGrid, Plus } from 'lucide-react'
 import { useState } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import styles from './ProjectsSectionLayout.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
@@ -53,6 +53,13 @@ export function ProjectsSectionLayout() {
             <Plus size={14} /> Create
           </Button>
         </div>
+
+        <NavLink
+          to="/projects/all-issues"
+          className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
+        >
+          <LayoutGrid size={14} /> All issues board
+        </NavLink>
 
         <div className={styles.modeRow}>
           {TREE_MODES.map(([mode, label]) => (

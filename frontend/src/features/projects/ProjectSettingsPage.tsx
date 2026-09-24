@@ -5,8 +5,10 @@ import { Plus } from 'lucide-react'
 
 import styles from './ProjectSettingsPage.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
+import { TaskNamesEditor } from './TaskNamesEditor'
 import { useProjectContext } from './useProjectContext'
 import { useUpdateWorkflowTransition, useWorkflowTransitions } from '@/api/boards'
+import { extractErrorMessage } from '@/api/errors'
 import { useClients } from '@/api/clients'
 import { useAddMember, useProjectBoard, useRemoveMember, useUpdateMemberRole, useUpdateProject } from '@/api/projects'
 import { useTeams } from '@/api/teams'
@@ -313,6 +315,38 @@ function WorkflowTab() {
   )
 }
 
+function TasksTab() {
+  const { project } = useProjectContext()
+  const [taskNames, setTaskNames] = useState<string[]>(project.task_names)
+  const updateProject = useUpdateProject(project.key)
+  const dirty = JSON.stringify(taskNames) !== JSON.stringify(project.task_names)
+
+  return (
+    <div className={styles.form}>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--tf-text-subtle)' }}>
+        These task names are offered as the summary when creating an issue in {project.name}. Changing
+        the list doesn&apos;t rename existing issues.
+      </p>
+      <TaskNamesEditor id="settings-tasks" value={taskNames} onChange={setTaskNames} />
+      {updateProject.isError && (
+        <div style={{ color: 'var(--tf-danger)', fontSize: 13 }}>{extractErrorMessage(updateProject.error)}</div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Button
+          variant="primary"
+          disabled={!dirty || updateProject.isPending}
+          onClick={() => updateProject.mutate({ task_names: taskNames })}
+        >
+          {updateProject.isPending ? 'Saving…' : 'Save tasks'}
+        </Button>
+        {!dirty && updateProject.isSuccess && (
+          <span style={{ fontSize: 13, color: 'var(--tf-text-subtle)' }}>Saved.</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ProjectSettingsPage() {
   const { project } = useProjectContext()
 
@@ -322,12 +356,16 @@ export function ProjectSettingsPage() {
       <Tabs defaultValue="general">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
           <TabsTrigger value="workflow">Workflow</TabsTrigger>
           <TabsTrigger value="transitions">Transition rules</TabsTrigger>
         </TabsList>
         <TabsContent value="general">
           <GeneralTab />
+        </TabsContent>
+        <TabsContent value="tasks">
+          <TasksTab />
         </TabsContent>
         <TabsContent value="people">
           <PeopleTab />

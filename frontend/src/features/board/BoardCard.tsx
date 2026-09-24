@@ -120,7 +120,10 @@ export function BoardCard({
           {issue.epic.epic_name}
         </span>
       )}
-      <div className={styles.cardSummary}>{issue.summary}</div>
+      <div className={styles.cardSummary}>
+        {issue.summary}
+        {issue.project_name && <span className={styles.cardProject}> - {issue.project_name}</span>}
+      </div>
       <div className={styles.cardFooter}>
         <IssueTypeIcon typeName={issue.issue_type.name} size={13} />
         <span className={styles.cardKey}>
