@@ -59,6 +59,13 @@ export function CreateIssueModal() {
     ? projectsInTeam.filter((p) => p.client?.id === Number(clientId))
     : projectsInTeam
 
+  // A project with labels defined requires at least one on every new issue. Only count ticks
+  // for labels of the currently selected project — ticks left over from a previously selected
+  // project must not satisfy (or be sent for) this one.
+  const projectLabels = project?.labels ?? []
+  const selectedLabelIds = labelIds.filter((id) => projectLabels.some((l) => l.id === id))
+  const labelsMissing = projectLabels.length > 0 && selectedLabelIds.length === 0
+
   // Assignee is restricted to the selected team's members once a team is chosen.
   const assigneeCandidates = selectedTeam ? selectedTeam.memberships.map((m) => m.user) : (users ?? [])
 
@@ -109,7 +116,7 @@ export function CreateIssueModal() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!projectKey || !issueTypeId || !summary.trim()) return
+    if (!projectKey || !issueTypeId || !summary.trim() || labelsMissing) return
     createIssue.mutate(
       {
         project: projectKey,
@@ -121,7 +128,7 @@ export function CreateIssueModal() {
         story_points: storyPoints ? Number(storyPoints) : null,
         due_date: dueDate || null,
         epic_id: epicId ? Number(epicId) : null,
-        label_ids: labelIds,
+        label_ids: selectedLabelIds,
       },
       {
         onSuccess: (issue) => {
@@ -318,11 +325,11 @@ export function CreateIssueModal() {
             </div>
           )}
 
-          {project && project.labels.length > 0 && (
+          {projectLabels.length > 0 && (
             <div className={styles.field}>
               <label className={styles.label}>Labels</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {project.labels.map((l) => {
+                {projectLabels.map((l) => {
                   const checked = labelIds.includes(l.id)
                   return (
                     <label key={l.id} className={styles.checkboxLabel}>
@@ -340,6 +347,7 @@ export function CreateIssueModal() {
                   )
                 })}
               </div>
+              {labelsMissing && <span className={styles.fieldHint}>Select at least one label.</span>}
             </div>
           )}
 
@@ -356,7 +364,7 @@ export function CreateIssueModal() {
               <Button type="button" variant="subtle" onClick={handleClose}>
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim() || !projectKey}>
+              <Button type="submit" variant="primary" disabled={createIssue.isPending || !summary.trim() || !projectKey || labelsMissing}>
                 {createIssue.isPending ? 'Creating…' : 'Create'}
               </Button>
             </div>

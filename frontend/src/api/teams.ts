@@ -80,3 +80,19 @@ export function useRemoveTeamMember(teamId: number) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams', teamId] }),
   })
 }
+
+export function useDeleteTeam() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (teamId: number) => {
+      await apiClient.delete(`/teams/${teamId}/`)
+    },
+    onSuccess: (_data, teamId) => {
+      queryClient.removeQueries({ queryKey: ['teams', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['teams'] })
+      // The team's chat channel is deleted and projects lose it as their primary team.
+      queryClient.invalidateQueries({ queryKey: ['chat', 'channels'] })
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+    },
+  })
+}

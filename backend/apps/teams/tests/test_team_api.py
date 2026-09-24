@@ -85,3 +85,55 @@ def test_add_and_remove_team_member(api_client, user):
     del_resp = api_client.delete(f"/api/teams/{team.id}/members/{membership_id}/")
     assert del_resp.status_code == 204
     assert not TeamMembership.objects.filter(id=membership_id).exists()
+
+
+def _team(name="Doomed"):
+    from apps.orgs.models import Organization
+
+    return Team.objects.create(organization=Organization.get_solo(), name=name)
+
+
+def test_team_lead_can_delete_team(api_client, user):
+    team = _team()
+    TeamMembership.objects.create(team=team, user=user, role="lead")
+
+    resp = api_client.delete(f"/api/teams/{team.id}/")
+    assert resp.status_code == 204
+    assert not Team.objects.filter(pk=team.id).exists()
+
+
+def test_staff_can_delete_team(api_client, user):
+    team = _team()
+    user.is_staff = True
+    user.save()
+
+    resp = api_client.delete(f"/api/teams/{team.id}/")
+    assert resp.status_code == 204
+
+
+def test_plain_member_cannot_delete_team(api_client, user):
+    team = _team()
+    TeamMembership.objects.create(team=team, user=user, role="member")
+
+    resp = api_client.delete(f"/api/teams/{team.id}/")
+    assert resp.status_code == 403
+    assert Team.objects.filter(pk=team.id).exists()
+
+
+def test_deleting_team_keeps_sub_teams_and_projects(api_client, user):
+    from apps.projects.models import Project
+
+    parent = _team("Group")
+    child = _team("Child")
+    child.parent = parent
+    child.save()
+    TeamMembership.objects.create(team=parent, user=user, role="lead")
+    project = Project.objects.create(
+        organization=parent.organization, key="DEL", name="Del", lead=user, primary_team=parent
+    )
+
+    assert api_client.delete(f"/api/teams/{parent.id}/").status_code == 204
+    child.refresh_from_db()
+    project.refresh_from_db()
+    assert child.parent is None
+    assert project.primary_team is None

@@ -1,6 +1,7 @@
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, viewsets
+from rest_framework.exceptions import PermissionDenied
 
 from .models import Team, TeamMembership
 from .serializers import TeamDetailSerializer, TeamListSerializer, TeamMembershipSerializer
@@ -20,6 +21,16 @@ class TeamViewSet(viewsets.ModelViewSet):
         if self.action == "retrieve":
             qs = qs.prefetch_related("memberships__user", "sub_teams")
         return qs
+
+    def perform_destroy(self, instance):
+        # Deleting a team also deletes its memberships and its team chat channel (with all of
+        # its messages); projects and sub-teams survive with their team link cleared. That is
+        # too destructive for any member, so only staff and the team's own leads may do it.
+        user = self.request.user
+        is_lead = instance.memberships.filter(user=user, role=TeamMembership.Role.LEAD).exists()
+        if not (user.is_staff or is_lead):
+            raise PermissionDenied("Only a team lead or an admin can delete this team.")
+        instance.delete()
 
 
 class TeamMembershipListCreateView(generics.ListCreateAPIView):

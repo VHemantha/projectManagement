@@ -95,9 +95,13 @@ repo root, unless it says otherwise.
 ```bash
 mkdir -p ~/.ssh
 aws ec2 create-key-pair --key-name trackflow-key --key-type ed25519 \
-  --query KeyMaterial --output text > ~/.ssh/trackflow-key.pem
+  --query KeyMaterial --output text | tr -d '\r' | sed '/^$/d' > ~/.ssh/trackflow-key.pem
 chmod 600 ~/.ssh/trackflow-key.pem
+ssh-keygen -y -f ~/.ssh/trackflow-key.pem > /dev/null && echo "key OK"
 ```
+
+The `tr`/`sed` part matters on Windows: the AWS CLI ends its output with a Windows line
+ending (`\r\n`), and OpenSSH then rejects the key with *"invalid format"*.
 
 Keep this file safe. It's the only way to SSH into the server (besides Session Manager in
 the AWS console).

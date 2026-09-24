@@ -35,7 +35,8 @@ fi
 RELEASE="$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short "$GIT_REF")"
 ARCHIVE="$(mktemp -d)/trackflow-$RELEASE.tar.gz"
 echo "==> Packaging $GIT_REF as release $RELEASE"
-git archive --format=tar.gz -o "$ARCHIVE" "$GIT_REF" backend deploy/ec2
+# Redirect instead of `-o`: with MSYS_NO_PATHCONV set, Windows git.exe can't resolve /tmp paths.
+git archive --format=tar.gz "$GIT_REF" backend deploy/ec2 > "$ARCHIVE"
 
 SSH_OPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 
