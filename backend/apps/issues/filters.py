@@ -35,14 +35,31 @@ class IssueFilter(django_filters.FilterSet):
     # Matches the Projects tree: a team's projects are those it leads (primary) or contributes
     # to, and a Group (top-level team) also covers its direct sub-teams' projects.
     team = django_filters.NumberFilter(method="filter_team")
+    # With team=: only that team's own projects, not its sub-teams' (the tree's Team mode).
+    exclude_sub_teams = django_filters.BooleanFilter(method="filter_noop")
+    no_team = django_filters.BooleanFilter(method="filter_no_team")
+    no_client = django_filters.BooleanFilter(field_name="project__client", lookup_expr="isnull")
     client = django_filters.NumberFilter(field_name="project__client_id")
 
     def filter_team(self, queryset, name, value):
-        team_ids = [value, *Team.objects.filter(parent_id=value).values_list("id", flat=True)]
+        team_ids = [value]
+        if not self.form.cleaned_data.get("exclude_sub_teams"):
+            team_ids += Team.objects.filter(parent_id=value).values_list("id", flat=True)
         project_ids = Project.objects.filter(
             Q(primary_team_id__in=team_ids) | Q(contributing_teams__id__in=team_ids)
         ).values("id")
         return queryset.filter(project_id__in=project_ids)
+
+    def filter_no_team(self, queryset, name, value):
+        if not value:
+            return queryset
+        return queryset.filter(project__primary_team__isnull=True).exclude(
+            project__contributing_teams__isnull=False
+        )
+
+    def filter_noop(self, queryset, name, value):
+        # Read by filter_team via cleaned_data; filters nothing on its own.
+        return queryset
 
     def filter_exclude_type(self, queryset, name, value):
         return queryset.exclude(issue_type__name=value)
@@ -75,5 +92,8 @@ class IssueFilter(django_filters.FilterSet):
             "label",
             "component",
             "team",
+            "exclude_sub_teams",
+            "no_team",
             "client",
+            "no_client",
         ]

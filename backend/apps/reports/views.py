@@ -14,32 +14,25 @@ NO_CLIENT_LABEL = "Internal / No Client"
 NO_GROUP_LABEL = "Ungrouped"
 
 
-def _project_node(project: Project) -> dict:
-    board = project.boards.first()
-    children = []
-    if board:
-        children.append(
-            {
-                "id": f"board-{board.id}",
-                "type": "board",
-                "label": board.name,
-                "board_id": board.id,
-                "project_key": project.key,
-            }
-        )
+def _client_leaf(node_id: str, label: str, board_query: dict, project_count: int) -> dict:
+    """The tree stops at the client level: a client node is a leaf, and clicking it opens the
+    All issues board with `board_query` applied. `board_query` uses the /api/issues/ filter
+    names verbatim (team, client, no_team, no_client, exclude_sub_teams), so the frontend can
+    put it straight into the board's URL."""
     return {
-        "id": f"project-{project.key}",
-        "type": "project",
-        "label": project.name,
-        "key": project.key,
-        "children": children,
+        "id": node_id,
+        "type": "client",
+        "label": label,
+        "board_query": board_query,
+        "project_count": project_count,
+        "children": [],
     }
 
 
-def _group_projects_by_client(projects, id_prefix: str) -> list[dict]:
-    """Client-group a project list into child tree nodes — shared by every team branch (and
-    the "No Team" catch-all) so Team -> Client -> Project -> Board stays consistent everywhere
-    in the "By Team" tree, not just for teams that happen to have client-tagged projects."""
+def _group_projects_by_client(projects, id_prefix: str, team_query: dict) -> list[dict]:
+    """Client-group one team's (or group's, or the no-team catch-all's) projects into client
+    leaves. `team_query` is that branch's own part of the board filter, e.g. {"team": 3} for a
+    group, {"team": 3, "exclude_sub_teams": True} for a single team, {"no_team": True}."""
     by_client: dict[int, list[Project]] = {}
     no_client: list[Project] = []
     for p in projects:
@@ -53,21 +46,15 @@ def _group_projects_by_client(projects, id_prefix: str) -> list[dict]:
     for client_id, client_projects in sorted(by_client.items(), key=lambda kv: clients_by_id[kv[0]].name):
         client = clients_by_id[client_id]
         children.append(
-            {
-                "id": f"{id_prefix}-client-{client.id}",
-                "type": "client",
-                "label": client.name,
-                "children": [_project_node(p) for p in client_projects],
-            }
+            _client_leaf(
+                f"{id_prefix}-client-{client.id}", client.name, {**team_query, "client": client.id}, len(client_projects)
+            )
         )
     if no_client:
         children.append(
-            {
-                "id": f"{id_prefix}-client-none",
-                "type": "client",
-                "label": NO_CLIENT_LABEL,
-                "children": [_project_node(p) for p in no_client],
-            }
+            _client_leaf(
+                f"{id_prefix}-client-none", NO_CLIENT_LABEL, {**team_query, "no_client": True}, len(no_client)
+            )
         )
     return children
 
@@ -95,7 +82,9 @@ def _tree_by_team():
                 "type": "team",
                 "label": team.name,
                 "team_id": team.id,
-                "children": _group_projects_by_client(projects, f"team-{team.id}"),
+                "children": _group_projects_by_client(
+                    projects, f"team-{team.id}", {"team": team.id, "exclude_sub_teams": True}
+                ),
             }
         )
 
@@ -106,7 +95,7 @@ def _tree_by_team():
                 "id": "team-none",
                 "type": "team",
                 "label": NO_TEAM_LABEL,
-                "children": _group_projects_by_client(orphans, "team-none"),
+                "children": _group_projects_by_client(orphans, "team-none", {"no_team": True}),
             }
         )
     return nodes
@@ -130,7 +119,7 @@ def _tree_by_group():
                 "type": "group",
                 "label": group_team.name,
                 "team_id": group_team.id,
-                "children": _group_projects_by_client(projects, f"group-{group_team.id}"),
+                "children": _group_projects_by_client(projects, f"group-{group_team.id}", {"team": group_team.id}),
             }
         )
 
@@ -141,7 +130,9 @@ def _tree_by_group():
                 "id": "group-none",
                 "type": "group",
                 "label": NO_GROUP_LABEL,
-                "children": _group_projects_by_client(orphans, "group-none"),
+                # Teams are at most two levels deep, so a project outside every group is one
+                # with no team at all.
+                "children": _group_projects_by_client(orphans, "group-none", {"no_team": True}),
             }
         )
     return nodes
@@ -149,32 +140,25 @@ def _tree_by_group():
 
 def _tree_by_client():
     nodes = []
-    clients = Client.objects.all().order_by("name")
-    for client in clients:
-        projects = Project.objects.filter(client=client).order_by("key")
+    for client in Client.objects.all().order_by("name"):
         nodes.append(
-            {
-                "id": f"client-{client.id}",
-                "type": "client",
-                "label": client.name,
-                "children": [_project_node(p) for p in projects],
-            }
+            _client_leaf(
+                f"client-{client.id}", client.name, {"client": client.id}, Project.objects.filter(client=client).count()
+            )
         )
 
-    orphans = Project.objects.filter(client__isnull=True).order_by("key")
-    if orphans.exists():
-        nodes.append(
-            {"id": "client-none", "type": "client", "label": NO_CLIENT_LABEL, "children": [_project_node(p) for p in orphans]}
-        )
+    orphan_count = Project.objects.filter(client__isnull=True).count()
+    if orphan_count:
+        nodes.append(_client_leaf("client-none", NO_CLIENT_LABEL, {"no_client": True}, orphan_count))
     return nodes
 
 
 class NavTreeView(APIView):
     """GET /api/reports/nav-tree/?group_by=team|client|group — returns the nested
-    Team/Client/Group -> Project -> Board structure for the Projects page's tree-nav view in
-    one call, rather than making the frontend stitch together separate project/team/client
-    list endpoints itself. A project with multiple contributing teams appears once under each
-    relevant team (or group) branch. "group" mode collapses to top-level Teams (Team.parent is
+    Team/Group -> Client structure (or a flat Client list) for the Projects page's tree-nav
+    view in one call. The tree stops at clients: each client leaf carries a `board_query` that
+    opens the All issues board filtered to that branch. A project with multiple contributing
+    teams counts under each relevant team (or group) branch. "group" mode collapses to top-level Teams (Team.parent is
     null) each expanded straight to Client, skipping the sub-team level entirely — this is a
     navigation/view concept, not a schema change — nothing here restructures where boards
     actually live)."""

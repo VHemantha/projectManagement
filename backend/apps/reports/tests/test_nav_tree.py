@@ -40,95 +40,77 @@ def _make_project(key, lead, **kwargs):
     return Project.objects.create(organization=Organization.get_solo(), key=key, name=f"{key} Project", lead=lead, **kwargs)
 
 
-def _project_keys_under_team(team_node) -> list[str]:
-    """Team -> Client -> Project, so a team's project keys are one level deeper than before
-    the client grouping was added — flatten across every client branch under this team."""
-    keys = []
-    for client_node in team_node["children"]:
-        keys.extend(c["key"] for c in client_node["children"])
-    return keys
+def _leaves(node) -> dict:
+    """Client label -> client leaf under a team/group node."""
+    return {c["label"]: c for c in node["children"]}
 
 
-def test_by_team_groups_projects_under_their_primary_team(api_client, user, teams):
-    _make_project("NVA", user, primary_team=teams["platform"])
-    _make_project("NVB", user, primary_team=teams["growth"])
+def _walk(nodes):
+    for node in nodes:
+        yield node
+        yield from _walk(node.get("children", []))
+
+
+def test_by_team_ends_at_client_leaves_with_board_filters(api_client, user, teams, acme_client):
+    _make_project("NVA", user, primary_team=teams["platform"], client=acme_client)
+    _make_project("NVB", user, primary_team=teams["platform"])
+    _make_project("NVC", user, primary_team=teams["growth"])
 
     resp = api_client.get("/api/reports/nav-tree/?group_by=team")
     assert resp.status_code == 200
-    nodes_by_label = {node["label"]: node for node in resp.data["nodes"]}
-    assert _project_keys_under_team(nodes_by_label["Platform"]) == ["NVA"]
-    assert _project_keys_under_team(nodes_by_label["Growth"]) == ["NVB"]
+    platform = _leaves(next(n for n in resp.data["nodes"] if n["label"] == "Platform"))
+    team_id = teams["platform"].id
+    assert platform["Acme Corp"]["children"] == []
+    assert platform["Acme Corp"]["board_query"] == {"team": team_id, "exclude_sub_teams": True, "client": acme_client.id}
+    assert platform["Acme Corp"]["project_count"] == 1
+    assert platform["Internal / No Client"]["board_query"] == {
+        "team": team_id, "exclude_sub_teams": True, "no_client": True,
+    }
 
 
-def test_by_team_also_groups_each_teams_projects_by_client(api_client, user, teams, acme_client):
-    _make_project("NVI", user, primary_team=teams["platform"], client=acme_client)
-    _make_project("NVJ", user, primary_team=teams["platform"])
+def test_the_tree_never_contains_project_or_board_nodes(api_client, user, teams, acme_client):
+    from apps.workflow.services import provision_project_defaults
 
-    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
-    platform_node = next(n for n in resp.data["nodes"] if n["label"] == "Platform")
-    client_labels = {c["label"]: [p["key"] for p in c["children"]] for c in platform_node["children"]}
-    assert client_labels["Acme Corp"] == ["NVI"]
-    assert client_labels["Internal / No Client"] == ["NVJ"]
+    provision_project_defaults(_make_project("NVG", user, primary_team=teams["platform"], client=acme_client))
+    for mode in ("group", "team", "client"):
+        nodes = api_client.get(f"/api/reports/nav-tree/?group_by={mode}").data["nodes"]
+        assert {n["type"] for n in _walk(nodes)} <= {"group", "team", "client"}, mode
 
 
-def test_a_project_with_multiple_contributing_teams_appears_under_each(api_client, user, teams):
+def test_a_project_with_multiple_contributing_teams_counts_under_each(api_client, user, teams):
     project = _make_project("NVC", user, primary_team=teams["platform"])
     project.contributing_teams.set([teams["growth"]])
 
-    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
-    nodes_by_label = {node["label"]: node for node in resp.data["nodes"]}
-    assert "NVC" in _project_keys_under_team(nodes_by_label["Platform"])
-    assert "NVC" in _project_keys_under_team(nodes_by_label["Growth"])
+    nodes = {n["label"]: n for n in api_client.get("/api/reports/nav-tree/?group_by=team").data["nodes"]}
+    assert _leaves(nodes["Platform"])["Internal / No Client"]["project_count"] == 1
+    assert _leaves(nodes["Growth"])["Internal / No Client"]["project_count"] == 1
 
 
-def test_a_project_with_no_team_falls_under_the_no_team_catch_all(api_client, user):
+def test_no_team_catch_all_filters_on_no_team(api_client, user):
     _make_project("NVD", user)
 
-    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
-    no_team_node = next(n for n in resp.data["nodes"] if n["label"] == "No Team")
-    assert "NVD" in _project_keys_under_team(no_team_node)
+    nodes = api_client.get("/api/reports/nav-tree/?group_by=team").data["nodes"]
+    no_team = next(n for n in nodes if n["label"] == "No Team")
+    assert _leaves(no_team)["Internal / No Client"]["board_query"] == {"no_team": True, "no_client": True}
 
 
-def test_by_client_groups_projects_and_uses_internal_catch_all(api_client, user, acme_client):
+def test_by_client_is_a_flat_list_of_client_leaves(api_client, user, acme_client):
     _make_project("NVE", user, client=acme_client)
     _make_project("NVF", user)
 
-    resp = api_client.get("/api/reports/nav-tree/?group_by=client")
-    labels = {node["label"]: [c["key"] for c in node["children"]] for node in resp.data["nodes"]}
-    assert labels["Acme Corp"] == ["NVE"]
-    assert "NVF" in labels["Internal / No Client"]
-
-
-def test_project_leaf_includes_a_board_child_when_one_exists(api_client, user, teams):
-    from apps.workflow.services import provision_project_defaults
-
-    project = _make_project("NVG", user, primary_team=teams["platform"])
-    provision_project_defaults(project)
-
-    resp = api_client.get("/api/reports/nav-tree/?group_by=team")
-    team_node = next(n for n in resp.data["nodes"] if n["label"] == "Platform")
-    no_client_node = next(c for c in team_node["children"] if c["label"] == "Internal / No Client")
-    project_node = next(c for c in no_client_node["children"] if c["key"] == "NVG")
-    assert len(project_node["children"]) == 1
-    assert project_node["children"][0]["type"] == "board"
-
-
-def _project_keys_under_group(group_node) -> list[str]:
-    keys = []
-    for client_node in group_node["children"]:
-        keys.extend(c["key"] for c in client_node["children"])
-    return keys
+    nodes = {n["label"]: n for n in api_client.get("/api/reports/nav-tree/?group_by=client").data["nodes"]}
+    assert nodes["Acme Corp"]["board_query"] == {"client": acme_client.id}
+    assert nodes["Acme Corp"]["project_count"] == 1
+    assert nodes["Acme Corp"]["children"] == []
+    assert nodes["Internal / No Client"]["board_query"] == {"no_client": True}
 
 
 def test_by_group_merges_a_top_level_teams_own_and_sub_teams_projects(api_client, user, teams):
     org = teams["platform"].organization
-    from apps.teams.models import Team as TeamModel
-
-    group = TeamModel.objects.create(organization=org, name="Group 1")
-    teams["platform"].parent = group
-    teams["platform"].save(update_fields=["parent"])
-    teams["growth"].parent = group
-    teams["growth"].save(update_fields=["parent"])
+    group = Team.objects.create(organization=org, name="Group 1")
+    for team in (teams["platform"], teams["growth"]):
+        team.parent = group
+        team.save(update_fields=["parent"])
 
     _make_project("NVK", user, primary_team=teams["platform"])
     _make_project("NVL", user, primary_team=teams["growth"])
@@ -136,8 +118,9 @@ def test_by_group_merges_a_top_level_teams_own_and_sub_teams_projects(api_client
     resp = api_client.get("/api/reports/nav-tree/?group_by=group")
     assert resp.status_code == 200
     group_node = next(n for n in resp.data["nodes"] if n["label"] == "Group 1")
-    keys = _project_keys_under_group(group_node)
-    assert set(keys) == {"NVK", "NVL"}
+    leaf = _leaves(group_node)["Internal / No Client"]
+    assert leaf["project_count"] == 2
+    assert leaf["board_query"] == {"team": group.id, "no_client": True}
     # The sub-teams themselves shouldn't appear as their own top-level group nodes.
     assert not any(n["label"] in ("Platform", "Growth") for n in resp.data["nodes"])
 
@@ -163,6 +146,39 @@ def test_a_team_with_no_projects_still_carries_its_team_id(api_client, teams):
     resp = api_client.get("/api/reports/nav-tree/?group_by=group")
     growth_group_node = next(n for n in resp.data["nodes"] if n["label"] == "Growth")
     assert growth_group_node["team_id"] == teams["growth"].id
+
+
+def test_every_client_leaf_board_query_selects_exactly_its_projects_issues(api_client, user, teams, acme_client):
+    """Clicking a client leaf opens the All issues board with its board_query: the issues it
+    returns must come from exactly the projects the tree counted under that leaf."""
+    from apps.workflow.models import IssueType, Workflow, WorkflowStatus
+
+    org = teams["platform"].organization
+    group = Team.objects.create(organization=org, name="Group 1")
+    teams["platform"].parent = group
+    teams["platform"].save(update_fields=["parent"])
+    task, _ = IssueType.objects.get_or_create(name="Task", project=None)
+
+    specs = [
+        ("NVP", {"primary_team": group, "client": acme_client}),
+        ("NVQ", {"primary_team": teams["platform"], "client": acme_client}),
+        ("NVR", {"primary_team": teams["platform"]}),
+        ("NVS", {"primary_team": teams["growth"]}),
+        ("NVT", {"client": acme_client}),
+        ("NVU", {}),
+    ]
+    for key, extra in specs:
+        project = _make_project(key, user, **extra)
+        WorkflowStatus.objects.create(workflow=Workflow.objects.create(project=project), name="To Do", category="todo", order=0)
+        api_client.post("/api/issues/", {"project": key, "summary": f"{key} work", "issue_type_id": task.id}, format="json")
+
+    for mode in ("group", "team", "client"):
+        for leaf in _walk(api_client.get(f"/api/reports/nav-tree/?group_by={mode}").data["nodes"]):
+            if leaf["type"] != "client":
+                continue
+            rows = api_client.get("/api/issues/", {**leaf["board_query"], "page_size": 100}).data["results"]
+            project_keys = {r["project_key"] for r in rows}
+            assert len(project_keys) == leaf["project_count"], (mode, leaf["id"], project_keys)
 
 
 def test_client_crud(api_client):

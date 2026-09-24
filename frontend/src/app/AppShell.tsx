@@ -41,7 +41,7 @@ export function AppShell() {
         {/* Global, route-driven breadcrumb trail shown on every page. */}
         <Breadcrumbs />
         <div className={styles.body}>
-          <ErrorBoundary key={location.pathname}>
+          <ErrorBoundary resetKey={location.pathname}>
             <Outlet />
           </ErrorBoundary>
         </div>

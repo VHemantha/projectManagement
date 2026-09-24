@@ -44,7 +44,13 @@ export interface IssueQueryParams {
   exclude_type?: string
   /** A team's own + contributing projects; a Group (top-level team) includes its sub-teams. */
   team?: number
+  /** With `team`: only that team's own projects, not its sub-teams'. */
+  exclude_sub_teams?: boolean
+  /** Projects with no primary or contributing team. */
+  no_team?: boolean
   client?: number
+  /** Projects with no client (internal). */
+  no_client?: boolean
   priority?: string
   search?: string
   ordering?: string

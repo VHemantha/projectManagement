@@ -22,10 +22,10 @@ const TREE_EMPTY_MESSAGE: Record<TreeMode, string> = {
   client: 'No clients yet.',
 }
 
-/** Persistent Group -> Client -> Project/Board tree on the left, selected project's own tab
- * content (Board/Backlog/Issues/Timeline/Reports/Settings, via the existing ProjectLayout and
- * every existing per-tab page, unchanged) on the right — mirrors Chat's channel-list/thread-pane
- * split so browsing to a client's work and opening its board happens in one continuous page. */
+/** Persistent Group/Team -> Client tree on the left; the right side shows the selected page —
+ * the All issues board (which a client leaf opens, filtered to that branch), the All projects
+ * table, or a project's own tabs via ProjectLayout. Mirrors Chat's channel-list/thread-pane
+ * split so browsing to a client's work and seeing its cards happens in one continuous page. */
 export function ProjectsSectionLayout() {
   const navigate = useNavigate()
   const [treeMode, setTreeMode] = useState<TreeMode>('group')
@@ -35,11 +35,17 @@ export function ProjectsSectionLayout() {
   const { data: treeNodes, isLoading } = useNavTree(treeMode)
 
   const handleTreeLeafClick = (node: TreeNode) => {
-    if (node.type === 'board' && typeof node.project_key === 'string') navigate(`/projects/${node.project_key}/board`)
-    else if (node.type === 'project' && typeof node.key === 'string') navigate(`/projects/${node.key}`)
+    // The tree stops at clients: a client opens the All issues board filtered to its branch.
+    // board_query uses the /api/issues/ filter names, which the board reads from its URL.
+    if (node.type === 'client' && node.board_query && typeof node.board_query === 'object') {
+      const params = new URLSearchParams(
+        Object.entries(node.board_query as Record<string, string | number | boolean>).map(([k, v]) => [k, String(v)]),
+      )
+      navigate(`/projects/all-issues?${params}`)
+    }
     // A team/group with no projects yet has no children to expand into, so TreeView treats it
     // as a leaf too — send it to the team's own detail page instead of doing nothing.
-    else if ((node.type === 'team' || node.type === 'group') && typeof node.team_id === 'number') {
+    if ((node.type === 'team' || node.type === 'group') && typeof node.team_id === 'number') {
       navigate(`/teams/${node.team_id}`)
     }
   }
@@ -78,7 +84,7 @@ export function ProjectsSectionLayout() {
         <div className={styles.searchRow}>
           <input
             className={styles.search}
-            placeholder="Search team, client, project…"
+            placeholder="Search team, client…"
             value={treeSearch}
             onChange={(e) => setTreeSearch(e.target.value)}
           />

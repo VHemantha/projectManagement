@@ -6,17 +6,26 @@ import { Button } from '@/design-system'
 
 interface ErrorBoundaryProps {
   children: ReactNode
+  /** Clears a caught error when this changes (e.g. the route), without remounting the
+   * children the way a React `key` would — so layouts like the Projects tree keep their
+   * state across navigation. */
+  resetKey?: string
 }
 
 interface ErrorBoundaryState {
   error: Error | null
+  resetKey?: string
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { error: null }
+  state: ErrorBoundaryState = { error: null, resetKey: this.props.resetKey }
 
   static getDerivedStateFromError(error: Error) {
     return { error }
+  }
+
+  static getDerivedStateFromProps(props: ErrorBoundaryProps, state: ErrorBoundaryState) {
+    return props.resetKey !== state.resetKey ? { error: null, resetKey: props.resetKey } : null
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
