@@ -2,11 +2,10 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import styles from './AllIssuesBoardPage.module.css'
-import { CATEGORY_COLUMNS } from './categoryColumns'
+import { useCrossProjectBoard } from './crossProjectBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { useClients } from '@/api/clients'
 import { useIssues, useMoveIssue } from '@/api/issues'
-import { useCategoryStatusMaps } from '@/api/projects'
 import { useTeams } from '@/api/teams'
 
 const PAGE_SIZE = 300
@@ -14,8 +13,8 @@ const NONE = 'none'
 
 /** Cross-project board in the Projects section: every project's issues, narrowed by Team
  * (a team's own + contributing projects; a Group also covers its sub-teams, like the tree) and
- * by Client. Columns are status categories because each project has its own workflow — the
- * same approach as the Team board. The filters live in the URL (using the /api/issues/ filter
+ * by Client. Cards and columns follow each project's own board settings (see
+ * useCrossProjectBoard). The filters live in the URL (using the /api/issues/ filter
  * names), so a filtered view can be bookmarked or shared and the Projects tree's client leaves
  * can link straight to it. */
 export function AllIssuesBoardPage() {
@@ -53,8 +52,7 @@ export function AllIssuesBoardPage() {
   const issues = useMemo(() => issuesPage?.results ?? [], [issuesPage])
   const total = issuesPage?.count ?? 0
 
-  const projectKeys = useMemo(() => [...new Set(issues.map((i) => i.project_key))], [issues])
-  const { maps } = useCategoryStatusMaps(projectKeys)
+  const board = useCrossProjectBoard(issues)
 
   // Groups first, each followed by its sub-teams, so the dropdown reads like the tree.
   const teamOptions = useMemo(() => {
@@ -130,13 +128,15 @@ export function AllIssuesBoardPage() {
       <div className={styles.board}>
         <KanbanBoard
           issues={issues}
-          columns={CATEGORY_COLUMNS}
-          isLoading={isLoading}
+          columns={board.columns}
+          cardConfigByProject={board.cardConfigByProject}
+          isLoading={isLoading || board.isLoading}
           defaultSwimlaneMode="project"
           availableSwimlanes={['none', 'project', 'assignee']}
           emptyMessage={filtersActive ? 'No issues match this team/client.' : 'No issues yet.'}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
-            const statusId = column.category ? maps[issue.project_key]?.[column.category] : undefined
+            const statusId = board.resolveStatus(issue, column)
+            if (statusId === null) return
             moveIssue.mutate({ key: issue.key, status_id: statusId, before_id: beforeId, after_id: afterId })
           }}
         />

@@ -71,6 +71,7 @@ INSTALLED_APPS = [
     "apps.chat",
     "apps.timesheets",
     "apps.daily_goals",
+    "apps.live",
 ]
 
 MIDDLEWARE = [

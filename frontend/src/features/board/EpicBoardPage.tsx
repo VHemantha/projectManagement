@@ -28,6 +28,10 @@ export function EpicBoardPage() {
         <KanbanBoard
           issues={issuesPage?.results ?? []}
           columns={board?.column_config ?? []}
+          cardFields={board?.card_fields}
+          cardColorRule={board?.card_color_rule}
+          cardColors={board?.card_colors}
+          cardColorStyle={board?.card_color_style}
           isLoading={boardLoading || issuesLoading}
           availableSwimlanes={['none', 'assignee']}
           emptyMessage="No issues under this epic yet."

@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 
-import { CATEGORY_COLUMNS } from './categoryColumns'
+import { useCrossProjectBoard } from './crossProjectBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { useIssues, useMoveIssue } from '@/api/issues'
-import { useCategoryStatusMaps } from '@/api/projects'
 import { useAuthStore } from '@/store/authStore'
 
 export function MyWorkPage() {
@@ -20,23 +19,21 @@ export function MyWorkPage() {
     },
     !!currentUser,
   )
-
-  const projectKeys = useMemo(
-    () => [...new Set((issuesPage?.results ?? []).map((i) => i.project_key))],
-    [issuesPage],
-  )
-  const { maps } = useCategoryStatusMaps(projectKeys)
+  const issues = useMemo(() => issuesPage?.results ?? [], [issuesPage])
+  const board = useCrossProjectBoard(issues)
 
   return (
     <KanbanBoard
-      issues={issuesPage?.results ?? []}
-      columns={CATEGORY_COLUMNS}
-      isLoading={isLoading}
+      issues={issues}
+      columns={board.columns}
+      cardConfigByProject={board.cardConfigByProject}
+      isLoading={isLoading || board.isLoading}
       defaultSwimlaneMode="project"
       availableSwimlanes={['none', 'project']}
       emptyMessage="Nothing assigned to you yet."
       onMoveIssue={({ issue, column, beforeId, afterId }) => {
-        const statusId = column.category ? maps[issue.project_key]?.[column.category] : undefined
+        const statusId = board.resolveStatus(issue, column)
+        if (statusId === null) return
         moveIssue.mutate({ key: issue.key, status_id: statusId, before_id: beforeId, after_id: afterId })
       }}
     />

@@ -1,9 +1,8 @@
 import { useMemo } from 'react'
 
 import { useIssues, useMoveIssue } from '@/api/issues'
-import { useCategoryStatusMaps } from '@/api/projects'
 import type { TeamDetail } from '@/api/types'
-import { CATEGORY_COLUMNS } from '@/features/board/categoryColumns'
+import { useCrossProjectBoard } from '@/features/board/crossProjectBoard'
 import { KanbanBoard } from '@/features/board/KanbanBoard'
 
 export function TeamBoard({ team }: { team: TeamDetail }) {
@@ -21,22 +20,21 @@ export function TeamBoard({ team }: { team: TeamDetail }) {
     memberIds.length > 0,
   )
 
-  const projectKeys = useMemo(
-    () => [...new Set((issuesPage?.results ?? []).map((i) => i.project_key))],
-    [issuesPage],
-  )
-  const { maps } = useCategoryStatusMaps(projectKeys)
+  const issues = useMemo(() => issuesPage?.results ?? [], [issuesPage])
+  const board = useCrossProjectBoard(issues)
 
   return (
     <KanbanBoard
-      issues={issuesPage?.results ?? []}
-      columns={CATEGORY_COLUMNS}
-      isLoading={isLoading}
+      issues={issues}
+      columns={board.columns}
+      cardConfigByProject={board.cardConfigByProject}
+      isLoading={isLoading || board.isLoading}
       defaultSwimlaneMode="project"
       availableSwimlanes={['none', 'project', 'assignee']}
       emptyMessage="No issues assigned to this team's members."
       onMoveIssue={({ issue, column, beforeId, afterId }) => {
-        const statusId = column.category ? maps[issue.project_key]?.[column.category] : undefined
+        const statusId = board.resolveStatus(issue, column)
+        if (statusId === null) return
         moveIssue.mutate({ key: issue.key, status_id: statusId, before_id: beforeId, after_id: afterId })
       }}
     />

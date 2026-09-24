@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.issues.models import Issue
+from apps.live.broadcast import notify
 from apps.projects.models import Project
 
 from .models import Sprint
@@ -82,7 +83,7 @@ class SprintCompleteView(APIView):
 
         sprint.state = Sprint.State.CLOSED
         sprint.completed_at = timezone.now()
-        sprint.save()
+        sprint.save()  # also broadcasts "sprints", which refreshes issue lists after the bulk move
         return Response(SprintSerializer(sprint).data)
 
 
@@ -152,4 +153,5 @@ def reorder_sprints(request, project_key=None):
             sprint.order = index
             updated.append(sprint)
     Sprint.objects.bulk_update(updated, ["order"])
+    notify("sprints", project=project.key)  # bulk_update skips post_save
     return Response(status=status.HTTP_204_NO_CONTENT)

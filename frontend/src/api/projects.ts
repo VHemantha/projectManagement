@@ -1,4 +1,5 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { type UseQueryResult, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback } from 'react'
 
 import { apiClient } from './client'
 import type { Board, Paginated, ProjectDetail, ProjectMembership, ProjectSummary, ProjectType } from './types'
@@ -35,32 +36,31 @@ export function useProjectBoard(key: string | undefined) {
   })
 }
 
-/** Resolves, per project, the first status id in each category (todo/in_progress/done).
- * Used by cross-project boards (Team, My Work) to translate a "category" column drop
- * into the correct concrete status for whichever project the dragged issue belongs to. */
-export function useCategoryStatusMaps(projectKeys: string[]) {
-  const results = useQueries({
+/** Several projects' boards at once (same cache entries as useProjectBoard), for boards that
+ * mix projects (Team, My Work, All issues) and need each card's own project settings. */
+export function useProjectBoards(projectKeys: string[]) {
+  // A stable `combine` (it only depends on the keys) keeps the returned object — and so
+  // anything memoised on it — stable until a board actually changes. Pass memoised keys.
+  const combine = useCallback(
+    (results: UseQueryResult<Board>[]) => {
+      const boards: Record<string, Board> = {}
+      results.forEach((r, i) => {
+        if (r.data) boards[projectKeys[i]] = r.data
+      })
+      return { boards, isLoading: results.some((r) => r.isLoading) }
+    },
+    [projectKeys],
+  )
+  return useQueries({
     queries: projectKeys.map((key) => ({
       queryKey: ['projects', key, 'board'],
       queryFn: async () => {
         const { data } = await apiClient.get<Board>(`/projects/${key}/board/`)
         return data
       },
-      staleTime: 5 * 60 * 1000,
     })),
+    combine,
   })
-
-  const maps: Record<string, Record<string, number>> = {}
-  projectKeys.forEach((key, i) => {
-    const board = results[i]?.data
-    if (!board) return
-    const byCategory: Record<string, number> = {}
-    for (const status of board.statuses) {
-      if (!(status.category in byCategory)) byCategory[status.category] = status.id
-    }
-    maps[key] = byCategory
-  })
-  return { maps, isLoading: results.some((r) => r.isLoading) }
 }
 
 export interface CreateProjectPayload {

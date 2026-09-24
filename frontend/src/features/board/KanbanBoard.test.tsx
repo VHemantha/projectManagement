@@ -89,6 +89,28 @@ describe('KanbanBoard', () => {
     expect(screen.getByText('Bank reconciliation')).toHaveTextContent('Bank reconciliation - Pochin Group')
   })
 
+  it("draws each card with its own project's colour coding on a mixed-project board", () => {
+    const issues = [
+      makeIssue({ id: 1, project_key: 'TRK', summary: 'TRK card', priority: 'high' }),
+      makeIssue({ id: 2, project_key: 'OPS', summary: 'OPS card', priority: 'high' }),
+    ]
+    render(
+      <KanbanBoard
+        issues={issues}
+        columns={columns}
+        onMoveIssue={vi.fn()}
+        cardConfigByProject={{
+          TRK: { cardColorRule: 'priority', cardColors: { priority: { high: '#123456' } } },
+          OPS: { cardColorRule: 'none' },
+        }}
+      />,
+    )
+    // The summary's parent is the card element that carries the colour.
+    const cardOf = (text: string) => screen.getByText(text).parentElement as HTMLElement
+    expect(cardOf('TRK card').style.borderLeft).toContain('rgb(18, 52, 86)')
+    expect(cardOf('OPS card').style.borderLeft).toBe('')
+  })
+
   it('flags a column as over its WIP limit', () => {
     const issues = [
       makeIssue({ id: 1, status: { id: 2, name: 'In Progress', category: 'in_progress', order: 1 } }),

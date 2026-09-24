@@ -7,6 +7,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { GlobalSidebar } from './GlobalSidebar'
 import { TopNav } from './TopNav'
 import { useCurrentUser } from '@/api/auth'
+import { useLiveUpdates } from '@/api/useLiveUpdates'
 import { usePresenceSocket } from '@/api/usePresenceSocket'
 import { CreateIssueModal } from '@/features/issues/CreateIssueModal'
 import { IssueDetailModal } from '@/features/issues/IssueDetailModal'
@@ -20,6 +21,7 @@ export function AppShell() {
   const location = useLocation()
   useCurrentUser()
   usePresenceSocket()
+  useLiveUpdates()
 
   // Note: the drawer is closed explicitly by tapping a nav item or the backdrop.
   // While it's open it covers the whole screen, so no other navigation is

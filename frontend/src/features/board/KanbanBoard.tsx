@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
 import styles from './KanbanBoard.module.css'
 import { BoardCard } from './BoardCard'
@@ -20,6 +20,16 @@ import { type Lane, type SwimlaneMode, computeLanes } from './laneUtils'
 import type { BoardColumn, CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
 import { Avatar, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
+
+/** How a card is drawn: which fields it shows and how it's colour-coded (a board's settings). */
+export interface CardConfig {
+  cardFields?: CardFieldKey[]
+  cardColorRule?: CardColorRule
+  cardColors?: CardColors
+  cardColorStyle?: CardColorStyle
+}
+
+type ConfigFor = (issue: IssueListItem) => CardConfig
 
 interface KanbanBoardProps {
   issues: IssueListItem[]
@@ -36,6 +46,9 @@ interface KanbanBoardProps {
   cardColorRule?: CardColorRule
   cardColors?: CardColors
   cardColorStyle?: CardColorStyle
+  /** Boards that mix projects (Team, My Work, All issues) draw each card with its own project's
+   * board settings, so a card looks the same wherever it appears. Falls back to the props above. */
+  cardConfigByProject?: Record<string, CardConfig>
   onMoveIssue: (params: {
     issue: IssueListItem
     column: BoardColumn
@@ -69,6 +82,7 @@ export function KanbanBoard({
   cardColorRule,
   cardColors,
   cardColorStyle,
+  cardConfigByProject,
   onMoveIssue,
   emptyMessage = 'No issues to show.',
 }: KanbanBoardProps) {
@@ -83,6 +97,11 @@ export function KanbanBoard({
   const [dragging, setDragging] = useState(false)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
+
+  const configFor = useCallback<ConfigFor>(
+    (issue) => cardConfigByProject?.[issue.project_key] ?? { cardFields, cardColorRule, cardColors, cardColorStyle },
+    [cardConfigByProject, cardFields, cardColorRule, cardColors, cardColorStyle],
+  )
 
   // Board settings can now persist a swimlane_mode server-side; when that saved default
   // changes (e.g. after editing it in Configure Board), adopt it as the new baseline. The
@@ -166,27 +185,26 @@ export function KanbanBoard({
     const container = findContainer(active.id as number)
     if (!container) return
 
-    setSections((prev) => {
-      const items = [...prev[container]]
-      const oldIndex = items.indexOf(active.id as number)
-      if (oldIndex === -1) return prev
-      const overIndex = items.indexOf(over.id as number)
-      const newIndex = overIndex >= 0 ? overIndex : items.length - 1
-      items.splice(oldIndex, 1)
-      items.splice(newIndex, 0, active.id as number)
+    // Compute the drop from the current sections (already updated by dragOver), then report
+    // the move once — outside the state updater, which React may call twice.
+    const items = [...(sections[container] ?? [])]
+    const oldIndex = items.indexOf(active.id as number)
+    if (oldIndex === -1) return
+    const overIndex = items.indexOf(over.id as number)
+    const newIndex = overIndex >= 0 ? overIndex : items.length - 1
+    items.splice(oldIndex, 1)
+    items.splice(newIndex, 0, active.id as number)
+    setSections((prev) => ({ ...prev, [container]: items }))
 
-      const finalIndex = items.indexOf(active.id as number)
-      const beforeId = finalIndex > 0 ? items[finalIndex - 1] : null
-      const afterId = finalIndex < items.length - 1 ? items[finalIndex + 1] : null
-      const issue = issuesById[active.id as number]
-      const [, columnIndexStr] = container.split('::')
-      const column = columns[Number(columnIndexStr)]
-
-      if (issue && column) {
-        onMoveIssue({ issue, column, beforeId, afterId })
-      }
-      return { ...prev, [container]: items }
-    })
+    const finalIndex = items.indexOf(active.id as number)
+    const beforeId = finalIndex > 0 ? items[finalIndex - 1] : null
+    const afterId = finalIndex < items.length - 1 ? items[finalIndex + 1] : null
+    const issue = issuesById[active.id as number]
+    const [, columnIndexStr] = container.split('::')
+    const column = columns[Number(columnIndexStr)]
+    if (issue && column) {
+      onMoveIssue({ issue, column, beforeId, afterId })
+    }
   }
 
   const activeIssue = activeId ? issuesById[activeId] : null
@@ -260,21 +278,12 @@ export function KanbanBoard({
               collapsed={collapsed}
               setCollapsed={setCollapsed}
               issuesById={issuesById}
-              cardFields={cardFields}
-              cardColorRule={cardColorRule}
-              cardColors={cardColors}
-              cardColorStyle={cardColorStyle}
+              configFor={configFor}
             />
           ))}
           <DragOverlay>
             {activeIssue ? (
-              <BoardCard
-                issue={activeIssue}
-                cardFields={cardFields}
-                cardColorRule={cardColorRule}
-                cardColors={cardColors}
-                cardColorStyle={cardColorStyle}
-              />
+              <BoardCard issue={activeIssue} {...configFor(activeIssue)} />
             ) : null}
           </DragOverlay>
         </DndContext>
@@ -290,10 +299,7 @@ function BoardLane({
   collapsed,
   setCollapsed,
   issuesById,
-  cardFields,
-  cardColorRule,
-  cardColors,
-  cardColorStyle,
+  configFor,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -301,10 +307,7 @@ function BoardLane({
   collapsed: Set<number>
   setCollapsed: (fn: (prev: Set<number>) => Set<number>) => void
   issuesById: Record<number, IssueListItem>
-  cardFields?: CardFieldKey[]
-  cardColorRule?: CardColorRule
-  cardColors?: CardColors
-  cardColorStyle?: CardColorStyle
+  configFor: ConfigFor
 }) {
   return (
     <div className={styles.lane}>
@@ -340,10 +343,7 @@ function BoardLane({
               }
               issueIds={ids}
               issuesById={issuesById}
-              cardFields={cardFields}
-              cardColorRule={cardColorRule}
-              cardColors={cardColors}
-              cardColorStyle={cardColorStyle}
+              configFor={configFor}
             />
           )
         })}
@@ -363,10 +363,7 @@ function BoardColumnView({
   onToggleCollapse,
   issueIds,
   issuesById,
-  cardFields,
-  cardColorRule,
-  cardColors,
-  cardColorStyle,
+  configFor,
 }: {
   containerId: string
   title: string
@@ -378,10 +375,7 @@ function BoardColumnView({
   onToggleCollapse: () => void
   issueIds: number[]
   issuesById: Record<number, IssueListItem>
-  cardFields?: CardFieldKey[]
-  cardColorRule?: CardColorRule
-  cardColors?: CardColors
-  cardColorStyle?: CardColorStyle
+  configFor: ConfigFor
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
@@ -413,14 +407,7 @@ function BoardColumnView({
               issueIds.map(
                 (id) =>
                   issuesById[id] && (
-                    <BoardCard
-                      key={id}
-                      issue={issuesById[id]}
-                      cardFields={cardFields}
-                      cardColorRule={cardColorRule}
-                      cardColors={cardColors}
-                      cardColorStyle={cardColorStyle}
-                    />
+                    <BoardCard key={id} issue={issuesById[id]} {...configFor(issuesById[id])} />
                   ),
               )
             )}
