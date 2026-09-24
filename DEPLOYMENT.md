@@ -9,7 +9,7 @@ free-tier-eligible services, with no ECS, Fargate, App Runner or Copilot.
                          │  /api/* /ws/* /admin/* /media/* /static/*  → EC2 (HTTP :80 + secret header)           │
                          └───────────────────────────────────────────────────────────────────────────────────────┘
                                                                   │
-                         EC2 t2/t3.micro (Ubuntu 24.04)           ▼
+                         EC2 t3.micro/small (Ubuntu 24.04)           ▼
                          nginx :80 ──► gunicorn + uvicorn workers (Django ASGI: REST + chat WebSockets) :8000
                                         │            │
                                         ▼            ▼
@@ -156,7 +156,7 @@ aws cloudformation deploy \
   --parameter-overrides \
     KeyName=trackflow-key \
     UbuntuAmiId=$AMI_ID \
-    InstanceType=t2.micro \
+    InstanceType=t3.micro \
     SshCidr=$MY_IP/32 \
     DatabaseMode=local \
     DbPassword=$DB_PASSWORD \
@@ -165,9 +165,14 @@ aws cloudformation deploy \
 ```
 
 - This takes **~5–10 min** (`local`) or **~15–20 min** (`rds`); most of the wait is CloudFront.
-- If it fails with *"t2.micro is not supported in your requested Availability Zone"* or
-  similar, delete the failed stack (`aws cloudformation delete-stack --stack-name trackflow`)
-  and re-run with `InstanceType=t3.micro`.
+- **Instance type:** use a type your account's free tier allows. List them with
+  `aws ec2 describe-instance-types --filters Name=free-tier-eligible,Values=true --query "InstanceTypes[].InstanceType"`.
+  Accounts created after 15 July 2025 get `t3.micro` / `t3.small`, but **not** `t2.micro`,
+  which fails with *"The specified instance type is not eligible for Free Tier"*.
+  `t3.small` (2 GB RAM) gives the app more headroom, but it uses up free-plan credits faster.
+- **If the stack fails** it ends in `ROLLBACK_COMPLETE` and can't be updated. Delete it,
+  wait for the deletion to finish, then run the `deploy` command again:
+  `aws cloudformation delete-stack --stack-name trackflow && aws cloudformation wait stack-delete-complete --stack-name trackflow`
 - On failure, the console's **CloudFormation → trackflow → Events** tab shows which resource
   failed and why.
 

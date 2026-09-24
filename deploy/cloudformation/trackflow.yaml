@@ -19,9 +19,12 @@ Metadata:
 Parameters:
   InstanceType:
     Type: String
-    Default: t2.micro
-    AllowedValues: [t2.micro, t3.micro]
-    Description: Free-tier eligible type. Use t3.micro in regions/AZs without t2.
+    Default: t3.micro
+    AllowedValues: [t3.micro, t3.small, t2.micro]
+    Description: >
+      t3.micro (1 GB) or t3.small (2 GB) are free-tier eligible on accounts created after
+      15 July 2025 (check: aws ec2 describe-instance-types --filters
+      Name=free-tier-eligible,Values=true). t2.micro only works on older (legacy) accounts.
 
   UbuntuAmiId:
     Type: AWS::EC2::Image::Id
