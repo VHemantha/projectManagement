@@ -81,3 +81,12 @@
   color: var(--tf-success);
   font-size: 13px;
 }
+
+.keyWarning {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-warning-bg);
+  color: var(--tf-text);
+  font-size: 12px;
+}

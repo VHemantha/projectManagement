@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth import authenticate
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -6,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import User
+from .models import TablePreference, User
 from .serializers import LoginSerializer, SignupSerializer, UserSerializer
 
 
@@ -67,3 +69,33 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class TablePreferenceListView(APIView):
+    """GET /api/auth/me/table-preferences/ — {table_id: state} for every table the current
+    user has customised."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        return Response({p.table_id: p.state for p in TablePreference.objects.filter(user=request.user)})
+
+
+class TablePreferenceDetailView(APIView):
+    """PUT saves the current user's layout for one table; DELETE resets it to the default."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    MAX_STATE_BYTES = 20_000
+
+    def put(self, request, table_id):
+        state = request.data.get("state")
+        if not isinstance(state, dict):
+            return Response({"detail": "state must be an object."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(json.dumps(state)) > self.MAX_STATE_BYTES:
+            return Response({"detail": "Table layout is too large."}, status=status.HTTP_400_BAD_REQUEST)
+        TablePreference.objects.update_or_create(user=request.user, table_id=table_id, defaults={"state": state})
+        return Response({"table_id": table_id, "state": state})
+
+    def delete(self, request, table_id):
+        TablePreference.objects.filter(user=request.user, table_id=table_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

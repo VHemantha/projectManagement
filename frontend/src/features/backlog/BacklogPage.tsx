@@ -47,7 +47,7 @@ function QuickAdd({ projectKey, sprintId, defaultTypeId }: { projectKey: string;
     return (
       <div className={styles.quickAdd}>
         <Button variant="subtle" size="sm" onClick={() => setActive(true)}>
-          <Plus size={14} /> Create issue
+          <Plus size={14} /> Create job
         </Button>
       </div>
     )
@@ -256,7 +256,7 @@ export function BacklogPage() {
                         {sprint.start_date} – {sprint.end_date}
                       </span>
                     )}
-                    <span className={styles.sectionMeta}>{issues.length} issues</span>
+                    <span className={styles.sectionMeta}>{issues.length} jobs</span>
                     <div className={styles.sectionActions}>
                       {sprint.state === 'future' && (
                         <Button variant="secondary" size="sm" onClick={() => setStartingSprint(sprint)}>
@@ -273,7 +273,7 @@ export function BacklogPage() {
                   <SortableContext items={ids} strategy={verticalListSortingStrategy}>
                     <DroppableSection id={sprint.id}>
                       {issues.length === 0 ? (
-                        <div className={styles.emptyDrop}>Drag issues here, or create one below.</div>
+                        <div className={styles.emptyDrop}>Drag jobs here, or create one below.</div>
                       ) : (
                         issues.map((issue) => <IssueRow key={issue.id} issue={issue} />)
                       )}
@@ -287,7 +287,7 @@ export function BacklogPage() {
           <div className={styles.section}>
             <div className={styles.sectionHeader}>
               <span className={styles.sectionTitle}>Backlog</span>
-              <span className={styles.sectionMeta}>{visibleIssues(sections.backlog ?? []).length} issues</span>
+              <span className={styles.sectionMeta}>{visibleIssues(sections.backlog ?? []).length} jobs</span>
             </div>
             <SortableContext items={sections.backlog ?? []} strategy={verticalListSortingStrategy}>
               <DroppableSection id="backlog">

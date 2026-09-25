@@ -11,6 +11,7 @@ from apps.issues.models import Attachment, Comment, Issue, IssueLink
 from apps.projects.models import Label, Project
 from apps.sprints.models import Sprint
 from apps.teams.models import Team, TeamMembership
+from apps.timesheets.models import TimeEntry
 from apps.workflow.models import Board, WorkflowStatus, WorkflowTransition
 
 from .broadcast import notify
@@ -52,6 +53,15 @@ def issue_detail_changed(sender, instance, **kwargs):
 def issue_link_changed(sender, instance, **kwargs):
     for issue in (instance.source_issue, instance.target_issue):
         notify("issue", project=_project_key(issue), key=issue.key)
+
+
+@receiver(post_save, sender=TimeEntry)
+@receiver(post_delete, sender=TimeEntry)
+def time_logged(sender, instance, **kwargs):
+    # A job's actual hours come from its time entries.
+    issue = getattr(instance, "issue", None)
+    if issue is not None:
+        notify("issues", project=_project_key(issue), key=issue.key)
 
 
 @receiver(post_save, sender=Board)

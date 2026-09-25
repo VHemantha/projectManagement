@@ -6,7 +6,7 @@ import {
   Settings,
   SquareKanban,
 } from 'lucide-react'
-import { NavLink, Outlet, useParams } from 'react-router-dom'
+import { Navigate, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
 
 import styles from './ProjectLayout.module.css'
 import { useProject } from '@/api/projects'
@@ -14,10 +14,16 @@ import { PlaceholderPage } from '@/app/PlaceholderPage'
 
 export function ProjectLayout() {
   const { key } = useParams<{ key: string }>()
+  const location = useLocation()
   const { data: project, isLoading } = useProject(key)
 
   if (isLoading) return <PlaceholderPage title="Loading project…" />
   if (!project) return <PlaceholderPage title="Project not found" />
+  // Opened by an old key (the project was renamed) or in different letter case.
+  if (key !== project.key) {
+    const rest = location.pathname.slice(`/projects/${key}`.length)
+    return <Navigate replace to={`/projects/${project.key}${rest}${location.search}`} />
+  }
 
   const base = `/projects/${project.key}`
   const navItems = [
@@ -27,7 +33,7 @@ export function ProjectLayout() {
       ? [{ to: `${base}/backlog`, label: 'Backlog', icon: ListTodo }]
       : []),
     { to: `${base}/timeline`, label: 'Timeline', icon: Calendar },
-    { to: `${base}/issues`, label: 'Issues', icon: ClipboardList },
+    { to: `${base}/issues`, label: 'Jobs', icon: ClipboardList },
     { to: `${base}/reports`, label: 'Reports', icon: LayoutDashboard },
     { to: `${base}/settings`, label: 'Project settings', icon: Settings },
   ]

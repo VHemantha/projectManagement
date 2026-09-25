@@ -19,10 +19,20 @@ const FIELD_LABELS: Record<string, string> = {
   sprint: 'sprint',
   story_points: 'story points',
   due_date: 'due date',
+  preparer: 'preparer',
+  reviewer: 'reviewer',
+  current_responsible: 'current responsible',
 }
 
 function HistoryLine({ entry }: { entry: { user: { display_name: string } | null; field_changed: string; old_value: string; new_value: string } }) {
-  const field = FIELD_LABELS[entry.field_changed] ?? entry.field_changed
+  if (entry.field_changed === 'is_archived') {
+    return (
+      <div className={styles.historyText}>
+        <b>{entry.user?.display_name ?? 'Someone'}</b> {entry.new_value === 'True' ? 'archived' : 'restored'} this job
+      </div>
+    )
+  }
+  const field = FIELD_LABELS[entry.field_changed] ?? entry.field_changed.replace(/_/g, ' ')
   const from = entry.old_value || '—'
   const to = entry.new_value || '—'
   return (
@@ -82,7 +92,7 @@ function ChatLinkRow({ link }: { link: { id: number; message_id: number; channel
           </span>
           <MessageSquare size={12} color="var(--tf-text-subtle)" />
           <span className={styles.commentTime}>
-            {link.created_task ? 'created this issue from chat' : 'linked a chat message'}
+            {link.created_task ? 'created this job from chat' : 'linked a chat message'}
           </span>
         </div>
         <div style={{ padding: '4px 12px 8px' }}>

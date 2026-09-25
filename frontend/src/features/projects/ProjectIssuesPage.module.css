@@ -14,3 +14,18 @@
   font-weight: 600;
   margin-bottom: var(--tf-space-4);
 }
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tf-space-3);
+}
+
+.archivedToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--tf-text-secondary);
+}

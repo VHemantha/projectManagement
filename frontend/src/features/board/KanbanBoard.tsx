@@ -84,7 +84,7 @@ export function KanbanBoard({
   cardColorStyle,
   cardConfigByProject,
   onMoveIssue,
-  emptyMessage = 'No issues to show.',
+  emptyMessage = 'No jobs to show.',
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
@@ -228,7 +228,7 @@ export function KanbanBoard({
           }}
           onClick={() => setOnlyMine((v) => !v)}
         >
-          Only My Issues
+          Only My Jobs
         </button>
         <div className={styles.avatarStack}>
           {assignees.map(

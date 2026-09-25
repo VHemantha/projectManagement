@@ -14,7 +14,7 @@ from .seed_demo import ISSUE_TYPES
 
 
 class Command(BaseCommand):
-    help = "Create the default organization and system issue types if missing (safe to re-run)."
+    help = "Create the default organization and system job types if missing (safe to re-run)."
 
     def handle(self, *args, **options):
         Organization.get_solo()
@@ -25,4 +25,4 @@ class Command(BaseCommand):
                 defaults=dict(icon=icon, color=color, is_subtask=is_subtask),
             )
             created += was_created
-        self.stdout.write(f"System issue types ready ({created} created).")
+        self.stdout.write(f"System job types ready ({created} created).")

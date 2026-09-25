@@ -218,7 +218,7 @@ class TimeReportCsvView(APIView):
         response["Content-Disposition"] = 'attachment; filename="time-report.csv"'
         writer = csv.writer(response)
         writer.writerow(
-            ["Date", "User", "Project", "Issue", "Description", "Hours", "Billable", "Created via"]
+            ["Date", "User", "Project", "Job", "Description", "Hours", "Billable", "Created via"]
         )
         for entry in qs:
             writer.writerow(

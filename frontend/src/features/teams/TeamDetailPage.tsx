@@ -35,7 +35,7 @@ function DeleteTeamDialog({
             <li>the team&apos;s chat channel and all of its messages</li>
           </ul>
           <p style={{ margin: 0, color: 'var(--tf-text-subtle)' }}>
-            Members, projects and issues are kept. Projects and sub-teams linked to this team are
+            Members, projects and jobs are kept. Projects and sub-teams linked to this team are
             unlinked from it.
           </p>
           {deleteTeam.isError && (
@@ -113,7 +113,7 @@ export function TeamDetailPage() {
         <div style={{ padding: '0 24px' }}>
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="issues">Issues</TabsTrigger>
+            <TabsTrigger value="issues">Jobs</TabsTrigger>
             <TabsTrigger value="goals">Team Goals</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
           </TabsList>

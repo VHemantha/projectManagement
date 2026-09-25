@@ -4,11 +4,11 @@ import { Link } from 'react-router-dom'
 
 import styles from './IssueView.module.css'
 import { RolePicker } from './RolePicker'
+import { TimeTracking } from './TimeTracking'
 import { useProject, useProjectBoard } from '@/api/projects'
 import { useToggleWatch, useUpdateIssue } from '@/api/issues'
 import { useTeam } from '@/api/teams'
 import type { IssueDetail, Priority } from '@/api/types'
-import { useTimeEntries } from '@/api/timesheets'
 import { useUsers } from '@/api/users'
 import { Avatar, PriorityIcon } from '@/design-system'
 
@@ -24,8 +24,6 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
   // Assignee is restricted to the issue's project's team once one is set; every other role
   // picker (Preparer/Reviewer/Current responsible) keeps the full org list.
   const assigneeCandidates = projectTeam ? projectTeam.memberships.map((m) => m.user) : users
-  const { data: issueEntries } = useTimeEntries({ issue: issue.id, page_size: 500 }, issue.budgeted_hours != null)
-  const actualHours = (issueEntries ?? []).reduce((sum, e) => sum + e.duration_seconds, 0) / 3600
 
   return (
     <div className={styles.panel}>
@@ -125,21 +123,8 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       </div>
 
       <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Budgeted hours</span>
-        <input
-          className={styles.panelSelect}
-          type="number"
-          min={0}
-          value={issue.budgeted_hours ?? ''}
-          onChange={(e) =>
-            updateIssue.mutate({ budgeted_hours: e.target.value ? Number(e.target.value) : null })
-          }
-        />
-        {issue.budgeted_hours != null && (
-          <div style={{ fontSize: 12, color: 'var(--tf-text-subtle)', marginTop: 4 }}>
-            {actualHours.toFixed(1)} of {issue.budgeted_hours} hrs budgeted
-          </div>
-        )}
+        <span className={styles.panelLabel}>Time tracking</span>
+        <TimeTracking issue={issue} />
       </div>
 
       <div className={styles.panelRow}>

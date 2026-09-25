@@ -111,13 +111,15 @@ export function TeamIssuesTab({ team }: { team: TeamDetail }) {
 
       <div style={{ marginTop: 24 }}>
         <IssueTable
+          tableId="team-jobs"
+          selectable
           issues={issues}
           isLoading={isLoading}
           groupBy={groupBy}
           onGroupByChange={setGroupBy}
           availableGroupBy={['none', 'project', 'status', 'assignee']}
           showProjectColumn
-          emptyMessage="No issues assigned to this team's members."
+          emptyMessage="No jobs assigned to this team's members."
         />
       </div>
     </div>

@@ -64,7 +64,7 @@ export function ProjectsSectionLayout() {
           to="/projects/all-issues"
           className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
         >
-          <LayoutGrid size={14} /> All issues board
+          <LayoutGrid size={14} /> All jobs board
         </NavLink>
 
         <div className={styles.modeRow}>

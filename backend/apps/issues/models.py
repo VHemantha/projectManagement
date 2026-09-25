@@ -95,6 +95,11 @@ class Issue(models.Model):
 
     rank = models.CharField(max_length=100, default=rank_first, db_index=True)
 
+    # Archived jobs are kept (reports, history, time) but hidden from boards, the backlog and
+    # job lists unless explicitly asked for — for old/completed work nobody needs to see.
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     resolved_at = models.DateTimeField(null=True, blank=True)

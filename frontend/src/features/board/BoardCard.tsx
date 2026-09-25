@@ -60,10 +60,27 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
         <Avatar name={issue.current_responsible.display_name} src={issue.current_responsible.avatar} size={18} />
       </span>
     ),
-  // "linked_issue_count", "time_logged" are listed in CardFieldKey for forward-compat (board
-  // settings can already offer them as checkboxes) but have no renderer yet — IssueListItem
-  // doesn't carry that data. They render as a no-op via the lookup miss above until a later
-  // stage adds the underlying field.
+  // Actual time from timesheets vs the job's budget ("3.5h / 8h"), red once over budget.
+  time_logged: (issue) =>
+    (issue.actual_hours > 0 || issue.budgeted_hours != null) && (
+      <span
+        key="time_logged"
+        title="Actual time (timesheets) / budget"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color:
+            issue.budgeted_hours != null && issue.actual_hours > issue.budgeted_hours
+              ? 'var(--tf-danger)'
+              : 'var(--tf-text-subtle)',
+        }}
+      >
+        {Number(issue.actual_hours.toFixed(1))}h
+        {issue.budgeted_hours != null && ` / ${issue.budgeted_hours}h`}
+      </span>
+    ),
+  // "linked_issue_count" is listed in CardFieldKey for forward-compat but has no renderer yet
+  // (IssueListItem doesn't carry that data); it renders as a no-op via the lookup miss above.
 }
 
 const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee']

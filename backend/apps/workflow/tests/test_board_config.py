@@ -188,7 +188,7 @@ def test_removing_a_column_that_still_has_issues_is_rejected(lead_client, board,
     config = [c for c in board.column_config if in_review.id not in c["status_ids"]]
     resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json")
     assert resp.status_code == 400
-    assert "In Review (1 issue)" in str(resp.data)
+    assert "In Review (1 job)" in str(resp.data)
 
 
 def test_column_color_must_be_hex(lead_client, board):
@@ -257,7 +257,7 @@ def test_status_with_issues_cannot_be_deleted(lead_client, board, project):
     _issue(project, todo)
     resp = lead_client.delete(f"/api/boards/{board.id}/statuses/{todo.id}/")
     assert resp.status_code == 400
-    assert "1 issue" in resp.data["detail"]
+    assert "1 job" in resp.data["detail"]
 
 
 def test_new_issues_start_in_the_first_board_column(lead_client, board, project):

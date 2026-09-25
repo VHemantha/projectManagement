@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { Settings } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import styles from './AllIssuesBoardPage.module.css'
@@ -7,6 +8,7 @@ import { KanbanBoard } from './KanbanBoard'
 import { useClients } from '@/api/clients'
 import { useIssues, useMoveIssue } from '@/api/issues'
 import { useTeams } from '@/api/teams'
+import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
 
 const PAGE_SIZE = 300
 const NONE = 'none'
@@ -28,6 +30,8 @@ export function AllIssuesBoardPage() {
   const { data: teams } = useTeams()
   const { data: clients } = useClients()
   const moveIssue = useMoveIssue()
+  const [clientSettingsOpen, setClientSettingsOpen] = useState(false)
+  const selectedClient = clientId ? clients?.find((c) => String(c.id) === clientId) : undefined
 
   // value: '' (any), NONE, or an id. Picking from a dropdown replaces everything the tree may
   // have set for that dimension, including exclude_sub_teams.
@@ -74,7 +78,7 @@ export function AllIssuesBoardPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All issues board</h1>
+        <h1 className={styles.title}>All jobs board</h1>
         <div className={styles.filters}>
           <label className={styles.filter}>
             <span className={styles.filterLabel}>Team</span>
@@ -110,6 +114,11 @@ export function AllIssuesBoardPage() {
               ))}
             </select>
           </label>
+          {selectedClient && (
+            <button type="button" className={styles.clear} onClick={() => setClientSettingsOpen(true)}>
+              <Settings size={13} style={{ verticalAlign: '-2px' }} /> Client settings
+            </button>
+          )}
           {filtersActive && (
             <button type="button" className={styles.clear} onClick={() => setSearchParams({}, { replace: true })}>
               Clear filters
@@ -118,13 +127,14 @@ export function AllIssuesBoardPage() {
           {!isLoading && (
             <span className={styles.count}>
               {total > issues.length
-                ? `Showing ${issues.length} of ${total} issues`
-                : `${total} issue${total === 1 ? '' : 's'}`}
+                ? `Showing ${issues.length} of ${total} jobs`
+                : `${total} job${total === 1 ? '' : 's'}`}
               {excludeSubTeams && selectedHasSubTeams && ' · excluding sub-teams'}
             </span>
           )}
         </div>
       </div>
+      <CreateClientDialog open={clientSettingsOpen} onOpenChange={setClientSettingsOpen} client={selectedClient} />
       <div className={styles.board}>
         <KanbanBoard
           issues={issues}
@@ -133,7 +143,7 @@ export function AllIssuesBoardPage() {
           isLoading={isLoading || board.isLoading}
           defaultSwimlaneMode="project"
           availableSwimlanes={['none', 'project', 'assignee']}
-          emptyMessage={filtersActive ? 'No issues match this team/client.' : 'No issues yet.'}
+          emptyMessage={filtersActive ? 'No jobs match this team/client.' : 'No jobs yet.'}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = board.resolveStatus(issue, column)
             if (statusId === null) return

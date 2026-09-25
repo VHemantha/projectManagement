@@ -11,7 +11,7 @@ import type { TeamDetail, TeamSummary, User } from '@/api/types'
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
   projects: 'Projects',
-  'all-issues': 'All issues board',
+  'all-issues': 'All jobs board',
   teams: 'Teams',
   people: 'People',
   filters: 'Filters',
@@ -23,7 +23,7 @@ const STATIC_LABELS: Record<string, string> = {
   board: 'Board',
   backlog: 'Backlog',
   timeline: 'Timeline',
-  issues: 'Issues',
+  issues: 'Jobs',
   reports: 'Reports',
   settings: 'Settings',
   review: 'Review',
@@ -99,8 +99,8 @@ function resolveDynamicLabel(
   prev: string | undefined,
 ): string {
   if (prev === 'projects') {
-    // Match the existing design, which shows the uppercase project key (e.g. "CG").
-    return segment.toUpperCase()
+    // Project keys keep the case they were created with ("Pochin"), so show them as-is.
+    return segment
   }
 
   if (prev === 'teams') {

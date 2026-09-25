@@ -57,7 +57,7 @@ def test_csv_export_includes_matching_entries_and_respects_filters(client, user,
     assert resp["Content-Type"] == "text/csv"
     body = resp.content.decode()
     lines = body.strip().splitlines()
-    assert lines[0] == "Date,User,Project,Issue,Description,Hours,Billable,Created via"
+    assert lines[0] == "Date,User,Project,Job,Description,Hours,Billable,Created via"
     assert len(lines) == 2
     assert "Did the thing" in lines[1]
     assert "2.0" in lines[1]

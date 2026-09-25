@@ -5,8 +5,11 @@ from rest_framework import serializers
 
 from apps.accounts.models import User
 from apps.accounts.serializers import UserSerializer
+from apps.clients.models import Client
+from apps.clients.services import get_or_create_client_workspace
 from apps.notifications.models import Notification
 from apps.notifications.services import notify, notify_many
+from apps.projects.keys import resolve_project
 from apps.projects.models import Component, Label, Project, Version
 from apps.sprints.models import Sprint
 from apps.teams.models import TeamMembership
@@ -48,7 +51,43 @@ HISTORY_TRACKED_FIELDS = [
     "sprint",
     "story_points",
     "due_date",
+    "is_archived",
 ]
+
+
+class ProjectKeyField(serializers.SlugRelatedField):
+    """A project by key, ignoring case and accepting old keys after a rename."""
+
+    def __init__(self, **kwargs):
+        super().__init__(slug_field="key", queryset=Project.objects.all(), **kwargs)
+
+    def to_internal_value(self, data):
+        project = resolve_project(str(data))
+        if project is None:
+            self.fail("does_not_exist", slug_name=self.slug_field, value=str(data))
+        return project
+
+
+def actual_hours_of(issue) -> float:
+    """Hours logged against a job in timesheets. Uses the list/detail queryset's
+    `actual_duration` annotation when present (one query for a whole list)."""
+    if hasattr(issue, "actual_duration"):
+        duration = issue.actual_duration
+        return round(duration.total_seconds() / 3600, 2) if duration else 0.0
+    from apps.timesheets.budget import issue_actual_hours
+
+    return issue_actual_hours(issue.id)
+
+
+def set_archived(queryset, archived: bool) -> int:
+    """Archive or restore jobs in bulk (bulk update: tells open views itself)."""
+    from apps.live.broadcast import notify as live_notify
+
+    projects = set(queryset.values_list("project__key", flat=True))
+    count = queryset.update(is_archived=archived, archived_at=timezone.now() if archived else None)
+    for key in projects:
+        live_notify("issues", project=key)
+    return count
 
 
 def _apply_transition_reassignment(instance, old_status):
@@ -125,6 +164,10 @@ class IssueListSerializer(serializers.ModelSerializer):
     labels = LabelMiniSerializer(many=True, read_only=True)
     project_key = serializers.CharField(source="project.key", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    actual_hours = serializers.SerializerMethodField()
+
+    def get_actual_hours(self, obj):
+        return actual_hours_of(obj)
 
     class Meta:
         model = Issue
@@ -149,6 +192,9 @@ class IssueListSerializer(serializers.ModelSerializer):
             "start_date",
             "due_date",
             "labels",
+            "budgeted_hours",
+            "actual_hours",
+            "is_archived",
             "rank",
             "created_at",
             "updated_at",
@@ -198,7 +244,15 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     sprint_id = serializers.PrimaryKeyRelatedField(
         source="sprint", queryset=Sprint.objects.all(), write_only=True, required=False, allow_null=True
     )
-    project = serializers.SlugRelatedField(slug_field="key", queryset=Project.objects.all())
+    project = ProjectKeyField(required=False)
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    # Create-only: a job for a client that doesn't require projects, without a project (it goes
+    # into the client's automatic job list). Ignored when `project` is given.
+    client_id = serializers.PrimaryKeyRelatedField(
+        queryset=Client.objects.all(), write_only=True, required=False, allow_null=True
+    )
+    actual_hours = serializers.SerializerMethodField()
+    time_by_user = serializers.SerializerMethodField()
     labels = LabelMiniSerializer(many=True, read_only=True)
     label_ids = serializers.PrimaryKeyRelatedField(
         source="labels", queryset=Label.objects.all(), many=True, write_only=True, required=False
@@ -221,6 +275,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "id",
             "key",
             "project",
+            "project_name",
+            "client_id",
             "summary",
             "description",
             "issue_type",
@@ -248,6 +304,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "sprint_id",
             "story_points",
             "budgeted_hours",
+            "actual_hours",
+            "time_by_user",
             "allocated_value",
             "original_estimate",
             "time_spent",
@@ -262,12 +320,45 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "subtasks",
             "watcher_count",
             "is_watching",
+            "is_archived",
+            "archived_at",
             "rank",
             "created_at",
             "updated_at",
             "resolved_at",
         ]
-        read_only_fields = ["key", "rank"]
+        read_only_fields = ["key", "rank", "archived_at"]
+
+    def get_actual_hours(self, obj):
+        return actual_hours_of(obj)
+
+    def get_time_by_user(self, obj):
+        """Logged hours per person, most first — who the actual time came from."""
+        from django.db.models import Sum
+
+        rows = (
+            obj.time_entries.exclude(duration__isnull=True)
+            .values("user_id", "user__display_name")
+            .annotate(total=Sum("duration"))
+            .order_by("-total")
+        )
+        return [
+            {"user_id": r["user_id"], "display_name": r["user__display_name"], "hours": round(r["total"].total_seconds() / 3600, 2)}
+            for r in rows
+        ]
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        client = attrs.pop("client_id", None)
+        if self.instance is None and not attrs.get("project"):
+            if client is None:
+                raise serializers.ValidationError({"project": "Choose a project, or a client to add the job to."})
+            if client.requires_projects:
+                raise serializers.ValidationError(
+                    {"project": f"Jobs for {client.name} must belong to one of its projects — choose a project."}
+                )
+            attrs["project"] = get_or_create_client_workspace(client, self.context["request"].user)
+        return attrs
 
     def get_components(self, obj):
         return [{"id": c.id, "name": c.name} for c in obj.components.all()]
@@ -316,6 +407,9 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         request = self.context["request"]
+        if "is_archived" in validated_data and validated_data["is_archived"] != instance.is_archived:
+            validated_data["archived_at"] = timezone.now() if validated_data["is_archived"] else None
+            set_archived(instance.subtasks.all(), validated_data["is_archived"])
         old_values = {f: getattr(instance, f) for f in HISTORY_TRACKED_FIELDS}
         old_status = instance.status if instance.status_id else None
         was_done = instance.status.category == "done" if instance.status_id else False

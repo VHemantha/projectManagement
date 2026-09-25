@@ -33,6 +33,8 @@ export interface ProjectSummary {
   issue_count: number
   client: ClientMini | null
   primary_team: TeamMini | null
+  /** The automatic job list of a client that doesn't use projects. */
+  is_client_workspace: boolean
   created_at: string
   updated_at: string
 }
@@ -267,6 +269,10 @@ export interface IssueListItem {
   start_date: string | null
   due_date: string | null
   labels: Label[]
+  budgeted_hours: number | null
+  /** Hours logged against the job in timesheets. */
+  actual_hours: number
+  is_archived: boolean
   rank: string
   created_at: string
   updated_at: string
@@ -290,6 +296,7 @@ export interface IssueDetail {
   id: number
   key: string
   project: string
+  project_name: string
   summary: string
   description: Record<string, unknown> | null
   issue_type: IssueType
@@ -307,6 +314,9 @@ export interface IssueDetail {
   sprint: SprintMini | null
   story_points: number | null
   budgeted_hours: number | null
+  /** Hours logged against the job in timesheets, and who logged them. */
+  actual_hours: number
+  time_by_user: { user_id: number; display_name: string; hours: number }[]
   allocated_value: string | null
   original_estimate: string | null
   time_spent: string | null
@@ -318,6 +328,8 @@ export interface IssueDetail {
   subtasks: IssueMini[]
   watcher_count: number
   is_watching: boolean
+  is_archived: boolean
+  archived_at: string | null
   rank: string
   created_at: string
   updated_at: string

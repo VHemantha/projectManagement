@@ -27,6 +27,14 @@ export function useNavTree(groupBy: 'team' | 'client' | 'group') {
 export interface ProjectBudgetRow {
   project_key: string
   project_name: string
+  client: string | null
+  team: string | null
+  lead: string | null
+  is_client_jobs: boolean
+  job_count: number
+  open_jobs: number
+  done_jobs: number
+  archived_jobs: number
   budgeted_hours: number | null
   actual_hours: number
   variance_hours: number | null
@@ -40,6 +48,11 @@ export interface ProjectBudgetRow {
 export interface IssueBudgetRow {
   issue_key: string
   summary: string
+  status: string
+  issue_type: string
+  assignee: string | null
+  due_date: string | null
+  is_archived: boolean
   budgeted_hours: number | null
   actual_hours: number
   variance_hours: number | null

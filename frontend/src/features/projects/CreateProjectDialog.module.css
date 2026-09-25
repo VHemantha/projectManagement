@@ -60,3 +60,9 @@
   padding: var(--tf-space-2) var(--tf-space-3);
   font-size: 13px;
 }
+
+.keyHint {
+  margin-top: -8px;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}

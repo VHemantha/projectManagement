@@ -165,18 +165,6 @@ export function useApproveTimesheet() {
   })
 }
 
-export async function downloadTimeReportCsv(params: TimeEntryQueryParams) {
-  const { data } = await apiClient.get('/time-reports/export/', { params, responseType: 'blob' })
-  const url = URL.createObjectURL(data as Blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = 'time-report.csv'
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
-}
-
 export function useRejectTimesheet() {
   const queryClient = useQueryClient()
   return useMutation({

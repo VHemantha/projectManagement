@@ -34,7 +34,7 @@ export function EpicBoardPage() {
           cardColorStyle={board?.card_color_style}
           isLoading={boardLoading || issuesLoading}
           availableSwimlanes={['none', 'assignee']}
-          emptyMessage="No issues under this epic yet."
+          emptyMessage="No jobs under this epic yet."
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = resolveDropStatusId(issue, column)
             if (statusId === null) return

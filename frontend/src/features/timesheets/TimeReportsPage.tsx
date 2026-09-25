@@ -1,15 +1,17 @@
 import { format, startOfMonth } from 'date-fns'
-import { ArrowLeft, Download } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Link } from 'react-router-dom'
 
 import styles from './TimeReportsPage.module.css'
 import { useProjects } from '@/api/projects'
-import { useBudgetVsActual } from '@/api/reports'
-import { downloadTimeReportCsv, useTimeEntries, type TimeEntryQueryParams } from '@/api/timesheets'
+import { type IssueBudgetRow, type ProjectBudgetRow, useBudgetVsActual } from '@/api/reports'
+import { useTimeEntries, type TimeEntryQueryParams } from '@/api/timesheets'
+import type { TimeEntry } from '@/api/types'
 import { useUsers } from '@/api/users'
-import { Button, IssueKey, Skeleton } from '@/design-system'
+import { IssueKey, Skeleton } from '@/design-system'
+import { type DataColumn, DataTable } from '@/features/tables/DataTable'
 
 function pctColor(pct: number | null) {
   if (pct == null) return 'var(--tf-text)'
@@ -18,56 +20,117 @@ function pctColor(pct: number | null) {
   return 'var(--tf-text)'
 }
 
-function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
-  const { data } = useBudgetVsActual(projectKey || undefined)
+const hours = (value: number | null | undefined, digits = 1) => (value == null ? null : Number(value.toFixed(digits)))
+const money = (currency: string, value: string | number | null) =>
+  value == null ? '—' : `${currency} ${Number(value).toLocaleString()}`
+const overBudget = (variance: number | null) =>
+  variance != null && variance > 0 ? { color: 'var(--tf-danger)' } : undefined
 
-  if (!data) return null
+const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
+  {
+    id: 'project',
+    label: 'Project',
+    required: true,
+    size: 240,
+    value: (r) => r.project_name,
+    cell: (r) => (
+      <>
+        {r.project_name} <span style={{ color: 'var(--tf-text-subtle)' }}>({r.project_key})</span>
+      </>
+    ),
+  },
+  { id: 'client', label: 'Client', value: (r) => r.client, defaultHidden: true },
+  { id: 'team', label: 'Team', value: (r) => r.team, defaultHidden: true },
+  { id: 'lead', label: 'Lead', value: (r) => r.lead, defaultHidden: true },
+  { id: 'job_count', label: 'Jobs', value: (r) => r.job_count, numeric: true, defaultHidden: true },
+  { id: 'open_jobs', label: 'Open jobs', value: (r) => r.open_jobs, numeric: true, defaultHidden: true },
+  { id: 'done_jobs', label: 'Done jobs', value: (r) => r.done_jobs, numeric: true, defaultHidden: true },
+  { id: 'archived_jobs', label: 'Archived jobs', value: (r) => r.archived_jobs, numeric: true, defaultHidden: true },
+  { id: 'budgeted', label: 'Budgeted (h)', value: (r) => r.budgeted_hours, numeric: true },
+  { id: 'actual', label: 'Actual (h)', value: (r) => hours(r.actual_hours), numeric: true },
+  {
+    id: 'variance',
+    label: 'Variance (h)',
+    numeric: true,
+    value: (r) => hours(r.variance_hours),
+    cell: (r) => <span style={overBudget(r.variance_hours)}>{hours(r.variance_hours) ?? '—'}</span>,
+  },
+  {
+    id: 'pct',
+    label: '% of budget',
+    numeric: true,
+    value: (r) => r.pct_complete,
+    cell: (r) => (
+      <span style={{ color: pctColor(r.pct_complete), fontWeight: 600 }}>
+        {r.pct_complete != null ? `${r.pct_complete}%` : '—'}
+      </span>
+    ),
+  },
+  { id: 'job_value', label: 'Job value', numeric: true, value: (r) => (r.job_value == null ? null : Number(r.job_value)), cell: (r) => money(r.job_value_currency, r.job_value) },
+  { id: 'cost', label: 'Effective cost', numeric: true, value: (r) => Number(r.effective_cost), cell: (r) => money(r.job_value_currency, r.effective_cost) },
+  {
+    id: 'margin',
+    label: 'Margin',
+    numeric: true,
+    value: (r) => (r.margin == null ? null : Number(r.margin)),
+    cell: (r) => (
+      <span style={r.margin != null && Number(r.margin) < 0 ? { color: 'var(--tf-danger)' } : undefined}>
+        {money(r.job_value_currency, r.margin)}
+      </span>
+    ),
+  },
+]
+
+const JOB_COLUMNS: DataColumn<IssueBudgetRow>[] = [
+  { id: 'key', label: 'Job', required: true, size: 120, value: (r) => r.issue_key, cell: (r) => <IssueKey value={r.issue_key} /> },
+  { id: 'summary', label: 'Summary', size: 260, value: (r) => r.summary },
+  { id: 'type', label: 'Type', value: (r) => r.issue_type, defaultHidden: true },
+  { id: 'status', label: 'Status', value: (r) => r.status, defaultHidden: true },
+  { id: 'assignee', label: 'Assignee', value: (r) => r.assignee, defaultHidden: true },
+  { id: 'due', label: 'Due', value: (r) => r.due_date, defaultHidden: true },
+  { id: 'archived', label: 'Archived', value: (r) => r.is_archived, defaultHidden: true },
+  { id: 'budgeted', label: 'Budgeted (h)', value: (r) => r.budgeted_hours, numeric: true },
+  { id: 'actual', label: 'Actual (h)', value: (r) => hours(r.actual_hours), numeric: true },
+  {
+    id: 'variance',
+    label: 'Variance (h)',
+    numeric: true,
+    value: (r) => hours(r.variance_hours),
+    cell: (r) => <span style={overBudget(r.variance_hours)}>{hours(r.variance_hours) ?? '—'}</span>,
+  },
+  { id: 'allocated', label: 'Allocated value', numeric: true, value: (r) => (r.allocated_value == null ? null : Number(r.allocated_value)) },
+]
+
+const ENTRY_COLUMNS: DataColumn<TimeEntry>[] = [
+  { id: 'date', label: 'Date', size: 120, value: (e) => e.work_date, cell: (e) => format(new Date(e.work_date), 'MMM d, yyyy') },
+  { id: 'user', label: 'User', value: (e) => e.user.display_name },
+  { id: 'project', label: 'Project', value: (e) => e.project_key, defaultHidden: true },
+  { id: 'job', label: 'Job', size: 120, value: (e) => e.issue?.key, cell: (e) => (e.issue ? <IssueKey value={e.issue.key} /> : '—') },
+  { id: 'job_summary', label: 'Job summary', size: 240, value: (e) => e.issue?.summary, defaultHidden: true },
+  { id: 'description', label: 'Description', size: 260, value: (e) => e.description },
+  { id: 'billable', label: 'Billable', size: 100, value: (e) => e.is_billable },
+  { id: 'tags', label: 'Tags', value: (e) => e.tags.map((t) => t.name).join(', '), defaultHidden: true },
+  { id: 'created_via', label: 'Created via', value: (e) => e.created_via, defaultHidden: true },
+  { id: 'locked', label: 'Locked', value: (e) => e.locked, defaultHidden: true },
+  { id: 'hours', label: 'Hours', numeric: true, value: (e) => Number((e.duration_seconds / 3600).toFixed(2)) },
+]
+
+function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
+  const { data, isLoading } = useBudgetVsActual(projectKey || undefined)
+
+  if (isLoading || !data) return <Skeleton height={120} />
 
   if ('projects' in data) {
     return (
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Project</th>
-            <th>Budgeted</th>
-            <th>Actual</th>
-            <th>Variance</th>
-            <th>% Complete</th>
-            <th>Job value</th>
-            <th>Effective cost</th>
-            <th>Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.projects.length === 0 && (
-            <tr>
-              <td colSpan={8} className={styles.empty}>
-                No projects yet.
-              </td>
-            </tr>
-          )}
-          {data.projects.map((row) => (
-            <tr key={row.project_key}>
-              <td>
-                {row.project_name} <span style={{ color: 'var(--tf-text-subtle)' }}>({row.project_key})</span>
-              </td>
-              <td>{row.budgeted_hours ?? '—'}</td>
-              <td>{row.actual_hours.toFixed(1)}</td>
-              <td style={{ color: row.variance_hours != null && row.variance_hours > 0 ? 'var(--tf-danger)' : undefined }}>
-                {row.variance_hours != null ? row.variance_hours.toFixed(1) : '—'}
-              </td>
-              <td style={{ color: pctColor(row.pct_complete), fontWeight: 600 }}>
-                {row.pct_complete != null ? `${row.pct_complete}%` : '—'}
-              </td>
-              <td>{row.job_value != null ? `${row.job_value_currency} ${Number(row.job_value).toLocaleString()}` : '—'}</td>
-              <td>{row.job_value_currency} {Number(row.effective_cost).toLocaleString()}</td>
-              <td style={{ color: row.margin != null && Number(row.margin) < 0 ? 'var(--tf-danger)' : undefined }}>
-                {row.margin != null ? `${row.job_value_currency} ${Number(row.margin).toLocaleString()}` : '—'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        tableId="report-budget-projects"
+        columns={PROJECT_COLUMNS}
+        data={data.projects}
+        getRowId={(r) => r.project_key}
+        emptyMessage="No projects yet."
+        exportName="budget-vs-actual"
+        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
+      />
     )
   }
 
@@ -83,48 +146,22 @@ function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
           <div className={styles.statValue} style={{ color: pctColor(project.pct_complete) }}>
             {project.pct_complete != null ? `${project.pct_complete}%` : '—'}
           </div>
-          <div className={styles.statLabel}>Complete</div>
+          <div className={styles.statLabel}>Of budget used</div>
         </div>
         <div className={styles.statCard}>
-          <div className={styles.statValue}>
-            {project.job_value_currency} {Number(project.effective_cost).toLocaleString()}
-          </div>
+          <div className={styles.statValue}>{money(project.job_value_currency, project.effective_cost)}</div>
           <div className={styles.statLabel}>Effective cost</div>
         </div>
       </div>
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Issue</th>
-            <th>Budgeted</th>
-            <th>Actual</th>
-            <th>Variance</th>
-            <th>Allocated value</th>
-          </tr>
-        </thead>
-        <tbody>
-          {issues.length === 0 && (
-            <tr>
-              <td colSpan={5} className={styles.empty}>
-                No issues with budget or logged time yet.
-              </td>
-            </tr>
-          )}
-          {issues.map((row) => (
-            <tr key={row.issue_key}>
-              <td>
-                <IssueKey value={row.issue_key} /> {row.summary}
-              </td>
-              <td>{row.budgeted_hours ?? '—'}</td>
-              <td>{row.actual_hours.toFixed(1)}</td>
-              <td style={{ color: row.variance_hours != null && row.variance_hours > 0 ? 'var(--tf-danger)' : undefined }}>
-                {row.variance_hours != null ? row.variance_hours.toFixed(1) : '—'}
-              </td>
-              <td>{row.allocated_value != null ? Number(row.allocated_value).toLocaleString() : '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        tableId="report-budget-jobs"
+        columns={JOB_COLUMNS}
+        data={issues}
+        getRowId={(r) => r.issue_key}
+        emptyMessage="No jobs with a budget or logged time yet."
+        exportName={`budget-vs-actual-${project.project_key}`}
+        countLabel={(n) => `${n} job${n === 1 ? '' : 's'}`}
+      />
     </>
   )
 }
@@ -139,7 +176,6 @@ export function TimeReportsPage() {
   const [billable, setBillable] = useState<'all' | 'billable' | 'non_billable'>('all')
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [dateTo, setDateTo] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [exporting, setExporting] = useState(false)
 
   const params: TimeEntryQueryParams = {
     ...(projectKey ? { project: projectKey } : {}),
@@ -166,15 +202,6 @@ export function TimeReportsPage() {
     return [...map.entries()].map(([name, hours]) => ({ name, hours: Number(hours.toFixed(2)) }))
   }, [entries])
 
-  const handleExport = async () => {
-    setExporting(true)
-    try {
-      await downloadTimeReportCsv(params)
-    } finally {
-      setExporting(false)
-    }
-  }
-
   return (
     <div className={styles.page}>
       <Link to="/timesheets" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, marginBottom: 12 }}>
@@ -182,11 +209,6 @@ export function TimeReportsPage() {
       </Link>
       <div className={styles.header}>
         <h1 className={styles.title}>Time reports</h1>
-        {mode === 'time' && (
-          <Button variant="secondary" size="sm" disabled={exporting} onClick={handleExport} style={{ marginLeft: 'auto' }}>
-            <Download size={14} /> Export CSV
-          </Button>
-        )}
       </div>
 
       <div style={{ display: 'inline-flex', border: '1px solid var(--tf-border)', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
@@ -279,45 +301,17 @@ export function TimeReportsPage() {
         </div>
       </div>
 
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>User</th>
-            <th>Issue</th>
-            <th>Description</th>
-            <th>Billable</th>
-            <th>Hours</th>
-          </tr>
-        </thead>
-        <tbody>
-          {isLoading &&
-            [0, 1, 2, 3].map((row) => (
-              <tr key={row}>
-                <td colSpan={6} style={{ padding: '10px 12px' }}>
-                  <Skeleton height={12} width={row % 2 === 0 ? '85%' : '65%'} />
-                </td>
-              </tr>
-            ))}
-          {!isLoading && (entries ?? []).length === 0 && (
-            <tr>
-              <td colSpan={6} className={styles.empty}>
-                No time entries for this filter.
-              </td>
-            </tr>
-          )}
-          {(entries ?? []).map((e) => (
-            <tr key={e.id}>
-              <td>{format(new Date(e.work_date), 'MMM d, yyyy')}</td>
-              <td>{e.user.display_name}</td>
-              <td>{e.issue ? <IssueKey value={e.issue.key} /> : '—'}</td>
-              <td className={styles.description}>{e.description || '—'}</td>
-              <td>{e.is_billable ? 'Yes' : 'No'}</td>
-              <td className={styles.hoursCell}>{(e.duration_seconds / 3600).toFixed(2)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <DataTable
+        tableId="report-time-entries"
+        columns={ENTRY_COLUMNS}
+        data={entries ?? []}
+        getRowId={(e) => String(e.id)}
+        isLoading={isLoading}
+        emptyMessage="No time entries for this filter."
+        exportName={`time-report-${dateFrom}-to-${dateTo}`}
+        defaultSort={[{ id: 'date', desc: true }]}
+        countLabel={(n) => `${n} entr${n === 1 ? 'y' : 'ies'}`}
+      />
         </>
       )}
     </div>

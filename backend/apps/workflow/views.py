@@ -77,7 +77,7 @@ class BoardStatusDetailView(APIView):
         issue_count = status_issue_counts(workflow).get(wf_status.id, 0)
         if issue_count:
             return Response(
-                {"detail": f"{issue_count} issue(s) are in '{wf_status.name}'. Move them to another status first."},
+                {"detail": f"{issue_count} job(s) are in '{wf_status.name}'. Move them to another status first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         for project_board in board.project.boards.all():

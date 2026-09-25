@@ -31,7 +31,7 @@ export function TeamBoard({ team }: { team: TeamDetail }) {
       isLoading={isLoading || board.isLoading}
       defaultSwimlaneMode="project"
       availableSwimlanes={['none', 'project', 'assignee']}
-      emptyMessage="No issues assigned to this team's members."
+      emptyMessage="No jobs assigned to this team's members."
       onMoveIssue={({ issue, column, beforeId, afterId }) => {
         const statusId = board.resolveStatus(issue, column)
         if (statusId === null) return

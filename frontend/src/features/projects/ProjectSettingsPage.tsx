@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Trash2 } from 'lucide-react'
 
 import { Plus } from 'lucide-react'
@@ -20,6 +21,8 @@ import type { StatusCategory } from '@/design-system'
 
 function GeneralTab() {
   const { project } = useProjectContext()
+  const navigate = useNavigate()
+  const [key, setKey] = useState(project.key)
   const [name, setName] = useState(project.name)
   const [description, setDescription] = useState(project.description)
   const [clientId, setClientId] = useState(project.client?.id ?? '')
@@ -33,9 +36,12 @@ function GeneralTab() {
   const { data: clients } = useClients()
   const { data: teams } = useTeams()
 
+  const keyChanged = key !== project.key
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    updateProject.mutate({
+    updateProject.mutate(
+      {
+      ...(keyChanged ? { key } : {}),
       name,
       description,
       client_id: clientId ? Number(clientId) : null,
@@ -44,12 +50,33 @@ function GeneralTab() {
       budgeted_hours: budgetedHours ? Number(budgetedHours) : null,
       job_value: jobValue ? jobValue : null,
       job_value_currency: jobValueCurrency,
-    })
+      },
+      {
+        // The project now lives at its new key; stay on its settings.
+        onSuccess: (saved) => {
+          if (saved.key !== project.key) navigate(`/projects/${saved.key}/settings`, { replace: true })
+        },
+      },
+    )
   }
 
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      <Input id="settings-key" label="Key" value={project.key} disabled />
+      <div>
+        <Input
+          id="settings-key"
+          label="Key"
+          value={key}
+          maxLength={100}
+          onChange={(e) => setKey(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
+        />
+        {keyChanged && key && (
+          <div className={styles.keyWarning} role="note">
+            Saving renames every job in this project ({project.key}-12 becomes {key}-12). Old links and keys
+            keep working.
+          </div>
+        )}
+      </div>
       <Input id="settings-name" label="Name" value={name} onChange={(e) => setName(e.target.value)} />
       <Input
         id="settings-description"
@@ -170,6 +197,11 @@ function GeneralTab() {
         </Button>
         {updateProject.isSuccess && <span className={styles.savedMsg}>Saved</span>}
       </div>
+      {updateProject.isError && (
+        <div role="alert" style={{ color: 'var(--tf-danger)', fontSize: 13 }}>
+          {extractErrorMessage(updateProject.error).replace(/^\w+: /, '')}
+        </div>
+      )}
     </form>
   )
 }

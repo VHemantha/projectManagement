@@ -12,6 +12,10 @@ class Client(models.Model):
     primary_contact_name = models.CharField(max_length=150, blank=True)
     primary_contact_email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
+    # Off: jobs can be created for the client directly, without making a project first (they
+    # go into the client's automatic job list — see services.get_or_create_client_workspace).
+    # On (e.g. RWCA): every job must belong to one of the client's projects.
+    requires_projects = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

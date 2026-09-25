@@ -14,6 +14,9 @@ import { useUiStore } from '@/store/uiStore'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 const CUSTOM_SUMMARY = '__custom__'
+// Project choice meaning "no project: add the job to the client's own job list" (for clients
+// that don't require projects).
+const CLIENT_JOBS = '__client_jobs__'
 
 export function CreateIssueModal() {
   const open = useUiStore((s) => s.createIssueOpen)
@@ -27,11 +30,14 @@ export function CreateIssueModal() {
   const [teamId, setTeamId] = useState('')
   const [clientId, setClientId] = useState('')
   const [projectKey, setProjectKey] = useState<string>('')
-  const { data: project } = useProject(projectKey || undefined)
-  const { data: issueTypes } = useIssueTypes(projectKey || undefined, false)
+  const selectedClient = clientId ? (clients ?? []).find((c) => String(c.id) === clientId) : undefined
+  const clientJobsAllowed = !!selectedClient && !selectedClient.requires_projects
+  const lookupKey = projectKey === CLIENT_JOBS ? (selectedClient?.workspace_project_key ?? '') : projectKey
+  const { data: project } = useProject(lookupKey || undefined)
+  const { data: issueTypes } = useIssueTypes(lookupKey || undefined, false)
   const { data: users } = useUsers()
   const { data: selectedTeam } = useTeam(teamId ? Number(teamId) : undefined)
-  const { data: epicsPage } = useIssues({ project: projectKey, issue_type: 'Epic', page_size: 100 }, !!projectKey)
+  const { data: epicsPage } = useIssues({ project: lookupKey, issue_type: 'Epic', page_size: 100 }, !!lookupKey)
   const epics = epicsPage?.results ?? []
   const createIssue = useCreateIssue()
 
@@ -57,9 +63,11 @@ export function CreateIssueModal() {
   const projectsInTeam = teamId
     ? (projects ?? []).filter((p) => p.primary_team?.id === Number(teamId))
     : (projects ?? [])
-  const availableProjects = clientId
-    ? projectsInTeam.filter((p) => p.client?.id === Number(clientId))
-    : projectsInTeam
+  // A client's automatic job list isn't offered as a project: "No project" stands for it.
+  const availableProjects = (
+    clientId ? projectsInTeam.filter((p) => p.client?.id === Number(clientId)) : projectsInTeam
+  ).filter((p) => !p.is_client_workspace)
+  const projectChoices = [...(clientJobsAllowed ? [CLIENT_JOBS] : []), ...availableProjects.map((p) => p.key)]
 
   // A project with standard tasks (Project.task_names) offers them as the summary, with a
   // "Custom summary…" escape hatch. A task picked under a previously selected project doesn't
@@ -79,16 +87,18 @@ export function CreateIssueModal() {
   const assigneeCandidates = selectedTeam ? selectedTeam.memberships.map((m) => m.user) : (users ?? [])
 
   useEffect(() => {
-    if (open && !projectKey && projects && projects.length > 0) {
-      setProjectKey(defaultProjectKey ?? projects[0].key)
+    const firstProject = (projects ?? []).find((p) => !p.is_client_workspace)
+    if (open && !projectKey && firstProject) {
+      setProjectKey(defaultProjectKey ?? firstProject.key)
     }
   }, [open, projects, defaultProjectKey, projectKey])
 
   useEffect(() => {
-    if (!availableProjects.some((p) => p.key === projectKey)) {
-      setProjectKey(availableProjects[0]?.key ?? '')
+    if (!projectChoices.includes(projectKey)) {
+      // Prefer a real project; with none, a client that doesn't need projects gets its job list.
+      setProjectKey(availableProjects[0]?.key ?? (clientJobsAllowed ? CLIENT_JOBS : ''))
     }
-  }, [teamId, clientId, availableProjects, projectKey])
+  }, [teamId, clientId, availableProjects, projectChoices, projectKey, clientJobsAllowed])
 
   useEffect(() => {
     if (issueTypes && issueTypes.length > 0 && !issueTypes.some((t) => String(t.id) === issueTypeId)) {
@@ -129,7 +139,7 @@ export function CreateIssueModal() {
     if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing) return
     createIssue.mutate(
       {
-        project: projectKey,
+        ...(projectKey === CLIENT_JOBS ? { client_id: Number(clientId) } : { project: projectKey }),
         issue_type_id: Number(issueTypeId),
         summary: effectiveSummary,
         description,
@@ -157,7 +167,7 @@ export function CreateIssueModal() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : handleClose())}>
-      <DialogContent title="Create issue" maxWidth={560}>
+      <DialogContent title="Create job" maxWidth={560}>
         <form className={styles.form} onSubmit={handleSubmit}>
           {createIssue.isError && (
             <div className={styles.formError}>{extractErrorMessage(createIssue.error)}</div>
@@ -216,7 +226,16 @@ export function CreateIssueModal() {
                 value={projectKey}
                 onChange={(e) => setProjectKey(e.target.value)}
               >
-                {availableProjects.length === 0 && <option value="">No project for this team/client yet</option>}
+                {clientJobsAllowed && (
+                  <option value={CLIENT_JOBS}>No project — {selectedClient!.name} jobs</option>
+                )}
+                {projectChoices.length === 0 && (
+                  <option value="">
+                    {selectedClient?.requires_projects
+                      ? `${selectedClient.name} needs a project — create one first`
+                      : 'No project for this team/client yet'}
+                  </option>
+                )}
                 {availableProjects.map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.name} ({p.key})
@@ -226,7 +245,7 @@ export function CreateIssueModal() {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-type">
-                Issue type
+                Job type
               </label>
               <select
                 id="ci-type"

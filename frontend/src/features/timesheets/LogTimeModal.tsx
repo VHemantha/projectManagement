@@ -69,7 +69,7 @@ export function LogTimeModal({
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {!existingEntry && (
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Issue (optional)</label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Job (optional)</label>
               {issueId ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                   Selected issue #{issueId}

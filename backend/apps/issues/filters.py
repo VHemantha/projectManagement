@@ -65,8 +65,12 @@ class IssueFilter(django_filters.FilterSet):
         return queryset.exclude(issue_type__name=value)
 
     def filter_project_in(self, queryset, name, value):
-        keys = [v.strip().upper() for v in value.split(",") if v.strip()]
-        return queryset.filter(project__key__in=keys)
+        # Keys keep their case, so match each one ignoring case.
+        keys = [v.strip() for v in value.split(",") if v.strip()]
+        match = Q()
+        for key in keys:
+            match |= Q(project__key__iexact=key)
+        return queryset.filter(match) if keys else queryset
 
     class Meta:
         model = Issue

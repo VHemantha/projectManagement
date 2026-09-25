@@ -10,7 +10,13 @@ import type { GroupByOption } from '@/features/tables/IssueTable'
 
 export function ProjectIssuesPage() {
   const { project } = useProjectContext()
-  const { data: issuesPage, isLoading } = useIssues({ project: project.key, page_size: 300, ordering: 'rank' })
+  const [showArchived, setShowArchived] = useState(false)
+  const { data: issuesPage, isLoading } = useIssues({
+    project: project.key,
+    page_size: 300,
+    ordering: 'rank',
+    ...(showArchived ? { include_archived: true } : {}),
+  })
   const { data: board } = useProjectBoard(project.key)
   const [filters, setFilters] = useState<IssueFilters>(EMPTY_FILTERS)
   const [groupBy, setGroupBy] = useState<GroupByOption>('status')
@@ -22,8 +28,16 @@ export function ProjectIssuesPage() {
     <div className={styles.page}>
       <IssueFilterPanel issues={issues} filters={filters} onChange={setFilters} />
       <div className={styles.main}>
-        <h1 className={styles.title}>Issues</h1>
+        <div className={styles.titleRow}>
+          <h1 className={styles.title}>Jobs</h1>
+          <label className={styles.archivedToggle}>
+            <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            Show archived
+          </label>
+        </div>
         <IssueTable
+          tableId="project-jobs"
+          selectable
           issues={filtered}
           isLoading={isLoading}
           groupBy={groupBy}

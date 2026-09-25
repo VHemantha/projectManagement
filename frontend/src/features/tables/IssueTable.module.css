@@ -155,3 +155,50 @@
   text-align: center;
   color: var(--tf-text-subtle);
 }
+
+.archivedBadge {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 5px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-subtle);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.overBudget {
+  color: var(--tf-danger);
+  font-weight: 600;
+}
+
+.bulkBar {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-blue-subtle);
+  font-size: 13px;
+}
+
+.bulkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bulkLink {
+  border: none;
+  background: none;
+  color: var(--tf-blue);
+  font-size: 12px;
+  cursor: pointer;
+}

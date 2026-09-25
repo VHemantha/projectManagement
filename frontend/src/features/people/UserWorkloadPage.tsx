@@ -126,13 +126,15 @@ export function UserWorkloadPage() {
       </div>
 
       <IssueTable
+          tableId="person-jobs"
+          selectable
         issues={issues}
         isLoading={isLoading}
         groupBy={groupBy}
         onGroupByChange={setGroupBy}
         availableGroupBy={['none', 'project', 'status']}
         showProjectColumn
-        emptyMessage="No issues found for this filter."
+        emptyMessage="No jobs found for this filter."
       />
     </div>
   )

@@ -7,6 +7,14 @@ import type { IssueListItem } from '@/api/types'
 
 vi.mock('@/api/issues', () => ({
   usePatchIssueField: () => ({ mutate: vi.fn() }),
+  useBulkArchive: () => ({ mutate: vi.fn(), isPending: false }),
+}))
+
+// Saved layouts: tests can seed one per table via `savedLayouts`.
+const savedLayouts: Record<string, unknown> = {}
+vi.mock('@/api/tablePreferences', () => ({
+  useTablePreferences: () => ({ data: savedLayouts }),
+  useSaveTablePreference: () => vi.fn(),
 }))
 
 vi.mock('@/api/users', () => ({
@@ -32,6 +40,9 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     key: 'TRK-1',
     project_key: 'TRK',
     project_name: 'TrackFlow Web App',
+    budgeted_hours: null,
+    actual_hours: 0,
+    is_archived: false,
     summary: 'Fix the login flow',
     issue_type: { id: 1, name: 'Task', icon: 'check-square', color: '#0C66E4', is_subtask: false, order: 0 },
     status: { id: 1, name: 'To Do', category: 'todo', order: 0 },
@@ -65,8 +76,36 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
 }
 
 describe('IssueTable', () => {
+  it('shows actual vs budgeted time when those columns are turned on', () => {
+    savedLayouts['time-test'] = { columnVisibility: { budgeted: true, actual: true, variance: true } }
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', summary: 'Over', budgeted_hours: 4, actual_hours: 5.5 }),
+      makeIssue({ id: 2, key: 'TRK-2', summary: 'Under', budgeted_hours: 8, actual_hours: 2 }),
+    ]
+    render(<IssueTable tableId="time-test" issues={issues} />)
+    expect(screen.getByText('1.5h over')).toBeInTheDocument()
+    expect(screen.getByText('6h left')).toBeInTheDocument()
+    expect(screen.getByText('5.5h')).toBeInTheDocument()
+  })
+
+  it('lists every labelled column in the Columns menu, including field-name columns', async () => {
+    render(<IssueTable tableId="menu-test" issues={[makeIssue({ id: 1, key: 'TRK-1', summary: 'x' })]} />)
+    await userEvent.click(screen.getByRole('button', { name: /Columns/ }))
+    for (const label of ['Key', 'Summary', 'Status', 'Priority', 'Points', 'Due', 'Actual']) {
+      expect(await screen.findByRole('checkbox', { name: label })).toBeInTheDocument()
+    }
+  })
+
+  it('does not render cells for hidden columns', () => {
+    render(<IssueTable tableId="test" issues={[makeIssue({ id: 1, key: 'TRK-1', summary: 'x' })]} />)
+    const headerCount = screen.getAllByRole('columnheader').length
+    const cellCount = screen.getAllByRole('cell').length
+    expect(cellCount).toBe(headerCount)
+  })
+
+
   it('shows an empty message when there are no issues', () => {
-    render(<IssueTable issues={[]} emptyMessage="No issues found." />)
+    render(<IssueTable tableId="test" issues={[]} emptyMessage="No issues found." />)
     expect(screen.getByText('No issues found.')).toBeInTheDocument()
   })
 
@@ -75,7 +114,7 @@ describe('IssueTable', () => {
       makeIssue({ id: 1, key: 'TRK-1', summary: 'Fix the login flow' }),
       makeIssue({ id: 2, key: 'TRK-2', summary: 'Ship the dashboard' }),
     ]
-    render(<IssueTable issues={issues} />)
+    render(<IssueTable tableId="test" issues={issues} />)
     expect(screen.getByText('TRK-1')).toBeInTheDocument()
     expect(screen.getByText('Fix the login flow')).toBeInTheDocument()
     expect(screen.getByText('TRK-2')).toBeInTheDocument()
@@ -87,7 +126,7 @@ describe('IssueTable', () => {
       makeIssue({ id: 1, key: 'TRK-1', summary: 'Fix the login flow' }),
       makeIssue({ id: 2, key: 'TRK-2', summary: 'Ship the dashboard' }),
     ]
-    render(<IssueTable issues={issues} />)
+    render(<IssueTable tableId="test" issues={issues} />)
 
     const user = userEvent.setup()
     await user.type(screen.getByPlaceholderText('Search by key or summary…'), 'dashboard')
@@ -102,7 +141,7 @@ describe('IssueTable', () => {
       makeIssue({ id: 2, status: { id: 1, name: 'To Do', category: 'todo', order: 0 } }),
       makeIssue({ id: 3, status: { id: 2, name: 'Done', category: 'done', order: 1 } }),
     ]
-    render(<IssueTable issues={issues} groupBy="status" />)
+    render(<IssueTable tableId="test" issues={issues} groupBy="status" />)
     expect(screen.getByText('To Do (2)')).toBeInTheDocument()
     expect(screen.getByText('Done (1)')).toBeInTheDocument()
   })

@@ -86,6 +86,8 @@ export function useCreateProject() {
 }
 
 export interface UpdateProjectPayload {
+  /** Renaming re-keys every job (PG-12 -> Pochin-12); old keys keep working. */
+  key?: string
   name?: string
   description?: string
   lead_id?: number

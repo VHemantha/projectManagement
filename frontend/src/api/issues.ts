@@ -51,6 +51,10 @@ export interface IssueQueryParams {
   client?: number
   /** Projects with no client (internal). */
   no_client?: boolean
+  /** Also list archived jobs (hidden by default). */
+  include_archived?: boolean
+  /** Only archived jobs. */
+  archived?: boolean
   priority?: string
   search?: string
   ordering?: string
@@ -81,7 +85,9 @@ export function useIssue(key: string | undefined) {
 }
 
 export interface CreateIssuePayload {
-  project: string
+  /** Omit and send client_id instead for a client that doesn't require projects. */
+  project?: string
+  client_id?: number
   summary: string
   issue_type_id: number
   description?: Record<string, unknown> | null
@@ -103,9 +109,14 @@ export function useCreateIssue() {
       const { data } = await apiClient.post<IssueDetail>('/issues/', payload)
       return data
     },
-    onSuccess: (data) => {
+    onSuccess: (data, payload) => {
       queryClient.invalidateQueries({ queryKey: ['issues'] })
       queryClient.invalidateQueries({ queryKey: ['projects', data.project] })
+      // A first project-less job creates the client's job list.
+      if (payload.client_id) {
+        queryClient.invalidateQueries({ queryKey: ['clients'] })
+        queryClient.invalidateQueries({ queryKey: ['projects'] })
+      }
     },
   })
 }
@@ -337,6 +348,21 @@ export function useRemoveIssueLink(issueKey: string) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['issue', issueKey, 'links'] })
+    },
+  })
+}
+
+/** Archive or restore several jobs (and their sub-tasks) at once. */
+export function useBulkArchive() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ keys, archived }: { keys: string[]; archived: boolean }) => {
+      const { data } = await apiClient.post<{ updated: number }>('/issues/archive/', { keys, archived })
+      return data
+    },
+    onSuccess: (_data, { keys }) => {
+      queryClient.invalidateQueries({ queryKey: ['issues'] })
+      for (const key of keys) queryClient.invalidateQueries({ queryKey: ['issue', key] })
     },
   })
 }

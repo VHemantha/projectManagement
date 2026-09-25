@@ -48,21 +48,21 @@ export function QuickSearchModal() {
               <input
                 className={styles.input}
                 autoFocus
-                placeholder="Search issues and projects…"
+                placeholder="Search jobs and projects…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
             <div className={styles.results}>
               {query.trim().length === 0 && (
-                <div className={styles.empty}>Type to search issues by key or summary, or a project.</div>
+                <div className={styles.empty}>Type to search jobs by key or summary, or a project.</div>
               )}
               {query.trim().length > 0 && !isFetching && !hasResults && (
                 <div className={styles.empty}>No results for &ldquo;{query}&rdquo;.</div>
               )}
               {(data?.issues.length ?? 0) > 0 && (
                 <>
-                  <div className={styles.sectionLabel}>Issues</div>
+                  <div className={styles.sectionLabel}>Jobs</div>
                   {data!.issues.map((issue) => (
                     <div
                       key={issue.id}

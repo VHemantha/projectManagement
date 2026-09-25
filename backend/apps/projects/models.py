@@ -1,11 +1,14 @@
 from django.conf import settings
 from django.core.validators import RegexValidator
 from django.db import models
+from django.db.models.functions import Lower
 
-KEY_PATTERN = r"^[A-Z][A-Z0-9]{1,99}$"
+# Keys keep the case they're typed in ("Pochin" -> jobs "Pochin-12") and are unique ignoring
+# case, so "pochin" can't be created alongside it and lookups can be case-insensitive.
+KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9]{1,99}$"
 key_validator = RegexValidator(
     regex=KEY_PATTERN,
-    message="Project key must be 2-100 uppercase letters/digits, starting with a letter.",
+    message="Project key must be 2-100 letters/digits, starting with a letter.",
 )
 
 
@@ -74,19 +77,35 @@ class Project(models.Model):
     # the project is created and editable later. The Create issue dialog offers them as the
     # issue summary, so recurring work is named consistently across a project.
     task_names = models.JSONField(default=list, blank=True)
+    # An automatic job container for a client that doesn't use projects (see
+    # Client.requires_projects): created on demand the first time a job is added for that
+    # client without a project. Behaves like any project (board, workflow, settings).
+    is_client_workspace = models.BooleanField(default=False)
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["key"]
+        constraints = [models.UniqueConstraint(Lower("key"), name="project_key_unique_ignoring_case")]
 
     def __str__(self):
         return f"{self.key} - {self.name}"
 
-    def save(self, *args, **kwargs):
-        self.key = self.key.upper()
-        super().save(*args, **kwargs)
+
+class ProjectKeyAlias(models.Model):
+    """A key a project used to have. After a rename, old links and job keys (PG-12) still
+    resolve: the project is found through its alias and the job by its number."""
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="key_aliases")
+    key = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(Lower("key"), name="project_key_alias_unique_ignoring_case")]
+
+    def __str__(self):
+        return f"{self.key} -> {self.project.key}"
 
 
 class ProjectMembership(models.Model):

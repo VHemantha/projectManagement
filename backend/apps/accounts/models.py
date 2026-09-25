@@ -21,3 +21,19 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.display_name or self.email
+
+
+class TablePreference(models.Model):
+    """One user's layout for one table (job list, projects, a report): visible columns, their
+    order, widths and sort. Stored server-side so it follows the user to any device."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="table_preferences")
+    table_id = models.CharField(max_length=100)
+    state = models.JSONField(default=dict)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["user", "table_id"], name="one_layout_per_user_table")]
+
+    def __str__(self):
+        return f"{self.user} / {self.table_id}"

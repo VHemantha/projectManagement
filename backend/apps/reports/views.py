@@ -184,9 +184,19 @@ def _project_budget_row(project: Project) -> dict:
     effective_cost = project_effective_cost(project.id)
     job_value = project.job_value
     margin = (job_value - effective_cost) if job_value is not None else None
+    jobs = Issue.objects.filter(project=project)
     return {
         "project_key": project.key,
         "project_name": project.name,
+        # Extra columns users can add to the report.
+        "client": project.client.name if project.client_id else None,
+        "team": project.primary_team.name if project.primary_team_id else None,
+        "lead": project.lead.display_name if project.lead_id else None,
+        "is_client_jobs": project.is_client_workspace,
+        "job_count": jobs.count(),
+        "open_jobs": jobs.exclude(status__category="done").count(),
+        "done_jobs": jobs.filter(status__category="done").count(),
+        "archived_jobs": jobs.filter(is_archived=True).count(),
         "budgeted_hours": budgeted,
         "actual_hours": actual_hours,
         "variance_hours": variance,
@@ -212,7 +222,7 @@ class BudgetVsActualView(APIView):
             project = get_object_or_404(Project, key__iexact=project_key)
             row = _project_budget_row(project)
             issue_rows = []
-            for issue in Issue.objects.filter(project=project):
+            for issue in Issue.objects.filter(project=project).select_related("status", "issue_type", "assignee"):
                 actual = issue_actual_hours(issue.id)
                 if issue.budgeted_hours is None and actual == 0:
                     continue
@@ -221,6 +231,12 @@ class BudgetVsActualView(APIView):
                     {
                         "issue_key": issue.key,
                         "summary": issue.summary,
+                        # Extra columns users can add to the report.
+                        "status": issue.status.name,
+                        "issue_type": issue.issue_type.name,
+                        "assignee": issue.assignee.display_name if issue.assignee_id else None,
+                        "due_date": issue.due_date.isoformat() if issue.due_date else None,
+                        "is_archived": issue.is_archived,
                         "budgeted_hours": issue.budgeted_hours,
                         "actual_hours": actual,
                         "variance_hours": issue_variance,
@@ -229,5 +245,6 @@ class BudgetVsActualView(APIView):
                 )
             return Response({"project": row, "issues": issue_rows})
 
-        rows = [_project_budget_row(p) for p in Project.objects.filter(is_archived=False).order_by("key")]
+        projects = Project.objects.filter(is_archived=False).select_related("client", "primary_team", "lead")
+        rows = [_project_budget_row(p) for p in projects.order_by("key")]
         return Response({"projects": rows})

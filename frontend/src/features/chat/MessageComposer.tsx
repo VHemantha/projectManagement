@@ -160,7 +160,7 @@ export function MessageComposer({ channel, onSend, onTyping }: MessageComposerPr
           </DropdownMenuContent>
         </DropdownMenu>
         <Button variant="primary" size="sm" onClick={handleSend} disabled={!draft || isDocEmpty(draft)}>
-          <Send size={13} /> {isTaskCommand ? 'Open Create Issue' : 'Send'}
+          <Send size={13} /> {isTaskCommand ? 'Open Create Job' : 'Send'}
         </Button>
       </div>
     </div>

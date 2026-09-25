@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from apps.workflow.serializers import BoardSerializer
 from apps.workflow.services import provision_project_defaults
 
+from .keys import get_project_or_404
 from .models import Component, Label, Project, ProjectMembership, Version
 from .serializers import (
     ComponentSerializer,
@@ -38,6 +39,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             qs = qs.prefetch_related("memberships__user", "labels", "components", "versions")
         return qs
 
+    def get_object(self):
+        # Keys match ignoring case, and an old key (after a rename) still finds the project;
+        # the response carries the current key so the client can update its URL.
+        project = get_project_or_404(self.kwargs["key"])
+        obj = get_object_or_404(self.get_queryset(), pk=project.pk)
+        self.check_object_permissions(self.request, obj)
+        return obj
+
     def perform_create(self, serializer):
         project = serializer.save()
         provision_project_defaults(project)
@@ -56,7 +65,7 @@ class ProjectMembershipListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_project(self):
-        return get_object_or_404(Project, key=self.kwargs["project_key"].upper())
+        return get_project_or_404(self.kwargs["project_key"])
 
     def get_queryset(self):
         return ProjectMembership.objects.filter(project=self.get_project()).select_related("user")
@@ -70,14 +79,14 @@ class ProjectMembershipDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return ProjectMembership.objects.filter(project__key=self.kwargs["project_key"].upper())
+        return ProjectMembership.objects.filter(project=get_project_or_404(self.kwargs["project_key"]))
 
 
 class ProjectLookupListMixin:
     permission_classes = [permissions.IsAuthenticated]
 
     def get_project(self):
-        return get_object_or_404(Project, key=self.kwargs["project_key"].upper())
+        return get_project_or_404(self.kwargs["project_key"])
 
 
 class LabelListCreateView(ProjectLookupListMixin, generics.ListCreateAPIView):

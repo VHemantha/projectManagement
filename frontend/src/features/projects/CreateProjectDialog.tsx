@@ -8,17 +8,7 @@ import { useCreateProject } from '@/api/projects'
 import type { ProjectType } from '@/api/types'
 import { useUsers } from '@/api/users'
 import { Button, Dialog, DialogContent, Input } from '@/design-system'
-
-function suggestKey(name: string) {
-  const words = name.trim().split(/\s+/).filter(Boolean)
-  if (words.length === 0) return ''
-  if (words.length === 1) return words[0].slice(0, 4).toUpperCase()
-  return words
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 6)
-    .toUpperCase()
-}
+import { suggestKey } from '@/lib/projectKey'
 
 interface CreateProjectDialogProps {
   open: boolean
@@ -120,9 +110,10 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
             maxLength={100}
             onChange={(e) => {
               setKeyTouched(true)
-              setKey(e.target.value.toUpperCase())
+              setKey(e.target.value.replace(/[^A-Za-z0-9]/g, ''))
             }}
           />
+          {key && <div className={styles.keyHint}>Jobs will be numbered {key}-1, {key}-2, …</div>}
 
           <div>
             <label className="tf-label" htmlFor="project-lead" style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>

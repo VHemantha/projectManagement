@@ -8,7 +8,7 @@ class Notification(models.Model):
         MENTIONED = "mentioned", "mentioned you"
         COMMENTED = "commented", "commented"
         STATUS_CHANGED = "status_changed", "changed status"
-        WATCHING_UPDATED = "watching_updated", "updated a watched issue"
+        WATCHING_UPDATED = "watching_updated", "updated a watched job"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"

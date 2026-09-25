@@ -68,7 +68,7 @@ STORY_SUMMARIES = [
     "Add validation to {noun} form",
 ]
 NOUNS = ["pagination", "caching layer", "webhook", "avatar upload", "rate limiter", "audit log", "search index", "drag handle", "keyboard shortcut", "export button"]
-AREAS = ["board", "backlog", "issue detail", "comments", "notifications", "project settings", "sprint report", "login flow", "API", "dashboard"]
+AREAS = ["board", "backlog", "job detail", "comments", "notifications", "project settings", "sprint report", "login flow", "API", "dashboard"]
 
 PRIORITIES = ["highest", "high", "medium", "medium", "low", "lowest"]
 

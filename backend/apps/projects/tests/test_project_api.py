@@ -27,7 +27,7 @@ def test_create_project_provisions_workflow_and_board(api_client, user):
         "/api/projects/", {"key": "abc", "name": "ABC Project", "project_type": "kanban"}, format="json"
     )
     assert resp.status_code == 201
-    project = Project.objects.get(key="ABC")  # key is upper-cased on save
+    project = Project.objects.get(key="abc")  # keys keep the case they were typed in
     assert Workflow.objects.filter(project=project).exists()
     board = Board.objects.get(project=project)
     assert board.board_type == "kanban"

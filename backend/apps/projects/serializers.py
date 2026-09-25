@@ -7,6 +7,7 @@ from apps.clients.models import Client
 from apps.orgs.models import Organization
 from apps.teams.models import Team
 
+from .keys import key_in_use, rename_project_key
 from .models import Component, KEY_PATTERN, Label, Project, ProjectMembership, Version
 
 
@@ -73,6 +74,7 @@ class ProjectListSerializer(serializers.ModelSerializer):
             "issue_count",
             "client",
             "primary_team",
+            "is_client_workspace",
             "created_at",
             "updated_at",
         ]
@@ -126,9 +128,11 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             "job_value",
             "job_value_currency",
             "task_names",
+            "is_client_workspace",
             "created_at",
             "updated_at",
         ]
+        read_only_fields = ["is_client_workspace"]
 
     def validate_task_names(self, value):
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
@@ -149,16 +153,14 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         return cleaned
 
     def validate_key(self, value):
-        value = value.upper()
+        # Kept as typed ("Pochin"); unique ignoring case, including other projects' old keys.
+        value = value.strip()
         if not re.match(KEY_PATTERN, value):
             raise serializers.ValidationError(
                 "Project key must be 2-100 letters/digits, starting with a letter."
             )
-        qs = Project.objects.filter(key=value)
-        if self.instance:
-            qs = qs.exclude(pk=self.instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError("A project with this key already exists.")
+        if key_in_use(value, exclude_project=self.instance):
+            raise serializers.ValidationError("That key is already used by another project.")
         return value
 
     def create(self, validated_data):
@@ -187,6 +189,9 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         lead_id = validated_data.pop("lead_id", None)
         contributing_teams = validated_data.pop("contributing_teams", None)
+        new_key = validated_data.pop("key", None)
+        if new_key and new_key != instance.key:
+            rename_project_key(instance, new_key)  # also re-keys every job
         if lead_id:
             instance.lead_id = lead_id
         for attr, value in validated_data.items():

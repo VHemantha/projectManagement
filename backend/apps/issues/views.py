@@ -1,3 +1,4 @@
+from django.db.models import DurationField, OuterRef, Subquery, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
@@ -8,6 +9,8 @@ from rest_framework.response import Response
 from apps.accounts.models import User
 from apps.notifications.models import Notification
 from apps.notifications.services import notify_many
+from apps.projects.keys import get_issue_or_404
+from apps.timesheets.models import TimeEntry
 from apps.workflow.models import IssueType
 
 from .filters import IssueFilter
@@ -22,6 +25,7 @@ from .serializers import (
     IssueListSerializer,
     RecentActivitySerializer,
     _apply_transition_reassignment,
+    set_archived,
 )
 
 KEY_LOOKUP_REGEX = r"[A-Za-z0-9]+-\d+"
@@ -37,7 +41,7 @@ class IssueViewSet(viewsets.ModelViewSet):
     lookup_value_regex = KEY_LOOKUP_REGEX
     filterset_class = IssueFilter
     search_fields = ["key", "summary"]
-    ordering_fields = ["rank", "created_at", "updated_at", "priority", "due_date"]
+    ordering_fields = ["rank", "created_at", "updated_at", "priority", "due_date", "actual_duration", "budgeted_hours"]
     ordering = ["rank"]
 
     def get_serializer_class(self):
@@ -47,9 +51,47 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+        # Hours logged in timesheets, as a subquery so a whole list costs one query and joins
+        # from filters (labels, components) can't double-count.
+        logged = (
+            TimeEntry.objects.filter(issue=OuterRef("pk"), duration__isnull=False)
+            .values("issue")
+            .annotate(total=Sum("duration"))
+            .values("total")
+        )
+        qs = qs.annotate(actual_duration=Subquery(logged, output_field=DurationField()))
         if self.action == "retrieve":
             qs = qs.prefetch_related("components", "fix_versions", "subtasks__issue_type", "subtasks__status", "subtasks__assignee")
+        if self.action == "list":
+            params = self.request.query_params
+            wants = lambda name: params.get(name, "").lower() in ("1", "true", "yes")  # noqa: E731
+            if wants("archived"):
+                qs = qs.filter(is_archived=True)
+            elif not wants("include_archived"):
+                # Boards, the backlog and job lists never show archived jobs unless asked.
+                qs = qs.filter(is_archived=False)
         return qs
+
+    def get_object(self):
+        # Case-insensitive, and old keys (PG-12 after PG was renamed) still find the job; the
+        # response carries the current key so the client can update its URL.
+        issue = get_issue_or_404(self.kwargs["key"])
+        obj = get_object_or_404(self.get_queryset(), pk=issue.pk)
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    @action(detail=False, methods=["post"], url_path="archive")
+    def bulk_archive(self, request):
+        """POST /api/issues/archive/ {"keys": [...], "archived": true|false} — archive or restore
+        several jobs (and their sub-tasks) at once."""
+        keys = request.data.get("keys")
+        archived = request.data.get("archived", True)
+        if not isinstance(keys, list) or not keys or not isinstance(archived, bool):
+            return Response({"detail": "Send a non-empty list of job keys and archived: true/false."}, status=400)
+        issues = Issue.objects.filter(key__in=[str(k) for k in keys])
+        ids = list(issues.values_list("id", flat=True))
+        count = set_archived(Issue.objects.filter(id__in=ids) | Issue.objects.filter(parent_id__in=ids), archived)
+        return Response({"updated": count})
 
     @action(detail=True, methods=["post"])
     def move(self, request, key=None):
@@ -138,7 +180,7 @@ class IssueCommentListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_issue(self):
-        return get_object_or_404(Issue, key__iexact=self.kwargs["issue_key"])
+        return get_issue_or_404(self.kwargs["issue_key"])
 
     def get_queryset(self):
         return Comment.objects.filter(issue=self.get_issue()).select_related("author")
@@ -158,7 +200,7 @@ class IssueCommentDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Comment.objects.filter(issue__key__iexact=self.kwargs["issue_key"])
+        return Comment.objects.filter(issue=get_issue_or_404(self.kwargs["issue_key"]))
 
 
 class IssueAttachmentListCreateView(generics.ListCreateAPIView):
@@ -167,7 +209,7 @@ class IssueAttachmentListCreateView(generics.ListCreateAPIView):
     parser_classes = [MultiPartParser]
 
     def get_issue(self):
-        return get_object_or_404(Issue, key__iexact=self.kwargs["issue_key"])
+        return get_issue_or_404(self.kwargs["issue_key"])
 
     def get_queryset(self):
         return Attachment.objects.filter(issue=self.get_issue()).select_related("uploaded_by")
@@ -181,7 +223,7 @@ class IssueAttachmentDetailView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Attachment.objects.filter(issue__key__iexact=self.kwargs["issue_key"])
+        return Attachment.objects.filter(issue=get_issue_or_404(self.kwargs["issue_key"]))
 
 
 class IssueLinkListCreateView(generics.ListCreateAPIView):
@@ -189,7 +231,7 @@ class IssueLinkListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_issue(self):
-        return get_object_or_404(Issue, key__iexact=self.kwargs["issue_key"])
+        return get_issue_or_404(self.kwargs["issue_key"])
 
     def get_queryset(self):
         return IssueLink.objects.filter(source_issue=self.get_issue()).select_related("target_issue")
@@ -203,7 +245,7 @@ class IssueLinkDetailView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return IssueLink.objects.filter(source_issue__key__iexact=self.kwargs["issue_key"])
+        return IssueLink.objects.filter(source_issue=get_issue_or_404(self.kwargs["issue_key"]))
 
 
 class IssueHistoryListView(generics.ListAPIView):
@@ -211,7 +253,7 @@ class IssueHistoryListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return IssueHistory.objects.filter(issue__key__iexact=self.kwargs["issue_key"]).select_related("user")
+        return IssueHistory.objects.filter(issue=get_issue_or_404(self.kwargs["issue_key"])).select_related("user")
 
 
 class IssueChatLinksView(generics.ListAPIView):
@@ -229,7 +271,7 @@ class IssueChatLinksView(generics.ListAPIView):
     def get_queryset(self):
         from apps.chat.models import MessageIssueLink
 
-        return MessageIssueLink.objects.filter(issue__key__iexact=self.kwargs["issue_key"]).select_related(
+        return MessageIssueLink.objects.filter(issue=get_issue_or_404(self.kwargs["issue_key"])).select_related(
             "message", "message__author", "message__channel"
         )
 
@@ -252,7 +294,7 @@ class SubtaskCreateView(generics.CreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_parent(self):
-        return get_object_or_404(Issue, key__iexact=self.kwargs["issue_key"])
+        return get_issue_or_404(self.kwargs["issue_key"])
 
     def create(self, request, *args, **kwargs):
         parent = self.get_parent()
