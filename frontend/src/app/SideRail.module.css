@@ -1,0 +1,91 @@
+/* Shared look for secondary sidebars collapsed to an icon rail (Projects tree, project
+   menu, job filters) — the same idea as the main sidebar: icons with tooltips, expand on
+   request. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  flex-shrink: 0;
+  padding: var(--tf-space-2) 0;
+  background: var(--tf-surface-sunken);
+  border-right: 1px solid var(--tf-border);
+  overflow-y: auto;
+}
+
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--tf-radius-md);
+  background: transparent;
+  color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+  text-decoration: none;
+}
+.button[aria-current='page'],
+.button[data-active='true'] {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-blue);
+}
+
+/* Expand / collapse control, styled like the main sidebar's toggle. */
+.toggle {
+  composes: button;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+}
+.toggle:hover {
+  border-color: var(--tf-blue);
+  color: var(--tf-blue);
+}
+
+.divider {
+  width: 24px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--tf-border);
+}
+
+.badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--tf-blue);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+/* Phones: rails run along the top instead of down the side. */
+@media (max-width: 768px) {
+  .rail {
+    flex-direction: row;
+    width: 100%;
+    padding: var(--tf-space-1) var(--tf-space-2);
+    border-right: none;
+    border-bottom: 1px solid var(--tf-border);
+    overflow-x: auto;
+  }
+  .divider {
+    width: 1px;
+    height: 24px;
+    margin: 0 4px;
+  }
+}

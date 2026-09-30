@@ -1,4 +1,16 @@
-import { LayoutGrid, Plus } from 'lucide-react'
+import {
+  Building2,
+  ChevronsLeft,
+  ChevronsRight,
+  FolderPlus,
+  Layers,
+  LayoutGrid,
+  Plus,
+  Search,
+  UserPlus,
+  Users,
+  type LucideIcon,
+} from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
@@ -6,7 +18,9 @@ import styles from './ProjectsSectionLayout.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
 import { CreateProjectDialog } from './CreateProjectDialog'
 import { useNavTree } from '@/api/reports'
-import { Button, Skeleton, TreeView, type TreeNode } from '@/design-system'
+import rail from '@/app/SideRail.module.css'
+import { Button, Skeleton, Tooltip, TreeView, type TreeNode } from '@/design-system'
+import { usePanel } from '@/store/sidebarStore'
 
 type TreeMode = 'group' | 'team' | 'client'
 
@@ -15,6 +29,8 @@ const TREE_MODES: [TreeMode, string][] = [
   ['team', 'Team'],
   ['client', 'Client'],
 ]
+
+const TREE_MODE_ICONS: Record<TreeMode, LucideIcon> = { group: Layers, team: Users, client: Building2 }
 
 const TREE_EMPTY_MESSAGE: Record<TreeMode, string> = {
   group: 'No groups yet.',
@@ -33,6 +49,13 @@ export function ProjectsSectionLayout() {
   const [createOpen, setCreateOpen] = useState(false)
   const [createClientOpen, setCreateClientOpen] = useState(false)
   const { data: treeNodes, isLoading } = useNavTree(treeMode)
+  // Collapsed by default to an icon rail; expanded on request (remembered).
+  const panel = usePanel('projectsTree')
+  const [focusSearch, setFocusSearch] = useState(false)
+  const openInMode = (mode: TreeMode) => {
+    setTreeMode(mode)
+    panel.setOpen(true)
+  }
 
   const handleTreeLeafClick = (node: TreeNode) => {
     // The tree stops at clients: a client opens the All issues board filtered to its branch.
@@ -52,12 +75,73 @@ export function ProjectsSectionLayout() {
 
   return (
     <div className={styles.layout}>
-      <aside className={styles.sidebar}>
+      {!panel.open ? (
+        <aside className={rail.rail} aria-label="Projects panel (collapsed)">
+          <Tooltip label="Expand projects panel" side="right">
+            <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand projects panel">
+              <ChevronsRight size={18} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Create project" side="right">
+            <button type="button" className={rail.button} onClick={() => setCreateOpen(true)} aria-label="Create project">
+              <FolderPlus size={18} />
+            </button>
+          </Tooltip>
+          <Tooltip label="All jobs board" side="right">
+            <NavLink to="/projects/all-issues" className={rail.button} aria-label="All jobs board">
+              <LayoutGrid size={18} />
+            </NavLink>
+          </Tooltip>
+          <span className={rail.divider} />
+          {TREE_MODES.map(([mode, label]) => {
+            const Icon = TREE_MODE_ICONS[mode]
+            return (
+              <Tooltip key={mode} label={`Browse by ${label.toLowerCase()}`} side="right">
+                <button
+                  type="button"
+                  className={rail.button}
+                  data-active={treeMode === mode}
+                  onClick={() => openInMode(mode)}
+                  aria-label={`Browse by ${label.toLowerCase()}`}
+                >
+                  <Icon size={18} />
+                </button>
+              </Tooltip>
+            )
+          })}
+          <Tooltip label="Search teams and clients" side="right">
+            <button
+              type="button"
+              className={rail.button}
+              onClick={() => {
+                setFocusSearch(true)
+                panel.setOpen(true)
+              }}
+              aria-label="Search teams and clients"
+            >
+              <Search size={18} />
+            </button>
+          </Tooltip>
+          <Tooltip label="New client" side="right">
+            <button type="button" className={rail.button} onClick={() => setCreateClientOpen(true)} aria-label="New client">
+              <UserPlus size={18} />
+            </button>
+          </Tooltip>
+        </aside>
+      ) : (
+      <aside className={styles.sidebar} aria-label="Projects panel">
         <div className={styles.sidebarHeader}>
           <span className={styles.sidebarTitle}>Projects</span>
-          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus size={14} /> Create
-          </Button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus size={14} /> Create
+            </Button>
+            <Tooltip label="Collapse panel" side="bottom">
+              <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse projects panel">
+                <ChevronsLeft size={18} />
+              </button>
+            </Tooltip>
+          </div>
         </div>
 
         <NavLink
@@ -85,7 +169,10 @@ export function ProjectsSectionLayout() {
           <input
             className={styles.search}
             placeholder="Search team, client…"
+            aria-label="Search teams and clients"
             value={treeSearch}
+            autoFocus={focusSearch}
+            onBlur={() => setFocusSearch(false)}
             onChange={(e) => setTreeSearch(e.target.value)}
           />
           <Button variant="secondary" size="sm" onClick={() => setCreateClientOpen(true)} aria-label="New client">
@@ -110,6 +197,7 @@ export function ProjectsSectionLayout() {
           )}
         </div>
       </aside>
+      )}
 
       <div className={styles.content}>
         <Outlet />

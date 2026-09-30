@@ -1,9 +1,12 @@
+import { ChevronsLeft, SlidersHorizontal } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
 import styles from './IssueFilterPanel.module.css'
 import { useCreateFilter } from '@/api/search'
 import type { IssueListItem, Priority } from '@/api/types'
-import { Button } from '@/design-system'
+import rail from '@/app/SideRail.module.css'
+import { Button, Tooltip } from '@/design-system'
+import { usePanel } from '@/store/sidebarStore'
 
 export interface IssueFilters {
   types: Set<string>
@@ -44,10 +47,37 @@ export function IssueFilterPanel({ issues, filters, onChange }: IssueFilterPanel
     return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
   }, [issues])
 
-  const hasActiveFilters = filters.types.size + filters.priorities.size + filters.assignees.size > 0
+  const activeCount = filters.types.size + filters.priorities.size + filters.assignees.size
+  const hasActiveFilters = activeCount > 0
+  // Collapsed by default to a single filter button (remembered), like the other side panels.
+  const panel = usePanel('jobFilters')
+
+  if (!panel.open) {
+    const label = hasActiveFilters ? `Show filters (${activeCount} active)` : 'Show filters'
+    return (
+      <div className={styles.collapsed}>
+        <Tooltip label={label} side="right">
+          <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label={label}>
+            <SlidersHorizontal size={18} />
+            {hasActiveFilters && <span className={rail.badge}>{activeCount}</span>}
+          </button>
+        </Tooltip>
+      </div>
+    )
+  }
 
   return (
     <div className={styles.panel}>
+      <div className={styles.panelHeader}>
+        <span className={styles.groupTitle} style={{ margin: 0 }}>
+          Filters
+        </span>
+        <Tooltip label="Hide filters" side="bottom">
+          <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Hide filters">
+            <ChevronsLeft size={18} />
+          </button>
+        </Tooltip>
+      </div>
       {hasActiveFilters && (
         <button className={styles.clearBtn} onClick={() => onChange(EMPTY_FILTERS)}>
           Clear filters

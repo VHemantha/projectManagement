@@ -35,3 +35,16 @@
   padding: 0;
   margin-bottom: var(--tf-space-3);
 }
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--tf-space-3);
+}
+
+/* Collapsed: just the filter button, keeping the job list as wide as possible. */
+.collapsed {
+  flex-shrink: 0;
+  padding-right: var(--tf-space-3);
+}

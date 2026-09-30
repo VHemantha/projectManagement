@@ -67,7 +67,7 @@
   background: var(--tf-surface-hover);
   text-decoration: none;
 }
-.navItem.active {
+.navItem[aria-current='page'] {
   background: var(--tf-blue-subtle);
   color: var(--tf-blue);
   font-weight: 500;
@@ -77,6 +77,40 @@
   flex: 1;
   min-width: 0;
   overflow-y: auto;
+}
+
+.footer {
+  margin-top: auto;
+  padding: var(--tf-space-3);
+}
+
+/* Collapsed (desktop): a narrow icon rail like the main sidebar. */
+@media (min-width: 769px) {
+  .sidebar.collapsed {
+    width: 56px;
+    align-items: center;
+  }
+  .collapsed .header {
+    padding: var(--tf-space-3) 0;
+  }
+  .collapsed .headerText,
+  .collapsed .navLabel {
+    display: none;
+  }
+  .collapsed .nav {
+    align-items: center;
+    padding: 0;
+    gap: 4px;
+  }
+  .collapsed .navItem {
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+  }
+  .collapsed .footer {
+    padding: var(--tf-space-3) 0;
+  }
 }
 
 /* Mobile: stack the per-project nav above the content and turn the vertical nav
@@ -101,6 +135,10 @@
   .navItem {
     flex-shrink: 0;
     white-space: nowrap;
+  }
+  /* The horizontal tab bar always shows labels; collapsing is a desktop feature. */
+  .footer {
+    display: none;
   }
   .content {
     overflow-y: visible;
