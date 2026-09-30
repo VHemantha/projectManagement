@@ -53,7 +53,7 @@ def test_moving_an_issue_broadcasts_after_commit(api_client, project, sent, djan
     with django_capture_on_commit_callbacks(execute=True):
         resp = api_client.post("/api/issues/", {"project": "LIV", "summary": "Live", "issue_type_id": _task().id}, format="json")
     key = resp.data["key"]
-    in_progress = project.workflow.statuses.get(name="In Progress")
+    in_progress = project.workflow.statuses.get(name="In progress")
     sent.reset_mock()
     with django_capture_on_commit_callbacks(execute=True):
         api_client.post(f"/api/issues/{key}/move/", {"status_id": in_progress.id}, format="json")

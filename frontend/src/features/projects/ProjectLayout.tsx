@@ -16,6 +16,7 @@ import { PlaceholderPage } from '@/app/PlaceholderPage'
 import rail from '@/app/SideRail.module.css'
 import { Tooltip } from '@/design-system'
 import { usePanel } from '@/store/sidebarStore'
+import { sentenceCase } from '@/lib/text'
 
 export function ProjectLayout() {
   const { key } = useParams<{ key: string }>()
@@ -59,7 +60,7 @@ export function ProjectLayout() {
           </Tooltip>
           <div className={styles.headerText}>
             <div className={styles.projectName}>{project.name}</div>
-            <div className={styles.projectType}>{project.project_type} project</div>
+            <div className={styles.projectType}>{sentenceCase(`${project.project_type} project`)}</div>
           </div>
         </div>
         <nav className={styles.nav}>

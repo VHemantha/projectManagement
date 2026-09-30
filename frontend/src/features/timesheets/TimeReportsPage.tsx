@@ -98,7 +98,7 @@ const JOB_COLUMNS: DataColumn<IssueBudgetRow>[] = [
     value: (r) => hours(r.variance_hours),
     cell: (r) => <span style={overBudget(r.variance_hours)}>{hours(r.variance_hours) ?? '—'}</span>,
   },
-  { id: 'allocated', label: 'Allocated value', numeric: true, value: (r) => (r.allocated_value == null ? null : Number(r.allocated_value)) },
+  { id: 'allocated', label: 'Job value', numeric: true, value: (r) => (r.allocated_value == null ? null : Number(r.allocated_value)) },
 ]
 
 const ENTRY_COLUMNS: DataColumn<TimeEntry>[] = [
@@ -226,7 +226,7 @@ export function TimeReportsPage() {
               fontWeight: mode === m ? 600 : 400,
             }}
           >
-            {m === 'time' ? 'Time entries' : 'Budget vs Actual'}
+            {m === 'time' ? 'Time entries' : 'Budget vs actual'}
           </button>
         ))}
       </div>

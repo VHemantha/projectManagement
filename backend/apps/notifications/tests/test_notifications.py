@@ -24,7 +24,7 @@ def assignee():
 def project(reporter):
     project = Project.objects.create(organization=Organization.get_solo(), key="NTF", name="Notif Test", lead=reporter)
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo", order=0)
     WorkflowStatus.objects.create(workflow=workflow, name="Done", category="done", order=1)
     return project
 

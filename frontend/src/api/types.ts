@@ -113,6 +113,7 @@ export type CardFieldKey =
   | 'linked_issue_count'
   | 'time_logged'
   | 'current_responsible'
+  | 'job_value'
 
 export type CardColorRule = 'none' | 'priority' | 'issue_type' | 'label' | 'due_date'
 
@@ -272,6 +273,9 @@ export interface IssueListItem {
   budgeted_hours: number | null
   /** Hours logged against the job in timesheets. */
   actual_hours: number
+  /** The job's value (decimal string) in its project's currency. */
+  allocated_value: string | null
+  value_currency: string
   is_archived: boolean
   rank: string
   created_at: string

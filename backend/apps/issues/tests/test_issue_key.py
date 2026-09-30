@@ -14,7 +14,7 @@ def _make_project(key="TRK"):
     user = User.objects.create_user(username=f"u{key}", email=f"{key.lower()}@example.com", password="x")
     project = Project.objects.create(organization=org, key=key, name="Track", lead=user)
     workflow = Workflow.objects.create(project=project)
-    status = WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo")
+    status = WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo")
     issue_type = IssueType.objects.create(name="Task")
     return project, user, status, issue_type
 

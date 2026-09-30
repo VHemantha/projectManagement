@@ -75,7 +75,7 @@ def test_project_list_reports_issue_counts(api_client, user):
         organization=Organization.get_solo(), key="CNT", name="Counter Project", lead=user
     )
     workflow = Workflow.objects.create(project=project)
-    status = workflow.statuses.create(name="To Do", category="todo")
+    status = workflow.statuses.create(name="To do", category="todo")
     issue_type, _ = IssueType.objects.get_or_create(name="Task", project=None)
     Issue.objects.create(project=project, issue_type=issue_type, summary="One", status=status, reporter=user)
     Issue.objects.create(project=project, issue_type=issue_type, summary="Two", status=status, reporter=user)

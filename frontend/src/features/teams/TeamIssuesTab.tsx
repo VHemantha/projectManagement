@@ -76,17 +76,17 @@ export function TeamIssuesTab({ team }: { team: TeamDetail }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, background: 'var(--tf-surface)', border: '1px solid var(--tf-border)', borderRadius: 8, overflow: 'hidden' }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', textTransform: 'uppercase', borderBottom: '1px solid var(--tf-border)' }}>
+            <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', borderBottom: '1px solid var(--tf-border)' }}>
               Member
             </th>
             <th
-              style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', textTransform: 'uppercase', borderBottom: '1px solid var(--tf-border)', cursor: 'pointer' }}
+              style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', borderBottom: '1px solid var(--tf-border)', cursor: 'pointer' }}
               onClick={() => toggleSort('issues')}
             >
               Issues {sortKey === 'issues' && (sortDesc ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}
             </th>
             <th
-              style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', textTransform: 'uppercase', borderBottom: '1px solid var(--tf-border)', cursor: 'pointer' }}
+              style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, color: 'var(--tf-text-subtle)', borderBottom: '1px solid var(--tf-border)', cursor: 'pointer' }}
               onClick={() => toggleSort('hours')}
             >
               Hours logged (30d) {sortKey === 'hours' && (sortDesc ? <ArrowDown size={10} /> : <ArrowUp size={10} />)}

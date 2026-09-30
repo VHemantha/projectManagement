@@ -128,6 +128,28 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       </div>
 
       <div className={styles.panelRow}>
+        <label className={styles.panelLabel} htmlFor="job-value">
+          Job value{project ? ` (${project.job_value_currency})` : ''}
+        </label>
+        <input
+          id="job-value"
+          className={styles.panelSelect}
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="—"
+          // Keyed so a value changed elsewhere (e.g. on the card) refreshes this box.
+          key={issue.allocated_value ?? 'none'}
+          defaultValue={issue.allocated_value == null ? '' : Number(issue.allocated_value)}
+          onBlur={(e) => {
+            const next = e.target.value === '' ? null : String(Number(e.target.value))
+            const current = issue.allocated_value == null ? null : String(Number(issue.allocated_value))
+            if (next !== current) updateIssue.mutate({ allocated_value: next })
+          }}
+        />
+      </div>
+
+      <div className={styles.panelRow}>
         <span className={styles.panelLabel}>Due date</span>
         <input
           className={styles.panelSelect}

@@ -9,8 +9,9 @@ import { IssueKey, IssueTypeIcon, StatusBadge } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
+import { CATEGORY_LABELS } from '@/lib/text'
 
-const CATEGORY_LABEL: Record<string, string> = { todo: 'To Do', in_progress: 'In Progress', done: 'Done' }
+const CATEGORY_LABEL: Record<string, string> = CATEGORY_LABELS
 const CATEGORY_COLOR: Record<string, string> = {
   todo: 'var(--tf-status-todo-text)',
   in_progress: 'var(--tf-status-inprogress-text)',

@@ -7,6 +7,7 @@ import { useProjectContext } from './useProjectContext'
 import { useBudgetVsActual } from '@/api/reports'
 import { useTimeEntries } from '@/api/timesheets'
 import { Avatar } from '@/design-system'
+import { sentenceCase } from '@/lib/text'
 
 function BudgetPanel({ projectKey }: { projectKey: string }) {
   const { data } = useBudgetVsActual(projectKey)
@@ -43,13 +44,13 @@ function BudgetPanel({ projectKey }: { projectKey: string }) {
       {hasJobValue && (
         <div style={{ display: 'flex', gap: 24, fontSize: 13 }}>
           <div>
-            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>Job value</div>
+            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11 }}>Job value</div>
             <div style={{ fontWeight: 600 }}>
               {row.job_value_currency} {Number(row.job_value).toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>
+            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11 }}>
               Effective cost
             </div>
             <div style={{ fontWeight: 600 }}>
@@ -58,7 +59,7 @@ function BudgetPanel({ projectKey }: { projectKey: string }) {
           </div>
           {row.margin != null && (
             <div>
-              <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11, textTransform: 'uppercase' }}>Margin</div>
+              <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11 }}>Margin</div>
               <div style={{ fontWeight: 600, color: Number(row.margin) < 0 ? 'var(--tf-danger)' : 'var(--tf-success)' }}>
                 {row.job_value_currency} {Number(row.margin).toLocaleString()}
               </div>
@@ -175,7 +176,7 @@ export function ProjectSummaryPage() {
           <div key={m.id} className={styles.memberRow}>
             <Avatar name={m.user.display_name} src={m.user.avatar} size={28} />
             <span className={styles.memberName}>{m.user.display_name}</span>
-            <span className={styles.memberRole}>{m.role}</span>
+            <span className={styles.memberRole}>{sentenceCase(m.role)}</span>
           </div>
         ))}
       </div>

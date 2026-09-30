@@ -23,7 +23,7 @@ def user():
 def project(user):
     project = Project.objects.create(organization=Organization.get_solo(), key="RPT", name="Report Test", lead=user)
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo", order=0)
     WorkflowStatus.objects.create(workflow=workflow, name="Done", category="done", order=1)
     return project
 
@@ -53,7 +53,7 @@ def test_burndown_computes_remaining_from_resolved_issues(api_client, project, t
         project=project, name="S1", order=0, state=Sprint.State.ACTIVE,
         start_date=today - timedelta(days=4), end_date=today + timedelta(days=4),
     )
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
     done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
 
     Issue.objects.create(
@@ -77,7 +77,7 @@ def test_velocity_reports_committed_and_completed_points(api_client, project, ta
     sprint = Sprint.objects.create(
         project=project, name="S1", order=0, state=Sprint.State.CLOSED, completed_at=timezone.now(),
     )
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
     done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
     Issue.objects.create(
         project=project, issue_type=task_type, summary="Done one", status=done, reporter=user,

@@ -49,7 +49,7 @@ def api_client(preparer):
 
 @pytest.fixture
 def issue(project, task_type, preparer, reviewer, assignee):
-    status = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    status = WorkflowStatus.objects.get(workflow__project=project, name="To do")
     return Issue.objects.create(
         project=project, issue_type=task_type, summary="Do the thing", status=status,
         reporter=preparer, preparer=preparer, reviewer=reviewer, assignee=assignee,
@@ -81,8 +81,8 @@ def test_role_changes_are_recorded_in_issue_history(api_client, issue, reviewer)
 
 
 def test_status_transition_with_matching_rule_auto_reassigns_current_responsible(api_client, project, issue, reviewer):
-    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In Progress")
-    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In Review")
+    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In progress")
+    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In review")
     issue.status = in_progress
     issue.save(update_fields=["status"])
 
@@ -95,7 +95,7 @@ def test_status_transition_with_matching_rule_auto_reassigns_current_responsible
 
 
 def test_status_transition_without_a_matching_rule_leaves_current_responsible_unchanged(api_client, project, issue):
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
     done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
     # There's no seeded "To Do -> Done" transition row, so this should be a pure no-op on
     # current_responsible even though the status itself changes freely (unenforced).
@@ -105,8 +105,8 @@ def test_status_transition_without_a_matching_rule_leaves_current_responsible_un
 
 
 def test_move_action_also_applies_transition_reassignment(api_client, project, issue, reviewer):
-    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In Progress")
-    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In Review")
+    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In progress")
+    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In review")
     issue.status = in_progress
     issue.save(update_fields=["status"])
 

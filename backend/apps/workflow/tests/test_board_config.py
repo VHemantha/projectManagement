@@ -82,7 +82,7 @@ def test_column_config_rejects_unknown_status_id(lead_client, board):
 
 def test_column_config_rejects_invalid_wip_limit(lead_client, board):
     status_id = board.column_config[0]["status_ids"][0]
-    bad_config = [{"name": "To Do", "status_ids": [status_id], "wip_limit": -1}]
+    bad_config = [{"name": "To do", "status_ids": [status_id], "wip_limit": -1}]
     resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": bad_config}, format="json")
     assert resp.status_code == 400
 
@@ -183,12 +183,12 @@ def test_a_status_cannot_be_in_two_columns(lead_client, board):
 
 
 def test_removing_a_column_that_still_has_issues_is_rejected(lead_client, board, project):
-    in_review = project.workflow.statuses.get(name="In Review")
+    in_review = project.workflow.statuses.get(name="In review")
     _issue(project, in_review)
     config = [c for c in board.column_config if in_review.id not in c["status_ids"]]
     resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json")
     assert resp.status_code == 400
-    assert "In Review (1 job)" in str(resp.data)
+    assert "In review (1 job)" in str(resp.data)
 
 
 def test_column_color_must_be_hex(lead_client, board):
@@ -227,16 +227,16 @@ def test_card_colours_are_validated(lead_client, board, card_colors):
 
 
 def test_board_statuses_report_issue_counts(lead_client, project):
-    todo = project.workflow.statuses.get(name="To Do")
+    todo = project.workflow.statuses.get(name="To do")
     _issue(project, todo)
     resp = lead_client.get(f"/api/projects/{project.key}/board/")
     counts = {s["name"]: s["issue_count"] for s in resp.data["statuses"]}
-    assert counts["To Do"] == 1
+    assert counts["To do"] == 1
     assert counts["Done"] == 0
 
 
 def test_unused_status_can_be_deleted_but_used_ones_cannot(lead_client, member_client, board, project):
-    in_review = project.workflow.statuses.get(name="In Review")
+    in_review = project.workflow.statuses.get(name="In review")
     url = f"/api/boards/{board.id}/statuses/{in_review.id}/"
 
     # Still on a column.
@@ -253,7 +253,7 @@ def test_unused_status_can_be_deleted_but_used_ones_cannot(lead_client, member_c
 
 
 def test_status_with_issues_cannot_be_deleted(lead_client, board, project):
-    todo = project.workflow.statuses.get(name="To Do")
+    todo = project.workflow.statuses.get(name="To do")
     _issue(project, todo)
     resp = lead_client.delete(f"/api/boards/{board.id}/statuses/{todo.id}/")
     assert resp.status_code == 400
@@ -264,11 +264,11 @@ def test_new_issues_start_in_the_first_board_column(lead_client, board, project)
     from apps.workflow.models import IssueType
 
     task, _ = IssueType.objects.get_or_create(name="Task", project=None)
-    # Put "In Progress" first.
+    # Put "In progress" first.
     config = [board.column_config[1], board.column_config[0], *board.column_config[2:]]
     assert lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json").status_code == 200
     resp = lead_client.post(
         "/api/issues/", {"project": project.key, "summary": "Starts where?", "issue_type_id": task.id}, format="json"
     )
     assert resp.status_code == 201
-    assert resp.data["status"]["name"] == "In Progress"
+    assert resp.data["status"]["name"] == "In progress"

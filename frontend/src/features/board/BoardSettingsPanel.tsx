@@ -36,6 +36,7 @@ import type {
 } from '@/api/types'
 import { Button, Dialog, DialogContent, StatusBadge } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
+import { CATEGORY_LABELS } from '@/lib/text'
 
 const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'epic_tag', label: 'Epic tag' },
@@ -46,11 +47,12 @@ const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'labels', label: 'Labels' },
   { key: 'current_responsible', label: 'Current responsible' },
   { key: 'time_logged', label: 'Time logged vs budget' },
+  { key: 'job_value', label: 'Job value' },
 ]
 
 const CATEGORY_OPTIONS: { value: WorkflowStatus['category']; label: string }[] = [
-  { value: 'todo', label: 'To Do' },
-  { value: 'in_progress', label: 'In Progress' },
+  { value: 'todo', label: 'To do' },
+  { value: 'in_progress', label: 'In progress' },
   { value: 'done', label: 'Done' },
 ]
 
@@ -618,7 +620,7 @@ function UnmappedStatusRow({
   return (
     <div className={styles.unmappedRow}>
       <span className={styles.unmappedName}>{status.name}</span>
-      <StatusBadge label={status.category.replace('_', ' ')} category={status.category as StatusCategory} />
+      <StatusBadge label={CATEGORY_LABELS[status.category]} category={status.category as StatusCategory} />
       {status.issue_count > 0 ? (
         <span className={styles.warn}>
           {status.issue_count} job{status.issue_count === 1 ? '' : 's'} hidden — tick it on a column

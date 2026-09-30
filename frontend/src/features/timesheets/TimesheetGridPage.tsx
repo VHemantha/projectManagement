@@ -9,6 +9,7 @@ import { useGetOrCreateTimesheet, useSubmitTimesheet, useTimeEntries } from '@/a
 import type { TimeEntry, Timesheet } from '@/api/types'
 import { Button, IssueKey, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
+import { sentenceCase } from '@/lib/text'
 
 const STATUS_CLASS: Record<string, string> = {
   draft: styles.statusDraft,
@@ -105,7 +106,7 @@ export function TimesheetGridPage() {
           </Button>
         </div>
         {timesheet && (
-          <span className={`${styles.statusBadge} ${STATUS_CLASS[timesheet.status]}`}>{timesheet.status}</span>
+          <span className={`${styles.statusBadge} ${STATUS_CLASS[timesheet.status]}`}>{sentenceCase(timesheet.status)}</span>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link to="/timesheets/reports">

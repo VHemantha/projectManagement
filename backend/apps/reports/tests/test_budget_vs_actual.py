@@ -31,7 +31,7 @@ def project(user):
         budgeted_hours=10, job_value=Decimal("5000.00"),
     )
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo")
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo")
     return project
 
 

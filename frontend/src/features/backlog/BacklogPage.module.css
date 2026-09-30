@@ -14,7 +14,6 @@
 .epicPanelTitle {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   color: var(--tf-text-subtle);
   margin-bottom: var(--tf-space-2);
 }
@@ -90,7 +89,6 @@
 .stateBadge {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
   padding: 2px 8px;
   border-radius: var(--tf-radius-full);
   background: var(--tf-status-inprogress-bg);

@@ -24,6 +24,7 @@ import { Avatar, Button, IssueKey, IssueTypeIcon, PriorityIcon, RichTextEditor, 
 import type { StatusCategory } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
+import { sentenceCase } from '@/lib/text'
 
 const LINK_TYPES: IssueLinkType[] = ['blocks', 'is_blocked_by', 'relates_to', 'duplicates', 'clones']
 
@@ -82,7 +83,7 @@ function LinkedIssuesSection({ issueKey, projectKey }: { issueKey: string; proje
       <div className={styles.sectionLabel}>Linked jobs ({links?.length ?? 0})</div>
       {links?.map((l) => (
         <div key={l.id} className={styles.linkRow}>
-          <span className={styles.linkType}>{l.link_type.replace(/_/g, ' ')}</span>
+          <span className={styles.linkType}>{sentenceCase(l.link_type)}</span>
           <IssueTypeIcon typeName={l.target_issue.issue_type.name} size={14} />
           <span className={styles.linkTarget} onClick={() => openIssueModal(l.target_issue.key)}>
             <IssueKey value={l.target_issue.key} /> {l.target_issue.summary}

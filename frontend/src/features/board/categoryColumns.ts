@@ -4,7 +4,7 @@ import type { BoardColumn } from '@/api/types'
  * with different workflows (Team board, My Work), where no single project's
  * concrete status ids apply to every issue. */
 export const CATEGORY_COLUMNS: BoardColumn[] = [
-  { name: 'To Do', status_ids: [], wip_limit: null, category: 'todo' },
-  { name: 'In Progress', status_ids: [], wip_limit: null, category: 'in_progress' },
+  { name: 'To do', status_ids: [], wip_limit: null, category: 'todo' },
+  { name: 'In progress', status_ids: [], wip_limit: null, category: 'in_progress' },
   { name: 'Done', status_ids: [], wip_limit: null, category: 'done' },
 ]

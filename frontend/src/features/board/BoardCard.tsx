@@ -3,6 +3,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Calendar } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { CardValue } from './CardValue'
 import { cardAccentColor, withAlpha } from './cardColors'
 import styles from './KanbanBoard.module.css'
 import { useRunningTimer } from '@/api/timesheets'
@@ -83,7 +84,7 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
   // (IssueListItem doesn't carry that data); it renders as a no-op via the lookup miss above.
 }
 
-const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee']
+const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee', 'job_value']
 
 export function BoardCard({
   issue,
@@ -109,7 +110,7 @@ export function BoardCard({
     transition,
   }
   const isRunningHere = running?.issue?.id === issue.id
-  const metaFields = cardFields.filter((f) => f !== 'epic_tag')
+  const metaFields = cardFields.filter((f) => f !== 'epic_tag' && f !== 'job_value')
   const accentColor = cardAccentColor(issue, cardColorRule, cardColors)
   const tint = accentColor && cardColorStyle === 'tint' ? withAlpha(accentColor, 0.14) : undefined
   const colorStyle = accentColor
@@ -141,6 +142,7 @@ export function BoardCard({
         {issue.summary}
         {issue.project_name && <span className={styles.cardProject}> - {issue.project_name}</span>}
       </div>
+      {cardFields.includes('job_value') && <CardValue issue={issue} />}
       <div className={styles.cardFooter}>
         <IssueTypeIcon typeName={issue.issue_type.name} size={13} />
         <span className={styles.cardKey}>

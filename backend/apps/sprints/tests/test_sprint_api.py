@@ -20,7 +20,7 @@ def user():
 def project(user):
     project = Project.objects.create(organization=Organization.get_solo(), key="SPR", name="Sprint Test", lead=user)
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo", order=0)
     WorkflowStatus.objects.create(workflow=workflow, name="Done", category="done", order=1)
     return project
 
@@ -64,7 +64,7 @@ def test_start_sprint_requires_no_other_active_sprint(api_client, project):
 
 def test_complete_sprint_moves_incomplete_issues_to_backlog(api_client, project, task_type, user):
     sprint = Sprint.objects.create(project=project, name="S1", order=0, state=Sprint.State.ACTIVE)
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
     done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
 
     incomplete = Issue.objects.create(
@@ -87,7 +87,7 @@ def test_complete_sprint_moves_incomplete_issues_to_backlog(api_client, project,
 def test_complete_sprint_can_move_incomplete_issues_to_another_sprint(api_client, project, task_type, user):
     sprint = Sprint.objects.create(project=project, name="S1", order=0, state=Sprint.State.ACTIVE)
     next_sprint = Sprint.objects.create(project=project, name="S2", order=1, state=Sprint.State.FUTURE)
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
 
     issue = Issue.objects.create(
         project=project, issue_type=task_type, summary="Carry over", status=todo, reporter=user, sprint=sprint

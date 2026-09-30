@@ -25,7 +25,7 @@ def project(user):
     org = Organization.get_solo()
     project = Project.objects.create(organization=org, key="TST", name="Test Project", lead=user)
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo", order=0)
     WorkflowStatus.objects.create(workflow=workflow, name="Done", category="done", order=1)
     return project
 
@@ -55,7 +55,7 @@ def test_create_issue_gets_default_status_and_rank(api_client, project, task_typ
     )
     assert resp.status_code == 201
     assert resp.data["key"] == "TST-1"
-    assert resp.data["status"]["name"] == "To Do"
+    assert resp.data["status"]["name"] == "To do"
     assert resp.data["rank"]
 
 
@@ -84,7 +84,7 @@ def test_patch_status_writes_history_and_sets_resolved_at(api_client, project, t
     issue = Issue.objects.get(key=key)
     history = IssueHistory.objects.filter(issue=issue, field_changed="status")
     assert history.count() == 1
-    assert history.first().old_value == "To Do"
+    assert history.first().old_value == "To do"
     assert history.first().new_value == "Done"
 
 
@@ -94,7 +94,7 @@ def test_patch_status_back_to_todo_clears_resolved_at(api_client, project, task_
     )
     key = create.data["key"]
     done_status = WorkflowStatus.objects.get(workflow__project=project, name="Done")
-    todo_status = WorkflowStatus.objects.get(workflow__project=project, name="To Do")
+    todo_status = WorkflowStatus.objects.get(workflow__project=project, name="To do")
 
     api_client.patch(f"/api/issues/{key}/", {"status_id": done_status.id}, format="json")
     resp = api_client.patch(f"/api/issues/{key}/", {"status_id": todo_status.id}, format="json")
@@ -161,7 +161,7 @@ def test_issue_list_filters_by_project(api_client, project, task_type):
         organization=Organization.get_solo(), key="OTH", name="Other", lead=None
     )
     other_workflow = Workflow.objects.create(project=other_project)
-    WorkflowStatus.objects.create(workflow=other_workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=other_workflow, name="To do", category="todo", order=0)
     api_client.post(
         "/api/issues/", {"project": "OTH", "summary": "B", "issue_type_id": task_type.id}, format="json"
     )
@@ -174,7 +174,7 @@ def test_issue_list_filters_by_project(api_client, project, task_type):
 def _make_project(key, name, lead, **extra):
     project = Project.objects.create(organization=Organization.get_solo(), key=key, name=name, lead=lead, **extra)
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo", order=0)
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo", order=0)
     return project
 
 

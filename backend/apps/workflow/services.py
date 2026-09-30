@@ -2,15 +2,15 @@
 
 Used both by the `seed_demo` management command and by the Project create API,
 so a project made through the UI ends up with the same Jira-standard
-To Do / In Progress / In Review / Done pipeline as the demo data.
+To do / In progress / In review / Done pipeline as the demo data.
 """
 
 from .models import Board, Workflow, WorkflowStatus, WorkflowTransition
 
 STATUS_DEFS = [
-    ("To Do", "todo"),
-    ("In Progress", "in_progress"),
-    ("In Review", "in_progress"),
+    ("To do", "todo"),
+    ("In progress", "in_progress"),
+    ("In review", "in_progress"),
     ("Done", "done"),
 ]
 
@@ -28,9 +28,9 @@ def create_default_workflow(project) -> dict[str, WorkflowStatus]:
 
 def create_default_board(project, statuses: dict[str, WorkflowStatus]) -> Board:
     column_config = [
-        {"name": "To Do", "status_ids": [statuses["To Do"].id], "wip_limit": None},
-        {"name": "In Progress", "status_ids": [statuses["In Progress"].id], "wip_limit": 5},
-        {"name": "In Review", "status_ids": [statuses["In Review"].id], "wip_limit": 3},
+        {"name": "To do", "status_ids": [statuses["To do"].id], "wip_limit": None},
+        {"name": "In progress", "status_ids": [statuses["In progress"].id], "wip_limit": 5},
+        {"name": "In review", "status_ids": [statuses["In review"].id], "wip_limit": 3},
         {"name": "Done", "status_ids": [statuses["Done"].id], "wip_limit": None},
     ]
     board, _ = Board.objects.get_or_create(
@@ -49,13 +49,13 @@ def create_default_transitions(project, statuses: dict[str, WorkflowStatus]) -> 
     In Progress <-> In Review pair pre-wired to the addendum's current_responsible
     auto-reassignment rule — otherwise the "Transition rules" settings table would start out
     empty on every project and the feature would have nothing to demonstrate."""
-    workflow = statuses["To Do"].workflow
+    workflow = statuses["To do"].workflow
     defs = [
-        ("Start progress", "To Do", "In Progress", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Send for review", "In Progress", "In Review", WorkflowTransition.ReassignRule.REVIEWER),
-        ("Request changes", "In Review", "In Progress", WorkflowTransition.ReassignRule.PREPARER),
-        ("Approve", "In Review", "Done", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Reopen", "Done", "In Progress", WorkflowTransition.ReassignRule.ASSIGNEE),
+        ("Start progress", "To do", "In progress", WorkflowTransition.ReassignRule.NO_CHANGE),
+        ("Send for review", "In progress", "In review", WorkflowTransition.ReassignRule.REVIEWER),
+        ("Request changes", "In review", "In progress", WorkflowTransition.ReassignRule.PREPARER),
+        ("Approve", "In review", "Done", WorkflowTransition.ReassignRule.NO_CHANGE),
+        ("Reopen", "Done", "In progress", WorkflowTransition.ReassignRule.ASSIGNEE),
     ]
     for name, from_name, to_name, rule in defs:
         WorkflowTransition.objects.get_or_create(

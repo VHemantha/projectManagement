@@ -11,6 +11,8 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     project_name: 'TrackFlow Web App',
     budgeted_hours: null,
     actual_hours: 0,
+    allocated_value: null,
+    value_currency: 'USD',
     is_archived: false,
     summary: 'Test issue',
     issue_type: { id: 1, name: 'Task', icon: 'check-square', color: '#0C66E4', is_subtask: false, order: 0 },

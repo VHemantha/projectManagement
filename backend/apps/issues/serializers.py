@@ -165,6 +165,8 @@ class IssueListSerializer(serializers.ModelSerializer):
     project_key = serializers.CharField(source="project.key", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
     actual_hours = serializers.SerializerMethodField()
+    # The job's value is shown (and edited) on cards in its project's currency.
+    value_currency = serializers.CharField(source="project.job_value_currency", read_only=True)
 
     def get_actual_hours(self, obj):
         return actual_hours_of(obj)
@@ -194,6 +196,8 @@ class IssueListSerializer(serializers.ModelSerializer):
             "labels",
             "budgeted_hours",
             "actual_hours",
+            "allocated_value",
+            "value_currency",
             "is_archived",
             "rank",
             "created_at",

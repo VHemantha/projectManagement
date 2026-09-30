@@ -26,7 +26,7 @@ def project(lead):
     project = Project.objects.create(organization=Organization.get_solo(), key="CRT", name="Chat REST Test", lead=lead)
     ProjectMembership.objects.create(project=project, user=lead, role="admin")
     workflow = Workflow.objects.create(project=project)
-    WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo")
+    WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo")
     IssueType.objects.get_or_create(name="Task", project=None)
     return project
 

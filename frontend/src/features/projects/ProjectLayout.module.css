@@ -43,7 +43,6 @@
 .projectType {
   font-size: 12px;
   color: var(--tf-text-subtle);
-  text-transform: capitalize;
 }
 
 .nav {

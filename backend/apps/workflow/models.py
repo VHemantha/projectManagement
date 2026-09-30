@@ -33,8 +33,8 @@ class Workflow(models.Model):
 
 class WorkflowStatus(models.Model):
     class Category(models.TextChoices):
-        TODO = "todo", "To Do"
-        IN_PROGRESS = "in_progress", "In Progress"
+        TODO = "todo", "To do"
+        IN_PROGRESS = "in_progress", "In progress"
         DONE = "done", "Done"
 
     workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name="statuses")
@@ -78,9 +78,8 @@ class WorkflowTransition(models.Model):
 
 
 def _default_card_fields():
-    # Matches what BoardCard.tsx rendered before this became configurable, so existing
-    # boards look unchanged until someone opens board settings.
-    return ["epic_tag", "story_points", "priority", "assignee"]
+    # Cards show the job's value by default so it can be entered right on the board.
+    return ["epic_tag", "story_points", "priority", "assignee", "job_value"]
 
 
 class Board(models.Model):

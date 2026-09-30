@@ -253,3 +253,21 @@ def test_suggested_keys_use_the_full_first_word():
     assert suggest_key("!!!") == "Project"
     Project.objects.create(organization=Organization.get_solo(), key="Pochin", name="x")
     assert suggest_key("Pochin Group") == "Pochin2"  # taken -> numbered
+
+
+def test_job_value_is_listed_and_editable(api, task_type):
+    _project(api, "Val", job_value_currency="GBP")
+    job = _job(api, "Val", task_type)
+    resp = api.patch(f"/api/issues/{job['key']}/", {"allocated_value": "1250.50"}, format="json")
+    assert resp.status_code == 200
+    row = api.get("/api/issues/", {"project": "Val"}).data["results"][0]
+    assert row["allocated_value"] == "1250.50"
+    assert row["value_currency"] == "GBP"
+    api.patch(f"/api/issues/{job['key']}/", {"allocated_value": None}, format="json")
+    assert api.get("/api/issues/", {"project": "Val"}).data["results"][0]["allocated_value"] is None
+
+
+def test_new_boards_show_job_value_on_cards(api):
+    project = _project(api, "Card")
+    board = api.get(f"/api/projects/{project['key']}/board/").data
+    assert "job_value" in board["card_fields"]

@@ -114,7 +114,7 @@ export function TeamDetailPage() {
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
             <TabsTrigger value="issues">Jobs</TabsTrigger>
-            <TabsTrigger value="goals">Team Goals</TabsTrigger>
+            <TabsTrigger value="goals">Team goals</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
           </TabsList>
         </div>

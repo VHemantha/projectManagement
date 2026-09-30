@@ -18,6 +18,7 @@ import { useTeams } from '@/api/teams'
 import { useUsers } from '@/api/users'
 import { Avatar, Button, Input, StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
+import { CATEGORY_LABELS } from '@/lib/text'
 
 function GeneralTab() {
   const { project } = useProjectContext()
@@ -294,10 +295,10 @@ function TransitionRulesTab() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--tf-text-subtle)', textTransform: 'uppercase' }}>
+            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--tf-text-subtle)' }}>
               Transition
             </th>
-            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--tf-text-subtle)', textTransform: 'uppercase' }}>
+            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 11, color: 'var(--tf-text-subtle)' }}>
               On this transition, set current responsible to
             </th>
           </tr>
@@ -342,7 +343,7 @@ function WorkflowTab() {
       {board?.statuses.map((s) => (
         <div key={s.id} className={styles.statusRow}>
           <span className={styles.statusName}>{s.name}</span>
-          <StatusBadge label={s.category.replace('_', ' ')} category={s.category as StatusCategory} />
+          <StatusBadge label={CATEGORY_LABELS[s.category]} category={s.category as StatusCategory} />
         </div>
       ))}
     </div>

@@ -1,8 +1,14 @@
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import { KanbanBoard } from './KanbanBoard'
 import type { BoardColumn, IssueListItem } from '@/api/types'
+
+const { patchMutate } = vi.hoisted(() => ({ patchMutate: vi.fn() }))
+vi.mock('@/api/issues', () => ({
+  usePatchIssueField: () => ({ mutate: patchMutate }),
+}))
 
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (s: { user: null }) => unknown) => selector({ user: null }),
@@ -27,6 +33,8 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     project_name: 'TrackFlow Web App',
     budgeted_hours: null,
     actual_hours: 0,
+    allocated_value: null,
+    value_currency: 'USD',
     is_archived: false,
     summary: 'Fix the login flow',
     issue_type: { id: 1, name: 'Task', icon: 'check-square', color: '#0C66E4', is_subtask: false, order: 0 },
@@ -112,6 +120,19 @@ describe('KanbanBoard', () => {
     const cardOf = (text: string) => screen.getByText(text).parentElement as HTMLElement
     expect(cardOf('TRK card').style.borderLeft).toContain('rgb(18, 52, 86)')
     expect(cardOf('OPS card').style.borderLeft).toBe('')
+  })
+
+  it('shows the job value on cards and edits it in place', async () => {
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', summary: 'Valued', allocated_value: '1200.00', value_currency: 'GBP' }),
+      makeIssue({ id: 2, key: 'TRK-2', summary: 'Unvalued' }),
+    ]
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /Job value GBP 1,200/ })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Add job value for TRK-2' }))
+    const input = screen.getByRole('spinbutton', { name: 'Job value for TRK-2' })
+    await userEvent.type(input, '350{Enter}')
+    expect(patchMutate).toHaveBeenCalledWith({ key: 'TRK-2', patch: { allocated_value: '350' } })
   })
 
   it('flags a column as over its WIP limit', () => {

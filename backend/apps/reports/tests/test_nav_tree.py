@@ -169,7 +169,7 @@ def test_every_client_leaf_board_query_selects_exactly_its_projects_issues(api_c
     ]
     for key, extra in specs:
         project = _make_project(key, user, **extra)
-        WorkflowStatus.objects.create(workflow=Workflow.objects.create(project=project), name="To Do", category="todo", order=0)
+        WorkflowStatus.objects.create(workflow=Workflow.objects.create(project=project), name="To do", category="todo", order=0)
         api_client.post("/api/issues/", {"project": key, "summary": f"{key} work", "issue_type_id": task.id}, format="json")
 
     for mode in ("group", "team", "client"):

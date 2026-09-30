@@ -33,7 +33,6 @@
 .statusBadge {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
   padding: 3px 10px;
   border-radius: var(--tf-radius-full);
 }
@@ -79,7 +78,6 @@
   font-size: 11px;
   font-weight: 700;
   color: var(--tf-text-subtle);
-  text-transform: uppercase;
   border-bottom: 1px solid var(--tf-border);
   background: var(--tf-surface-sunken);
 }

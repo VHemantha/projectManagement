@@ -23,6 +23,7 @@ import { moveInOrder } from '@/lib/columnOrder'
 import { issueTableFeatures } from '@/lib/tableFeatures'
 import { useTableLayout } from '@/lib/useTableLayout'
 import { useUiStore } from '@/store/uiStore'
+import { CATEGORY_LABELS } from '@/lib/text'
 
 function TimerCell({ issueId }: { issueId: number }) {
   const { data: running } = useRunningTimer()
@@ -467,7 +468,7 @@ export function IssueTable({
       <div className={styles.countsBar}>
         {(['todo', 'in_progress', 'done'] as const).map((cat) => (
           <span key={cat} className={styles.countChip}>
-            <StatusBadge label={cat.replace('_', ' ')} category={cat} /> {statusCounts.get(cat) ?? 0}
+            <StatusBadge label={CATEGORY_LABELS[cat]} category={cat} /> {statusCounts.get(cat) ?? 0}
           </span>
         ))}
       </div>

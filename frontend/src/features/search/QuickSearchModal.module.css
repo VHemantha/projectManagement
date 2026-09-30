@@ -45,7 +45,6 @@
 .sectionLabel {
   font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
   color: var(--tf-text-subtle);
   padding: var(--tf-space-2) var(--tf-space-3) 4px;
 }

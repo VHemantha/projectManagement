@@ -228,7 +228,7 @@ export function KanbanBoard({
           }}
           onClick={() => setOnlyMine((v) => !v)}
         >
-          Only My Jobs
+          Only my jobs
         </button>
         <div className={styles.avatarStack}>
           {assignees.map(

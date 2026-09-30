@@ -21,7 +21,7 @@ def user():
 def issue(user):
     project = Project.objects.create(organization=Organization.get_solo(), key="ATT", name="Attach Test", lead=user)
     workflow = Workflow.objects.create(project=project)
-    status = WorkflowStatus.objects.create(workflow=workflow, name="To Do", category="todo")
+    status = WorkflowStatus.objects.create(workflow=workflow, name="To do", category="todo")
     issue_type, _ = IssueType.objects.get_or_create(name="Task", project=None)
     return Issue.objects.create(project=project, issue_type=issue_type, summary="Attach me", status=status, reporter=user)
 

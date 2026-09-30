@@ -239,7 +239,7 @@ class Command(BaseCommand):
 
     def _seed_epics(self, project, issue_types, users, statuses):
         epics = []
-        todo_status = statuses["To Do"]
+        todo_status = statuses["To do"]
         member_users = list(users.values())
         for i, (name, description) in enumerate(EPIC_TOPICS.get(project.key, [])):
             existing = Issue.objects.filter(project=project, issue_type=issue_types["Epic"], epic_name=name).first()
@@ -383,9 +383,9 @@ class Command(BaseCommand):
         if not candidates:
             return
         transitions = [
-            ("status", "To Do", "In Progress"),
-            ("status", "In Progress", "In Review"),
-            ("status", "In Review", "Done"),
+            ("status", "To do", "In progress"),
+            ("status", "In progress", "In review"),
+            ("status", "In review", "Done"),
             ("priority", "medium", "high"),
             ("assignee", "", ""),
         ]
@@ -449,7 +449,7 @@ class Command(BaseCommand):
         lines = [
             "Morning! Anyone free to pair on the login flow bug this afternoon?",
             "Deployed the latest build to staging, looks good so far.",
-            "Heads up — the board's looking a little full in In Progress, let's clear some out.",
+            "Heads up — the board's looking a little full in In progress, let's clear some out.",
             "Nice work on the sprint demo yesterday, team.",
         ]
         base_time = timezone.now() - timedelta(days=2)
