@@ -244,7 +244,8 @@ function buildColumns(
       id: 'status',
       header: 'Status',
       size: 140,
-      sortFn: 'alphanumeric',
+      // Board order (Backlog, To do, In progress …), not alphabetical.
+      sortFn: (a, b) => a.original.status.order - b.original.status.order,
       cell: (ctx) => <StatusCell issue={ctx.row.original} projectStatuses={projectStatuses} />,
     }),
     helper.accessor((row) => row.assignee?.display_name ?? '', {
@@ -334,6 +335,8 @@ interface GroupBucket {
   key: string
   label: string
   rows: Row<typeof issueTableFeatures, IssueListItem>[]
+  /** Status groups follow the board's column order. */
+  order?: number
 }
 
 function groupRows(rows: Row<typeof issueTableFeatures, IssueListItem>[], groupBy: GroupByOption): GroupBucket[] {
@@ -344,9 +347,11 @@ function groupRows(rows: Row<typeof issueTableFeatures, IssueListItem>[], groupB
     const issue = row.original
     let key: string
     let label: string
+    let order: number | undefined
     if (groupBy === 'status') {
       key = String(issue.status.id)
       label = issue.status.name
+      order = issue.status.order
     } else if (groupBy === 'assignee') {
       key = issue.assignee ? String(issue.assignee.id) : 'unassigned'
       label = issue.assignee?.display_name ?? 'Unassigned'
@@ -360,10 +365,11 @@ function groupRows(rows: Row<typeof issueTableFeatures, IssueListItem>[], groupB
       key = issue.project_key
       label = issue.project_key
     }
-    if (!buckets.has(key)) buckets.set(key, { key, label, rows: [] })
+    if (!buckets.has(key)) buckets.set(key, { key, label, rows: [], order })
     buckets.get(key)!.rows.push(row)
   }
   return [...buckets.values()].sort((a, b) => {
+    if (a.order != null && b.order != null) return a.order - b.order
     if (a.key === 'unassigned') return 1
     if (b.key === 'unassigned') return -1
     return a.label.localeCompare(b.label)

@@ -16,9 +16,28 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 
 import styles from './KanbanBoard.module.css'
 import { BoardCard } from './BoardCard'
+import {
+  type BoardFilters,
+  DUE_FILTER_LABELS,
+  type DueFilter,
+  filterIssues,
+  hasActiveFilters,
+  labelOptions,
+  NO_FILTERS,
+  PRIORITY_ORDER,
+} from './boardFilters'
 import { type Lane, type SwimlaneMode, computeLanes } from './laneUtils'
-import type { BoardColumn, CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
+import type {
+  BoardColumn,
+  CardColorRule,
+  CardColors,
+  CardColorStyle,
+  CardFieldKey,
+  IssueListItem,
+  Priority,
+} from '@/api/types'
 import { Avatar, Skeleton } from '@/design-system'
+import { sentenceCase } from '@/lib/text'
 import { useAuthStore } from '@/store/authStore'
 
 /** How a card is drawn: which fields it shows and how it's colour-coded (a board's settings). */
@@ -88,8 +107,9 @@ export function KanbanBoard({
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
-  const [onlyMine, setOnlyMine] = useState(false)
-  const [assigneeFilter, setAssigneeFilter] = useState<number | null>(null)
+  const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS)
+  const setFilter = <K extends keyof BoardFilters>(key: K, value: BoardFilters[K]) =>
+    setFilters((prev) => ({ ...prev, [key]: value }))
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [sections, setSections] = useState<Record<string, number[]>>({})
   const [issuesById, setIssuesById] = useState<Record<number, IssueListItem>>({})
@@ -111,13 +131,11 @@ export function KanbanBoard({
     setSwimlaneMode(defaultSwimlaneMode)
   }, [defaultSwimlaneMode])
 
-  const filteredIssues = useMemo(() => {
-    return issues.filter((issue) => {
-      if (onlyMine && issue.assignee?.id !== currentUser?.id) return false
-      if (assigneeFilter != null && issue.assignee?.id !== assigneeFilter) return false
-      return true
-    })
-  }, [issues, onlyMine, assigneeFilter, currentUser])
+  const filteredIssues = useMemo(
+    () => filterIssues(issues, filters, currentUser?.id),
+    [issues, filters, currentUser],
+  )
+  const labels = useMemo(() => labelOptions(issues), [issues])
 
   const lanes = useMemo(() => computeLanes(filteredIssues, swimlaneMode), [filteredIssues, swimlaneMode])
 
@@ -223,10 +241,11 @@ export function KanbanBoard({
         <button
           className={styles.select}
           style={{
-            background: onlyMine ? 'var(--tf-blue-subtle)' : undefined,
-            color: onlyMine ? 'var(--tf-blue)' : undefined,
+            background: filters.onlyMine ? 'var(--tf-blue-subtle)' : undefined,
+            color: filters.onlyMine ? 'var(--tf-blue)' : undefined,
           }}
-          onClick={() => setOnlyMine((v) => !v)}
+          aria-pressed={filters.onlyMine}
+          onClick={() => setFilter('onlyMine', !filters.onlyMine)}
         >
           Only my jobs
         </button>
@@ -236,14 +255,59 @@ export function KanbanBoard({
               a && (
                 <span
                   key={a.id}
-                  className={assigneeFilter === a.id ? styles.avatarActive : ''}
-                  onClick={() => setAssigneeFilter((prev) => (prev === a.id ? null : a.id))}
+                  className={filters.assigneeId === a.id ? styles.avatarActive : ''}
+                  onClick={() => setFilter('assigneeId', filters.assigneeId === a.id ? null : a.id)}
                 >
                   <Avatar name={a.display_name} src={a.avatar} size={28} />
                 </span>
               ),
           )}
         </div>
+        <select
+          className={styles.select}
+          aria-label="Filter by priority"
+          value={filters.priority ?? ''}
+          onChange={(e) => setFilter('priority', (e.target.value || null) as Priority | null)}
+        >
+          <option value="">Any priority</option>
+          {PRIORITY_ORDER.map((p) => (
+            <option key={p} value={p}>
+              {sentenceCase(p)}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.select}
+          aria-label="Filter by due date"
+          value={filters.due}
+          onChange={(e) => setFilter('due', e.target.value as DueFilter)}
+        >
+          {(Object.keys(DUE_FILTER_LABELS) as DueFilter[]).map((d) => (
+            <option key={d} value={d}>
+              {DUE_FILTER_LABELS[d]}
+            </option>
+          ))}
+        </select>
+        {labels.length > 0 && (
+          <select
+            className={styles.select}
+            aria-label="Filter by label"
+            value={filters.label ?? ''}
+            onChange={(e) => setFilter('label', e.target.value || null)}
+          >
+            <option value="">Any label</option>
+            {labels.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        {hasActiveFilters(filters) && (
+          <button type="button" className={styles.clearFilters} onClick={() => setFilters(NO_FILTERS)}>
+            Clear filters
+          </button>
+        )}
         {showSwimlanePicker && (
           <select
             className={styles.select}

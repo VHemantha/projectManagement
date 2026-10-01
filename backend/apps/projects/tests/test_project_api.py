@@ -31,7 +31,7 @@ def test_create_project_provisions_workflow_and_board(api_client, user):
     assert Workflow.objects.filter(project=project).exists()
     board = Board.objects.get(project=project)
     assert board.board_type == "kanban"
-    assert len(board.column_config) == 4
+    assert [c["name"] for c in board.column_config] == ["Backlog", "To do", "In progress", "In review", "Blocked", "Done"]
 
 
 def test_create_project_makes_creator_an_admin_member(api_client, user):

@@ -40,6 +40,18 @@
   font-size: 13px;
 }
 
+.clearFilters {
+  border: none;
+  background: none;
+  color: var(--tf-text-link);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.clearFilters:hover {
+  text-decoration: underline;
+}
+
 .scrollArea {
   flex: 1;
   overflow: auto;
