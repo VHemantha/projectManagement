@@ -19,6 +19,9 @@ urlpatterns = [
     path("auth/", include("apps.accounts.urls")),
     path("users/", UserListView.as_view(), name="user-list"),
     path("projects/", include("apps.projects.urls")),
+    # "Projects" are called "workspaces" in the UI. Same endpoints under the new name, namespaced
+    # so URL reversing of the original names is unaffected.
+    path("workspaces/", include(("apps.projects.urls", "workspaces"), namespace="workspaces")),
     path("clients/", include("apps.clients.urls")),
     path("issues/", include("apps.issues.urls")),
     path("issue-types/", IssueTypeListView.as_view(), name="issue-type-list"),

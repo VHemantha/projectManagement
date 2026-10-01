@@ -12,7 +12,7 @@ const EMPTY: ProjectSummary[] = []
 const columns: DataColumn<ProjectSummary>[] = [
   {
     id: 'name',
-    label: 'Project',
+    label: 'Workspace',
     required: true,
     size: 260,
     value: (p) => p.name,
@@ -76,7 +76,7 @@ const columns: DataColumn<ProjectSummary>[] = [
   },
 ]
 
-/** The Projects section's landing pane (shown at the bare /projects route, to the right of the
+/** The Workspaces section's landing pane (shown at the bare /workspaces route, to the right of the
  * persistent tree in ProjectsSectionLayout): every project in a customisable, sortable table. */
 export function ProjectsListPage() {
   const { data: projects, isLoading } = useProjects()
@@ -85,7 +85,7 @@ export function ProjectsListPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All projects</h1>
+        <h1 className={styles.title}>All workspaces</h1>
       </div>
       <DataTable
         tableId="projects"
@@ -93,11 +93,11 @@ export function ProjectsListPage() {
         data={projects ?? EMPTY}
         getRowId={(p) => p.key}
         isLoading={isLoading}
-        emptyMessage="No projects yet. Create your first one to get started."
-        onRowClick={(p) => navigate(`/projects/${p.key}`)}
-        exportName="projects"
+        emptyMessage="No workspaces yet. Create your first one to get started."
+        onRowClick={(p) => navigate(`/workspaces/${p.key}`)}
+        exportName="workspaces"
         defaultSort={[{ id: 'name', desc: false }]}
-        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} workspace${n === 1 ? '' : 's'}`}
       />
     </div>
   )

@@ -149,7 +149,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             seen.add(name.lower())
             cleaned.append(name)
         if len(cleaned) > MAX_TASK_NAMES:
-            raise serializers.ValidationError(f"A project can have at most {MAX_TASK_NAMES} tasks.")
+            raise serializers.ValidationError(f"A workspace can have at most {MAX_TASK_NAMES} tasks.")
         return cleaned
 
     def validate_key(self, value):
@@ -157,10 +157,10 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not re.match(KEY_PATTERN, value):
             raise serializers.ValidationError(
-                "Project key must be 2-100 letters/digits, starting with a letter."
+                "Workspace key must be 2-100 letters/digits, starting with a letter."
             )
         if key_in_use(value, exclude_project=self.instance):
-            raise serializers.ValidationError("That key is already used by another project.")
+            raise serializers.ValidationError("That key is already used by another workspace.")
         return value
 
     def create(self, validated_data):

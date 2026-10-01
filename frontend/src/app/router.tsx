@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
+import { LegacyProjectsRedirect } from './LegacyProjectsRedirect'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -41,15 +42,15 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <MyWorkPage /> },
-          { path: '/projects/:key/issues/:issueKey', element: <IssueDetailPage /> },
-          { path: '/projects/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
+          { path: '/workspaces/:key/issues/:issueKey', element: <IssueDetailPage /> },
+          { path: '/workspaces/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
           {
-            path: '/projects',
+            path: '/workspaces',
             element: <ProjectsSectionLayout />,
             children: [
               { index: true, element: <ProjectsListPage /> },
-              // Hyphenated on purpose: project keys are letters/digits only, so this can never
-              // shadow a real project's /projects/:key route.
+              // Hyphenated on purpose: workspace keys are letters/digits only, so this can never
+              // shadow a real workspace's /workspaces/:key route.
               { path: 'all-issues', element: <AllIssuesBoardPage /> },
               {
                 path: ':key',
@@ -66,6 +67,7 @@ export const router = createBrowserRouter([
               },
             ],
           },
+          { path: '/projects/*', element: <LegacyProjectsRedirect /> },
           { path: '/teams', element: <TeamsListPage /> },
           { path: '/teams/:teamId', element: <TeamDetailPage /> },
           { path: '/people', element: <PeopleDirectoryPage /> },

@@ -8,7 +8,7 @@ from django.db.models.functions import Lower
 KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9]{1,99}$"
 key_validator = RegexValidator(
     regex=KEY_PATTERN,
-    message="Project key must be 2-100 letters/digits, starting with a letter.",
+    message="Workspace key must be 2-100 letters/digits, starting with a letter.",
 )
 
 
@@ -87,6 +87,10 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["key"]
+        # Shown to users as "workspaces"; the model/table keep their original name so existing
+        # data, foreign keys and the /api/projects/ endpoints stay unchanged.
+        verbose_name = "workspace"
+        verbose_name_plural = "workspaces"
         constraints = [models.UniqueConstraint(Lower("key"), name="project_key_unique_ignoring_case")]
 
     def __str__(self):

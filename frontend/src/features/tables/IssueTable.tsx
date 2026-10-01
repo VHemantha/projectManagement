@@ -234,7 +234,7 @@ function buildColumns(
     ...(showProjectColumn
       ? [
           helper.accessor('project_key', {
-            header: 'Project',
+            header: 'Workspace',
             size: 90,
             sortFn: 'alphanumeric',
           }),
@@ -374,7 +374,7 @@ const GROUP_LABELS: Record<GroupByOption, string> = {
   none: 'No grouping',
   status: 'Group by status',
   assignee: 'Group by assignee',
-  project: 'Group by project',
+  project: 'Group by workspace',
   reviewer: 'Group by reviewer',
   current_responsible: 'Group by current responsible',
 }

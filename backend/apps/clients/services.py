@@ -20,7 +20,7 @@ def get_or_create_client_workspace(client: Client, user) -> Project:
         organization=client.organization,
         key=suggest_key(client.name),
         name=client.name,
-        description=f"Jobs for {client.name} that don't belong to a project.",
+        description=f"Jobs for {client.name} that don't belong to a workspace.",
         project_type=Project.ProjectType.KANBAN,
         lead=user,
         client=client,

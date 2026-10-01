@@ -64,7 +64,7 @@ export function ProjectsSectionLayout() {
       const params = new URLSearchParams(
         Object.entries(node.board_query as Record<string, string | number | boolean>).map(([k, v]) => [k, String(v)]),
       )
-      navigate(`/projects/all-issues?${params}`)
+      navigate(`/workspaces/all-issues?${params}`)
     }
     // A team/group with no projects yet has no children to expand into, so TreeView treats it
     // as a leaf too — send it to the team's own detail page instead of doing nothing.
@@ -76,19 +76,19 @@ export function ProjectsSectionLayout() {
   return (
     <div className={styles.layout}>
       {!panel.open ? (
-        <aside className={rail.rail} aria-label="Projects panel (collapsed)">
-          <Tooltip label="Expand projects panel" side="right">
-            <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand projects panel">
+        <aside className={rail.rail} aria-label="Workspaces panel (collapsed)">
+          <Tooltip label="Expand workspaces panel" side="right">
+            <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand workspaces panel">
               <ChevronsRight size={18} />
             </button>
           </Tooltip>
-          <Tooltip label="Create project" side="right">
-            <button type="button" className={rail.button} onClick={() => setCreateOpen(true)} aria-label="Create project">
+          <Tooltip label="Create workspace" side="right">
+            <button type="button" className={rail.button} onClick={() => setCreateOpen(true)} aria-label="Create workspace">
               <FolderPlus size={18} />
             </button>
           </Tooltip>
           <Tooltip label="All jobs board" side="right">
-            <NavLink to="/projects/all-issues" className={rail.button} aria-label="All jobs board">
+            <NavLink to="/workspaces/all-issues" className={rail.button} aria-label="All jobs board">
               <LayoutGrid size={18} />
             </NavLink>
           </Tooltip>
@@ -129,15 +129,15 @@ export function ProjectsSectionLayout() {
           </Tooltip>
         </aside>
       ) : (
-      <aside className={styles.sidebar} aria-label="Projects panel">
+      <aside className={styles.sidebar} aria-label="Workspaces panel">
         <div className={styles.sidebarHeader}>
-          <span className={styles.sidebarTitle}>Projects</span>
+          <span className={styles.sidebarTitle}>Workspaces</span>
           <div style={{ display: 'flex', gap: 6 }}>
             <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
               <Plus size={14} /> Create
             </Button>
             <Tooltip label="Collapse panel" side="bottom">
-              <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse projects panel">
+              <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse workspaces panel">
                 <ChevronsLeft size={18} />
               </button>
             </Tooltip>
@@ -145,7 +145,7 @@ export function ProjectsSectionLayout() {
         </div>
 
         <NavLink
-          to="/projects/all-issues"
+          to="/workspaces/all-issues"
           className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
         >
           <LayoutGrid size={14} /> All jobs board

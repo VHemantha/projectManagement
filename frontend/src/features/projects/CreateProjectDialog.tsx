@@ -55,7 +55,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         onSuccess: (project) => {
           onOpenChange(false)
           reset()
-          navigate(`/projects/${project.key}`)
+          navigate(`/workspaces/${project.key}`)
         },
       },
     )
@@ -69,7 +69,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         if (!next) reset()
       }}
     >
-      <DialogContent title="Create project" maxWidth={520}>
+      <DialogContent title="Create workspace" maxWidth={520}>
         <form className={styles.form} onSubmit={handleSubmit}>
           {createProject.isError && (
             <div className={styles.formError}>{extractErrorMessage(createProject.error)}</div>
@@ -146,7 +146,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={createProject.isPending}>
-              {createProject.isPending ? 'Creating…' : 'Create project'}
+              {createProject.isPending ? 'Creating…' : 'Create workspace'}
             </Button>
           </div>
         </form>

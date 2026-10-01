@@ -19,7 +19,7 @@ import { Tooltip } from '@/design-system'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Your work', icon: UserRound, end: true },
-  { to: '/projects', label: 'Projects', icon: LayoutGrid },
+  { to: '/workspaces', label: 'Workspaces', icon: LayoutGrid },
   { to: '/teams', label: 'Teams', icon: Users },
   { to: '/people', label: 'People', icon: Contact },
   { to: '/filters', label: 'Filters', icon: ListFilter },
@@ -74,7 +74,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
             </NavLink>
           </Tooltip>
         ))}
-        {showLabels && <div className={styles.sidebarSectionLabel}>Recent projects</div>}
+        {showLabels && <div className={styles.sidebarSectionLabel}>Recent workspaces</div>}
         <ProjectSwitcher expanded={showLabels} />
       </nav>
       <div className={styles.sidebarFooter}>

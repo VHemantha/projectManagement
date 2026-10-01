@@ -55,7 +55,7 @@ function GeneralTab() {
       {
         // The project now lives at its new key; stay on its settings.
         onSuccess: (saved) => {
-          if (saved.key !== project.key) navigate(`/projects/${saved.key}/settings`, { replace: true })
+          if (saved.key !== project.key) navigate(`/workspaces/${saved.key}/settings`, { replace: true })
         },
       },
     )
@@ -359,7 +359,7 @@ function BoardTab() {
   if (!canConfigure) {
     return (
       <div className={styles.hint}>
-        Only the project lead, a project admin or a workspace admin can customise this board.
+        Only the workspace lead, a workspace admin or an organisation admin can customise this board.
       </div>
     )
   }

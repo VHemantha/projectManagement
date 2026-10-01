@@ -35,7 +35,7 @@ function DeleteTeamDialog({
             <li>the team&apos;s chat channel and all of its messages</li>
           </ul>
           <p style={{ margin: 0, color: 'var(--tf-text-subtle)' }}>
-            Members, projects and jobs are kept. Projects and sub-teams linked to this team are
+            Members, workspaces and jobs are kept. Workspaces and sub-teams linked to this team are
             unlinked from it.
           </p>
           {deleteTeam.isError && (

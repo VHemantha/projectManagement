@@ -227,13 +227,13 @@ export function CreateIssueModal() {
                 onChange={(e) => setProjectKey(e.target.value)}
               >
                 {clientJobsAllowed && (
-                  <option value={CLIENT_JOBS}>No project — {selectedClient!.name} jobs</option>
+                  <option value={CLIENT_JOBS}>No workspace — {selectedClient!.name} jobs</option>
                 )}
                 {projectChoices.length === 0 && (
                   <option value="">
                     {selectedClient?.requires_projects
-                      ? `${selectedClient.name} needs a project — create one first`
-                      : 'No project for this team/client yet'}
+                      ? `${selectedClient.name} needs a workspace — create one first`
+                      : 'No workspace for this team/client yet'}
                   </option>
                 )}
                 {availableProjects.map((p) => (

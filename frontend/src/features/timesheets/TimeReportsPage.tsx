@@ -29,7 +29,7 @@ const overBudget = (variance: number | null) =>
 const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
   {
     id: 'project',
-    label: 'Project',
+    label: 'Workspace',
     required: true,
     size: 240,
     value: (r) => r.project_name,
@@ -104,7 +104,7 @@ const JOB_COLUMNS: DataColumn<IssueBudgetRow>[] = [
 const ENTRY_COLUMNS: DataColumn<TimeEntry>[] = [
   { id: 'date', label: 'Date', size: 120, value: (e) => e.work_date, cell: (e) => format(new Date(e.work_date), 'MMM d, yyyy') },
   { id: 'user', label: 'User', value: (e) => e.user.display_name },
-  { id: 'project', label: 'Project', value: (e) => e.project_key, defaultHidden: true },
+  { id: 'project', label: 'Workspace', value: (e) => e.project_key, defaultHidden: true },
   { id: 'job', label: 'Job', size: 120, value: (e) => e.issue?.key, cell: (e) => (e.issue ? <IssueKey value={e.issue.key} /> : '—') },
   { id: 'job_summary', label: 'Job summary', size: 240, value: (e) => e.issue?.summary, defaultHidden: true },
   { id: 'description', label: 'Description', size: 260, value: (e) => e.description },
@@ -127,9 +127,9 @@ function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
         columns={PROJECT_COLUMNS}
         data={data.projects}
         getRowId={(r) => r.project_key}
-        emptyMessage="No projects yet."
+        emptyMessage="No workspaces yet."
         exportName="budget-vs-actual"
-        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} workspace${n === 1 ? '' : 's'}`}
       />
     )
   }
@@ -196,7 +196,7 @@ export function TimeReportsPage() {
   const byProject = useMemo(() => {
     const map = new Map<string, number>()
     for (const e of entries ?? []) {
-      const key = e.project_key ?? 'No project'
+      const key = e.project_key ?? 'No workspace'
       map.set(key, (map.get(key) ?? 0) + e.duration_seconds / 3600)
     }
     return [...map.entries()].map(([name, hours]) => ({ name, hours: Number(hours.toFixed(2)) }))
@@ -233,7 +233,7 @@ export function TimeReportsPage() {
 
       <div className={styles.filters}>
         <select className={styles.select} value={projectKey} onChange={(e) => setProjectKey(e.target.value)}>
-          <option value="">All projects</option>
+          <option value="">All workspaces</option>
           {(projects ?? []).map((p) => (
             <option key={p.key} value={p.key}>
               {p.name}
@@ -287,7 +287,7 @@ export function TimeReportsPage() {
       </div>
 
       <div className={styles.card}>
-        <div className={styles.cardTitle}>Hours by project</div>
+        <div className={styles.cardTitle}>Hours by workspace</div>
         <div style={{ height: 180 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byProject}>

@@ -25,15 +25,15 @@ export function ProjectLayout() {
   // The project menu collapses to an icon rail like the main sidebar (remembered).
   const panel = usePanel('projectNav')
 
-  if (isLoading) return <PlaceholderPage title="Loading project…" />
-  if (!project) return <PlaceholderPage title="Project not found" />
+  if (isLoading) return <PlaceholderPage title="Loading workspace…" />
+  if (!project) return <PlaceholderPage title="Workspace not found" />
   // Opened by an old key (the project was renamed) or in different letter case.
   if (key !== project.key) {
-    const rest = location.pathname.slice(`/projects/${key}`.length)
-    return <Navigate replace to={`/projects/${project.key}${rest}${location.search}`} />
+    const rest = location.pathname.slice(`/workspaces/${key}`.length)
+    return <Navigate replace to={`/workspaces/${project.key}${rest}${location.search}`} />
   }
 
-  const base = `/projects/${project.key}`
+  const base = `/workspaces/${project.key}`
   const navItems = [
     { to: base, label: 'Summary', icon: LayoutDashboard, end: true },
     { to: `${base}/board`, label: project.project_type === 'scrum' ? 'Sprint board' : 'Board', icon: SquareKanban },
@@ -43,7 +43,7 @@ export function ProjectLayout() {
     { to: `${base}/timeline`, label: 'Timeline', icon: Calendar },
     { to: `${base}/issues`, label: 'Jobs', icon: ClipboardList },
     { to: `${base}/reports`, label: 'Reports', icon: LayoutDashboard },
-    { to: `${base}/settings`, label: 'Project settings', icon: Settings },
+    { to: `${base}/settings`, label: 'Workspace settings', icon: Settings },
   ]
 
   return (
@@ -60,7 +60,7 @@ export function ProjectLayout() {
           </Tooltip>
           <div className={styles.headerText}>
             <div className={styles.projectName}>{project.name}</div>
-            <div className={styles.projectType}>{sentenceCase(`${project.project_type} project`)}</div>
+            <div className={styles.projectType}>{sentenceCase(`${project.project_type} workspace`)}</div>
           </div>
         </div>
         <nav className={styles.nav}>
@@ -80,7 +80,7 @@ export function ProjectLayout() {
               type="button"
               className={rail.toggle}
               onClick={panel.toggle}
-              aria-label={panel.open ? 'Collapse project menu' : 'Expand project menu'}
+              aria-label={panel.open ? 'Collapse workspace menu' : 'Expand workspace menu'}
             >
               {panel.open ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
             </button>

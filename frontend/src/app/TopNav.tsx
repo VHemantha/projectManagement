@@ -54,7 +54,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
       <div className={styles.topnavSearch}>
         <div className={styles.searchInput} onClick={toggleQuickSearch}>
           <Search size={15} />
-          <span>Search jobs, projects…</span>
+          <span>Search jobs, workspaces…</span>
           <kbd className={styles.searchKbd}>Ctrl K</kbd>
         </div>
       </div>

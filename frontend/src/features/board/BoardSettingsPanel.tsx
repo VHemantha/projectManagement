@@ -355,7 +355,7 @@ export function BoardSettingsForm({
           </>
         )}
         {cardColorRule === 'label' && (
-          <p className={styles.note}>Cards use the colour of their first label, as set on the project&apos;s labels.</p>
+          <p className={styles.note}>Cards use the colour of their first label, as set on the workspace&apos;s labels.</p>
         )}
       </Section>
 

@@ -10,7 +10,7 @@ import type { TeamDetail, TeamSummary, User } from '@/api/types'
 // dynamic value (a project key, a team/user id, an issue key) and is resolved
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
-  projects: 'Projects',
+  workspaces: 'Workspaces',
   'all-issues': 'All jobs board',
   teams: 'Teams',
   people: 'People',
@@ -98,8 +98,8 @@ function resolveDynamicLabel(
   segment: string,
   prev: string | undefined,
 ): string {
-  if (prev === 'projects') {
-    // Project keys keep the case they were created with ("Pochin"), so show them as-is.
+  if (prev === 'workspaces') {
+    // Workspace keys keep the case they were created with ("Pochin"), so show them as-is.
     return segment
   }
 

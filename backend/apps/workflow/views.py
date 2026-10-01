@@ -57,7 +57,7 @@ class BoardConfigView(generics.RetrieveUpdateAPIView):
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
         if request.method not in permissions.SAFE_METHODS and not _can_configure_board(request.user, obj):
-            raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
 
 
 class BoardStatusDetailView(APIView):
@@ -70,7 +70,7 @@ class BoardStatusDetailView(APIView):
     def delete(self, request, pk, status_id):
         board = get_object_or_404(Board.objects.select_related("project__workflow"), pk=pk)
         if not _can_configure_board(request.user, board):
-            raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
         workflow = board.project.workflow
         wf_status = get_object_or_404(WorkflowStatus, pk=status_id, workflow=workflow)
 
@@ -127,4 +127,4 @@ class WorkflowTransitionDetailView(generics.UpdateAPIView):
             ).exists()
         )
         if not allowed:
-            raise PermissionDenied("Only a project admin/lead or workspace admin can edit transition rules.")
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can edit transition rules.")

@@ -62,7 +62,7 @@ const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
   none: 'No swimlanes',
   epic: 'Swimlanes: Epic',
   assignee: 'Swimlanes: Assignee',
-  project: 'Swimlanes: Project',
+  project: 'Swimlanes: Workspace',
   parent: 'Swimlanes: Parent',
 }
 
