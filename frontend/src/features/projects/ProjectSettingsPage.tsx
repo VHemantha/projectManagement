@@ -10,6 +10,7 @@ import { TaskNamesEditor } from './TaskNamesEditor'
 import { useCanConfigureBoard } from '@/features/board/boardPermissions'
 import { BoardSettingsForm } from '@/features/board/BoardSettingsPanel'
 import { useProjectContext } from './useProjectContext'
+import { isScrumWorkspace, workspaceUrl } from './workspaceTabs'
 import { useUpdateWorkflowTransition, useWorkflowTransitions } from '@/api/boards'
 import { extractErrorMessage } from '@/api/errors'
 import { useClients } from '@/api/clients'
@@ -55,7 +56,7 @@ function GeneralTab() {
       {
         // The project now lives at its new key; stay on its settings.
         onSuccess: (saved) => {
-          if (saved.key !== project.key) navigate(`/workspaces/${saved.key}/settings`, { replace: true })
+          if (saved.key !== project.key) navigate(workspaceUrl(saved.key, 'settings'), { replace: true })
         },
       },
     )
@@ -366,7 +367,7 @@ function BoardTab() {
   return (
     <div>
       <div className={styles.hint}>
-        Customise the {project.project_type === 'scrum' ? 'Scrum sprint' : 'Kanban'} board: add or reorder columns,
+        Customise the {isScrumWorkspace(project) ? 'Scrum sprint' : 'Kanban'} board: add or reorder columns,
         colour them, set WIP limits and choose how cards are coloured.
       </div>
       <BoardSettingsForm key={board.id} board={board} projectKey={project.key} />

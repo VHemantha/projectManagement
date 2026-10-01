@@ -11,16 +11,18 @@ import { useProjectBoard } from '@/api/projects'
 import { useSprints } from '@/api/sprints'
 import { Button } from '@/design-system'
 import { useProjectContext } from '@/features/projects/useProjectContext'
+import { isScrumWorkspace } from '@/features/projects/workspaceTabs'
 
 export function ProjectBoardPage() {
   const { project } = useProjectContext()
   const { data: board, isLoading: boardLoading } = useProjectBoard(project.key)
-  const { data: sprints } = useSprints(project.key)
+  // With the Scrum feature off, Scrum workspaces show every job like a Kanban board.
+  const isScrum = isScrumWorkspace(project)
+  const { data: sprints } = useSprints(isScrum ? project.key : undefined)
   const moveIssue = useMoveIssue()
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const activeSprint = sprints?.find((s) => s.state === 'active')
-  const isScrum = project.project_type === 'scrum'
 
   const canConfigureBoard = useCanConfigureBoard(project)
 

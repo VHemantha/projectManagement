@@ -16,6 +16,7 @@ import {
 import styles from './SprintReportPage.module.css'
 import { useSprintBurndown, useSprints, useVelocity } from '@/api/sprints'
 import { useProjectContext } from '@/features/projects/useProjectContext'
+import { isScrumWorkspace } from '@/features/projects/workspaceTabs'
 
 export function SprintReportPage() {
   const { project } = useProjectContext()
@@ -34,7 +35,7 @@ export function SprintReportPage() {
     remaining: burndown!.remaining[i],
   }))
 
-  if (project.project_type !== 'scrum') {
+  if (!isScrumWorkspace(project)) {
     return <div className={styles.page}>Reports are available for Scrum workspaces.</div>
   }
 

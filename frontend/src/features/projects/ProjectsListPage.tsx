@@ -6,8 +6,16 @@ import { useProjects } from '@/api/projects'
 import type { ProjectSummary } from '@/api/types'
 import { Avatar } from '@/design-system'
 import { type DataColumn, DataTable } from '@/features/tables/DataTable'
+import { FEATURES } from '@/lib/features'
 
 const EMPTY: ProjectSummary[] = []
+
+function typeLabel(p: ProjectSummary): string {
+  if (p.is_client_workspace) return 'Client jobs'
+  // Scrum/Kanban only means something while the Scrum feature is on.
+  if (!FEATURES.scrum) return 'Workspace'
+  return p.project_type === 'scrum' ? 'Scrum' : 'Kanban'
+}
 
 const columns: DataColumn<ProjectSummary>[] = [
   {
@@ -33,10 +41,10 @@ const columns: DataColumn<ProjectSummary>[] = [
     id: 'project_type',
     label: 'Type',
     size: 130,
-    value: (p) => (p.is_client_workspace ? 'Client jobs' : p.project_type === 'scrum' ? 'Scrum' : 'Kanban'),
+    value: typeLabel,
     cell: (p) => (
       <span className={styles.typeBadge}>
-        {p.is_client_workspace ? 'Client jobs' : p.project_type === 'scrum' ? 'Scrum' : 'Kanban'}
+        {typeLabel(p)}
       </span>
     ),
   },
