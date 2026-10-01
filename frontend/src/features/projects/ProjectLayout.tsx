@@ -5,6 +5,7 @@ import { ProjectIssuesPage } from './ProjectIssuesPage'
 import { ProjectSettingsPage } from './ProjectSettingsPage'
 import { ProjectSummaryPage } from './ProjectSummaryPage'
 import { WorkspaceContext } from './useProjectContext'
+import { WorkspaceDashboardPanel } from './WorkspaceDashboardPanel'
 import { isScrumWorkspace, resolveTab, tabForLegacySection, type WorkspaceTab, workspaceTabs } from './workspaceTabs'
 import { useProject } from '@/api/projects'
 import { PlaceholderPage } from '@/app/PlaceholderPage'
@@ -87,7 +88,15 @@ export function ProjectLayout() {
           </header>
           {/* Only the open tab is mounted, so hidden tabs fetch nothing. */}
           <TabsContent value={tab} className={styles.content}>
-            {TAB_PAGES[tab]()}
+            {tab === 'kanban' ? (
+              // The board shares its tab with the workspace dashboard panel on its right.
+              <div className={styles.withPanel}>
+                <div className={styles.main}>{TAB_PAGES.kanban()}</div>
+                <WorkspaceDashboardPanel project={project} />
+              </div>
+            ) : (
+              TAB_PAGES[tab]()
+            )}
           </TabsContent>
         </Tabs>
       </div>

@@ -33,6 +33,8 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
         add(['issues']) // every board, backlog and issue list
         add(['activity'])
         add(['projects'], true) // issue counts in the projects table
+        // The open workspace's own details: logged time feeds its actual hours.
+        if (e.project) add(['projects', e.project], true)
         if (e.key) add(['issue', e.key])
         break
       case 'issue':

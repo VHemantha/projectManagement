@@ -12,6 +12,11 @@ describe('keysToInvalidate', () => {
     expect(keys).toContainEqual(['issue', 'TRK-1'])
   })
 
+  it("logged time refreshes the open workspace's details (its actual hours)", () => {
+    const keys = keysToInvalidate([ev('issues', 'TRK', 'TRK-1')])
+    expect(keys).toContainEqual({ queryKey: ['projects', 'TRK'], exact: true })
+  })
+
   it("a board change refreshes that project's board settings (used by every board showing it)", () => {
     const keys = keysToInvalidate([ev('board', 'TRK')]).map((k) => k.queryKey)
     expect(keys).toContainEqual(['projects', 'TRK', 'board'])

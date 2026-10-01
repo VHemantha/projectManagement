@@ -76,6 +76,18 @@
   min-height: 0;
   overflow-y: auto;
 }
+.withPanel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+}
+
 .content:focus-visible {
   outline: none;
 }
@@ -93,5 +105,8 @@
   }
   .content {
     overflow-y: visible;
+  }
+  .withPanel {
+    height: auto;
   }
 }

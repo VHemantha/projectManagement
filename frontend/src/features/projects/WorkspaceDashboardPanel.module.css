@@ -1,0 +1,334 @@
+/* Beside the board (wide screens) or over it (narrow screens). */
+.panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-3);
+  background: var(--tf-surface-sunken);
+  border-left: 1px solid var(--tf-border);
+  overflow-y: auto;
+}
+
+.overlay {
+  position: fixed;
+  top: var(--tf-topnav-height);
+  right: 0;
+  bottom: 0;
+  z-index: var(--tf-z-dropdown);
+  width: min(340px, calc(100vw - 32px));
+  box-shadow: var(--tf-shadow-lg);
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--tf-z-dropdown) - 1);
+  background: rgba(9, 30, 66, 0.2);
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+/* Collapsed: a slim icon rail with status dots. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  flex-shrink: 0;
+  padding: var(--tf-space-2) 0;
+  background: var(--tf-surface-sunken);
+  border-left: 1px solid var(--tf-border);
+}
+
+.railButton,
+.railToggle,
+.iconButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--tf-radius-md);
+  background: transparent;
+  color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+.railButton:hover,
+.iconButton:hover {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+}
+.railToggle {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  margin-bottom: 4px;
+}
+.railToggle:hover {
+  border-color: var(--tf-blue);
+  color: var(--tf-blue);
+}
+.iconButton {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid var(--tf-surface-sunken);
+  background: var(--tf-success);
+}
+
+.card {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: 12px;
+  padding: var(--tf-space-3) var(--tf-space-4);
+  box-shadow: 0 1px 3px rgba(9, 30, 66, 0.06), 0 4px 12px rgba(9, 30, 66, 0.05);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-2);
+}
+
+.cardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.cardIcon[data-tone='blue'] {
+  background: var(--tf-accent-blue-bg);
+  color: var(--tf-accent-blue);
+}
+.cardIcon[data-tone='teal'] {
+  background: var(--tf-accent-teal-bg);
+  color: var(--tf-accent-teal);
+}
+.cardIcon[data-tone='violet'] {
+  background: var(--tf-accent-violet-bg);
+  color: var(--tf-accent-violet);
+}
+.cardIcon[data-tone='orange'] {
+  background: var(--tf-accent-orange-bg);
+  color: var(--tf-accent-orange);
+}
+
+.cardTitle {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+.timeFigures {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bigNumber {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.subtle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.bar {
+  height: 8px;
+  margin: var(--tf-space-2) 0 6px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-hover);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tf-success);
+  transition: width 0.3s ease;
+}
+
+.statusLine {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+/* Status colours shared by the numbers, bar, line, pill and rail dots. */
+[data-tone='warning'].bigNumber,
+[data-tone='warning'].statusLine,
+[data-tone='due_soon'].bigNumber {
+  color: var(--tf-warning-text);
+}
+[data-tone='over'].bigNumber,
+[data-tone='over'].statusLine,
+[data-tone='overdue'].bigNumber {
+  color: var(--tf-danger);
+}
+[data-tone='over'].statusLine {
+  font-weight: 600;
+}
+[data-tone='warning'].barFill,
+[data-tone='warning'].dot,
+[data-tone='due_soon'].dot {
+  background: var(--tf-warning);
+}
+[data-tone='over'].barFill,
+[data-tone='over'].dot,
+[data-tone='overdue'].dot {
+  background: var(--tf-danger);
+}
+
+.pill {
+  padding: 2px 8px;
+  border-radius: var(--tf-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.pill[data-tone='due_soon'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.pill[data-tone='overdue'] {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+
+.inlineForm {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-2);
+}
+
+.input,
+.textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--tf-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--tf-text);
+  background: var(--tf-surface);
+}
+.input:focus,
+.textarea:focus {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: -1px;
+}
+.input[aria-invalid='true'] {
+  border-color: var(--tf-danger);
+}
+
+.textarea {
+  display: block;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.smallButton {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: var(--tf-blue);
+  color: var(--tf-text-inverse);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.smallButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.linkButton {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  color: var(--tf-text-subtle);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.readText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--tf-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.saveState {
+  min-height: 16px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+  text-align: right;
+}
+
+.error,
+.errorText {
+  color: var(--tf-danger);
+  font-size: 12px;
+}
+.error {
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-radius: 8px;
+  background: var(--tf-danger-bg);
+}
+
+.readOnlyHint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+  text-align: center;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

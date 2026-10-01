@@ -76,6 +76,13 @@ export interface ProjectDetail extends Omit<ProjectSummary, 'issue_count'> {
   versions: Version[]
   contributing_teams: TeamMini[]
   budgeted_hours: number | null
+  /** Hours logged against the workspace's jobs. */
+  actual_hours: number
+  /** ISO date (yyyy-MM-dd) or null. */
+  deadline: string | null
+  special_notes: string
+  /** Whether the current user may edit budget, deadline, description and notes. */
+  can_manage: boolean
   job_value: string | null
   job_value_currency: string
   /** Standard task names offered as the summary in the Create issue dialog. */

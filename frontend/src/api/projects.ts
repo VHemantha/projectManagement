@@ -95,6 +95,8 @@ export interface UpdateProjectPayload {
   primary_team_id?: number | null
   contributing_team_ids?: number[]
   budgeted_hours?: number | null
+  deadline?: string | null
+  special_notes?: string
   job_value?: string | null
   job_value_currency?: string
   task_names?: string[]

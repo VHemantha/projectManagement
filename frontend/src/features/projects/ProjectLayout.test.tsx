@@ -29,6 +29,7 @@ vi.mock('./ProjectSettingsPage', () => ({ ProjectSettingsPage: () => <Stub name=
 vi.mock('./ProjectSummaryPage', () => ({ ProjectSummaryPage: () => <Stub name="summary" /> }))
 vi.mock('@/features/timeline/TimelinePage', () => ({ TimelinePage: () => <Stub name="timeline" /> }))
 vi.mock('@/features/backlog/BacklogPage', () => ({ BacklogPage: () => <Stub name="backlog" /> }))
+vi.mock('./WorkspaceDashboardPanel', () => ({ WorkspaceDashboardPanel: () => <aside aria-label="Workspace dashboard" /> }))
 vi.mock('@/features/reports/SprintReportPage', () => ({ SprintReportPage: () => <Stub name="reports" /> }))
 
 function Where() {
@@ -62,6 +63,12 @@ describe('Workspace page', () => {
     expect(tabs.map((t) => t.textContent)).toEqual(['Kanban', 'Jobs', 'Timeline', 'Settings'])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('tab-page')).toHaveTextContent('board for Pochin')
+    expect(screen.getByRole('complementary', { name: 'Workspace dashboard' })).toBeInTheDocument()
+  })
+
+  it('shows the dashboard panel only beside the board', () => {
+    renderAt('/workspaces/Pochin?tab=jobs')
+    expect(screen.queryByRole('complementary', { name: 'Workspace dashboard' })).not.toBeInTheDocument()
   })
 
   it('deep-links to a tab with ?tab= and switches tabs in the URL', async () => {

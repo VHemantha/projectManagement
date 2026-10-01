@@ -74,7 +74,7 @@ function GeneralTab() {
         />
         {keyChanged && key && (
           <div className={styles.keyWarning} role="note">
-            Saving renames every job in this project ({project.key}-12 becomes {key}-12). Old links and keys
+            Saving renames every job in this workspace ({project.key}-12 becomes {key}-12). Old links and keys
             keep working.
           </div>
         )}
@@ -84,6 +84,7 @@ function GeneralTab() {
         id="settings-description"
         label="Description"
         value={description}
+        disabled={!project.can_manage}
         onChange={(e) => setDescription(e.target.value)}
       />
 
@@ -162,6 +163,8 @@ function GeneralTab() {
           type="number"
           min={0}
           value={budgetedHours}
+          disabled={!project.can_manage}
+          title={project.can_manage ? undefined : 'Only the workspace lead or an admin can change the budget.'}
           onChange={(e) => setBudgetedHours(e.target.value)}
         />
         <Input

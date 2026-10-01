@@ -4,7 +4,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.projects.models import ProjectMembership
+from apps.projects.permissions import can_manage_project
 
 from .models import Board, IssueType, Workflow, WorkflowStatus, WorkflowTransition
 from .serializers import (
@@ -34,17 +34,8 @@ class IssueTypeListView(generics.ListAPIView):
 
 
 def _can_configure_board(user, board: Board) -> bool:
-    """Same ad-hoc helper-function style as timesheets' _can_approve: no dedicated
-    BoardMembership model exists (or is worth adding for v1) — a project admin/lead, or a
-    workspace admin, can edit board configuration."""
-    if user.is_staff:
-        return True
-    project = board.project
-    if project.lead_id == user.id:
-        return True
-    return ProjectMembership.objects.filter(
-        project=project, user=user, role=ProjectMembership.Role.ADMIN
-    ).exists()
+    """No dedicated BoardMembership model: whoever manages the workspace configures its board."""
+    return can_manage_project(user, board.project)
 
 
 class BoardConfigView(generics.RetrieveUpdateAPIView):
@@ -118,13 +109,5 @@ class WorkflowTransitionDetailView(generics.UpdateAPIView):
 
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
-        project = obj.workflow.project
-        allowed = (
-            request.user.is_staff
-            or project.lead_id == request.user.id
-            or ProjectMembership.objects.filter(
-                project=project, user=request.user, role=ProjectMembership.Role.ADMIN
-            ).exists()
-        )
-        if not allowed:
+        if not can_manage_project(request.user, obj.workflow.project):
             raise PermissionDenied("Only a workspace admin/lead or an organisation admin can edit transition rules.")

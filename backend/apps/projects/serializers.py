@@ -1,6 +1,7 @@
 import re
 
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from apps.accounts.serializers import UserSerializer
 from apps.clients.models import Client
@@ -9,11 +10,15 @@ from apps.teams.models import Team
 
 from .keys import key_in_use, rename_project_key
 from .models import Component, KEY_PATTERN, Label, Project, ProjectMembership, Version
+from .permissions import can_manage_project
 
 
 # A task name becomes an issue summary, so it shares Issue.summary's max_length.
 MAX_TASK_NAME_LENGTH = 500
 MAX_TASK_NAMES = 200
+
+# The workspace dashboard panel's editable fields; only workspace managers may change them.
+DASHBOARD_FIELDS = frozenset({"budgeted_hours", "deadline", "description", "special_notes"})
 
 class ClientMiniSerializer(serializers.ModelSerializer):
     class Meta:
@@ -100,6 +105,10 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     contributing_team_ids = serializers.PrimaryKeyRelatedField(
         source="contributing_teams", queryset=Team.objects.all(), many=True, write_only=True, required=False
     )
+    # Hours logged against the workspace's jobs, for the dashboard panel's budget bar.
+    actual_hours = serializers.SerializerMethodField()
+    # Whether the requesting user may edit the dashboard fields (see DASHBOARD_FIELDS).
+    can_manage = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -125,6 +134,10 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             "contributing_teams",
             "contributing_team_ids",
             "budgeted_hours",
+            "actual_hours",
+            "deadline",
+            "special_notes",
+            "can_manage",
             "job_value",
             "job_value_currency",
             "task_names",
@@ -133,6 +146,35 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["is_client_workspace"]
+
+    def get_actual_hours(self, obj) -> float:
+        from apps.timesheets.budget import project_actual_hours
+
+        return project_actual_hours(obj.id)
+
+    def get_can_manage(self, obj) -> bool:
+        request = self.context.get("request")
+        return bool(request and can_manage_project(request.user, obj))
+
+    def validate_budgeted_hours(self, value):
+        if value is not None and value < 0:
+            raise serializers.ValidationError("Budgeted hours can't be negative.")
+        return value
+
+    def validate(self, attrs):
+        # Budget, deadline, description and notes are the workspace managers' to change;
+        # everyone else sees them read-only.
+        request = self.context.get("request")
+        if self.instance is not None and request is not None:
+            # Unchanged values are fine: forms send every field back.
+            touched = {f for f in DASHBOARD_FIELDS.intersection(attrs) if attrs[f] != getattr(self.instance, f)}
+            if touched and not can_manage_project(request.user, self.instance):
+                raise PermissionDenied(
+                    "Only the workspace lead, a workspace admin or an organisation admin can change "
+                    + ", ".join(sorted(f.replace("_", " ") for f in touched))
+                    + "."
+                )
+        return attrs
 
     def validate_task_names(self, value):
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):

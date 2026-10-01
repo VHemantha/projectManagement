@@ -52,8 +52,24 @@
   --tf-danger-bg: #ffebe6;
   --tf-warning: #e2b203;
   --tf-warning-bg: #fff7d6;
+  /* Amber dark enough for text and thin bars on white (WCAG AA). */
+  --tf-warning-text: #974f0c;
   --tf-success: #1f845a;
   --tf-success-bg: #dcfff1;
+
+  /* Accents: icon chips and highlights. Each colour passes WCAG AA on its own -bg. */
+  --tf-accent-blue: #1d4ed8;
+  --tf-accent-blue-bg: #dbeafe;
+  --tf-accent-teal: #0f766e;
+  --tf-accent-teal-bg: #ccfbf1;
+  --tf-accent-violet: #6d28d9;
+  --tf-accent-violet-bg: #ede9fe;
+  --tf-accent-orange: #c2410c;
+  --tf-accent-orange-bg: #ffedd5;
+  --tf-accent-pink: #be185d;
+  --tf-accent-pink-bg: #fce7f3;
+  --tf-accent-green: #15803d;
+  --tf-accent-green-bg: #dcfce7;
 
   /* Spacing (4px/8px grid) */
   --tf-space-1: 4px;
