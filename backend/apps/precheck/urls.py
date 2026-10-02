@@ -4,6 +4,7 @@ from .views import (
     FindingDispositionView,
     InternalEventView,
     InternalJobView,
+    JobDraftView,
     JobPrecheckView,
     JobSetupView,
     RunDetailView,
@@ -13,6 +14,7 @@ from .views import (
 urlpatterns = [
     path("jobs/<str:key>/", JobPrecheckView.as_view(), name="precheck-job"),
     path("jobs/<str:key>/setup/", JobSetupView.as_view(), name="precheck-setup"),
+    path("jobs/<str:key>/draft/", JobDraftView.as_view(), name="precheck-draft"),
     path("runs/", RunListView.as_view(), name="precheck-runs"),
     path("runs/<str:run_id>/", RunDetailView.as_view(), name="precheck-run"),
     path("findings/<int:pk>/disposition/", FindingDispositionView.as_view(), name="precheck-disposition"),

@@ -11,17 +11,26 @@
   {
    "id": "D1",
    "text": "Agree the bank reconciliation to the cash at bank balance in the ledger",
-   "addressed": true
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": ""
   },
   {
    "id": "D2",
    "text": "Confirm the accruals workpaper is complete and signed off",
-   "addressed": true
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": ""
   },
   {
    "id": "D3",
    "text": "Check the corporation tax computation starts from the profit per accounts",
-   "addressed": true
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": ""
   }
  ],
  "counts": {
@@ -41,29 +50,14 @@
    "title": "Debtors schedule.xlsx does not agree to the trial balance",
    "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
    "evidence_ids": [
-    "E-83fb959fe5",
-    "E-e1b6b39122"
+    "E-eed66f8333",
+    "E-61d77b59b1"
    ],
    "source": "rule",
    "confidence": "high"
   },
   {
-   "id": "A-1aedfbe6-1",
-   "direction_ref": "D2",
-   "area": "workpapers",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Confirm the accruals workpaper is complete and signed off",
-   "why": "The job folder shows this: Accruals workpaper FY25",
-   "evidence_ids": [
-    "E-779d61edf3"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  },
-  {
-   "id": "A-6a5275ad-1",
+   "id": "A-4c0f2509-1",
    "direction_ref": "none",
    "area": "Trade debtors",
    "status": "addressed",
@@ -73,7 +67,7 @@
    "why": "The job folder shows this: Accruals workpaper FY25",
    "evidence_ids": [
     "E-779d61edf3",
-    "E-e1b6b39122"
+    "E-61d77b59b1"
    ],
    "source": "ai",
    "confidence": "medium"
@@ -94,7 +88,22 @@
    "confidence": "medium"
   },
   {
-   "id": "A-7f457f3d-1",
+   "id": "A-bbd03d13-1",
+   "direction_ref": "D2",
+   "area": "workpapers",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Confirm the accruals workpaper is complete and signed off",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-dbc8dd7c-1",
    "direction_ref": "D1",
    "area": "ledger",
    "status": "addressed",
@@ -111,20 +120,20 @@
  ],
  "evidence": [
   {
+   "id": "E-61d77b59b1",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 3",
+   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
    "id": "E-779d61edf3",
    "file_id": "acme-fy25:Workpaper - accruals.txt",
    "file_name": "Workpaper - accruals.txt",
    "location": "line 1",
    "quote": "Accruals workpaper FY25",
    "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
-  },
-  {
-   "id": "E-83fb959fe5",
-   "file_id": "acme-fy25:Debtors schedule.xlsx",
-   "file_name": "Debtors schedule.xlsx",
-   "location": "sheet 'Debtors', row 4",
-   "quote": "row 4: Total |  | 112400",
-   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
   },
   {
    "id": "E-a2461d8da5",
@@ -135,12 +144,12 @@
    "drive_url": "local://acme-fy25/Tax computation.txt"
   },
   {
-   "id": "E-e1b6b39122",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 3",
-   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   "id": "E-eed66f8333",
+   "file_id": "acme-fy25:Debtors schedule.xlsx",
+   "file_name": "Debtors schedule.xlsx",
+   "location": "sheet 'Debtors', row 4",
+   "quote": "row 4: Total |  | 112400",
+   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
   },
   {
    "id": "E-f04696ae0d",
@@ -237,6 +246,9 @@
   "compared": {
    "label": "3 Direction Note items compared",
    "items": 3,
+   "drafted": 0,
+   "drafted_how": "",
+   "history_jobs": 0,
    "reader_calls": 4,
    "reused": 0,
    "skipped": 0,
@@ -328,7 +340,7 @@
     "task_id": "T1",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "run_id": "ed67cda74a8b499d9b65d2250962decf",
     "input": 2294,
     "output": 62,
     "cache_write": 0,
@@ -339,7 +351,7 @@
     "task_id": "T2",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "run_id": "ed67cda74a8b499d9b65d2250962decf",
     "input": 2095,
     "output": 49,
     "cache_write": 0,
@@ -350,7 +362,7 @@
     "task_id": "T3",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "run_id": "ed67cda74a8b499d9b65d2250962decf",
     "input": 2077,
     "output": 58,
     "cache_write": 0,
@@ -361,7 +373,7 @@
     "task_id": "T4",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "run_id": "ed67cda74a8b499d9b65d2250962decf",
     "input": 2044,
     "output": 54,
     "cache_write": 0,
@@ -372,7 +384,7 @@
     "task_id": "judge",
     "model": "fake-judge",
     "calls": 1,
-    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "run_id": "ed67cda74a8b499d9b65d2250962decf",
     "input": 2206,
     "output": 747,
     "cache_write": 0,
@@ -405,8 +417,9 @@
   "prompt": "2026-10-02.1",
   "parser": "p1",
   "skills": {
+   "direction-drafting": "1.0+41b0dac8",
    "finding-format": "1.0+de8f39c5",
-   "gdrive-folder-reader": "1.0+f68ad0d4",
+   "gdrive-folder-reader": "1.0+83a1b213",
    "ledger-reading": "1.0+49c1a31a",
    "statements-reading": "1.0+ff9bf76b",
    "tax-reading": "1.0+b76e1b37",

@@ -37,6 +37,12 @@ export const DISPOSITION_ACTIONS: { value: Disposition; label: string }[] = [
   { value: 'needs_clarification', label: 'Needs clarification' },
 ]
 
+export const BASIS_LABELS: Record<string, string> = {
+  history: 'From past jobs',
+  current: 'From this job\'s folder',
+  standard: 'Standard for this kind of job',
+}
+
 export const TRAIL: { stage: TrailStage; name: string; waiting: string }[] = [
   { stage: 'read', name: 'Read', waiting: 'Documents in the job folder' },
   { stage: 'checked', name: 'Checked', waiting: 'Automatic checks' },

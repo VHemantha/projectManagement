@@ -81,14 +81,16 @@ def test_setup_then_run(client_, issue, service):
     panel = client_.get(f"/api/precheck/jobs/{issue.key}/").data
     assert panel["setup"]["missing"] == ["drive_folder", "direction_note"] and panel["latest"] is None
 
-    # Without a folder and a Direction Note the pre-check refuses to start: it never invents them.
+    # Without a Drive folder nothing runs: the folder is never invented.
     resp = client_.post("/api/precheck/runs/", {"job": issue.key}, format="json")
-    assert resp.status_code == 400 and "Google Drive folder" in resp.data["detail"] and "Direction Note" in resp.data["detail"]
+    assert resp.status_code == 400 and "Google Drive folder" in resp.data["detail"]
+    assert client_.post(f"/api/precheck/jobs/{issue.key}/draft/").status_code == 400
     assert not service and not AIPrecheck.objects.exists()
 
     setup = set_up(client_, issue)
     assert setup["ready"] and setup["drive_folder_id"] == "1AbCdEfGhIjKlMnOpQrStUv"
-    assert setup["direction_items"] == [{"id": "D1", "text": "Agree the bank reconciliation"}, {"id": "D2", "text": "Confirm accruals are complete"}]
+    assert [(i["id"], i["text"], i["origin"]) for i in setup["direction_items"]] == [
+        ("D1", "Agree the bank reconciliation", "person"), ("D2", "Confirm accruals are complete", "person")]
 
     resp = client_.post("/api/precheck/runs/", {"job": issue.key}, format="json")
     assert resp.status_code == 201 and resp.data["status"] == "running"
@@ -104,7 +106,7 @@ def test_direction_refs_stay_stable_when_items_are_edited(client_, issue):
         f"/api/precheck/jobs/{issue.key}/setup/",
         {"direction_items": ["Check the tax computation", "Confirm accruals are complete"]}, format="json",
     )
-    assert resp.data["direction_items"] == [{"id": "D3", "text": "Check the tax computation"}, {"id": "D2", "text": "Confirm accruals are complete"}]
+    assert [(i["id"], i["text"]) for i in resp.data["direction_items"]] == [("D3", "Check the tax computation"), ("D2", "Confirm accruals are complete")]
     assert resp.data["drive_folder_id"]  # untouched
     bad = client_.put(f"/api/precheck/jobs/{issue.key}/setup/", {"drive_folder_url": "https://example.com/x"}, format="json")
     assert bad.status_code == 400

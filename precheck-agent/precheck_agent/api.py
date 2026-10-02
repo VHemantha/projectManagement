@@ -1,6 +1,7 @@
 """HTTP API of the precheck-agent service. Called only by the PM application, which has already
 checked that the user may open the job; every request must carry the shared service token."""
 import hmac
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
@@ -21,6 +22,7 @@ def require_token(x_precheck_token: str = Header(default="")) -> None:
 class RunRequest(BaseModel):
     job_id: str
     run_id: str | None = None
+    mode: Literal["precheck", "draft"] = "precheck"  # "draft": only draft the Direction Note
 
 
 @app.get("/healthz")
@@ -34,7 +36,7 @@ def healthz():
 def create_run(body: RunRequest):
     """Start a pre-check for one job. Returns the run id at once; progress and the result come
     back to the PM application as events. The run id is the LangGraph thread id."""
-    return {"run_id": runner.start(body.job_id, body.run_id), "status": "running"}
+    return {"run_id": runner.start(body.job_id, body.run_id, body.mode), "status": "running"}
 
 
 @app.get("/precheck/runs/{run_id}", dependencies=[Depends(require_token)])

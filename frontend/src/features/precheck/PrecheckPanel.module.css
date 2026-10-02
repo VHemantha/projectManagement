@@ -168,6 +168,46 @@
   padding-left: 18px;
 }
 
+.draftRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tf-space-3);
+}
+
+.drafted {
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border-radius: 10px;
+  background: var(--tf-accent-violet-bg);
+}
+
+.checklist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--tf-font-size-base);
+}
+.checklist li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--tf-text-secondary);
+}
+.checklist li > svg {
+  align-self: center;
+  flex-shrink: 0;
+}
+.checkReason {
+  flex-basis: 100%;
+  padding-left: 22px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+}
+
 /* ---- verdict header --------------------------------------------------------------------- */
 
 .verdict {

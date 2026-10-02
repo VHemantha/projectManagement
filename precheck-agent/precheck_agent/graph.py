@@ -17,11 +17,14 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import CachePolicy, Send
 from pydantic import ValidationError
 
+from . import directions as D
 from . import judge as J
+from .archives import container_of, display_name
+from .archives import members as archive_members
 from .budget import budget_for, cost_usd, empty_usage
 from .classify import READER_CLASSES, READER_FOR_CLASS, classify, reader_for_question
 from .config import get_settings
-from .drive import DriveError, get_drive
+from .drive import DriveError, get_drive, is_zip
 from .embeddings import get_embedder
 from .llm import model_id, prefix_is_cacheable
 from .parsing import chunk_blocks, parse_file
@@ -47,6 +50,8 @@ def _merge(a: dict, b: dict) -> dict:
 class State(TypedDict, total=False):
     run_id: str
     job_id: str
+    mode: str  # "precheck" (default) | "draft" (only draft the Direction Note, do not verify)
+    drafted: dict
     started_at: float
     job: dict
     listing: list[dict]
@@ -82,8 +87,6 @@ def load_job(state: State) -> dict:
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
         raise PrecheckStop("This job has no Google Drive folder linked. Add the folder on the job card, then run the pre-check.")
-    if not job.get("direction_items"):
-        raise PrecheckStop("This job has no Direction Note. Add its items on the job card, then run the pre-check.")
     if not job.get("client_id"):
         raise PrecheckStop("This job is not linked to a client, so the pre-check cannot keep its documents separate.")
     return {"job": job, "started_at": state.get("started_at") or time.time(), "round": 0}
@@ -105,65 +108,120 @@ def sync_drive(state: State) -> dict:
         if f["id"] not in manifest or manifest[f["id"]]["version"] != f["version"] or manifest[f["id"]]["parser_version"] != s.parser_version
     ]
     present = {f["id"] for f in listing}
-    removed = [fid for fid in manifest if fid not in present]
+    # A document inside a zip ("<zip id>!<path>") stays for as long as its zip is in the folder.
+    removed = [fid for fid in manifest if container_of(fid) not in present]
     for fid in removed:
         store.delete_file(job["client_id"], state["job_id"], fid)
     if not listing:
         raise PrecheckStop("The job's Drive folder is empty, so there is nothing to check yet.")
     sync = {"total": len(listing), "changed": changed, "removed": len(removed), "first_run": not manifest}
     since = "all new" if not manifest else f"{len(changed)} changed since last run"
-    emit("read", f"{len(listing)} documents, {since}", "running", documents=len(listing), changed=len(changed))
+    emit("read", f"{len(listing)} files in the folder, {since}", "running", documents=len(listing), changed=len(changed))
     return {"listing": listing, "sync": sync}
 
 
 # --- 3. index (code) --------------------------------------------------------------------------
 
-def index(state: State) -> dict:
-    """Parse changed files with libraries, chunk, embed and store. No model."""
-    s, store, drive, embedder, job = get_settings(), get_store(), get_drive(), get_embedder(), state["job"]
-    client_id, job_id = job["client_id"], state["job_id"]
-    changed = set(state["sync"]["changed"])
-    for f in state["listing"]:
-        if f["id"] not in changed:
-            continue
-        parsed_key = sha(f["id"], f["version"], s.parser_version)  # file id + version + parser version
-        parsed = store.get_parsed(parsed_key)
-        if parsed is None:
-            from .drive import DriveFile
+ARCHIVE_CLASS = "archive"  # the manifest row of a zip itself; its documents have their own rows
 
-            data, parse_name, mime = drive.download(DriveFile(**f))
+
+def _index_document(f: dict, data_or_error, client_id: str, job_id: str) -> None:
+    """Parse, classify, chunk, embed and store one document. `data_or_error` is a function
+    returning (bytes, name to parse as, mime) — only called when the parse is not cached —
+    or a string saying why the document cannot be read."""
+    s, store, embedder = get_settings(), get_store(), get_embedder()
+    parsed_key = sha(f["id"], f["version"], s.parser_version)  # file id + version + parser version
+    parsed = store.get_parsed(parsed_key)
+    if parsed is None:
+        if isinstance(data_or_error, str):
+            parsed = {"blocks": [], "tables": [], "error": data_or_error}
+        else:
+            data, parse_name, mime = data_or_error()
             parsed = parse_file(data, parse_name, mime) if data else {"blocks": [], "tables": [], "error": "This file is empty, too large or not a readable type."}
-            store.set_parsed(parsed_key, parsed)
-        doc_class = classify(f["name"], "\n".join(b["text"] for b in parsed["blocks"][:40]))
-        chunks = chunk_blocks(parsed["blocks"], s.chunk_tokens)
-        rows = []
-        texts = [f"{f['name']} {c['location']}\n" + "\n".join(b["text"] for b in c["blocks"]) for c in chunks]
-        hashes = [sha(t) for t in texts]
-        keys = [sha(embedder.name, h) for h in hashes]
-        have = store.get_embeddings(keys)
-        missing = [i for i, k in enumerate(keys) if k not in have]
-        if missing:
-            vectors = embedder.embed([texts[i] for i in missing])
-            fresh = {keys[i]: vectors[n] for n, i in enumerate(missing)}
-            store.set_embeddings(fresh)
-            have.update(fresh)
-        for seq, (c, text, h, k) in enumerate(zip(chunks, texts, hashes, keys)):
-            rows.append({
-                "id": sha(job_id, f["id"], f["version"], str(seq))[:32], "file_version": f["version"], "seq": seq,
-                "location": c["location"], "document_class": doc_class, "text": text, "blocks": c["blocks"],
-                "content_hash": h, "tokens": est_tokens(text), "embedding": have[k],
-            })
-        store.replace_chunks(client_id, job_id, f["id"], rows)
-        store.upsert_manifest({
-            "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
-            "version": f["version"], "parser_version": s.parser_version, "document_class": doc_class, "web_url": f["web_url"],
-            "path": f["path"], "n_blocks": len(parsed["blocks"]), "error": parsed.get("error", ""),
-        })
-    files = store.get_manifest(client_id, job_id)
-    sync = state["sync"]
-    label = f"{sync['total']} documents, " + ("all new" if sync["first_run"] else f"{len(changed)} changed since last run")
-    emit("read", label, documents=sync["total"], changed=len(changed))
-    return {"files": files}
+        store.set_parsed(parsed_key, parsed)
+    shown = display_name(f)
+    doc_class = classify(f["name"], "\n".join(b["text"] for b in parsed["blocks"][:40]))
+    chunks = chunk_blocks(parsed["blocks"], s.chunk_tokens)
+    texts = [f"{shown} {c['location']}\n" + "\n".join(b["text"] for b in c["blocks"]) for c in chunks]
+    hashes = [sha(t) for t in texts]
+    keys = [sha(embedder.name, h) for h in hashes]
+    have = store.get_embeddings(keys)
+    missing = [i for i, k in enumerate(keys) if k not in have]
+    if missing:
+        vectors = embedder.embed([texts[i] for i in missing])
+        fresh = {keys[i]: vectors[n] for n, i in enumerate(missing)}
+        store.set_embeddings(fresh)
+        have.update(fresh)
+    rows = [{
+        "id": sha(job_id, f["id"], f["version"], str(seq))[:32], "file_version": f["version"], "seq": seq,
+        "location": c["location"], "document_class": doc_class, "text": text, "blocks": c["blocks"],
+        "content_hash": h, "tokens": est_tokens(text), "embedding": have[k],
+    } for seq, (c, text, h, k) in enumerate(zip(chunks, texts, hashes, keys))]
+    store.replace_chunks(client_id, job_id, f["id"], rows)
+    store.upsert_manifest({
+        "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
+        "version": f["version"], "parser_version": s.parser_version, "document_class": doc_class, "web_url": f["web_url"],
+        "path": f["path"], "n_blocks": len(parsed["blocks"]), "error": parsed.get("error", ""),
+    })
+
+
+def _index_zip(f: dict, drive, client_id: str, job_id: str, before: dict) -> list[str]:
+    """Open a zip and index each document inside it as its own file. Returns the ids of the
+    documents that are new or changed, so an unchanged document inside a re-uploaded zip is
+    not read again."""
+    from .drive import DriveFile
+
+    s, store = get_settings(), get_store()
+    data, _, _ = drive.download(DriveFile(**f))
+    docs, problem = archive_members(data, f, s) if data else ([], "This zip file is empty or too large to open.")
+    keep, changed = set(), []
+    for d in docs:
+        keep.add(d["id"])
+        old = before.get(d["id"])
+        if old and old["version"] == d["version"] and old["parser_version"] == s.parser_version:
+            continue
+        changed.append(d["id"])
+        content = d.get("data")
+        _index_document(d, d["error"] if "error" in d else (lambda c=content, n=d["name"]: (c, n, "")), client_id, job_id)
+    for fid in before:  # documents that were in the zip before and are gone now
+        if container_of(fid) == f["id"] and fid != f["id"] and fid not in keep:
+            store.delete_file(client_id, job_id, fid)
+    store.replace_chunks(client_id, job_id, f["id"], [])
+    store.upsert_manifest({
+        "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
+        "version": f["version"], "parser_version": s.parser_version, "document_class": ARCHIVE_CLASS, "web_url": f["web_url"],
+        "path": f["path"], "n_blocks": 0, "error": problem,
+    })
+    return changed
+
+
+def index(state: State) -> dict:
+    """Parse changed files with libraries, chunk, embed and store. No model. A zip is opened
+    and every document inside it is indexed as its own file."""
+    from .drive import DriveFile
+
+    store, drive, job = get_store(), get_drive(), state["job"]
+    client_id, job_id = job["client_id"], state["job_id"]
+    before = store.get_manifest(client_id, job_id)
+    changed: list[str] = []
+    for f in state["listing"]:
+        if f["id"] not in state["sync"]["changed"]:
+            continue
+        if is_zip(f["name"], f["mime_type"]):
+            changed += _index_zip(f, drive, client_id, job_id, before)
+        else:
+            changed.append(f["id"])
+            _index_document(f, lambda f=f: drive.download(DriveFile(**f)), client_id, job_id)
+    manifest = store.get_manifest(client_id, job_id)
+    # A zip that could not be opened stays in the list (so the problem is reported); a zip that
+    # opened is represented by the documents inside it.
+    files = {fid: row for fid, row in manifest.items() if row["document_class"] != ARCHIVE_CLASS or row["error"]}
+    if not any(row["document_class"] != ARCHIVE_CLASS for row in files.values()):
+        raise PrecheckStop("The job's Drive folder has no documents the pre-check can read.")
+    sync = {**state["sync"], "total": len(files), "changed": changed}
+    label = f"{len(files)} documents, " + ("all new" if sync["first_run"] else f"{len(changed)} changed since last run")
+    emit("read", label, documents=len(files), changed=len(changed))
+    return {"files": files, "sync": sync}
 
 
 # --- 4. run_rules (code) ----------------------------------------------------------------------
@@ -205,6 +263,69 @@ def rules_label(results: list[dict]) -> str:
     return label + (f", {flagged} flagged for a closer look" if flagged else "")
 
 
+# --- draft_directions (model, only when needed) ---------------------------------------------------
+
+def needs_draft(state: State) -> bool:
+    return state.get("mode") == "draft" or not state["job"].get("direction_items")
+
+
+def route_after_rules(state: State):
+    return "draft_directions" if needs_draft(state) else "plan"
+
+
+def draft_directions(state: State) -> dict:
+    """The job has no Direction Note (or a draft was asked for): draft one from this client's
+    past jobs and what is in the folder now. One call to the judge model, cached by exact
+    match; if the model cannot be used, code falls back to the standard list for the kinds of
+    document present. In a full run the drafted items are then verified like any others."""
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    emit("compared", "Drafting the Direction Note from past jobs and the folder", "running")
+    cache = StoreCache(store)
+    body = D.draft_input(job, state["files"], state["rule_results"])
+    key = D.draft_cache_key(job["client_id"], state["job_id"], body, s)
+    usage, skipped, how = [], [], "model"
+    items = cache.get_value("draft", key)
+    if items is not None:
+        how = "cache"
+    else:
+        classes = {f["document_class"] for f in state["files"].values()}
+        reason = budget_for(run_id).can_call(est_tokens(D.draft_system()) + est_tokens(body))
+        if reason:
+            items, how = D.standard_items(classes), "standard list"
+            skipped.append({"task_id": "draft", "direction_ref": "none", "what": "Drafting the Direction Note with AI", "reason": reason})
+        else:
+            try:
+                raw, u = D.call_draft(body, s)
+                budget_for(run_id).add(u)
+                usage.append({"node": "draft", "task_id": "draft", "model": model_id("judge", s), "calls": 1, "run_id": run_id, **u})
+                items = D.clean_items(raw, job.get("history"))
+                if not items:
+                    raise ValueError("empty draft")
+                cache.set_value("draft", key, items)
+            except (ValueError, KeyError, TypeError):
+                items, how = D.standard_items(classes), "standard list"
+    existing = job.get("direction_items") or []
+    taken = {i["id"] for i in existing}
+    have = {D._norm(i["text"]) for i in existing}
+    new = D.number_items([i for i in items if D._norm(i["text"]) not in have], taken)
+    drafted = {"items": new, "how": how, "jobs_seen": (job.get("history") or {}).get("jobs_seen", 0)}
+    emit("compared", f"{len(new)} Direction Note items drafted", "running", drafted=len(new))
+    final = state.get("mode") == "draft"
+    # Sent before anything else so the job card has the items (and their reasons) to show.
+    get_pm().send_event(run_id, {
+        "type": "ai_precheck.directions_drafted", "job_id": state["job_id"], "items": new, "how": how, "final": final,
+        "usage": usage, "versions": {"prompt": s.prompt_version, "skills": {n: sk.version for n, sk in all_skills().items()}},
+    })
+    update = {"drafted": drafted, "usage": usage, "skipped": skipped}
+    if not final:
+        update["job"] = {**job, "direction_items": existing + new}
+    return update
+
+
+def route_after_draft(state: State):
+    return END if state.get("mode") == "draft" else "plan"
+
+
 # --- 5. plan (code) ---------------------------------------------------------------------------
 
 ITEM_QUESTION = "Do these passages show that this Direction Note item was done? Say what is addressed, and report anything missing, inconsistent or still open."
@@ -241,7 +362,7 @@ def plan(state: State) -> dict:
         task = {
             **w, "task_id": f"T{n}", "reader": reader, "chunk_ids": [c["id"] for c in chunks], "client_id": client_id, "job_id": job_id,
             "origin_run_id": run_id,
-            "chunk_refs": [{"file": state["files"][c["file_id"]]["name"], "location": c["location"]} for c in chunks],
+            "chunk_refs": [{"file": display_name(state["files"][c["file_id"]]), "location": c["location"]} for c in chunks],
         }
         if not chunks:
             direct.append(task)  # nothing to read: no model call; the judge step reports it as unclear
@@ -477,6 +598,7 @@ def build_final(state: State) -> dict:
     reader_calls = sum(u["calls"] for u in calls if u["node"] == "read")
     skipped = state.get("skipped", [])
     by_key = {r["cache_key"]: r for r in results}
+    drafted_n = len((state.get("drafted") or {}).get("items", []))
     files = state["files"]
     changed = set(state["sync"]["changed"])
     rules = state["rule_results"]
@@ -485,7 +607,7 @@ def build_final(state: State) -> dict:
         "read": {
             "label": f"{len(files)} documents, " + ("all new" if state["sync"]["first_run"] else f"{len(changed)} changed since last run"),
             "documents": len(files), "changed": len(changed), "removed": state["sync"]["removed"],
-            "detail": [{"name": f["name"], "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"]} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
+            "detail": [{"name": display_name(f), "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"]} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
         },
         "checked": {
             "label": rules_label(rules),
@@ -495,8 +617,9 @@ def build_final(state: State) -> dict:
                         "note": "" if r["passed"] else r["title"]} for r in rules],
         },
         "compared": {
-            "label": f"{len(job['direction_items'])} Direction Note items compared",
-            "items": len(job["direction_items"]), "reader_calls": reader_calls, "reused": len(reused), "skipped": len([k for k in skipped if k["task_id"].startswith("T")]),
+            "label": f"{len(job['direction_items'])} Direction Note items compared" + (f", {drafted_n} drafted by AI" if drafted_n else ""),
+            "items": len(job["direction_items"]), "drafted": drafted_n, "drafted_how": (state.get("drafted") or {}).get("how", ""),
+            "history_jobs": (state.get("drafted") or {}).get("jobs_seen", 0), "reader_calls": reader_calls, "reused": len(reused), "skipped": len([k for k in skipped if k["task_id"].startswith("T")]),
             "detail": [{
                 "ref": t["direction_ref"], "what": t["direction_text"] or t["question"], "reader": t["reader"].replace("_", " "),
                 "passages": t["chunk_refs"],
@@ -564,7 +687,9 @@ def build_graph(checkpointer=None):
     g.add_edge("load_job", "sync_drive")
     g.add_edge("sync_drive", "index")
     g.add_edge("index", "run_rules")
-    g.add_edge("run_rules", "plan")
+    g.add_node("draft_directions", draft_directions)
+    g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "plan"])
+    g.add_conditional_edges("draft_directions", route_after_draft, ["plan", END])
     g.add_conditional_edges("plan", route_after_plan, ["read", "judge"])
     g.add_edge("read", "collect")
     g.add_conditional_edges("collect", route_after_collect, ["read", "judge"])

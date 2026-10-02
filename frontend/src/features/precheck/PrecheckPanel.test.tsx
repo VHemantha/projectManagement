@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   start: vi.fn(),
   save: vi.fn(),
   dispose: vi.fn(),
+  draft: vi.fn(),
 }))
 
 vi.mock('@/api/precheck', () => ({
@@ -19,6 +20,7 @@ vi.mock('@/api/precheck', () => ({
   useRunPrecheck: () => ({ mutate: mocks.start, isPending: false, isError: false }),
   useSavePrecheckSetup: () => ({ mutate: mocks.save, isPending: false, isError: false }),
   useSetDisposition: () => ({ mutate: mocks.dispose, isPending: false }),
+  useDraftDirections: () => ({ mutate: mocks.draft, isPending: false, isError: false }),
 }))
 
 const setup: PrecheckSetup = {
@@ -87,7 +89,7 @@ const run = (o: Partial<Run> = {}): Run => ({
   ...o,
 })
 
-const panel = (latest: Run | null, s: PrecheckSetup = setup): JobPrecheck => ({ job: 'ACME-1', setup: s, latest, history: latest ? [latest] : [] })
+const panel = (latest: Run | null, s: PrecheckSetup = setup): JobPrecheck => ({ job: 'ACME-1', setup: s, latest, history: latest ? [latest] : [], draft: null })
 
 beforeEach(() => {
   Object.values(mocks).forEach((m) => typeof m === 'function' && (m as ReturnType<typeof vi.fn>).mockClear())
@@ -97,8 +99,10 @@ describe('PrecheckPanel states', () => {
   it('not set up: asks for the folder and the Direction Note instead of inventing them', async () => {
     mocks.data = panel(null, { ...setup, drive_folder_url: '', drive_folder_id: '', direction_items: [], missing: ['drive_folder', 'direction_note'], ready: false })
     render(<PrecheckPanel jobKey="ACME-1" />)
-    expect(screen.getByText(/needs its Google Drive folder and a Direction Note/)).toBeInTheDocument()
+    expect(screen.getByText(/needs its Google Drive folder/)).toBeInTheDocument()
+    expect(screen.getByText(/leave it empty and\s+the AI will draft one/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Run pre-check/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Draft with AI' })).not.toBeInTheDocument() // needs the folder first
     await userEvent.type(screen.getByLabelText(/Google Drive folder link/), 'https://drive.google.com/drive/folders/xyz')
     await userEvent.type(screen.getByLabelText(/Direction Note items/), 'Agree bank{Enter}Check accruals')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -139,7 +143,7 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByRole('img', { name: '1 of 2 Direction Note items addressed' })).toBeInTheDocument()
     expect(screen.getByLabelText('Open findings by severity')).toHaveTextContent('1 high1 medium0 low')
     expect(screen.getByText('One schedule does not agree to the trial balance.')).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['How the AI got here', 'High 1', 'Medium 1'])
+    expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['How the AI got here', 'Direction Note', 'High 1', 'Medium 1'])
     const cards = screen.getAllByRole('article')
     expect(within(cards[0]).getByText('Rule')).toBeInTheDocument()
     expect(within(cards[1]).getByText('AI suggestion')).toBeInTheDocument()
@@ -189,6 +193,57 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByText('Rejected by Pat')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Undo/ }))
     expect(mocks.dispose).toHaveBeenLastCalledWith({ findingId: 1, disposition: 'cleared' })
+  })
+
+  it('no Direction Note: the run drafts one first, or a person can ask for a draft to edit', async () => {
+    mocks.data = panel(null, { ...setup, direction_items: [], missing: ['direction_note'] })
+    const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
+    expect(screen.getByText(/the AI will draft one first and then verify it/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Draft the Direction Note and run' }))
+    expect(mocks.start).toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Write it yourself or edit the folder' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
+    expect(mocks.draft).toHaveBeenCalled()
+    unmount()
+
+    // While the draft is being written the button shows it; when it arrives, each item says why it is there.
+    mocks.data = { ...panel(null, { ...setup, direction_items: [], missing: ['direction_note'] }), draft: { status: 'running', failure_reason: '', created_at: '' } }
+    const second = render(<PrecheckPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Write it yourself or edit the folder' }))
+    expect(screen.getByRole('button', { name: 'Drafting…' })).toBeDisabled()
+    second.unmount()
+
+    mocks.data = panel(null, {
+      ...setup,
+      direction_items: [
+        { id: 'D1', text: 'Agree the debtors schedule to the trial balance', origin: 'ai', reason: 'Accepted on last year\'s job.', basis: 'history' },
+        { id: 'D2', text: 'Check the tax computation', origin: 'person', reason: '', basis: '' },
+      ],
+    })
+    render(<PrecheckPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder and items' }))
+    expect(screen.getByLabelText(/Direction Note items/)).toHaveValue('Agree the debtors schedule to the trial balance\nCheck the tax computation')
+    const why = screen.getByText('Drafted by AI: why each item is here').parentElement!
+    expect(why).toHaveTextContent('D1')
+    expect(why).toHaveTextContent("From past jobs: Accepted on last year's job.")
+    expect(why).not.toHaveTextContent('Check the tax computation')
+  })
+
+  it('the result shows the Direction Note as verified, and which items the AI drafted', () => {
+    const r = run()
+    r.direction_items = [
+      { id: 'D1', text: 'Agree the bank reconciliation', addressed: true, origin: 'ai', reason: 'A bank reconciliation is in the folder.', basis: 'standard' },
+      { id: 'D2', text: 'Confirm accruals are complete', addressed: false, origin: 'person', reason: '', basis: '' },
+    ]
+    mocks.data = panel(r)
+    render(<PrecheckPanel jobKey="ACME-1" />)
+    const list = screen.getByRole('heading', { name: 'Direction Note (1 of 2 drafted by AI)' }).parentElement!
+    const rows = within(list).getAllByRole('listitem')
+    expect(within(rows[0]).getByLabelText('Addressed')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('AI-drafted')).toBeInTheDocument()
+    expect(rows[0]).toHaveTextContent('A bank reconciliation is in the folder.')
+    expect(within(rows[1]).getByLabelText('Not addressed')).toBeInTheDocument()
+    expect(within(rows[1]).queryByText('AI-drafted')).not.toBeInTheDocument()
   })
 
   it('complete with nothing found', () => {

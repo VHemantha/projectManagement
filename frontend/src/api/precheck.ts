@@ -47,6 +47,15 @@ export interface ProgressEvent {
   counts: Record<string, number> | null
 }
 
+/** A Direction Note item: typed by a person, or drafted by the AI with its reason. */
+export interface DirectionItem {
+  id: string
+  text: string
+  origin?: 'person' | 'ai'
+  reason?: string
+  basis?: 'history' | 'current' | 'standard' | ''
+}
+
 export interface RunSummary {
   run_id: string
   status: RunStatus
@@ -61,7 +70,7 @@ export interface RunSummary {
 }
 
 export interface Run extends RunSummary {
-  direction_items: { id: string; text: string; addressed: boolean }[]
+  direction_items: (DirectionItem & { addressed: boolean })[]
   trail: Partial<Record<TrailStage, TrailStep>>
   progress: ProgressEvent[]
   skipped: { task_id: string; direction_ref: string; what: string; reason: string }[]
@@ -82,8 +91,9 @@ export interface Run extends RunSummary {
 export interface PrecheckSetup {
   drive_folder_url: string
   drive_folder_id: string
-  direction_items: { id: string; text: string }[]
+  direction_items: DirectionItem[]
   missing: ('drive_folder' | 'direction_note')[]
+  /** True once the Drive folder is linked. With no Direction Note the AI drafts one first. */
   ready: boolean
 }
 
@@ -92,6 +102,8 @@ export interface JobPrecheck {
   setup: PrecheckSetup
   latest: Run | null
   history: RunSummary[]
+  /** The latest "draft the Direction Note" request, if any. */
+  draft: { status: RunStatus; failure_reason: string; created_at: string } | null
 }
 
 /** While a run is live the socket pushes changes; this slow poll is the fallback. */
@@ -101,7 +113,8 @@ export function useJobPrecheck(jobKey: string) {
   return useQuery({
     queryKey: ['precheck', jobKey],
     queryFn: async () => (await apiClient.get<JobPrecheck>(`/precheck/jobs/${jobKey}/`)).data,
-    refetchInterval: (query) => (query.state.data?.latest?.status === 'running' ? RUNNING_POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data?.latest?.status === 'running' || query.state.data?.draft?.status === 'running' ? RUNNING_POLL_MS : false,
   })
 }
 
@@ -117,6 +130,15 @@ export function useRunPrecheck(jobKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async () => (await apiClient.post<Run>('/precheck/runs/', { job: jobKey })).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
+  })
+}
+
+/** Ask the AI to draft Direction Note items (from the client's past jobs and the folder). */
+export function useDraftDirections(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => (await apiClient.post(`/precheck/jobs/${jobKey}/draft/`)).data,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })
 }

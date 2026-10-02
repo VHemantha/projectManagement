@@ -23,9 +23,28 @@ citations into evidence, the verdict and the coverage figure.
 | `precheck_agent/readers.py`, `judge.py` | the four reader agents; judge, escalation and the code that checks them |
 | `precheck_agent/rules.py` | checks that need no model |
 | `precheck_agent/store.py` | manifest, chunks + vectors, exact-match caches (client and job are part of every query and key) |
-| `skills/` | six skills in Agent Skills format, versioned with the code |
+| `skills/` | seven skills in Agent Skills format, versioned with the code |
 | `../backend/apps/precheck` | run history, findings, evidence, audit log and feedback in the PM application |
 | `../frontend/src/features/precheck` | the job card panel |
+
+**Drafting the Direction Note.** A job with no Direction Note gets one drafted before it is
+verified (`draft_directions`, between `run_rules` and `plan`; one call to the judge model,
+structured output, cached by exact match). The draft uses this client's past jobs — the items
+used before, earlier findings and what people decided about them, sent by the PM application
+with the job — and what is in the folder now (document names and kinds, and what the rules
+flagged; never document text). Nothing is trained: the history is shown to the model on each
+draft. Findings a person marked rejected or not applicable are removed in code whatever the
+model returns, and if the model cannot be used the draft falls back to a standard list built
+by code from the kinds of document present. `mode: "draft"` on `POST /precheck/runs` drafts
+without verifying. Measured on the demo job with a three-finding history: the draft call was
+2,058 tokens in, 443 out (about $0.009); draft plus full verification of six items cost $0.066.
+
+**Zip archives.** A zip in the job folder is opened in memory and each file inside is read as
+its own document ("Trial Balance.xlsx (in Documents.zip)"); a document's version is its CRC,
+so re-uploading the zip with one file changed re-reads only that file. Limits: 100 MB per zip,
+300 files, one level of zip-inside-zip. Password-protected files and other archive types
+(.rar, .7z) are reported as unreadable. Drive cannot link inside a zip, so "Open in Drive"
+opens the zip itself.
 
 ## Run it
 
@@ -33,7 +52,7 @@ citations into evidence, the verdict and the coverage figure.
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 29 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 40 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run

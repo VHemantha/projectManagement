@@ -35,12 +35,21 @@ class JobFolder(models.Model):
 
 
 class DirectionItem(models.Model):
-    """One item of a job's Direction Note: something the job must cover. Entered by a person
-    for now; the Direction Note generator will fill these in a later phase."""
+    """One item of a job's Direction Note: something the job must cover. Typed by a person, or
+    drafted by the AI from the client's past jobs and the job folder (and then editable)."""
+
+    class Origin(models.TextChoices):
+        PERSON = "person", "Written by a person"
+        AI = "ai", "Drafted by AI"
 
     issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="direction_items")
     ref = models.CharField(max_length=10)  # D1, D2, ... stable within the job
     text = models.CharField(max_length=500)
+    origin = models.CharField(max_length=10, choices=Origin.choices, default=Origin.PERSON)
+    # For AI-drafted items: why it was suggested, and whether that came from the client's
+    # history, from what is in the folder now, or from what every job of this kind needs.
+    reason = models.CharField(max_length=300, blank=True)
+    basis = models.CharField(max_length=20, blank=True)
     order = models.PositiveIntegerField(default=0)
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -67,7 +76,12 @@ class AIPrecheck(models.Model):
         READY_WITH_EXCEPTIONS = "ready_with_exceptions", "Ready with exceptions"
         NOT_READY = "not_ready", "Not ready"
 
+    class Kind(models.TextChoices):
+        PRECHECK = "precheck", "Pre-check"
+        DRAFT = "draft", "Direction Note draft only"
+
     run_id = models.CharField(max_length=64, unique=True)  # also the agent's LangGraph thread id
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRECHECK)
     issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="prechecks")
     requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.RUNNING)

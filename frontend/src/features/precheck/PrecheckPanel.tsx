@@ -22,6 +22,7 @@ import { type FormEvent, useState } from 'react'
 
 import styles from './PrecheckPanel.module.css'
 import {
+  BASIS_LABELS,
   costChip,
   DISPOSITION_ACTIONS,
   DISPOSITION_LABELS,
@@ -36,12 +37,14 @@ import {
 } from './precheckText'
 import { extractErrorMessage } from '@/api/errors'
 import {
+  type DirectionItem,
   type Finding,
   type JobPrecheck,
   type PrecheckSetup,
   type Run,
   type Severity,
   type TrailStage,
+  useDraftDirections,
   useJobPrecheck,
   usePrecheckRun,
   useRunPrecheck,
@@ -85,7 +88,9 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
   }
 
   const run = older.data ?? data.latest
-  const running = data.latest?.status === 'running'
+  const drafting = data.draft?.status === 'running'
+  const running = data.latest?.status === 'running' || drafting
+  const noItems = data.setup.direction_items.length === 0
   const runButton = (label: string, primary = true) => (
     <Button
       variant={primary ? 'primary' : 'secondary'}
@@ -128,12 +133,20 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
 
       {editingSetup || !data.setup.ready ? (
         <SetupForm
+          // Remounts when the saved items change (for example when an AI draft arrives).
+          key={data.setup.direction_items.map((i) => i.id + i.text).join('|')}
           jobKey={jobKey}
           setup={data.setup}
+          drafting={drafting}
+          draftFailure={data.draft?.status === 'failed' ? data.draft.failure_reason : ''}
           onDone={data.setup.ready ? () => setEditingSetup(false) : undefined}
         />
       ) : !run ? (
-        <NeverRun setup={data.setup} button={runButton('Run pre-check')} onEdit={() => setEditingSetup(true)} />
+        <NeverRun
+          setup={data.setup}
+          button={runButton(noItems ? 'Draft the Direction Note and run' : 'Run pre-check')}
+          onEdit={() => setEditingSetup(true)}
+        />
       ) : (
         <RunView
           jobKey={jobKey}
@@ -161,8 +174,22 @@ function PanelTitle() {
 
 // ---- setup -----------------------------------------------------------------------------------
 
-function SetupForm({ jobKey, setup, onDone }: { jobKey: string; setup: PrecheckSetup; onDone?: () => void }) {
+function SetupForm({
+  jobKey,
+  setup,
+  drafting,
+  draftFailure,
+  onDone,
+}: {
+  jobKey: string
+  setup: PrecheckSetup
+  drafting: boolean
+  draftFailure: string
+  onDone?: () => void
+}) {
   const save = useSavePrecheckSetup(jobKey)
+  const draft = useDraftDirections(jobKey)
+  const aiItems = setup.direction_items.filter((i) => i.origin === 'ai')
   const [folder, setFolder] = useState(setup.drive_folder_url)
   const [items, setItems] = useState(setup.direction_items.map((i) => i.text).join('\n'))
   const lines = items.split('\n').map((l) => l.trim()).filter(Boolean)
@@ -176,9 +203,9 @@ function SetupForm({ jobKey, setup, onDone }: { jobKey: string; setup: PrecheckS
     <form className={styles.setup} onSubmit={submit}>
       {!setup.ready && (
         <p className={styles.lead}>
-          Before the pre-check can run, this job needs{' '}
-          {setup.missing.map((m) => (m === 'drive_folder' ? 'its Google Drive folder' : 'a Direction Note')).join(' and ')}.
-          The pre-check reads the folder and checks each Direction Note item against it.
+          Before the pre-check can run, this job needs its Google Drive folder. The pre-check reads the folder and
+          checks each Direction Note item against it. You can write the Direction Note yourself, or leave it empty and
+          the AI will draft one from this client&apos;s past jobs and the folder.
         </p>
       )}
       <label className={styles.field}>
@@ -205,15 +232,34 @@ function SetupForm({ jobKey, setup, onDone }: { jobKey: string; setup: PrecheckS
         />
         <small>
           {lines.length} item{lines.length === 1 ? '' : 's'}. Each one is checked and reported as addressed or not.
+          {lines.length === 0 && ' Leave it empty to have the AI draft it when the pre-check runs.'}
         </small>
       </label>
+      {setup.ready && (
+        <div className={styles.draftRow}>
+          <Button type="button" variant="secondary" size="sm" disabled={drafting || draft.isPending} onClick={() => draft.mutate()}>
+            {drafting || draft.isPending ? <Loader2 size={14} className={styles.spin} aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}
+            {drafting || draft.isPending ? 'Drafting…' : 'Draft with AI'}
+          </Button>
+          <span className={styles.muted}>
+            Suggests items from this client&apos;s past jobs, what reviewers decided before, and what is in the folder now.
+            You can edit them.
+          </span>
+        </div>
+      )}
+      {(draft.isError || draftFailure) && (
+        <div role="alert" className={styles.notice} data-tone="danger">
+          {draft.isError ? extractErrorMessage(draft.error, 'The draft could not be started.') : draftFailure}
+        </div>
+      )}
+      {aiItems.length > 0 && <DraftedList items={aiItems} />}
       {save.isError && (
         <div role="alert" className={styles.notice} data-tone="danger">
           {extractErrorMessage(save.error)}
         </div>
       )}
       <div className={styles.actionsRow}>
-        <Button type="submit" variant="primary" size="sm" disabled={save.isPending || !folder.trim() || !lines.length}>
+        <Button type="submit" variant="primary" size="sm" disabled={save.isPending || !folder.trim()}>
           {save.isPending ? 'Saving…' : 'Save'}
         </Button>
         {onDone && (
@@ -226,7 +272,40 @@ function SetupForm({ jobKey, setup, onDone }: { jobKey: string; setup: PrecheckS
   )
 }
 
+/** Why each AI-drafted item is there. */
+function DraftedList({ items }: { items: DirectionItem[] }) {
+  return (
+    <div className={styles.drafted}>
+      <div className={styles.sectionTitle}>Drafted by AI: why each item is here</div>
+      <ul className={styles.detailList}>
+        {items.map((i) => (
+          <li key={i.id} className={styles.detailBlock}>
+            <div>
+              <span className={styles.ref}>{i.id}</span> <span className={styles.detailMain}>{i.text}</span>
+            </div>
+            <div className={styles.muted}>
+              {i.basis && BASIS_LABELS[i.basis] ? `${BASIS_LABELS[i.basis]}: ` : ''}
+              {i.reason}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void }) {
+  if (setup.direction_items.length === 0) {
+    return (
+      <p className={styles.setupLine}>
+        No Direction Note yet: the AI will draft one from this client&apos;s past jobs and the folder, then check each
+        item.{' '}
+        <button type="button" className={styles.link} onClick={onEdit}>
+          Write it yourself or edit the folder
+        </button>
+      </p>
+    )
+  }
   return (
     <p className={styles.setupLine}>
       Checks {setup.direction_items.length} Direction Note item{setup.direction_items.length === 1 ? '' : 's'} against the
@@ -244,6 +323,8 @@ function NeverRun({ setup, button, onEdit }: { setup: PrecheckSetup; button: Rea
       <p className={styles.lead}>
         Not run yet. The pre-check reads the job folder, runs the automatic checks and compares each Direction Note
         item with the evidence, so a reviewer starts with the open points in front of them.
+        {setup.direction_items.length === 0 &&
+          ' This job has no Direction Note, so the AI will draft one first and then verify it.'}
       </p>
       <div className={styles.actionsRow}>{button}</div>
       <SetupLine setup={setup} onEdit={onEdit} />
@@ -314,6 +395,8 @@ function RunView({
 
       {run.status !== 'failed' && <Trail run={run} />}
 
+      {finished && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
+
       {finished && (
         <>
           {open.length === 0 ? (
@@ -360,6 +443,38 @@ function RunView({
       {isLatest && run.status !== 'running' && <SetupLine setup={setup} onEdit={onEdit} />}
       <EvidenceDrawer finding={openFinding} run={run} onClose={() => setOpenFinding(null)} />
     </>
+  )
+}
+
+/** The Direction Note as verified in this run: each item addressed or not, and which ones the
+ * AI drafted (with its reason). */
+function DirectionChecklist({ run }: { run: Run }) {
+  const drafted = run.direction_items.filter((i) => i.origin === 'ai').length
+  return (
+    <div>
+      <h3 className={styles.sectionTitle}>
+        Direction Note{drafted > 0 && ` (${drafted} of ${run.direction_items.length} drafted by AI)`}
+      </h3>
+      <ul className={styles.checklist}>
+        {run.direction_items.map((i) => (
+          <li key={i.id} data-addressed={i.addressed}>
+            {i.addressed ? (
+              <Check size={14} className={styles.pass} aria-label="Addressed" />
+            ) : (
+              <X size={14} className={styles.fail} aria-label="Not addressed" />
+            )}
+            <span className={styles.ref}>{i.id}</span>
+            <span className={styles.detailMain}>{i.text}</span>
+            {i.origin === 'ai' && (
+              <span className={styles.tag} data-kind="ai_suggestion" title={i.reason}>
+                AI-drafted
+              </span>
+            )}
+            {i.origin === 'ai' && i.reason && <span className={styles.checkReason}>{i.reason}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

@@ -258,7 +258,10 @@ def compute_verdict(findings: list[dict], direction_items: list[dict]) -> dict:
     for item in direction_items:
         mine = [f for f in findings if f["direction_ref"] == item["id"]]
         addressed = any(f["status"] == "addressed" for f in mine) and not any(f["status"] != "addressed" for f in mine)
-        items.append({"id": item["id"], "text": item["text"], "addressed": addressed})
+        items.append({
+            "id": item["id"], "text": item["text"], "addressed": addressed,
+            "origin": item.get("origin", "person"), "reason": item.get("reason", ""), "basis": item.get("basis", ""),
+        })
     counts = {sev: sum(1 for f in open_findings if f["severity"] == sev) for sev in SEVERITY}
     return {
         "verdict": verdict,
