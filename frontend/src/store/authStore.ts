@@ -9,6 +9,8 @@ export interface CurrentUser {
   job_title: string
   avatar: string | null
   is_staff: boolean
+  /** Desktop notifications for new DMs, @mentions and bell notifications (own setting). */
+  desktop_notifications?: boolean
 }
 
 interface AuthState {

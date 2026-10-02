@@ -75,3 +75,19 @@ export function useLogout() {
     queryClient.clear()
   }
 }
+
+/** Change the signed-in user's own settings (e.g. desktop notifications). */
+export function useUpdateMySettings() {
+  const setUser = useAuthStore((s) => s.setUser)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { desktop_notifications?: boolean }) => {
+      const { data } = await apiClient.patch<CurrentUser>('/auth/me/', payload)
+      return data
+    },
+    onSuccess: (data) => {
+      setUser(data)
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
+}

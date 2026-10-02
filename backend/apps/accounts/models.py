@@ -10,6 +10,9 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
     job_title = models.CharField(max_length=150, blank=True)
     is_active_member = models.BooleanField(default=True)
+    # Desktop (OS) notifications for new direct messages, @mentions and bell notifications.
+    # The browser must also allow them; this is the person's own on/off switch.
+    desktop_notifications = models.BooleanField(default=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]

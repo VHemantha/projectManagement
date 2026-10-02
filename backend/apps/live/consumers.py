@@ -1,22 +1,30 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 
-from .broadcast import LIVE_GROUP
+from .broadcast import LIVE_GROUP, user_group
 
 
 class LiveUpdatesConsumer(AsyncJsonWebsocketConsumer):
     """One app-wide socket per tab (ws/live/) that relays change notices from
-    broadcast.notify() to the browser. Receive-only: clients never send on it."""
+    broadcast.notify() to the browser, plus the user's own inbox events from
+    broadcast.push_to_user(). Receive-only: clients never send on it."""
 
     async def connect(self):
         user = self.scope["user"]
         if not user or not user.is_authenticated:
             await self.close(code=4003)
             return
+        self.user_group = user_group(user.id)
         await self.channel_layer.group_add(LIVE_GROUP, self.channel_name)
+        await self.channel_layer.group_add(self.user_group, self.channel_name)
         await self.accept()
 
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(LIVE_GROUP, self.channel_name)
+        if getattr(self, "user_group", None):
+            await self.channel_layer.group_discard(self.user_group, self.channel_name)
+
+    async def inbox_event(self, event):
+        await self.send_json({"type": "inbox", **event["event"]})
 
     async def live_change(self, event):
         await self.send_json({"type": "live.change", "kind": event["kind"], "project": event["project"], "key": event["key"]})

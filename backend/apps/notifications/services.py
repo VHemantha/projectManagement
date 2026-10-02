@@ -1,3 +1,4 @@
+from .inbox import push_notification
 from .models import Notification
 
 
@@ -6,9 +7,11 @@ def notify(user, verb, *, actor=None, target_issue=None, target_message=None):
     their own action."""
     if actor is not None and user_id_matches(user, actor):
         return None
-    return Notification.objects.create(
+    notification = Notification.objects.create(
         user=user, actor=actor, verb=verb, target_issue=target_issue, target_message=target_message
     )
+    push_notification(notification)
+    return notification
 
 
 def user_id_matches(user, actor):
@@ -30,5 +33,7 @@ def notify_many(users, verb, *, actor=None, target_issue=None, target_message=No
             )
         )
     if rows:
-        Notification.objects.bulk_create(rows)
+        Notification.objects.bulk_create(rows)  # skips post_save, so push each one here
+        for row in rows:
+            push_notification(row)
     return rows

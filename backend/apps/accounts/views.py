@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from .models import TablePreference, User
-from .serializers import LoginSerializer, SignupSerializer, UserSerializer
+from .serializers import LoginSerializer, MeSerializer, SignupSerializer, UserSerializer
 
 
 def _tokens_for(user):
@@ -26,7 +26,7 @@ class SignupView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(
-            {"user": UserSerializer(user).data, "tokens": _tokens_for(user)},
+            {"user": MeSerializer(user).data, "tokens": _tokens_for(user)},
             status=status.HTTP_201_CREATED,
         )
 
@@ -44,7 +44,7 @@ class LoginView(APIView):
         )
         if user is None:
             return Response({"detail": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
-        return Response({"user": UserSerializer(user).data, "tokens": _tokens_for(user)})
+        return Response({"user": MeSerializer(user).data, "tokens": _tokens_for(user)})
 
 
 class UserListView(generics.ListAPIView):
@@ -64,7 +64,7 @@ class UserListView(generics.ListAPIView):
 
 class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = UserSerializer
+    serializer_class = MeSerializer
     parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     def get_object(self):

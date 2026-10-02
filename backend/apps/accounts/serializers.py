@@ -11,6 +11,13 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "email", "is_staff"]
 
 
+class MeSerializer(UserSerializer):
+    """The signed-in user's own profile, including their personal settings."""
+
+    class Meta(UserSerializer.Meta):
+        fields = [*UserSerializer.Meta.fields, "desktop_notifications"]
+
+
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
 
