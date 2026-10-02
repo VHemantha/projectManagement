@@ -47,8 +47,8 @@
   background: var(--tf-surface-hover);
 }
 .channelRow.active {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
 }
 .channelRow.unread {
   font-weight: 700;
@@ -63,8 +63,8 @@
 }
 
 .unreadBadge {
-  background: var(--tf-blue);
-  color: #fff;
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
   font-size: 10px;
   font-weight: 700;
   border-radius: var(--tf-radius-full);
@@ -232,8 +232,8 @@
   cursor: pointer;
 }
 .reactionChip.mine {
-  background: var(--tf-blue-subtle);
-  border-color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  border-color: var(--tf-primary);
 }
 
 .taskChip {

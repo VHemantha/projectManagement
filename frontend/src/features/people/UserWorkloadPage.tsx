@@ -115,8 +115,8 @@ export function UserWorkloadPage() {
               borderRadius: 999,
               border: '1px solid var(--tf-border)',
               cursor: 'pointer',
-              background: roleScope === scope ? 'var(--tf-blue-subtle)' : 'var(--tf-surface)',
-              color: roleScope === scope ? 'var(--tf-blue)' : 'var(--tf-text)',
+              background: roleScope === scope ? 'var(--tf-primary-subtle)' : 'var(--tf-surface)',
+              color: roleScope === scope ? 'var(--tf-primary)' : 'var(--tf-text)',
               fontWeight: roleScope === scope ? 600 : 400,
             }}
           >

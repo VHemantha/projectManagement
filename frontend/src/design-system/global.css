@@ -55,7 +55,7 @@ p {
 }
 
 ::selection {
-  background: var(--tf-blue-subtle);
+  background: var(--tf-primary-subtle);
 }
 
 .tf-scrollbar {

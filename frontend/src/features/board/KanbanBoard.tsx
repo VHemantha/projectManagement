@@ -37,6 +37,7 @@ import type {
   Priority,
 } from '@/api/types'
 import { Avatar, InlineEdit, Skeleton } from '@/design-system'
+import { defaultColumnColor } from '@/lib/palette'
 import { sentenceCase } from '@/lib/text'
 import { useAuthStore } from '@/store/authStore'
 
@@ -245,8 +246,8 @@ export function KanbanBoard({
         <button
           className={styles.select}
           style={{
-            background: filters.onlyMine ? 'var(--tf-blue-subtle)' : undefined,
-            color: filters.onlyMine ? 'var(--tf-blue)' : undefined,
+            background: filters.onlyMine ? 'var(--tf-primary-subtle)' : undefined,
+            color: filters.onlyMine ? 'var(--tf-primary)' : undefined,
           }}
           aria-pressed={filters.onlyMine}
           onClick={() => setFilter('onlyMine', !filters.onlyMine)}
@@ -399,7 +400,8 @@ function BoardLane({
               key={key}
               containerId={key}
               title={col.name}
-              color={col.color}
+              // Unset columns still get distinct colours, in column order.
+              color={col.color ?? defaultColumnColor(col.name, colIndex)}
               count={ids.length}
               wipLimit={col.wip_limit}
               overLimit={overLimit}

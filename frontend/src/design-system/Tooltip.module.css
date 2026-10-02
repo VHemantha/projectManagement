@@ -1,7 +1,7 @@
 .content {
   /* Dark bubble with light text — high contrast against any page background. */
-  background: var(--tf-text);
-  color: #fff;
+  background: var(--tf-inverse-bg);
+  color: var(--tf-text-inverse);
   font-size: 12px;
   line-height: 1.4;
   font-weight: 500;

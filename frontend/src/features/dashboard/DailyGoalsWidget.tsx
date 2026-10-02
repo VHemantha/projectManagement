@@ -114,7 +114,7 @@ function GoalRow({ goal }: { goal: DailyGoal }) {
           type="button"
           title="Carry over to tomorrow"
           onClick={() => carryOver.mutate(goal.id)}
-          style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--tf-blue)' }}
+          style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--tf-primary)' }}
         >
           <ChevronRight size={13} />
         </button>
@@ -241,7 +241,7 @@ export function DailyGoalsWidget() {
               borderRadius: '50%',
               background: dayColor(byDate.get(d) ?? []),
               cursor: 'pointer',
-              border: d === viewDate ? '2px solid var(--tf-blue)' : '2px solid transparent',
+              border: d === viewDate ? '2px solid var(--tf-primary)' : '2px solid transparent',
             }}
           />
         ))}

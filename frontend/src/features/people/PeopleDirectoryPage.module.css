@@ -62,7 +62,7 @@
   cursor: pointer;
 }
 .card:hover {
-  border-color: var(--tf-blue);
+  border-color: var(--tf-primary);
 }
 
 /* min-width: 0 lets a long email truncate instead of stretching the card. */
@@ -97,6 +97,6 @@
   text-overflow: ellipsis;
 }
 .email:hover {
-  color: var(--tf-blue);
+  color: var(--tf-primary);
   text-decoration: underline;
 }

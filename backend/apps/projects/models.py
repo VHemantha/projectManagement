@@ -67,7 +67,7 @@ class Project(models.Model):
     special_notes = models.TextField(blank=True)
     job_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     job_value_currency = models.CharField(max_length=3, default="USD")
-    avatar_color = models.CharField(max_length=7, default="#0C66E4")
+    avatar_color = models.CharField(max_length=7, default="#6A3DF0")  # the primary violet
     default_assignee_rule = models.CharField(
         max_length=20,
         choices=[("unassigned", "Unassigned"), ("project_lead", "Project Lead")],

@@ -1,75 +1,105 @@
+/*
+ * TrackFlow design tokens — the one place colours are defined.
+ *
+ * Palette: a bold violet primary on light, faintly violet-tinted surfaces, with pink, blue,
+ * teal, orange and green accents (ClickUp-like). Text colours and every "-text"/accent
+ * foreground meet WCAG AA (4.5:1) on the surfaces they're used on; "-solid" colours are for
+ * bars, dots and chips (3:1 against white, the non-text minimum). src/design-system/
+ * tokens.test.ts checks these pairs. The app has no dark mode, so there is one set.
+ *
+ * Colours that must be hex in code (colour pickers, saved column/label colours, avatars) live
+ * in src/lib/palette.ts and mirror these values.
+ */
 :root {
-  /* Brand */
-  --tf-blue: #0c66e4;
-  --tf-blue-hover: #0055cc;
-  --tf-blue-subtle: #deebff;
+  /* Brand / primary (violet) */
+  --tf-primary: #6a3df0;
+  --tf-primary-hover: #5a2fd6;
+  --tf-primary-subtle: #efebff;
+  --tf-primary-strong: #4c25b8;
+  /* Older names, kept so nothing breaks: they are the primary now. */
+  --tf-blue: var(--tf-primary);
+  --tf-blue-hover: var(--tf-primary-hover);
+  --tf-blue-subtle: var(--tf-primary-subtle);
 
   /* Surfaces */
-  --tf-bg: #f7f8f9;
+  --tf-bg: #f7f6fb;
   --tf-surface: #ffffff;
-  --tf-surface-sunken: #fafbfc;
-  --tf-surface-hover: #f1f2f4;
-  --tf-surface-pressed: #dcdfe4;
-  --tf-sidebar-bg: #0c1421;
-  --tf-sidebar-hover: #1d2939;
+  --tf-surface-sunken: #faf9fd;
+  --tf-surface-hover: #f1effa;
+  --tf-surface-pressed: #e4e0f3;
+  --tf-sidebar-bg: #ffffff;
+  --tf-sidebar-hover: #f1effa;
 
   /* Borders */
-  --tf-border: #dcdfe4;
-  --tf-border-subtle: rgba(9, 30, 66, 0.14);
-  --tf-border-focus: var(--tf-blue);
+  --tf-border: #e4e1ef;
+  --tf-border-subtle: rgba(31, 26, 51, 0.12);
+  --tf-border-focus: var(--tf-primary);
 
   /* Text */
-  --tf-text: #172b4d;
-  --tf-text-secondary: #44546f;
-  --tf-text-subtle: #626f86;
+  --tf-text: #1f1a33;
+  --tf-text-secondary: #4b4664;
+  --tf-text-subtle: #625d7a;
   --tf-text-inverse: #ffffff;
-  --tf-text-link: var(--tf-blue);
+  --tf-text-link: var(--tf-primary);
 
-  /* Status category colors */
-  --tf-status-todo-bg: #dcdfe4;
-  --tf-status-todo-text: #44546f;
-  --tf-status-inprogress-bg: #deebff;
-  --tf-status-inprogress-text: #0c66e4;
-  --tf-status-done-bg: #dcfff1;
-  --tf-status-done-text: #1f845a;
+  /* Status category colours (badges) */
+  --tf-status-todo-bg: #ecebf2;
+  --tf-status-todo-text: #4b4664;
+  --tf-status-inprogress-bg: #efebff;
+  --tf-status-inprogress-text: #5a2fd6;
+  --tf-status-done-bg: #dcfce7;
+  --tf-status-done-text: #15803d;
 
-  /* Priority colors */
-  --tf-priority-highest: #cd1317;
-  --tf-priority-high: #e2680f;
-  --tf-priority-medium: #e2b203;
-  --tf-priority-low: #2684ff;
-  --tf-priority-lowest: #2684ff;
+  /* Priority colours (icons) */
+  --tf-priority-highest: #d92d20;
+  --tf-priority-high: #e8590c;
+  --tf-priority-medium: #d9a206;
+  --tf-priority-low: #3b6ff5;
+  --tf-priority-lowest: #3b6ff5;
 
-  /* Issue type colors */
-  --tf-type-epic: #8777d9;
-  --tf-type-story: #36b37e;
-  --tf-type-task: #0c66e4;
-  --tf-type-bug: #e5493a;
-  --tf-type-subtask: #0c66e4;
+  /* Job type colours (icon squares) */
+  --tf-type-epic: #7b5cff;
+  --tf-type-story: #1f9d63;
+  --tf-type-task: #3b6ff5;
+  --tf-type-bug: #e0453c;
+  --tf-type-subtask: #3b6ff5;
 
   /* Semantic */
-  --tf-danger: #ae2e24;
-  --tf-danger-bg: #ffebe6;
-  --tf-warning: #e2b203;
-  --tf-warning-bg: #fff7d6;
+  --tf-danger: #b42318;
+  --tf-danger-bg: #fee4e2;
+  --tf-danger-bg-hover: #fecdca;
+  --tf-warning: #e0a106;
+  --tf-warning-bg: #fef3c7;
   /* Amber dark enough for text and thin bars on white (WCAG AA). */
-  --tf-warning-text: #974f0c;
-  --tf-success: #1f845a;
-  --tf-success-bg: #dcfff1;
+  --tf-warning-text: #92400e;
+  --tf-success: #15803d;
+  --tf-success-bg: #dcfce7;
 
-  /* Accents: icon chips and highlights. Each colour passes WCAG AA on its own -bg. */
+  /* Accents: icon chips and highlights. Each foreground passes WCAG AA on its own -bg. */
+  --tf-accent-violet: #5b2fd6;
+  --tf-accent-violet-bg: #efebff;
+  --tf-accent-pink: #be185d;
+  --tf-accent-pink-bg: #fce7f3;
   --tf-accent-blue: #1d4ed8;
   --tf-accent-blue-bg: #dbeafe;
   --tf-accent-teal: #0f766e;
   --tf-accent-teal-bg: #ccfbf1;
-  --tf-accent-violet: #6d28d9;
-  --tf-accent-violet-bg: #ede9fe;
   --tf-accent-orange: #c2410c;
   --tf-accent-orange-bg: #ffedd5;
-  --tf-accent-pink: #be185d;
-  --tf-accent-pink-bg: #fce7f3;
   --tf-accent-green: #15803d;
   --tf-accent-green-bg: #dcfce7;
+
+  /* Solid accents for bars, dots and column stripes (non-text, >= 3:1 on white). */
+  --tf-solid-grey: #7a7891;
+  --tf-solid-blue: #3b6ff5;
+  --tf-solid-violet: #7b5cff;
+  --tf-solid-orange: #e2620c;
+  --tf-solid-pink: #e0457b;
+  --tf-solid-green: #1f9d63;
+  --tf-solid-teal: #0e8f80;
+
+  /* Dark tooltip / code surfaces */
+  --tf-inverse-bg: #1f1a33;
 
   /* Spacing (4px/8px grid) */
   --tf-space-1: 4px;
@@ -82,15 +112,16 @@
   --tf-space-10: 40px;
 
   /* Radius */
-  --tf-radius-sm: 3px;
-  --tf-radius-md: 4px;
-  --tf-radius-lg: 8px;
+  --tf-radius-sm: 4px;
+  --tf-radius-md: 6px;
+  --tf-radius-lg: 10px;
   --tf-radius-full: 999px;
 
-  /* Shadow (used sparingly — Jira is border-heavy, not shadow-heavy) */
-  --tf-shadow-sm: 0 1px 2px rgba(9, 30, 66, 0.15);
-  --tf-shadow-md: 0 4px 8px -2px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
-  --tf-shadow-lg: 0 8px 16px -4px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31);
+  /* Shadows: soft, slightly violet */
+  --tf-shadow-sm: 0 1px 2px rgba(31, 26, 51, 0.12);
+  --tf-shadow-md: 0 4px 10px -2px rgba(31, 26, 51, 0.16), 0 0 1px rgba(31, 26, 51, 0.25);
+  --tf-shadow-lg: 0 10px 24px -6px rgba(31, 26, 51, 0.22), 0 0 1px rgba(31, 26, 51, 0.25);
+  --tf-shadow-card: 0 1px 3px rgba(31, 26, 51, 0.06), 0 4px 12px rgba(31, 26, 51, 0.05);
 
   /* Layout */
   --tf-sidebar-width-collapsed: 64px;

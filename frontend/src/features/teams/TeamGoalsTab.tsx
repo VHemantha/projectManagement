@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   planned: 'var(--tf-text-subtle)',
-  in_progress: 'var(--tf-blue)',
+  in_progress: 'var(--tf-primary)',
   achieved: 'var(--tf-success)',
   not_achieved: 'var(--tf-danger)',
   carried_over: 'var(--tf-warning)',

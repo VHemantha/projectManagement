@@ -25,11 +25,11 @@
 }
 
 .primary {
-  background: var(--tf-blue);
+  background: var(--tf-primary);
   color: var(--tf-text-inverse);
 }
 .primary:hover:not(:disabled) {
-  background: var(--tf-blue-hover);
+  background: var(--tf-primary-hover);
 }
 
 .secondary {
@@ -53,7 +53,7 @@
   color: var(--tf-danger);
 }
 .danger:hover:not(:disabled) {
-  background: #ffd5cc;
+  background: var(--tf-danger-bg-hover);
 }
 
 .iconOnly {

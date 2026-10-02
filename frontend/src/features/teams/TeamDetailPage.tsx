@@ -95,7 +95,7 @@ export function TeamDetailPage() {
             {team.parent && (
               <>
                 {' · Part of '}
-                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-blue)' }}>
+                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-primary)' }}>
                   {team.parent.name}
                 </Link>
               </>

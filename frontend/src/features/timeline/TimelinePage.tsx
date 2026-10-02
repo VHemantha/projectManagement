@@ -6,6 +6,7 @@ import { usePatchIssueField, useIssues } from '@/api/issues'
 import type { IssueListItem } from '@/api/types'
 import { useProjectContext } from '@/features/projects/useProjectContext'
 import { useUiStore } from '@/store/uiStore'
+import { DEFAULT_EPIC_COLOR } from '@/lib/palette'
 
 function useElementWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null)
@@ -132,14 +133,14 @@ export function TimelinePage() {
               <div className={styles.row} key={epic.id}>
                 <div className={styles.rowLabel} onClick={() => openIssueModal(epic.key)}>
                   <span
-                    style={{ width: 8, height: 8, borderRadius: '50%', background: epic.epic?.epic_color ?? '#8777D9', flexShrink: 0 }}
+                    style={{ width: 8, height: 8, borderRadius: '50%', background: epic.epic?.epic_color ?? DEFAULT_EPIC_COLOR, flexShrink: 0 }}
                   />
                   {epic.summary}
                 </div>
                 <div className={styles.track} ref={epic === epics[0] ? trackRef : undefined}>
                   <div
                     className={styles.bar}
-                    style={{ left, width, background: epic.epic?.epic_color ?? '#8777D9' }}
+                    style={{ left, width, background: epic.epic?.epic_color ?? DEFAULT_EPIC_COLOR }}
                     onMouseDown={(e) => {
                       setDrag({
                         epic,

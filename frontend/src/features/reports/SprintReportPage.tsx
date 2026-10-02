@@ -84,7 +84,7 @@ export function SprintReportPage() {
                         type="monotone"
                         dataKey="remaining"
                         name="Remaining"
-                        stroke="var(--tf-blue)"
+                        stroke="var(--tf-primary)"
                         strokeWidth={2}
                         dot={{ r: 3 }}
                         connectNulls={false}
@@ -94,7 +94,7 @@ export function SprintReportPage() {
                 </div>
                 <div className={styles.legend}>
                   <span className={styles.legendItem}>
-                    <span className={styles.swatch} style={{ background: 'var(--tf-blue)' }} /> Remaining points
+                    <span className={styles.swatch} style={{ background: 'var(--tf-primary)' }} /> Remaining points
                   </span>
                   <span className={styles.legendItem}>
                     <span className={styles.swatch} style={{ background: 'var(--tf-text-subtle)' }} /> Ideal burn

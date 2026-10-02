@@ -4,23 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import styles from './Avatar.module.css'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './DropdownMenu'
 import { useCreateDm } from '@/api/chat'
+import { AVATAR_COLORS } from '@/lib/palette'
 import { usePresenceStore } from '@/store/presenceStore'
 
-const PALETTE = [
-  '#0C66E4',
-  '#36B37E',
-  '#8777D9',
-  '#E5493A',
-  '#00B8D9',
-  '#FF8B00',
-  '#6554C0',
-  '#1F845A',
-]
 
 function colorFor(seed: string) {
   let hash = 0
   for (let i = 0; i < seed.length; i++) hash = seed.charCodeAt(i) + ((hash << 5) - hash)
-  return PALETTE[Math.abs(hash) % PALETTE.length]
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
 function initials(name: string) {

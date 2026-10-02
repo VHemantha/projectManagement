@@ -21,7 +21,8 @@
 .sidebar {
   width: var(--tf-sidebar-width-collapsed);
   background: var(--tf-sidebar-bg);
-  color: var(--tf-text-inverse);
+  color: var(--tf-text);
+  border-right: 1px solid var(--tf-border);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -82,8 +83,9 @@
   height: 36px;
   padding: 0 var(--tf-space-3);
   border-radius: var(--tf-radius-md);
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--tf-text-secondary);
   font-size: 14px;
+  font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -98,8 +100,49 @@
      nav, whose class must stay a plain string for the Tooltip's asChild. */
 .navItem.active,
 .navItem[aria-current='page'] {
-  background: var(--tf-sidebar-hover);
-  color: #fff;
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary-strong);
+  font-weight: 600;
+}
+
+/* Each section's icon sits on its own coloured chip. */
+.navIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.navIcon[data-tone='violet'] {
+  background: var(--tf-accent-violet-bg);
+  color: var(--tf-accent-violet);
+}
+.navIcon[data-tone='blue'] {
+  background: var(--tf-accent-blue-bg);
+  color: var(--tf-accent-blue);
+}
+.navIcon[data-tone='teal'] {
+  background: var(--tf-accent-teal-bg);
+  color: var(--tf-accent-teal);
+}
+.navIcon[data-tone='pink'] {
+  background: var(--tf-accent-pink-bg);
+  color: var(--tf-accent-pink);
+}
+.navIcon[data-tone='orange'] {
+  background: var(--tf-accent-orange-bg);
+  color: var(--tf-accent-orange);
+}
+.navIcon[data-tone='green'] {
+  background: var(--tf-accent-green-bg);
+  color: var(--tf-accent-green);
+}
+/* The current section's chip turns solid. */
+.navItem[aria-current='page'] .navIcon {
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
 }
 .navItem svg {
   flex-shrink: 0;
@@ -109,14 +152,14 @@
   padding: var(--tf-space-3) var(--tf-space-3) var(--tf-space-1);
   font-size: 11px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--tf-text-subtle);
   white-space: nowrap;
 }
 
 .sidebarFooter {
   display: flex;
   padding: var(--tf-space-2);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--tf-border);
 }
 
 /* Expand / collapse control.
@@ -134,25 +177,27 @@
   gap: var(--tf-space-2);
   height: 40px;
   padding: 0 var(--tf-space-3);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--tf-border);
   border-radius: var(--tf-radius-md);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
   font-size: 14px;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .sidebarToggle:hover {
-  background: rgba(255, 255, 255, 0.26);
-  border-color: rgba(255, 255, 255, 0.3);
+  background: var(--tf-surface-hover);
+  border-color: var(--tf-primary);
+  color: var(--tf-primary);
 }
 .sidebar.expanded .sidebarToggle {
-  background: var(--tf-blue);
-  border-color: var(--tf-blue);
+  background: var(--tf-primary);
+  border-color: var(--tf-primary);
+  color: var(--tf-text-inverse);
 }
 .sidebar.expanded .sidebarToggle:hover {
-  background: var(--tf-blue-hover);
-  border-color: var(--tf-blue-hover);
+  background: var(--tf-primary-hover);
+  border-color: var(--tf-primary-hover);
 }
 
 /* Collapsed rail (64px): center each item so the icons sit in the middle of

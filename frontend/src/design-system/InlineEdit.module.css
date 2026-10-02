@@ -57,7 +57,7 @@
   border: 1px solid var(--tf-border-focus);
   border-radius: var(--tf-radius-md);
   padding: 1px 6px;
-  outline: 2px solid var(--tf-blue-subtle);
+  outline: 2px solid var(--tf-primary-subtle);
 }
 .input[aria-invalid='true'] {
   border-color: var(--tf-danger);

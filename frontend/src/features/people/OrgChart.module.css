@@ -83,7 +83,7 @@
   border: 1px solid var(--tf-border);
   border-radius: 12px;
   background: var(--tf-surface);
-  box-shadow: 0 1px 3px rgba(9, 30, 66, 0.06), 0 4px 12px rgba(9, 30, 66, 0.05);
+  box-shadow: var(--tf-shadow-card);
 }
 /* Short drop line from the bar into each branch. */
 .branch::before {
@@ -158,7 +158,7 @@
 }
 .node:hover,
 .node:focus-visible {
-  border-color: var(--tf-blue);
+  border-color: var(--tf-primary);
 }
 .node[data-role='admin'] {
   width: 220px;

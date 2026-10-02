@@ -96,5 +96,5 @@
 .link {
   align-self: flex-start;
   font-size: 12px;
-  color: var(--tf-blue);
+  color: var(--tf-primary);
 }

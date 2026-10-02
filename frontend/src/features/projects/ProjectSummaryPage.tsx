@@ -18,7 +18,7 @@ function BudgetPanel({ projectKey }: { projectKey: string }) {
   const pct = row.pct_complete ?? 0
   // Same amber/red visual language as the board's WIP-limit warning: amber once you're
   // getting close, red once you've actually gone over.
-  const barColor = pct > 100 ? 'var(--tf-danger)' : pct >= 80 ? 'var(--tf-warning)' : 'var(--tf-blue)'
+  const barColor = pct > 100 ? 'var(--tf-danger)' : pct >= 80 ? 'var(--tf-warning)' : 'var(--tf-primary)'
   const hasJobValue = row.job_value != null
 
   if (!hasBudget && !hasJobValue) return null
@@ -164,7 +164,7 @@ export function ProjectSummaryPage() {
               <XAxis dataKey="name" fontSize={12} stroke="var(--tf-text-subtle)" />
               <YAxis allowDecimals={false} fontSize={12} stroke="var(--tf-text-subtle)" />
               <Tooltip />
-              <Bar dataKey="hours" fill="var(--tf-blue)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="hours" fill="var(--tf-primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

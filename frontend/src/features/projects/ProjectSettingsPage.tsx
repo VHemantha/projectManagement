@@ -27,6 +27,7 @@ import { useTeams } from '@/api/teams'
 import { useUsers } from '@/api/users'
 import { Avatar, Button, InlineEdit, Input, StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
+import { LABEL_COLORS } from '@/lib/palette'
 import { CATEGORY_LABELS } from '@/lib/text'
 
 function GeneralTab() {
@@ -424,8 +425,6 @@ function TasksTab() {
     </div>
   )
 }
-
-const LABEL_COLORS = ['#DCDFE4', '#DEEBFF', '#DCFCE7', '#FFEDD5', '#FCE7F3', '#EDE9FE', '#CCFBF1', '#FFF7D6']
 
 function LabelsTab() {
   const { project } = useProjectContext()

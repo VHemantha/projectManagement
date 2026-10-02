@@ -35,8 +35,8 @@
 }
 .button[aria-current='page'],
 .button[data-active='true'] {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
 }
 
 /* Expand / collapse control, styled like the main sidebar's toggle. */
@@ -46,8 +46,8 @@
   border: 1px solid var(--tf-border);
 }
 .toggle:hover {
-  border-color: var(--tf-blue);
-  color: var(--tf-blue);
+  border-color: var(--tf-primary);
+  color: var(--tf-primary);
 }
 
 .divider {
@@ -65,8 +65,8 @@
   height: 15px;
   padding: 0 3px;
   border-radius: 8px;
-  background: var(--tf-blue);
-  color: #fff;
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
   font-size: 10px;
   font-weight: 700;
   line-height: 15px;

@@ -221,8 +221,8 @@ export function TimeReportsPage() {
               padding: '6px 14px',
               border: 'none',
               cursor: 'pointer',
-              background: mode === m ? 'var(--tf-blue-subtle)' : 'var(--tf-surface)',
-              color: mode === m ? 'var(--tf-blue)' : 'var(--tf-text)',
+              background: mode === m ? 'var(--tf-primary-subtle)' : 'var(--tf-surface)',
+              color: mode === m ? 'var(--tf-primary)' : 'var(--tf-text)',
               fontWeight: mode === m ? 600 : 400,
             }}
           >
@@ -295,7 +295,7 @@ export function TimeReportsPage() {
               <XAxis dataKey="name" fontSize={12} stroke="var(--tf-text-subtle)" />
               <YAxis allowDecimals={false} fontSize={12} stroke="var(--tf-text-subtle)" />
               <Tooltip />
-              <Bar dataKey="hours" fill="var(--tf-blue)" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="hours" fill="var(--tf-primary)" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

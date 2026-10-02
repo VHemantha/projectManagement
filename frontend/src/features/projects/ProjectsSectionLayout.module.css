@@ -43,8 +43,8 @@
   color: var(--tf-text);
 }
 .allIssuesLinkActive {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
 }
 
 .modeRow {
@@ -65,9 +65,9 @@
   cursor: pointer;
 }
 .modeBtn[data-active='true'] {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
-  border-color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+  border-color: var(--tf-primary);
 }
 
 .searchRow {

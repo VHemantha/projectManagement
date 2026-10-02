@@ -171,7 +171,7 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
                   padding: '2px 8px',
                   borderRadius: 3,
                   background: l.color,
-                  color: '#172B4D',
+                  color: 'var(--tf-text)',
                 }}
               >
                 {l.name}

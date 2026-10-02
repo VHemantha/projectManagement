@@ -23,8 +23,8 @@
   color: var(--tf-text);
 }
 .trigger[data-state='active'] {
-  color: var(--tf-blue);
-  border-bottom-color: var(--tf-blue);
+  color: var(--tf-primary);
+  border-bottom-color: var(--tf-primary);
 }
 
 .content {

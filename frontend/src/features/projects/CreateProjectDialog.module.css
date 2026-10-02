@@ -18,8 +18,8 @@
   background: var(--tf-surface);
 }
 .typeCard.selected {
-  border-color: var(--tf-blue);
-  background: var(--tf-blue-subtle);
+  border-color: var(--tf-primary);
+  background: var(--tf-primary-subtle);
 }
 .typeCardTitle {
   font-weight: 600;

@@ -1,22 +1,13 @@
 import type { CardColorRule, CardColors, IssueListItem, Priority } from '@/api/types'
+import { DUE_DATE_COLORS, PRIORITY_COLORS } from '@/lib/palette'
 
 // Built-in colours (hex, so they can seed <input type="color">). Priority mirrors the
 // --tf-priority-* tokens.
-export const DEFAULT_PRIORITY_COLORS: Record<Priority, string> = {
-  highest: '#cd1317',
-  high: '#e2680f',
-  medium: '#e2b203',
-  low: '#2684ff',
-  lowest: '#2684ff',
-}
+export const DEFAULT_PRIORITY_COLORS: Record<Priority, string> = { ...PRIORITY_COLORS }
 
 export type DueDateBucket = 'overdue' | 'due_soon' | 'on_track'
 
-export const DEFAULT_DUE_DATE_COLORS: Record<DueDateBucket, string> = {
-  overdue: '#e5493a',
-  due_soon: '#ffab00',
-  on_track: '#36b37e',
-}
+export const DEFAULT_DUE_DATE_COLORS: Record<DueDateBucket, string> = { ...DUE_DATE_COLORS }
 
 export const DUE_DATE_LABELS: Record<DueDateBucket, string> = {
   overdue: 'Overdue',

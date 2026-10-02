@@ -16,7 +16,12 @@ import { useAuthStore } from '@/store/authStore'
  * show desktop notifications. */
 export function DesktopNotificationsPrompt() {
   const enabled = useAuthStore((s) => s.user?.desktop_notifications ?? true)
-  const [visible, setVisible] = useState(() => shouldOfferDesktopNotifications(enabled))
+  const [visible, setVisible] = useState(() => {
+    const offer = shouldOfferDesktopNotifications(enabled)
+    // Offered once per login: it stays up while the app is open, but not after a reload.
+    if (offer) dismissDesktopOffer(false)
+    return offer
+  })
   if (!visible) return null
 
   return (
