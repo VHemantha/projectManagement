@@ -114,6 +114,24 @@ def demo_escalate(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
 
 
+def demo_drafter(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """Stand-in for the drafting model: accepted past findings and current flags become items,
+    then the standard list for the kinds of document present."""
+    from .directions import standard_items
+
+    payload = json.loads(_flatten(messages[-1].content).split("INPUT:", 1)[1])
+    items = []
+    for f in payload["history"]["past_findings"]:
+        if f.get("decision") == "accepted":
+            items.append({"text": f"Confirm this is fixed: {f['title']}", "reason": "A reviewer accepted this finding on an earlier job.", "basis": "history"})
+    for c in payload["checks"]:
+        items.append({"text": f"Resolve or explain: {c['result']}", "reason": "The automatic checks flagged this now.", "basis": "current"})
+    kinds = {d["kind"].replace(" ", "_") for d in payload["documents"]}
+    items += standard_items(kinds)
+    text = json.dumps({"items": items})
+    return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
+
+
 _fake: dict[str, ScriptedChatModel] = {}
 
 
@@ -129,7 +147,7 @@ def reset_fakes() -> None:
 
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate}[role])
+        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter}[role])
     return _fake[role]
 
 
@@ -143,10 +161,13 @@ def model_id(role: str, settings: Settings | None = None) -> str:
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
-    """role: "reader" | "judge" | "escalate". max_tokens is set on every call (token rule 8)."""
+    """role: "reader" | "judge" | "escalate" | "drafter" (the judge model, drafting a Direction
+    Note). max_tokens is set on every call (token rule 8)."""
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return _fake_model(role)
+    if role == "drafter":
+        role = "judge"
     from langchain_anthropic import ChatAnthropic
 
     common: dict[str, Any] = {"max_retries": 2, "timeout": 120}

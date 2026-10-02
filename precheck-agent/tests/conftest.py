@@ -67,10 +67,12 @@ class FakePM:
         self.jobs: dict[str, dict] = {}
         self.events: list[dict] = []
 
-    def add_job(self, job_id, client_id, folder, direction=None):
+    def add_job(self, job_id, client_id, folder, direction=None, history=None):
         self.jobs[job_id] = {
-            "job_id": job_id, "key": f"JOB-{job_id}", "title": "Year end accounts", "client_id": client_id, "client_name": client_id,
-            "drive_folder_id": folder, "direction_items": DIRECTION if direction is None else direction, "knowledge_ids": [],
+            "job_id": job_id, "key": f"JOB-{job_id}", "title": "Year end accounts", "workspace": "Acme FY25", "client_id": client_id,
+            "client_name": client_id, "drive_folder_id": folder, "knowledge_ids": [],
+            "direction_items": [dict(i) for i in (DIRECTION if direction is None else direction)],
+            "history": history or {"past_items": [], "past_findings": [], "jobs_seen": 0},
         }
 
     def get_job(self, job_id):
@@ -78,6 +80,8 @@ class FakePM:
 
     def send_event(self, run_id, event):
         self.events.append({"run_id": run_id, **event})
+        if event["type"] == "ai_precheck.directions_drafted":  # like the PM app: drafted items are saved on the job
+            self.jobs[event["job_id"]]["direction_items"] += [dict(i) for i in event["items"]]
 
     def completed(self):
         return [e for e in self.events if e["type"] == "ai_precheck.completed"]
@@ -120,9 +124,10 @@ def env(tmp_path, monkeypatch):
     e.reader = llm.set_fake("reader", llm.demo_reader)
     e.judge = llm.set_fake("judge", llm.demo_judge)
     e.escalate = llm.set_fake("escalate", llm.demo_escalate)
+    e.drafter = llm.set_fake("drafter", llm.demo_drafter)
 
-    def run(job_id):
-        return runner.execute(runner.new_run_id(), job_id)
+    def run(job_id, mode="precheck"):
+        return runner.execute(runner.new_run_id(), job_id, mode)
 
     e.run = run
     yield e

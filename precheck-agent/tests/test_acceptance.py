@@ -154,8 +154,5 @@ def test_missing_setup_stops_with_a_plain_reason(env):
     env.pm.add_job("303", "client-gamma", "", direction=None)
     r = env.run("303")
     assert r["status"] == "failed" and "Drive folder" in r["reason"]
-    env.pm.add_job("304", "client-gamma", "gamma", direction=[])
-    r = env.run("304")
-    assert r["status"] == "failed" and "Direction Note" in r["reason"]
     assert not env.reader.calls
     assert load_workbook  # fixtures are real spreadsheets, parsed by the real parser

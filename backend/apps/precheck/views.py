@@ -45,12 +45,15 @@ class JobPrecheckView(APIView):
 
     def get(self, request, key):
         issue = _job(request, key)
-        runs = list(_runs(issue)[:20])
+        runs = list(_runs(issue).filter(kind=AIPrecheck.Kind.PRECHECK)[:20])
+        draft = _runs(issue).filter(kind=AIPrecheck.Kind.DRAFT).first()
         return Response({
             "job": issue.key,
             "setup": services.setup_for(issue),
             "latest": _full(runs[0]) if runs else None,
             "history": [services.serialize_run(r, full=False) for r in runs],
+            # The latest "draft the Direction Note" request, if any: running, done or failed.
+            "draft": {"status": draft.status, "failure_reason": draft.failure_reason, "created_at": draft.created_at} if draft else None,
         })
 
 
@@ -100,18 +103,41 @@ class RunListView(APIView):
 
     def post(self, request):
         issue = _job(request, str(request.data.get("job", "")))
-        setup = services.setup_for(issue)
-        if not setup["ready"]:
-            need = {"drive_folder": "a Google Drive folder", "direction_note": "a Direction Note"}
-            return Response(
-                {"detail": "This job needs " + " and ".join(need[m] for m in setup["missing"]) + " before the pre-check can run.",
-                 "missing": setup["missing"]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if _runs(issue).filter(status=AIPrecheck.Status.RUNNING).exists():
-            return Response({"detail": "A pre-check is already running for this job."}, status=status.HTTP_409_CONFLICT)
+        refused = _refuse_to_start(issue)
+        if refused:
+            return refused
         run = services.start_run(issue, request.user)
         return Response(_full(run), status=status.HTTP_201_CREATED)
+
+
+def _refuse_to_start(issue):
+    """The folder is never invented: without it nothing runs. A missing Direction Note is fine —
+    the AI drafts one. One run at a time per job."""
+    setup = services.setup_for(issue)
+    if not setup["ready"]:
+        return Response(
+            {"detail": "This job needs a Google Drive folder before the pre-check can run.", "missing": setup["missing"]},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if _runs(issue).filter(status=AIPrecheck.Status.RUNNING).exists():
+        return Response({"detail": "A pre-check is already running for this job."}, status=status.HTTP_409_CONFLICT)
+    return None
+
+
+class JobDraftView(APIView):
+    """POST /api/precheck/jobs/<key>/draft/ — ask the AI to draft Direction Note items from the
+    client's past jobs and the job folder, without running the pre-check. The items are added
+    to the job, marked as AI-drafted, for a person to edit."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        refused = _refuse_to_start(issue)
+        if refused:
+            return refused
+        run = services.start_run(issue, request.user, kind=AIPrecheck.Kind.DRAFT)
+        return Response({"run_id": run.run_id, "status": run.status, "failure_reason": run.failure_reason}, status=status.HTTP_201_CREATED)
 
 
 class RunDetailView(APIView):

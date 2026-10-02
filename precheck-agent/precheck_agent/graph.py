@@ -17,6 +17,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import CachePolicy, Send
 from pydantic import ValidationError
 
+from . import directions as D
 from . import judge as J
 from .archives import container_of, display_name
 from .archives import members as archive_members
@@ -49,6 +50,8 @@ def _merge(a: dict, b: dict) -> dict:
 class State(TypedDict, total=False):
     run_id: str
     job_id: str
+    mode: str  # "precheck" (default) | "draft" (only draft the Direction Note, do not verify)
+    drafted: dict
     started_at: float
     job: dict
     listing: list[dict]
@@ -84,8 +87,6 @@ def load_job(state: State) -> dict:
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
         raise PrecheckStop("This job has no Google Drive folder linked. Add the folder on the job card, then run the pre-check.")
-    if not job.get("direction_items"):
-        raise PrecheckStop("This job has no Direction Note. Add its items on the job card, then run the pre-check.")
     if not job.get("client_id"):
         raise PrecheckStop("This job is not linked to a client, so the pre-check cannot keep its documents separate.")
     return {"job": job, "started_at": state.get("started_at") or time.time(), "round": 0}
@@ -260,6 +261,69 @@ def rules_label(results: list[dict]) -> str:
     flagged = sum(1 for r in results if r["passed"] is False and r["needs_judgment"])
     label = f"{len(results)} rules run, {failed} failed"
     return label + (f", {flagged} flagged for a closer look" if flagged else "")
+
+
+# --- draft_directions (model, only when needed) ---------------------------------------------------
+
+def needs_draft(state: State) -> bool:
+    return state.get("mode") == "draft" or not state["job"].get("direction_items")
+
+
+def route_after_rules(state: State):
+    return "draft_directions" if needs_draft(state) else "plan"
+
+
+def draft_directions(state: State) -> dict:
+    """The job has no Direction Note (or a draft was asked for): draft one from this client's
+    past jobs and what is in the folder now. One call to the judge model, cached by exact
+    match; if the model cannot be used, code falls back to the standard list for the kinds of
+    document present. In a full run the drafted items are then verified like any others."""
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    emit("compared", "Drafting the Direction Note from past jobs and the folder", "running")
+    cache = StoreCache(store)
+    body = D.draft_input(job, state["files"], state["rule_results"])
+    key = D.draft_cache_key(job["client_id"], state["job_id"], body, s)
+    usage, skipped, how = [], [], "model"
+    items = cache.get_value("draft", key)
+    if items is not None:
+        how = "cache"
+    else:
+        classes = {f["document_class"] for f in state["files"].values()}
+        reason = budget_for(run_id).can_call(est_tokens(D.draft_system()) + est_tokens(body))
+        if reason:
+            items, how = D.standard_items(classes), "standard list"
+            skipped.append({"task_id": "draft", "direction_ref": "none", "what": "Drafting the Direction Note with AI", "reason": reason})
+        else:
+            try:
+                raw, u = D.call_draft(body, s)
+                budget_for(run_id).add(u)
+                usage.append({"node": "draft", "task_id": "draft", "model": model_id("judge", s), "calls": 1, "run_id": run_id, **u})
+                items = D.clean_items(raw, job.get("history"))
+                if not items:
+                    raise ValueError("empty draft")
+                cache.set_value("draft", key, items)
+            except (ValueError, KeyError, TypeError):
+                items, how = D.standard_items(classes), "standard list"
+    existing = job.get("direction_items") or []
+    taken = {i["id"] for i in existing}
+    have = {D._norm(i["text"]) for i in existing}
+    new = D.number_items([i for i in items if D._norm(i["text"]) not in have], taken)
+    drafted = {"items": new, "how": how, "jobs_seen": (job.get("history") or {}).get("jobs_seen", 0)}
+    emit("compared", f"{len(new)} Direction Note items drafted", "running", drafted=len(new))
+    final = state.get("mode") == "draft"
+    # Sent before anything else so the job card has the items (and their reasons) to show.
+    get_pm().send_event(run_id, {
+        "type": "ai_precheck.directions_drafted", "job_id": state["job_id"], "items": new, "how": how, "final": final,
+        "usage": usage, "versions": {"prompt": s.prompt_version, "skills": {n: sk.version for n, sk in all_skills().items()}},
+    })
+    update = {"drafted": drafted, "usage": usage, "skipped": skipped}
+    if not final:
+        update["job"] = {**job, "direction_items": existing + new}
+    return update
+
+
+def route_after_draft(state: State):
+    return END if state.get("mode") == "draft" else "plan"
 
 
 # --- 5. plan (code) ---------------------------------------------------------------------------
@@ -534,6 +598,7 @@ def build_final(state: State) -> dict:
     reader_calls = sum(u["calls"] for u in calls if u["node"] == "read")
     skipped = state.get("skipped", [])
     by_key = {r["cache_key"]: r for r in results}
+    drafted_n = len((state.get("drafted") or {}).get("items", []))
     files = state["files"]
     changed = set(state["sync"]["changed"])
     rules = state["rule_results"]
@@ -552,8 +617,9 @@ def build_final(state: State) -> dict:
                         "note": "" if r["passed"] else r["title"]} for r in rules],
         },
         "compared": {
-            "label": f"{len(job['direction_items'])} Direction Note items compared",
-            "items": len(job["direction_items"]), "reader_calls": reader_calls, "reused": len(reused), "skipped": len([k for k in skipped if k["task_id"].startswith("T")]),
+            "label": f"{len(job['direction_items'])} Direction Note items compared" + (f", {drafted_n} drafted by AI" if drafted_n else ""),
+            "items": len(job["direction_items"]), "drafted": drafted_n, "drafted_how": (state.get("drafted") or {}).get("how", ""),
+            "history_jobs": (state.get("drafted") or {}).get("jobs_seen", 0), "reader_calls": reader_calls, "reused": len(reused), "skipped": len([k for k in skipped if k["task_id"].startswith("T")]),
             "detail": [{
                 "ref": t["direction_ref"], "what": t["direction_text"] or t["question"], "reader": t["reader"].replace("_", " "),
                 "passages": t["chunk_refs"],
@@ -621,7 +687,9 @@ def build_graph(checkpointer=None):
     g.add_edge("load_job", "sync_drive")
     g.add_edge("sync_drive", "index")
     g.add_edge("index", "run_rules")
-    g.add_edge("run_rules", "plan")
+    g.add_node("draft_directions", draft_directions)
+    g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "plan"])
+    g.add_conditional_edges("draft_directions", route_after_draft, ["plan", END])
     g.add_conditional_edges("plan", route_after_plan, ["read", "judge"])
     g.add_edge("read", "collect")
     g.add_conditional_edges("collect", route_after_collect, ["read", "judge"])

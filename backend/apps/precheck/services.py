@@ -40,9 +40,64 @@ def setup_for(issue) -> dict:
     return {
         "drive_folder_url": folder.folder_url if folder else "",
         "drive_folder_id": folder.folder_id if folder else "",
-        "direction_items": [{"id": i.ref, "text": i.text} for i in items],
+        "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,
-        "ready": not missing,
+        # Only the folder is needed to run: with no Direction Note the AI drafts one first.
+        "ready": "drive_folder" not in missing,
+    }
+
+
+HISTORY_LIMIT = 25
+_DECISION_ORDER = {"accepted": 0, "needs_clarification": 1, "none": 2, "rejected": 3, "not_applicable": 3}
+
+
+def history_for(issue) -> dict:
+    """What the AI may learn from when it drafts this job's Direction Note: the same client's
+    other jobs (their Direction Note items, the open findings of their latest pre-check, and
+    what people decided about those findings), plus this job's own last run. Never another
+    client: the scope is the job's client, or its workspace when it has no client."""
+    from apps.issues.models import Issue
+
+    project = issue.project
+    scope = Issue.objects.filter(project__client_id=project.client_id) if project.client_id else Issue.objects.filter(project=project)
+    others = scope.exclude(pk=issue.pk)
+
+    items: dict[str, dict] = {}
+    for item in DirectionItem.objects.filter(issue__in=others):
+        row = items.setdefault(item.text.lower(), {"text": item.text, "used": 0, "not_addressed": 0})
+        row["used"] += 1
+
+    findings, jobs_seen = [], set(DirectionItem.objects.filter(issue__in=others).values_list("issue_id", flat=True))
+    finished = [AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL]
+    runs = (
+        AIPrecheck.objects.filter(issue__in=scope, kind=AIPrecheck.Kind.PRECHECK, status__in=finished)
+        .order_by("issue_id", "-created_at")
+        .prefetch_related("findings__feedback")
+    )
+    latest: dict[int, AIPrecheck] = {}
+    for run in runs:
+        latest.setdefault(run.issue_id, run)
+    for issue_id, run in latest.items():
+        own = issue_id == issue.pk
+        if not own:
+            jobs_seen.add(issue_id)
+            for d in run.direction_items:
+                if not d.get("addressed") and d.get("text", "").lower() in items:
+                    items[d["text"].lower()]["not_addressed"] += 1
+        for f in run.findings.all():
+            if f.status == "addressed":
+                continue
+            decision = current_disposition(f)
+            findings.append({
+                "title": f.title, "area": f.area, "severity": f.severity,
+                "decision": decision["disposition"] if decision else "none",
+                "where": "this job, last run" if own else "an earlier job",
+            })
+    findings.sort(key=lambda f: (_DECISION_ORDER[f["decision"]], f["title"]))
+    return {
+        "past_items": sorted(items.values(), key=lambda r: (-r["used"], r["text"]))[:HISTORY_LIMIT],
+        "past_findings": findings[:HISTORY_LIMIT],
+        "jobs_seen": len(jobs_seen),
     }
 
 
@@ -61,13 +116,15 @@ def job_payload(issue) -> dict:
         "client_name": project.client.name if project.client_id else project.name,
         "drive_folder_id": setup["drive_folder_id"],
         "direction_items": setup["direction_items"],
+        "history": history_for(issue),
         "knowledge_ids": [],
     }
 
 
 def save_direction_items(issue, texts: list[str], user) -> None:
-    """Replace the job's Direction Note items, keeping the ref of any item whose text is
-    unchanged so earlier runs still line up."""
+    """Replace the job's Direction Note items, keeping the ref (and, for AI-drafted items, the
+    origin and reason) of any item whose text is unchanged so earlier runs still line up. An
+    item a person rewrites becomes their own."""
     existing = {i.text: i for i in issue.direction_items.all()}
     used = {i.ref for i in existing.values()}
     next_number = max([int(r[1:]) for r in used if r[1:].isdigit()] + [0]) + 1
@@ -101,11 +158,15 @@ def _call_agent(path: str, body: dict) -> dict:
         raise AgentUnavailable(str(exc)) from exc
 
 
-def start_run(issue, user) -> AIPrecheck:
-    """Create the run and ask the agent to start. Returns at once; results arrive as events."""
-    run = AIPrecheck.objects.create(run_id=uuid.uuid4().hex, issue=issue, requested_by=user)
+def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
+    """Create the run and ask the agent to start. Returns at once; results arrive as events.
+    kind "draft" only drafts the Direction Note; it does not verify anything."""
+    run = AIPrecheck.objects.create(run_id=uuid.uuid4().hex, issue=issue, requested_by=user, kind=kind)
     try:
-        _call_agent("/precheck/runs", {"job_id": str(issue.id), "run_id": run.run_id})
+        body = {"job_id": str(issue.id), "run_id": run.run_id}
+        if kind == AIPrecheck.Kind.DRAFT:
+            body["mode"] = "draft"
+        _call_agent("/precheck/runs", body)
     except AgentUnavailable:
         run.status = AIPrecheck.Status.FAILED
         run.failure_reason = "The pre-check service is not reachable right now. Nothing was checked. Please try again shortly."
@@ -136,12 +197,48 @@ def record_event(event: dict) -> bool:
         run.failure_reason = str(event.get("reason", ""))[:500] or "The pre-check stopped."
         run.finished_at = timezone.now()
         run.save()
+    elif kind == "ai_precheck.directions_drafted":
+        _store_draft(run, event)
     elif kind == "ai_precheck.completed":
         _store_result(run, event["result"])
     else:
         return False
     _announce(run)
     return True
+
+
+def _store_draft(run: AIPrecheck, event: dict) -> None:
+    """Direction Note items the AI drafted. They are added to the job, marked as AI-drafted with
+    their reason; an item already on the job (same ref or same text) is left alone."""
+    issue = run.issue
+    existing = list(issue.direction_items.all())
+    refs, texts = {i.ref for i in existing}, {i.text.lower() for i in existing}
+    order = max([i.order for i in existing] + [-1]) + 1
+    for item in event.get("items", []):
+        text = " ".join(str(item.get("text", "")).split())[:500]
+        ref = str(item.get("id", ""))[:10]
+        if not text or not ref or ref in refs or text.lower() in texts:
+            continue
+        DirectionItem.objects.create(
+            issue=issue, ref=ref, text=text, order=order, origin=DirectionItem.Origin.AI,
+            reason=str(item.get("reason", ""))[:300], basis=str(item.get("basis", ""))[:20],
+        )
+        refs.add(ref)
+        texts.add(text.lower())
+        order += 1
+    versions = event.get("versions") or {}
+    for call in event.get("usage", []):
+        if run.kind != AIPrecheck.Kind.DRAFT:
+            break  # in a full run the completed event carries every call, including this one
+        ModelRun.objects.create(
+            precheck=run, node=call["node"], task_id=call.get("task_id", ""), model=call["model"], calls=call["calls"],
+            input_tokens=call["input"], output_tokens=call["output"], cache_write_tokens=call["cache_write"],
+            cache_read_tokens=call["cache_read"], prompt_version=versions.get("prompt", ""), skill_versions=versions.get("skills", {}),
+        )
+    if event.get("final"):
+        run.status = AIPrecheck.Status.COMPLETE
+        run.finished_at = timezone.now()
+        run.save()
 
 
 def _store_result(run: AIPrecheck, result: dict) -> None:

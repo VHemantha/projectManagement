@@ -56,7 +56,7 @@ def system_prompt(reader: str) -> str:
         _ROLE.format(reader=reader.replace("_", " "), scope=scope),
         f"# Skill: {own.name}\n{own.body}",
         f"# Skill: {fmt.name}\n{fmt.body}",
-        "# Other skills (load with load_skill only if needed)\n" + skill_index(exclude=(own.name, fmt.name)),
+        "# Other skills (load with load_skill only if needed)\n" + skill_index(exclude=(own.name, fmt.name, "direction-drafting"))  # drafting is not a reader's job,
     ])
 
 

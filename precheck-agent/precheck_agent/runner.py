@@ -50,8 +50,9 @@ def new_run_id() -> str:
     return uuid.uuid4().hex
 
 
-def execute(run_id: str, job_id: str) -> dict:
-    """Run to the end (blocking). Returns the final result, or {"status": "failed", "reason"}."""
+def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
+    """Run to the end (blocking). Returns the final result, or {"status": "failed", "reason"}.
+    mode "draft" stops after drafting the Direction Note (no readers, no judge)."""
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
     final = None
@@ -59,7 +60,7 @@ def execute(run_id: str, job_id: str) -> dict:
         # One custom event per node goes to the job card as it happens; "updates" tells us when
         # each node has finished.
         for chunk in graph().stream(
-            {"run_id": run_id, "job_id": job_id, "started_at": time.time()},
+            {"run_id": run_id, "job_id": job_id, "mode": mode, "started_at": time.time()},
             config={"configurable": {"thread_id": run_id}},
             stream_mode=["updates", "custom"],
             version="v2",
@@ -70,6 +71,10 @@ def execute(run_id: str, job_id: str) -> dict:
                 for node, update in chunk["data"].items():
                     if node == "publish" and update:
                         final = update["final"]
+                    elif node == "draft_directions" and update and mode == "draft":
+                        final = {"run_id": run_id, "job_id": job_id, "status": "complete", "mode": "draft", **update["drafted"],
+                                 "usage": update["usage"], "skipped": update["skipped"]}
+                        get_store().save_run(run_id, job_id, "complete", final)
     except (PrecheckStop, PMError) as exc:
         return _fail(run_id, job_id, str(exc))
     except Exception:  # anything unexpected: say so plainly, keep the detail in the log
@@ -87,8 +92,8 @@ def _fail(run_id: str, job_id: str, reason: str) -> dict:
     return result
 
 
-def start(job_id: str, run_id: str | None = None) -> str:
+def start(job_id: str, run_id: str | None = None, mode: str = "precheck") -> str:
     """Start a run in the background and return its id at once."""
     run_id = run_id or new_run_id()
-    threading.Thread(target=execute, args=(run_id, job_id), name=f"precheck-{run_id[:8]}", daemon=True).start()
+    threading.Thread(target=execute, args=(run_id, job_id, mode), name=f"precheck-{run_id[:8]}", daemon=True).start()
     return run_id
