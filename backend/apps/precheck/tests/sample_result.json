@@ -1,0 +1,419 @@
+{
+ "run_id": "SAMPLE",
+ "job_id": "SAMPLE",
+ "status": "complete",
+ "verdict": "ready_with_exceptions",
+ "coverage": {
+  "addressed": 3,
+  "total": 3
+ },
+ "direction_items": [
+  {
+   "id": "D1",
+   "text": "Agree the bank reconciliation to the cash at bank balance in the ledger",
+   "addressed": true
+  },
+  {
+   "id": "D2",
+   "text": "Confirm the accruals workpaper is complete and signed off",
+   "addressed": true
+  },
+  {
+   "id": "D3",
+   "text": "Check the corporation tax computation starts from the profit per accounts",
+   "addressed": true
+  }
+ ],
+ "counts": {
+  "high": 0,
+  "medium": 1,
+  "low": 0
+ },
+ "summary": "5 points checked; 1 need attention before review.",
+ "findings": [
+  {
+   "id": "R-c9732f64",
+   "direction_ref": "none",
+   "area": "Trade debtors",
+   "status": "exception",
+   "severity": "medium",
+   "kind": "rule",
+   "title": "Debtors schedule.xlsx does not agree to the trial balance",
+   "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
+   "evidence_ids": [
+    "E-83fb959fe5",
+    "E-e1b6b39122"
+   ],
+   "source": "rule",
+   "confidence": "high"
+  },
+  {
+   "id": "A-1aedfbe6-1",
+   "direction_ref": "D2",
+   "area": "workpapers",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Confirm the accruals workpaper is complete and signed off",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-6a5275ad-1",
+   "direction_ref": "none",
+   "area": "Trade debtors",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3",
+    "E-e1b6b39122"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-704b829f-1",
+   "direction_ref": "D3",
+   "area": "tax",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Check the corporation tax computation starts from the profit per accou",
+   "why": "The job folder shows this: Corporation tax computation FY25",
+   "evidence_ids": [
+    "E-a2461d8da5"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-7f457f3d-1",
+   "direction_ref": "D1",
+   "area": "ledger",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Agree the bank reconciliation to the cash at bank balance in the\u2026",
+   "why": "The job folder shows this: row 1: Bank reconciliation at 31 March 2025",
+   "evidence_ids": [
+    "E-f04696ae0d"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  }
+ ],
+ "evidence": [
+  {
+   "id": "E-779d61edf3",
+   "file_id": "acme-fy25:Workpaper - accruals.txt",
+   "file_name": "Workpaper - accruals.txt",
+   "location": "line 1",
+   "quote": "Accruals workpaper FY25",
+   "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
+  },
+  {
+   "id": "E-83fb959fe5",
+   "file_id": "acme-fy25:Debtors schedule.xlsx",
+   "file_name": "Debtors schedule.xlsx",
+   "location": "sheet 'Debtors', row 4",
+   "quote": "row 4: Total |  | 112400",
+   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
+  },
+  {
+   "id": "E-a2461d8da5",
+   "file_id": "acme-fy25:Tax computation.txt",
+   "file_name": "Tax computation.txt",
+   "location": "line 1",
+   "quote": "Corporation tax computation FY25",
+   "drive_url": "local://acme-fy25/Tax computation.txt"
+  },
+  {
+   "id": "E-e1b6b39122",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 3",
+   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
+   "id": "E-f04696ae0d",
+   "file_id": "acme-fy25:Bank reconciliation.csv",
+   "file_name": "Bank reconciliation.csv",
+   "location": "sheet 'Bank reconciliation', row 1",
+   "quote": "row 1: Bank reconciliation at 31 March 2025",
+   "drive_url": "local://acme-fy25/Bank reconciliation.csv"
+  }
+ ],
+ "trail": {
+  "read": {
+   "label": "5 documents, all new",
+   "documents": 5,
+   "changed": 5,
+   "removed": 0,
+   "detail": [
+    {
+     "name": "Bank reconciliation.csv",
+     "kind": "reconciliation",
+     "changed": true,
+     "problem": ""
+    },
+    {
+     "name": "Debtors schedule.xlsx",
+     "kind": "schedule",
+     "changed": true,
+     "problem": ""
+    },
+    {
+     "name": "Tax computation.txt",
+     "kind": "tax computation",
+     "changed": true,
+     "problem": ""
+    },
+    {
+     "name": "Trial Balance FY25.xlsx",
+     "kind": "trial balance",
+     "changed": true,
+     "problem": ""
+    },
+    {
+     "name": "Workpaper - accruals.txt",
+     "kind": "schedule",
+     "changed": true,
+     "problem": ""
+    }
+   ]
+  },
+  "checked": {
+   "label": "6 rules run, 1 failed, 1 flagged for a closer look",
+   "rules": 6,
+   "failed": 1,
+   "flagged": 1,
+   "detail": [
+    {
+     "label": "A trial balance is in the folder",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Every file can be read",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Trial balance debits equal credits",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Reconciliations show no difference",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Schedules agree to the trial balance",
+     "passed": false,
+     "flagged": false,
+     "note": "Debtors schedule.xlsx does not agree to the trial balance"
+    },
+    {
+     "label": "Large movements against last year",
+     "passed": false,
+     "flagged": true,
+     "note": "Trade debtors moved 98% against last year"
+    }
+   ]
+  },
+  "compared": {
+   "label": "3 Direction Note items compared",
+   "items": 3,
+   "reader_calls": 4,
+   "reused": 0,
+   "skipped": 0,
+   "detail": [
+    {
+     "ref": "D1",
+     "what": "Agree the bank reconciliation to the cash at bank balance in the ledger",
+     "reader": "ledger reader",
+     "passages": [
+      {
+       "file": "Bank reconciliation.csv",
+       "location": "sheet 'Bank reconciliation', rows 1\u20135"
+      },
+      {
+       "file": "Trial Balance FY25.xlsx",
+       "location": "sheet 'TB', rows 1\u201310"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "D2",
+     "what": "Confirm the accruals workpaper is complete and signed off",
+     "reader": "workpaper reader",
+     "passages": [
+      {
+       "file": "Workpaper - accruals.txt",
+       "location": "line 1\u20135"
+      },
+      {
+       "file": "Debtors schedule.xlsx",
+       "location": "sheet 'Debtors', rows 1\u20134"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "D3",
+     "what": "Check the corporation tax computation starts from the profit per accounts",
+     "reader": "tax reader",
+     "passages": [
+      {
+       "file": "Tax computation.txt",
+       "location": "line 1\u20136"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "none",
+     "what": "Trade debtors moved from 60,000 to 118,900. Is this movement explained anywhere in the workpapers?",
+     "reader": "workpaper reader",
+     "passages": [
+      {
+       "file": "Workpaper - accruals.txt",
+       "location": "line 1\u20135"
+      },
+      {
+       "file": "Debtors schedule.xlsx",
+       "location": "sheet 'Debtors', rows 1\u20134"
+      }
+     ],
+     "outcome": "read"
+    }
+   ]
+  },
+  "judged": {
+   "label": "5 findings weighed, 5 kept",
+   "findings_in": 5,
+   "findings_out": 5,
+   "escalated": 0,
+   "how": "model",
+   "detail": []
+  },
+  "verified": {
+   "label": "5 source passages linked",
+   "evidence": 5,
+   "rejected_no_evidence": 0,
+   "rules_restored": 0,
+   "items_filled": 0,
+   "detail": []
+  }
+ },
+ "skipped": [],
+ "usage": {
+  "calls": [
+   {
+    "node": "read",
+    "task_id": "T1",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "input": 2294,
+    "output": 62,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T2",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "input": 2095,
+    "output": 49,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T3",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "input": 2077,
+    "output": 58,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T4",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "input": 2044,
+    "output": 54,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "judge",
+    "task_id": "judge",
+    "model": "fake-judge",
+    "calls": 1,
+    "run_id": "490f8c414169425cbb284f6f2aefd128",
+    "input": 2206,
+    "output": 747,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  ],
+  "totals": {
+   "input": 10716,
+   "output": 970,
+   "cache_write": 0,
+   "cache_read": 0
+  },
+  "model_calls": 5,
+  "reader_calls": 4,
+  "cost_usd": 0.0,
+  "cache_share": 0.0,
+  "reused_answers": 0,
+  "budget": {
+   "reader_calls": 12,
+   "uncached_input_tokens": 40000,
+   "output_tokens": 4000
+  }
+ },
+ "models": {
+  "reader": "fake-reader",
+  "judge": "fake-judge",
+  "escalate": "fake-escalate"
+ },
+ "versions": {
+  "prompt": "2026-10-02.1",
+  "parser": "p1",
+  "skills": {
+   "finding-format": "1.0+de8f39c5",
+   "gdrive-folder-reader": "1.0+f68ad0d4",
+   "ledger-reading": "1.0+49c1a31a",
+   "statements-reading": "1.0+ff9bf76b",
+   "tax-reading": "1.0+b76e1b37",
+   "workpaper-reading": "1.0+fcaaffaa"
+  }
+ },
+ "knowledge_ids": [],
+ "demo": true,
+ "duration_s": 0.3
+}

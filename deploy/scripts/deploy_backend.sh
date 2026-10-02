@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy the Django backend to the EC2 instance created by the CloudFormation stack.
+# Deploy the Django backend and the AI pre-check service to the EC2 instance created by the CloudFormation stack.
 # Runs from your machine (Git Bash on Windows, or macOS/Linux) or from GitHub Actions.
 #
 #   SSH_KEY=~/.ssh/trackflow-key.pem ./deploy/scripts/deploy_backend.sh
@@ -28,15 +28,16 @@ HOST="${EC2_HOST:-$(stack_output InstancePublicIp)}"
 DOMAINS="${APP_DOMAINS:-$(stack_output AppDomains)}"
 [ -n "$HOST" ] && [ "$HOST" != "None" ] || { echo "Could not read InstancePublicIp from stack $STACK_NAME" >&2; exit 1; }
 
-if [ "$GIT_REF" = "HEAD" ] && [ -n "$(git status --porcelain -- backend deploy/ec2)" ]; then
-  echo "WARNING: uncommitted changes under backend/ or deploy/ec2/ will NOT be deployed." >&2
+if [ "$GIT_REF" = "HEAD" ] && [ -n "$(git status --porcelain -- backend deploy/ec2 precheck-agent)" ]; then
+  echo "WARNING: uncommitted changes under backend/, deploy/ec2/ or precheck-agent/ will NOT be deployed." >&2
 fi
 
 RELEASE="$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short "$GIT_REF")"
 ARCHIVE="$(mktemp -d)/trackflow-$RELEASE.tar.gz"
 echo "==> Packaging $GIT_REF as release $RELEASE"
 # Redirect instead of `-o`: with MSYS_NO_PATHCONV set, Windows git.exe can't resolve /tmp paths.
-git archive --format=tar.gz "$GIT_REF" backend deploy/ec2 > "$ARCHIVE"
+# precheck-agent ships with the backend: the AI pre-check service runs on the same instance.
+git archive --format=tar.gz "$GIT_REF" backend deploy/ec2 precheck-agent > "$ARCHIVE"
 
 SSH_OPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 

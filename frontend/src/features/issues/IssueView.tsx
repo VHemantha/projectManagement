@@ -25,6 +25,7 @@ import type { StatusCategory } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
 import { sentenceCase } from '@/lib/text'
+import { PrecheckPanel } from '@/features/precheck/PrecheckPanel'
 
 const LINK_TYPES: IssueLinkType[] = ['blocks', 'is_blocked_by', 'relates_to', 'duplicates', 'clones']
 
@@ -378,6 +379,9 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
               <RichTextEditor content={issue.description} editable={false} showToolbar={false} />
             </div>
           )}
+
+          {/* The pre-check starts from the job card and nowhere else. */}
+          <PrecheckPanel jobKey={issue.key} />
 
           <SubtasksSection issueKey={issue.key} subtasks={issue.subtasks} />
 

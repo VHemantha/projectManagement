@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "apps.timesheets",
     "apps.daily_goals",
     "apps.live",
+    "apps.precheck",
 ]
 
 MIDDLEWARE = [
@@ -200,6 +201,11 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOW_CREDENTIALS = True
 
 # Celery
+# AI pre-check: the separate precheck-agent service. The token is a shared secret sent in both
+# directions; set a real one in production.
+PRECHECK_AGENT_URL = env("PRECHECK_AGENT_URL", "http://127.0.0.1:8100")
+PRECHECK_SERVICE_TOKEN = env("PRECHECK_SERVICE_TOKEN", "dev-precheck-token")
+
 # Email (invitations). Console by default: messages are printed to the server log. For real
 # delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values
 # (e.g. Amazon SES SMTP credentials).

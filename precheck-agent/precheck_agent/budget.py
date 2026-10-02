@@ -1,0 +1,104 @@
+"""The per-run budget (token rule 11), enforced in code so cost per job is predictable.
+
+Starting values: 12 reader calls, 40,000 uncached input tokens, 4,000 output tokens. When a
+limit is reached the run stops asking the model, finishes with what it has, and reports what
+was skipped (the result is marked "partial"). Tune the values after measuring 20 real jobs.
+"""
+import threading
+from dataclasses import dataclass, field
+
+from .config import Settings, family, get_settings
+
+
+def empty_usage() -> dict:
+    return {"input": 0, "output": 0, "cache_write": 0, "cache_read": 0}
+
+
+def usage_from_message(message) -> dict:
+    """Token counts from one model response. LangChain reports input_tokens including cached
+    tokens; `input` here is the uncached part only, which is what the budget counts."""
+    meta = getattr(message, "usage_metadata", None) or {}
+    details = meta.get("input_token_details") or {}
+    cache_read = int(details.get("cache_read", 0) or 0)
+    cache_write = int(details.get("cache_creation", 0) or 0)
+    total_in = int(meta.get("input_tokens", 0) or 0)
+    return {
+        "input": max(total_in - cache_read - cache_write, 0),
+        "output": int(meta.get("output_tokens", 0) or 0),
+        "cache_write": cache_write,
+        "cache_read": cache_read,
+    }
+
+
+def cost_usd(model: str, usage: dict, settings: Settings | None = None) -> float:
+    prices = (settings or get_settings()).prices[family(model)]
+    return (
+        usage["input"] * prices["input"]
+        + usage["output"] * prices["output"]
+        + usage["cache_write"] * prices["cache_write"]
+        + usage["cache_read"] * prices["cache_read"]
+    ) / 1_000_000
+
+
+@dataclass
+class RunBudget:
+    reader_calls: int
+    uncached_input: int
+    output: int
+    used_calls: int = 0
+    used_input: int = 0
+    used_output: int = 0
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def try_reader_call(self, estimated_input: int) -> str | None:
+        """Reserve one reader call. Returns None when allowed, else the reason it is not."""
+        with self._lock:
+            if self.used_calls >= self.reader_calls:
+                return "reader call limit reached"
+            if self.used_input + estimated_input > self.uncached_input:
+                return "input token limit reached"
+            if self.used_output >= self.output:
+                return "output token limit reached"
+            self.used_calls += 1
+            self.used_input += estimated_input  # replaced by the real figure in settle()
+            return None
+
+    def settle(self, estimated_input: int, usage: dict, extra_calls: int = 0) -> None:
+        with self._lock:
+            self.used_input += usage["input"] - estimated_input
+            self.used_output += usage["output"]
+            self.used_calls += extra_calls
+
+    def can_call(self, estimated_input: int) -> str | None:
+        """For the judge and escalation: same token limits, no reader-call count."""
+        with self._lock:
+            if self.used_input + estimated_input > self.uncached_input:
+                return "input token limit reached"
+            if self.used_output >= self.output:
+                return "output token limit reached"
+            return None
+
+    def add(self, usage: dict) -> None:
+        with self._lock:
+            self.used_input += usage["input"]
+            self.used_output += usage["output"]
+
+    def spare_calls(self, planned: int) -> int:
+        return max(self.reader_calls - planned, 0)
+
+
+_budgets: dict[str, RunBudget] = {}
+_registry_lock = threading.Lock()
+
+
+def budget_for(run_id: str) -> RunBudget:
+    with _registry_lock:
+        if run_id not in _budgets:
+            s = get_settings()
+            _budgets[run_id] = RunBudget(s.budget_reader_calls, s.budget_uncached_input_tokens, s.budget_output_tokens)
+        return _budgets[run_id]
+
+
+def release(run_id: str) -> None:
+    with _registry_lock:
+        _budgets.pop(run_id, None)
