@@ -50,7 +50,8 @@ def test_parsing_gives_citable_rows(env):
     assert parsed["tables"][0]["rows"][2][1][2] == 118900
     chunks = chunk_blocks(parsed["blocks"], chunk_tokens=40)
     assert len(chunks) > 1 and chunks[1]["blocks"][0].get("is_header")  # header repeated in later chunks
-    assert parse_file(b"\x00\x01", "photo.png")["error"]
+    assert parse_file(b"\x00\x01", "photo.png") == {"blocks": [], "tables": [], "vision": "image"}  # read by vision.py
+    assert parse_file(b"\x00\x01", "setup.exe")["error"]
     assert parse_file(b"not a zip", "broken.xlsx")["error"].startswith("Could not read")
     text = parse_file("Line one\n\nLine two\n".encode(), "notes.txt")
     assert [b["loc"] for b in text["blocks"]] == ["line 1", "line 3"]

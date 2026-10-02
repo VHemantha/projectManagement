@@ -1,5 +1,7 @@
 """Turn files into text and tables with libraries, never with a model (token rule 1: code
-before model — parsing costs no tokens).
+before model — parsing costs no tokens). Emails are read here too. The one exception is a
+file with no text in it at all — a picture or a scanned PDF: this module only marks it
+("vision"), and vision.py has the reader model write out what it says.
 
 A parsed document is plain JSON so it can be cached by file id + version + parser version:
 
@@ -128,6 +130,8 @@ def _parse_pdf(data: bytes) -> dict:
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
+    if reader.is_encrypted:
+        return {"blocks": [], "tables": [], "error": "This PDF is password-protected."}
     blocks = []
     for page_no, page in enumerate(reader.pages, start=1):
         text = page.extract_text() or ""
@@ -135,6 +139,8 @@ def _parse_pdf(data: bytes) -> dict:
             line = re.sub(r"\s+", " ", line).strip()
             if line:
                 blocks.append(_text_block(line, f"page {page_no}", f"page:{page_no}", page=page_no))
+    if sum(len(b["text"]) for b in blocks) < 25 * max(len(reader.pages), 1):
+        return {"blocks": [], "tables": [], "vision": "pdf"}  # a scan: pages are pictures
     return {"blocks": blocks, "tables": []}
 
 
@@ -147,11 +153,51 @@ def _parse_text(data: bytes) -> dict:
     return {"blocks": blocks, "tables": []}
 
 
+def _lines(lines, label: str, section: str) -> dict:
+    return {"blocks": [_text_block(line, f"{label} {i}", section) for i, line in enumerate(lines, start=1) if line], "tables": []}
+
+
+def _parse_email(data: bytes, name: str) -> dict:
+    """The email itself: who, when, subject, what is attached, then the body. Its attachments
+    are documents of their own (see archives.attachments)."""
+    from .emails import email_lines, read_email
+
+    return _lines(email_lines(read_email(data, name)), "email line", "email")
+
+
+def _parse_html(data: bytes) -> dict:
+    from .emails import html_to_text
+
+    return _lines(html_to_text(data.decode("utf-8-sig", "replace")).splitlines(), "line", "body")
+
+
+def _parse_svg(data: bytes) -> dict:
+    """A drawing saved as SVG is text already: its labels are read without a model."""
+    from xml.etree import ElementTree
+
+    root = ElementTree.fromstring(data)
+    texts = [re.sub(r"\s+", " ", "".join(el.itertext())).strip() for el in root.iter() if el.tag.rsplit("}", 1)[-1] in ("text", "title", "desc")]
+    parsed = _lines([t for t in texts if t], "label", "image")
+    return parsed if parsed["blocks"] else {"blocks": [], "tables": [], "error": "This drawing has no text to read."}
+
+
 def parse_file(data: bytes, name: str, mime_type: str = "") -> dict:
     """Parse by extension first, then MIME type. Unknown or unreadable files give no blocks and
-    an "error" the rules report — they are never sent to a model as raw bytes."""
+    an "error" the rules report — they are never sent to a model as raw bytes. A picture or a
+    scanned PDF comes back marked "vision": the caller decides whether to have it read."""
+    from .emails import is_email
+    from .vision import is_image
+
     ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
     try:
+        if is_email(name, mime_type):
+            return _parse_email(data, name)
+        if ext == "svg" or "svg" in mime_type:
+            return _parse_svg(data)
+        if is_image(name, mime_type):
+            return {"blocks": [], "tables": [], "vision": "image"}
+        if ext in ("html", "htm") or mime_type == "text/html":
+            return _parse_html(data)
         if ext in ("xlsx", "xlsm") or "spreadsheetml" in mime_type:
             return _parse_xlsx(data)
         if ext == "csv" or mime_type == "text/csv":

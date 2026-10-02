@@ -1,4 +1,6 @@
-"""The pre-check graph: nine nodes, of which only read, judge and escalate call a model.
+"""The pre-check graph: nine nodes, of which only read, judge and escalate call a model — with
+one exception in `index`: a picture or a scanned PDF has no text for code to extract, so the
+reader model writes out what it says, once per file version (see vision.py).
 
     load_job -> sync_drive -> index -> run_rules -> plan -> read (fan-out) -> collect
              -> judge -> [escalate] -> publish
@@ -7,6 +9,7 @@
 prompt prefix is long enough to be cached, lets one reader per type finish first so the others
 read the cache instead of all paying to write it.)
 """
+import logging
 import operator
 import os
 import time
@@ -19,12 +22,15 @@ from pydantic import ValidationError
 
 from . import directions as D
 from . import judge as J
+from . import vision
+from .archives import attachments as email_attachments
 from .archives import container_of, display_name
 from .archives import members as archive_members
 from .budget import budget_for, cost_usd, empty_usage
-from .classify import READER_CLASSES, READER_FOR_CLASS, classify, reader_for_question
+from .classify import READER_CLASSES, READER_FOR_CLASS, classify, classify_email, reader_for_question
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
+from .emails import is_email
 from .embeddings import get_embedder
 from .llm import model_id, prefix_is_cacheable
 from .parsing import chunk_blocks, parse_file
@@ -36,7 +42,14 @@ from .skills_loader import all_skills
 from .store import StoreCache, get_store
 from .textutil import est_tokens, sha
 
+logger = logging.getLogger(__name__)
+
 DONE_NS = "reader-done"  # marker written when a reader result is cached, so plan can see it
+PENDING_NS = "pending"  # a file with an image still to read: looked at again on the next run
+
+
+def _pending_key(client_id: str, job_id: str, file_id: str) -> str:
+    return sha(client_id, job_id, file_id)
 
 
 class PrecheckStop(Exception):
@@ -57,6 +70,7 @@ class State(TypedDict, total=False):
     listing: list[dict]
     sync: dict
     files: dict[str, dict]
+    ai_read: list[str]  # ids of files whose text was read from an image by the model
     rule_results: list[dict]
     rule_findings: list[dict]
     tasks: list[dict]
@@ -103,9 +117,11 @@ def sync_drive(state: State) -> dict:
     except DriveError as exc:
         raise PrecheckStop(str(exc)) from exc
     manifest = store.get_manifest(job["client_id"], state["job_id"])
+    cache = StoreCache(store)
     changed = [
         f["id"] for f in listing
         if f["id"] not in manifest or manifest[f["id"]]["version"] != f["version"] or manifest[f["id"]]["parser_version"] != s.parser_version
+        or cache.get_value(PENDING_NS, _pending_key(job["client_id"], state["job_id"], f["id"]))
     ]
     present = {f["id"] for f in listing}
     # A document inside a zip ("<zip id>!<path>") stays for as long as its zip is in the folder.
@@ -125,22 +141,51 @@ def sync_drive(state: State) -> dict:
 ARCHIVE_CLASS = "archive"  # the manifest row of a zip itself; its documents have their own rows
 
 
-def _index_document(f: dict, data_or_error, client_id: str, job_id: str) -> None:
+def _read_image(f: dict, data: bytes, name: str, kind: str, ctx: dict) -> tuple[dict, bool]:
+    """Have the reader model write out a picture or a scan. Returns (parsed document, pending):
+    pending means it was not read this time and the next run should try again."""
+    s, shown = get_settings(), display_name(f)
+    empty = {"blocks": [], "tables": []}
+    reason = budget_for(ctx["run_id"]).try_image_call()
+    if reason:
+        ctx["skipped"].append({"task_id": "image", "direction_ref": "none", "what": f"Reading the image {shown}", "reason": reason})
+        return {**empty, "error": "Not read yet: this run reached its limit of images. Run the pre-check again to read it."}, True
+    emit("read", f"Reading the image {shown}", "running")
+    try:
+        parsed, usage = vision.transcribe(data, name, kind, s)
+    except vision.Unreadable as exc:
+        return {**empty, "error": str(exc)}, False
+    except Exception:  # the model could not be reached, or would not take the file
+        logger.exception("Reading image %s failed", f["id"])
+        return {**empty, "error": "This image could not be read this time. Run the pre-check again."}, True
+    ctx["usage"].append({"node": "read_image", "task_id": "image-" + sha(f["id"])[:10], "model": model_id("vision", s), "calls": 1, "run_id": ctx["run_id"], **usage})
+    return parsed, False
+
+
+def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
     """Parse, classify, chunk, embed and store one document. `data_or_error` is a function
     returning (bytes, name to parse as, mime) — only called when the parse is not cached —
-    or a string saying why the document cannot be read."""
+    or a string saying why the document cannot be read. Returns True when the document has an
+    image that is still to be read (the next run looks at it again)."""
     s, store, embedder = get_settings(), get_store(), get_embedder()
+    client_id, job_id = ctx["client_id"], ctx["job_id"]
     parsed_key = sha(f["id"], f["version"], s.parser_version)  # file id + version + parser version
     parsed = store.get_parsed(parsed_key)
+    pending = False
     if parsed is None:
         if isinstance(data_or_error, str):
             parsed = {"blocks": [], "tables": [], "error": data_or_error}
         else:
             data, parse_name, mime = data_or_error()
             parsed = parse_file(data, parse_name, mime) if data else {"blocks": [], "tables": [], "error": "This file is empty, too large or not a readable type."}
-        store.set_parsed(parsed_key, parsed)
+            if parsed.get("vision"):
+                parsed, pending = _read_image(f, data, parse_name, parsed["vision"], ctx)
+        if not pending:  # an image still to be read is not stored, so the next run reads it
+            store.set_parsed(parsed_key, parsed)
+    StoreCache(store).set_value(PENDING_NS, _pending_key(client_id, job_id, f["id"]), pending)
     shown = display_name(f)
-    doc_class = classify(f["name"], "\n".join(b["text"] for b in parsed["blocks"][:40]))
+    sample = "\n".join(b["text"] for b in parsed["blocks"][:40])
+    doc_class = classify_email(f["name"], sample) if is_email(f["name"], f["mime_type"]) else classify(f["name"], sample)
     chunks = chunk_blocks(parsed["blocks"], s.chunk_tokens)
     texts = [f"{shown} {c['location']}\n" + "\n".join(b["text"] for b in c["blocks"]) for c in chunks]
     hashes = [sha(t) for t in texts]
@@ -163,55 +208,68 @@ def _index_document(f: dict, data_or_error, client_id: str, job_id: str) -> None
         "version": f["version"], "parser_version": s.parser_version, "document_class": doc_class, "web_url": f["web_url"],
         "path": f["path"], "n_blocks": len(parsed["blocks"]), "error": parsed.get("error", ""),
     })
+    return pending
 
 
-def _index_zip(f: dict, drive, client_id: str, job_id: str, before: dict) -> list[str]:
-    """Open a zip and index each document inside it as its own file. Returns the ids of the
-    documents that are new or changed, so an unchanged document inside a re-uploaded zip is
-    not read again."""
+def _index_container(f: dict, drive, ctx: dict, before: dict) -> list[str]:
+    """A zip, or an email with attachments: index each document it holds as its own file (the
+    email itself is one of them). Returns the ids of the documents that are new or changed, so
+    an unchanged document inside a re-uploaded zip is not read again."""
     from .drive import DriveFile
 
     s, store = get_settings(), get_store()
+    client_id, job_id = ctx["client_id"], ctx["job_id"]
+    cache = StoreCache(store)
     data, _, _ = drive.download(DriveFile(**f))
-    docs, problem = archive_members(data, f, s) if data else ([], "This zip file is empty or too large to open.")
-    keep, changed = set(), []
+    email = not is_zip(f["name"], f["mime_type"])
+    if email:
+        docs, problem = ([{**f, "data": data}] + email_attachments(data, f, s) if data else [{**f, "error": "This email is empty or too large to read."}]), ""
+    else:
+        docs, problem = archive_members(data, f, s) if data else ([], "This zip file is empty or too large to open.")
+    keep, changed, pending = set(), [], False
     for d in docs:
         keep.add(d["id"])
         old = before.get(d["id"])
-        if old and old["version"] == d["version"] and old["parser_version"] == s.parser_version:
+        waiting = cache.get_value(PENDING_NS, _pending_key(client_id, job_id, d["id"]))
+        if d["id"] != f["id"] and old and old["version"] == d["version"] and old["parser_version"] == s.parser_version and not waiting:
             continue
         changed.append(d["id"])
         content = d.get("data")
-        _index_document(d, d["error"] if "error" in d else (lambda c=content, n=d["name"]: (c, n, "")), client_id, job_id)
-    for fid in before:  # documents that were in the zip before and are gone now
+        pending |= _index_document(d, d["error"] if "error" in d else (lambda c=content, n=d["name"]: (c, n, "")), ctx)
+    for fid in before:  # documents that were in it before and are gone now
         if container_of(fid) == f["id"] and fid != f["id"] and fid not in keep:
             store.delete_file(client_id, job_id, fid)
-    store.replace_chunks(client_id, job_id, f["id"], [])
-    store.upsert_manifest({
-        "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
-        "version": f["version"], "parser_version": s.parser_version, "document_class": ARCHIVE_CLASS, "web_url": f["web_url"],
-        "path": f["path"], "n_blocks": 0, "error": problem,
-    })
+    if not email:
+        store.replace_chunks(client_id, job_id, f["id"], [])
+        store.upsert_manifest({
+            "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
+            "version": f["version"], "parser_version": s.parser_version, "document_class": ARCHIVE_CLASS, "web_url": f["web_url"],
+            "path": f["path"], "n_blocks": 0, "error": problem,
+        })
+    # An image inside still to be read: the whole container is opened again on the next run.
+    cache.set_value(PENDING_NS, _pending_key(client_id, job_id, f["id"]), pending)
     return changed
 
 
 def index(state: State) -> dict:
-    """Parse changed files with libraries, chunk, embed and store. No model. A zip is opened
-    and every document inside it is indexed as its own file."""
+    """Parse changed files with libraries, chunk, embed and store. A zip is opened and every
+    document inside it is indexed as its own file; so is every attachment of an email. The only
+    model call here is for a picture or a scan, which has no text for a library to read."""
     from .drive import DriveFile
 
     store, drive, job = get_store(), get_drive(), state["job"]
     client_id, job_id = job["client_id"], state["job_id"]
+    ctx = {"client_id": client_id, "job_id": job_id, "run_id": state["run_id"], "usage": [], "skipped": []}
     before = store.get_manifest(client_id, job_id)
     changed: list[str] = []
     for f in state["listing"]:
         if f["id"] not in state["sync"]["changed"]:
             continue
-        if is_zip(f["name"], f["mime_type"]):
-            changed += _index_zip(f, drive, client_id, job_id, before)
+        if is_zip(f["name"], f["mime_type"]) or is_email(f["name"], f["mime_type"]):
+            changed += _index_container(f, drive, ctx, before)
         else:
             changed.append(f["id"])
-            _index_document(f, lambda f=f: drive.download(DriveFile(**f)), client_id, job_id)
+            _index_document(f, lambda f=f: drive.download(DriveFile(**f)), ctx)
     manifest = store.get_manifest(client_id, job_id)
     # A zip that could not be opened stays in the list (so the problem is reported); a zip that
     # opened is represented by the documents inside it.
@@ -221,7 +279,7 @@ def index(state: State) -> dict:
     sync = {**state["sync"], "total": len(files), "changed": changed}
     label = f"{len(files)} documents, " + ("all new" if sync["first_run"] else f"{len(changed)} changed since last run")
     emit("read", label, documents=len(files), changed=len(changed))
-    return {"files": files, "sync": sync}
+    return {"files": files, "sync": sync, "usage": ctx["usage"], "skipped": ctx["skipped"]}
 
 
 # --- 4. run_rules (code) ----------------------------------------------------------------------
@@ -231,10 +289,12 @@ def run_rules(state: State) -> dict:
     source = rule, quoting the rows it looked at."""
     s, store = get_settings(), get_store()
     emit("checked", "Running the automatic checks", "running")
-    docs = []
+    docs, ai_read = [], []
     for row in state["files"].values():
         parsed = store.get_parsed(sha(row["file_id"], row["version"], row["parser_version"])) or {"blocks": [], "tables": []}
         docs.append({"file": row, "parsed": parsed})
+        if parsed.get("read_by") == vision.AI_READ:
+            ai_read.append(row["file_id"])
     results, findings, evidence = [], [], {}
     for r in apply_rules(docs, s):
         ev_ids = []
@@ -251,7 +311,7 @@ def run_rules(state: State) -> dict:
                 "needs_judgment": r["needs_judgment"], "question": r["question"],
             })
     emit("checked", rules_label(results), rules=len(results), failed=sum(1 for r in results if r["passed"] is False and not r["needs_judgment"]))
-    return {"rule_results": results, "rule_findings": findings, "evidence": evidence}
+    return {"rule_results": results, "rule_findings": findings, "evidence": evidence, "ai_read": ai_read}
 
 
 def rules_label(results: list[dict]) -> str:
@@ -602,12 +662,18 @@ def build_final(state: State) -> dict:
     files = state["files"]
     changed = set(state["sync"]["changed"])
     rules = state["rule_results"]
+    ai_read = set(state.get("ai_read", []))
+    images_now = sum(u["calls"] for u in calls if u["node"] == "read_image")
+    read_label = f"{len(files)} documents, " + ("all new" if state["sync"]["first_run"] else f"{len(changed)} changed since last run")
+    if images_now:
+        read_label += f", {images_now} image{'s' if images_now != 1 else ''} read by AI"
 
     trail = {
         "read": {
-            "label": f"{len(files)} documents, " + ("all new" if state["sync"]["first_run"] else f"{len(changed)} changed since last run"),
-            "documents": len(files), "changed": len(changed), "removed": state["sync"]["removed"],
-            "detail": [{"name": display_name(f), "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"]} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
+            "label": read_label,
+            "documents": len(files), "changed": len(changed), "removed": state["sync"]["removed"], "images_read": images_now,
+            "detail": [{"name": display_name(f), "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"],
+                        "note": "text read from the image by AI" if fid in ai_read else ""} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
         },
         "checked": {
             "label": rules_label(rules),
@@ -648,7 +714,7 @@ def build_final(state: State) -> dict:
             "calls": calls, "totals": totals, "model_calls": sum(u["calls"] for u in calls), "reader_calls": reader_calls,
             "cost_usd": round(cost, 6), "cache_share": round(totals["cache_read"] / all_input, 3) if all_input else 0.0,
             "reused_answers": len(reused),
-            "budget": {"reader_calls": s.budget_reader_calls, "uncached_input_tokens": s.budget_uncached_input_tokens, "output_tokens": s.budget_output_tokens},
+            "budget": {"reader_calls": s.budget_reader_calls, "image_calls": s.budget_image_calls, "uncached_input_tokens": s.budget_uncached_input_tokens, "output_tokens": s.budget_output_tokens},
         },
         "models": {role: model_id(role, s) for role in ("reader", "judge", "escalate")},
         "versions": {"prompt": s.prompt_version, "parser": s.parser_version, "skills": {name: sk.version for name, sk in all_skills().items()}},

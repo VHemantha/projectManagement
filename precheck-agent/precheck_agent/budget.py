@@ -48,6 +48,8 @@ class RunBudget:
     used_calls: int = 0
     used_input: int = 0
     used_output: int = 0
+    image_calls: int = 0  # images read this run; counted apart from the reader budget
+    used_images: int = 0
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
     def try_reader_call(self, estimated_input: int) -> str | None:
@@ -68,6 +70,15 @@ class RunBudget:
             self.used_input += usage["input"] - estimated_input
             self.used_output += usage["output"]
             self.used_calls += extra_calls
+
+    def try_image_call(self) -> str | None:
+        """Reserve one image read. Images have their own count, so a folder of photos cannot
+        use up the budget the readers and the judge need."""
+        with self._lock:
+            if self.used_images >= self.image_calls:
+                return f"the limit of {self.image_calls} images for one run was reached"
+            self.used_images += 1
+            return None
 
     def can_call(self, estimated_input: int) -> str | None:
         """For the judge and escalation: same token limits, no reader-call count."""
@@ -95,7 +106,7 @@ def budget_for(run_id: str) -> RunBudget:
     with _registry_lock:
         if run_id not in _budgets:
             s = get_settings()
-            _budgets[run_id] = RunBudget(s.budget_reader_calls, s.budget_uncached_input_tokens, s.budget_output_tokens)
+            _budgets[run_id] = RunBudget(s.budget_reader_calls, s.budget_uncached_input_tokens, s.budget_output_tokens, image_calls=s.budget_image_calls)
         return _budgets[run_id]
 
 

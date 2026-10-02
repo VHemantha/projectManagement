@@ -44,12 +44,21 @@ class Settings(BaseSettings):
     # Zip archives in a job folder are opened and each file inside is read as its own document.
     max_zip_bytes: int = 100_000_000
     max_zip_members: int = 300
+    # Emails: a picture embedded in the body that is smaller than this is a logo, not evidence.
+    min_inline_image_bytes: int = 20_000
+
+    # --- images and scans (read by the reader model, once per file version) ------------------
+    vision_model: str = ""  # empty: the reader model
+    budget_image_calls: int = 10  # images read per run; the rest wait for the next run
+    image_max_tokens: int = 2000  # output cap for one transcript
+    image_max_edge: int = 1568  # longest side sent to the model, in pixels
+    max_scan_pages: int = 5  # pages read from one scanned PDF or multi-page TIFF
 
     # --- indexing --------------------------------------------------------------------------
     embedder: str = "hash"  # "hash" (built in, no download) | "fastembed" (local ONNX model)
     fastembed_model: str = "BAAI/bge-small-en-v1.5"
     embedding_dim: int = 384
-    parser_version: str = "p1"
+    parser_version: str = "p2"  # p2: emails, images and scans are read
     chunk_tokens: int = 450
 
     # --- retrieval / readers ------------------------------------------------------------------
@@ -86,7 +95,7 @@ class Settings(BaseSettings):
     )
 
     skills_dir: str = str(REPO_SKILLS_DIR)
-    prompt_version: str = "2026-10-02.1"
+    prompt_version: str = "2026-10-02.2"
 
 
 def family(model_id: str) -> str:

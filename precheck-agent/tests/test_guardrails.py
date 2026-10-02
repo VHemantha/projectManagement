@@ -188,3 +188,27 @@ def test_escalation_only_for_high_severity_low_confidence(env, job):
     assert json.loads(sent.split("INPUT:")[1])["evidence"]
     assert result["trail"]["judged"]["escalated"] == 1
     assert [c["node"] for c in result["usage"]["calls"]].count("escalate") == 1
+
+
+def test_an_uncited_answer_is_tied_to_the_passage_by_code_or_becomes_unclear():
+    from langchain_core.messages import AIMessage
+
+    from precheck_agent.readers import parse_reader_answer
+
+    blocks = [
+        {"text": "The board agreed directors loan interest of 1,200 at the meeting on 10 April 2025.", "loc": "email line 6", "sheet": None, "row": None, "a1": None, "page": None},
+        {"text": "Directors loan interest: TBC, awaiting client confirmation.", "loc": "line 5", "sheet": None, "row": None, "a1": None, "page": None},
+        {"text": "Year ended 31 March 2025", "loc": "line 1", "sheet": None, "row": None, "a1": None, "page": None},
+    ]
+    chunks = [{"file_id": "F", "blocks": blocks}]
+    files = {"F": {"file_id": "F", "version": "v", "name": "Mail.eml", "path": "", "web_url": "u", "mime_type": ""}}
+    answer = AIMessage(content=(
+        "addressed|low|Interest agreed|The board agreed interest of 1,200 on 10 April 2025.\n"
+        'exception|medium|Workpaper not updated|The workpaper still says "TBC, awaiting client confirmation".\n'
+        "addressed|low|Year end confirmed|The year end is in 2025 and everything is fine."
+    ))
+    findings, evidence = parse_reader_answer(answer, chunks, files)
+    quotes = [[evidence[e]["quote"] for e in f["evidence_ids"]] for f in findings]
+    assert findings[0]["status"] == "addressed" and quotes[0] == [blocks[0]["text"]]  # two of its figures are in that line
+    assert findings[1]["status"] == "exception" and quotes[1] == [blocks[1]["text"]]  # the phrase it quoted is in that line
+    assert findings[2]["status"] == "unclear" and not findings[2]["evidence_ids"]  # a year alone proves nothing

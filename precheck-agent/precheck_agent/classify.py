@@ -17,6 +17,7 @@ DOCUMENT_CLASSES = [
     "questionnaire",
     "job_instructions",
     "workpaper",
+    "correspondence",
     "other",
 ]
 
@@ -34,12 +35,19 @@ READER_FOR_CLASS = {
     "questionnaire": "workpaper_reader",
     "job_instructions": "workpaper_reader",
     "workpaper": "workpaper_reader",
+    "correspondence": "workpaper_reader",
     "other": "workpaper_reader",
 }
 
 READER_CLASSES: dict[str, list[str]] = {}
 for _cls, _reader in READER_FOR_CLASS.items():
     READER_CLASSES.setdefault(_reader, []).append(_cls)
+# An email, a photo or a file code could not place can be about anything: every reader may be
+# shown it when it matches the question.
+for _classes in READER_CLASSES.values():
+    for _any in ("correspondence", "other"):
+        if _any not in _classes:
+            _classes.append(_any)
 
 # Ordered: the first pattern that matches the file name wins.
 _NAME_RULES = [
@@ -64,6 +72,13 @@ _CONTENT_RULES = [
     (r"profit and loss|statement of financial position|balance sheet|notes to the (financial )?statements", "financial_statements"),
     (r"taxable (total )?profits?|tax adjusted|corporation tax (payable|computation)", "tax_computation"),
 ]
+
+
+def classify_email(name: str, sample_text: str = "") -> str:
+    """An email is correspondence whatever its subject says: "RE: trial balance" is a message
+    about the trial balance, not the trial balance, and must not satisfy a rule that looks for
+    one. Letters to or from the tax authority keep their own class."""
+    return "tax_correspondence" if classify(name, sample_text) in ("tax_correspondence", "tax_return") else "correspondence"
 
 
 def classify(name: str, sample_text: str = "") -> str:
