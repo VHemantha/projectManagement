@@ -24,7 +24,8 @@ LIVE_GROUP = "live_updates"
 #   project  -> project details, labels, the Projects tree
 #   sprints  -> a project's sprints (and issue lists, since sprint moves bypass Issue.save)
 #   teams / clients -> team and client lists, the Projects tree
-KINDS = {"issues", "issue", "board", "project", "sprints", "teams", "clients"}
+#   precheck -> a job's AI pre-check (progress, result, decisions on findings)
+KINDS = {"issues", "issue", "board", "project", "sprints", "teams", "clients", "precheck"}
 
 
 def notify(kind: str, project: str | None = None, key: str | None = None) -> None:

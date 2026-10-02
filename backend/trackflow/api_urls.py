@@ -34,6 +34,7 @@ urlpatterns = [
     path("sprints/", include("apps.sprints.urls")),
     path("teams/", include("apps.teams.urls")),
     path("notifications/", include("apps.notifications.urls")),
+    path("precheck/", include("apps.precheck.urls")),
     path("search/", include("apps.search.urls")),
     path("activity/recent/", RecentActivityView.as_view(), name="recent-activity"),
     path("chat/", include("apps.chat.urls")),

@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.db
+*.db-wal
+*.db-shm
+*.checkpoints*
+.env
+.pytest_cache/
+freeze.tmp
+service-account*.json
