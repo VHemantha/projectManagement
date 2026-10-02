@@ -1,6 +1,7 @@
 from django.db.models import Count, Q
 from rest_framework import permissions, viewsets
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.issues.models import Issue
@@ -22,6 +23,17 @@ class FilterViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
+
+    # Public filters are visible to everyone but only their owner may change or delete them.
+    def perform_update(self, serializer):
+        if serializer.instance.owner_id != self.request.user.id:
+            raise PermissionDenied("Only the filter's owner can change it.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if instance.owner_id != self.request.user.id:
+            raise PermissionDenied("Only the filter's owner can delete it.")
+        instance.delete()
 
 
 @api_view(["GET"])

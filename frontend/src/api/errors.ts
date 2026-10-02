@@ -9,7 +9,9 @@ export function extractErrorMessage(error: unknown, fallback = 'Something went w
       const firstKey = Object.keys(data)[0]
       if (firstKey) {
         const val = (data as Record<string, unknown>)[firstKey]
-        if (Array.isArray(val)) return `${firstKey}: ${val[0]}`
+        // A name error already reads as a sentence ("There's already a team called …").
+        const bare = firstKey === 'name' || firstKey === 'non_field_errors'
+        if (Array.isArray(val)) return bare ? String(val[0]) : `${firstKey}: ${val[0]}`
         if (typeof val === 'string') return val
       }
     }

@@ -4,10 +4,10 @@ import styles from './ChatPage.module.css'
 import { channelDisplayTitle } from './channelDisplay'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
-import { useMarkChannelRead, useMessages, useThreadReplies } from '@/api/chat'
+import { useMarkChannelRead, useMessages, useRenameChannel, useThreadReplies } from '@/api/chat'
 import { useChatSocket } from '@/api/useChatSocket'
 import type { Channel, ChatMessage } from '@/api/types'
-import { Skeleton } from '@/design-system'
+import { InlineEdit, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
 function ThreadPanel({ parent, channel, onClose }: { parent: ChatMessage; channel: Channel; onClose: () => void }) {
@@ -37,6 +37,15 @@ function ThreadPanel({ parent, channel, onClose }: { parent: ChatMessage; channe
   )
 }
 
+/** Only topic and general channels have their own names; workspace and team channels are named
+ * after them, and DMs after their members. */
+const RENAMEABLE = new Set(['topic', 'general'])
+
+function RenameChannel({ channel }: { channel: Channel }) {
+  const rename = useRenameChannel(channel.id)
+  return <InlineEdit value={channel.name} label="Channel name" maxLength={100} onSave={(name) => rename.mutateAsync(name)} />
+}
+
 export function MessageThread({ channel }: { channel: Channel }) {
   const currentUser = useAuthStore((s) => s.user)
   const { data: messages, isLoading } = useMessages(channel.id)
@@ -59,7 +68,13 @@ export function MessageThread({ channel }: { channel: Channel }) {
       <div className={styles.thread}>
         <div className={styles.threadHeader}>
           <div>
-            <div className={styles.threadTitle}>{channelDisplayTitle(channel, currentUser?.id)}</div>
+            {RENAMEABLE.has(channel.channel_type) ? (
+              <div className={styles.threadTitle}>
+                #<RenameChannel channel={channel} />
+              </div>
+            ) : (
+              <div className={styles.threadTitle}>{channelDisplayTitle(channel, currentUser?.id)}</div>
+            )}
             {channel.description && <div className={styles.threadDescription}>{channel.description}</div>}
           </div>
           <span

@@ -84,12 +84,12 @@ def test_worker_can_still_save_settings_that_send_unchanged_dashboard_fields(wor
     """The settings form sends every field back; unchanged budget/description must not block it."""
     resp = _client(worker).patch(
         "/api/projects/Dash/",
-        {"name": "Renamed by worker", "description": "", "budgeted_hours": None},
+        {"name": "Dashboard", "description": "", "budgeted_hours": None, "job_value_currency": "GBP"},
         format="json",
     )
     assert resp.status_code == 200, resp.data
     project.refresh_from_db()
-    assert project.name == "Renamed by worker"
+    assert project.job_value_currency == "GBP"
 
 
 def test_budget_cannot_be_negative(lead, project):

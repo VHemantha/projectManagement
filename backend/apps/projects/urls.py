@@ -6,6 +6,7 @@ from apps.workflow.views import WorkflowTransitionListView
 
 from .views import (
     ComponentListCreateView,
+    LabelDetailView,
     LabelListCreateView,
     ProjectMembershipDetailView,
     ProjectMembershipListCreateView,
@@ -24,6 +25,7 @@ urlpatterns = [
         name="project-member-detail",
     ),
     path("<str:project_key>/labels/", LabelListCreateView.as_view(), name="project-labels"),
+    path("<str:project_key>/labels/<int:pk>/", LabelDetailView.as_view(), name="project-label-detail"),
     path("<str:project_key>/components/", ComponentListCreateView.as_view(), name="project-components"),
     path("<str:project_key>/versions/", VersionListCreateView.as_view(), name="project-versions"),
     path(

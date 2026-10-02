@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
 from apps.issues.serializers import IssueMiniSerializer
+from trackflow.naming import clean_name
 
 from .models import Channel, ChannelMembership, Message, MessageIssueLink, MessageMention, MessageReaction
 
@@ -41,6 +42,25 @@ class ChannelSerializer(serializers.ModelSerializer):
             "has_messages",
         ]
         read_only_fields = ["created_by", "archived_at"]
+
+    # Only topic and general channels have a name of their own: workspace and team channels are
+    # named after their workspace/team, and DMs after their members.
+    RENAMEABLE = (Channel.ChannelType.TOPIC, Channel.ChannelType.GENERAL)
+
+    def validate_name(self, value):
+        if self.instance is None:
+            return value
+        if value == self.instance.name:
+            return value
+        if self.instance.channel_type not in self.RENAMEABLE:
+            raise serializers.ValidationError("This channel is named after its workspace, team or members.")
+        name = clean_name(value, max_length=Channel._meta.get_field("name").max_length, what="Channel name")
+        clash = Channel.objects.filter(
+            organization_id=self.instance.organization_id, channel_type__in=self.RENAMEABLE, name__iexact=name
+        ).exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError(f"There's already a channel called '{name}'.")
+        return name
 
     def get_has_messages(self, obj):
         # A freshly find-or-created DM has no messages yet — the frontend uses this to keep

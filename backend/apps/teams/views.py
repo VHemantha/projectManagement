@@ -22,6 +22,20 @@ class TeamViewSet(viewsets.ModelViewSet):
             qs = qs.prefetch_related("memberships__user", "sub_teams")
         return qs
 
+    def perform_update(self, serializer):
+        # Renaming or re-parenting a team changes it for everyone: leads and admins only.
+        user = self.request.user
+        team = serializer.instance
+        if not (user.is_staff or team.memberships.filter(user=user, role=TeamMembership.Role.LEAD).exists()):
+            raise PermissionDenied("Only a team lead or an admin can change this team.")
+        old_name = team.name
+        team = serializer.save()
+        if team.name != old_name:
+            # The team's chat channel is named after it.
+            team.channels.filter(channel_type="team").update(
+                name=team.name.lower().replace(" ", "-"), description=f"Discussion for {team.name}"
+            )
+
     def perform_destroy(self, instance):
         # Deleting a team also deletes its memberships and its team chat channel (with all of
         # its messages); projects and sub-teams survive with their team link cleared. That is

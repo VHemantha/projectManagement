@@ -16,6 +16,7 @@ const project = {
 
 vi.mock('@/api/projects', () => ({
   useProject: (key: string) => ({ data: key.toLowerCase() === 'pochin' ? project : undefined, isLoading: false }),
+  useUpdateProject: () => ({ mutateAsync: vi.fn() }),
 }))
 
 // Each tab's page is stubbed: these tests are about which one the workspace page shows.

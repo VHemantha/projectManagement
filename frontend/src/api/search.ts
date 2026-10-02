@@ -47,3 +47,14 @@ export function useDeleteFilter() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['filters'] }),
   })
 }
+
+export function useRenameFilter() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, name }: { id: number; name: string }) => {
+      const { data } = await apiClient.patch<SavedFilter>(`/search/filters/${id}/`, { name })
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['filters'] }),
+  })
+}

@@ -196,3 +196,14 @@ export function useLinkTaskToMessage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chat'] }),
   })
 }
+
+export function useRenameChannel(channelId: number) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (name: string) => {
+      const { data } = await apiClient.patch<Channel>(`/chat/channels/${channelId}/`, { name })
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['chat', 'channels'] }),
+  })
+}

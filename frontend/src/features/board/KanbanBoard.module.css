@@ -268,3 +268,8 @@
   color: var(--tf-text);
   font-size: 12px;
 }
+
+.columnTitle {
+  display: inline-flex;
+  min-width: 0;
+}

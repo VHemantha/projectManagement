@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import UserSerializer
 from apps.orgs.models import Organization
+from trackflow.naming import clean_name
 
 from .models import Team, TeamMembership
 
@@ -47,6 +48,15 @@ class TeamDetailSerializer(serializers.ModelSerializer):
             "id", "name", "description", "avatar_color", "memberships", "parent", "parent_id",
             "sub_teams", "created_at",
         ]
+
+    def validate_name(self, value):
+        name = clean_name(value, max_length=Team._meta.get_field("name").max_length, what="Team name")
+        clash = Team.objects.filter(name__iexact=name)
+        if self.instance is not None:
+            clash = clash.exclude(pk=self.instance.pk)
+        if clash.exists():
+            raise serializers.ValidationError(f"There's already a team called '{name}'.")
+        return name
 
     def validate_parent_id(self, value):
         if value is None:

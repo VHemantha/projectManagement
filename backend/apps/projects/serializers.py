@@ -7,6 +7,7 @@ from apps.accounts.serializers import UserSerializer
 from apps.clients.models import Client
 from apps.orgs.models import Organization
 from apps.teams.models import Team
+from trackflow.naming import clean_name
 
 from .keys import key_in_use, rename_project_key
 from .models import Component, KEY_PATTERN, Label, Project, ProjectMembership, Version
@@ -17,8 +18,9 @@ from .permissions import can_manage_project
 MAX_TASK_NAME_LENGTH = 500
 MAX_TASK_NAMES = 200
 
-# The workspace dashboard panel's editable fields; only workspace managers may change them.
-DASHBOARD_FIELDS = frozenset({"budgeted_hours", "deadline", "description", "special_notes"})
+# Fields only workspace managers may change: its name and key, and the dashboard panel's
+# budget, deadline, description and notes.
+MANAGED_FIELDS = frozenset({"name", "key", "budgeted_hours", "deadline", "description", "special_notes"})
 
 class ClientMiniSerializer(serializers.ModelSerializer):
     class Meta:
@@ -45,6 +47,22 @@ class LabelSerializer(serializers.ModelSerializer):
     class Meta:
         model = Label
         fields = ["id", "name", "color"]
+
+    def validate_name(self, value):
+        name = clean_name(value, max_length=Label._meta.get_field("name").max_length, what="Label name")
+        project = self.instance.project if self.instance else self.context.get("project")
+        if project is not None:
+            clash = Label.objects.filter(project=project, name__iexact=name)
+            if self.instance is not None:
+                clash = clash.exclude(pk=self.instance.pk)
+            if clash.exists():
+                raise serializers.ValidationError(f"This workspace already has a label called '{name}'.")
+        return name
+
+    def validate_color(self, value):
+        if not re.match(r"^#[0-9a-fA-F]{6}$", value or ""):
+            raise serializers.ValidationError("Use a colour like #a1b2c3.")
+        return value
 
 
 class ComponentSerializer(serializers.ModelSerializer):
@@ -107,7 +125,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
     )
     # Hours logged against the workspace's jobs, for the dashboard panel's budget bar.
     actual_hours = serializers.SerializerMethodField()
-    # Whether the requesting user may edit the dashboard fields (see DASHBOARD_FIELDS).
+    # Whether the requesting user may edit the managed fields (see MANAGED_FIELDS).
     can_manage = serializers.SerializerMethodField()
 
     class Meta:
@@ -156,18 +174,21 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         return bool(request and can_manage_project(request.user, obj))
 
+    def validate_name(self, value):
+        return clean_name(value, max_length=Project._meta.get_field("name").max_length, what="Workspace name")
+
     def validate_budgeted_hours(self, value):
         if value is not None and value < 0:
             raise serializers.ValidationError("Budgeted hours can't be negative.")
         return value
 
     def validate(self, attrs):
-        # Budget, deadline, description and notes are the workspace managers' to change;
-        # everyone else sees them read-only.
+        # Name, key, budget, deadline, description and notes are the workspace managers' to
+        # change; everyone else sees them read-only.
         request = self.context.get("request")
         if self.instance is not None and request is not None:
             # Unchanged values are fine: forms send every field back.
-            touched = {f for f in DASHBOARD_FIELDS.intersection(attrs) if attrs[f] != getattr(self.instance, f)}
+            touched = {f for f in MANAGED_FIELDS.intersection(attrs) if attrs[f] != getattr(self.instance, f)}
             if touched and not can_manage_project(request.user, self.instance):
                 raise PermissionDenied(
                     "Only the workspace lead, a workspace admin or an organisation admin can change "

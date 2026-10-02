@@ -91,6 +91,7 @@ def project_changed(sender, instance, **kwargs):
 @receiver(post_delete, sender=Label)
 def label_changed(sender, instance, **kwargs):
     notify("project", project=_project_key(instance))
+    notify("issues", project=_project_key(instance))  # cards show label names
 
 
 @receiver(post_save, sender=Sprint)

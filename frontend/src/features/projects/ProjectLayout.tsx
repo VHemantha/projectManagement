@@ -7,9 +7,9 @@ import { ProjectSummaryPage } from './ProjectSummaryPage'
 import { WorkspaceContext } from './useProjectContext'
 import { WorkspaceDashboardPanel } from './WorkspaceDashboardPanel'
 import { isScrumWorkspace, resolveTab, tabForLegacySection, type WorkspaceTab, workspaceTabs } from './workspaceTabs'
-import { useProject } from '@/api/projects'
+import { useProject, useUpdateProject } from '@/api/projects'
 import { PlaceholderPage } from '@/app/PlaceholderPage'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
+import { InlineEdit, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import { BacklogPage } from '@/features/backlog/BacklogPage'
 import { ProjectBoardPage } from '@/features/board/ProjectBoardPage'
 import { SprintReportPage } from '@/features/reports/SprintReportPage'
@@ -31,6 +31,7 @@ export function ProjectLayout() {
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProject(key)
+  const updateProject = useUpdateProject(project?.key ?? key ?? '')
 
   if (isLoading) return <PlaceholderPage title="Loading workspace…" />
   if (!project) return <PlaceholderPage title="Workspace not found" />
@@ -70,7 +71,14 @@ export function ProjectLayout() {
               {project.key.slice(0, 2).toUpperCase()}
             </span>
             <div className={styles.headerText}>
-              <h1 className={styles.projectName}>{project.name}</h1>
+              <InlineEdit
+                as="h1"
+                className={styles.projectName}
+                value={project.name}
+                label="Workspace name"
+                canEdit={project.can_manage}
+                onSave={(name) => updateProject.mutateAsync({ name })}
+              />
               <div className={styles.projectType}>
                 {project.key} · {subtitle}
               </div>

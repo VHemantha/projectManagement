@@ -151,6 +151,24 @@ describe('KanbanBoard', () => {
     expect(screen.queryByText('Routine')).not.toBeInTheDocument()
   })
 
+  it('renames a column in place when renaming is allowed', async () => {
+    const onRenameColumn = vi.fn(() => Promise.resolve())
+    render(
+      <KanbanBoard issues={[makeIssue({ id: 1 })]} columns={columns} onMoveIssue={vi.fn()} onRenameColumn={onRenameColumn} />,
+    )
+    await userEvent.dblClick(screen.getByText('In Progress'))
+    const input = screen.getByRole('textbox', { name: 'Column name' })
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Doing{Enter}')
+    expect(onRenameColumn).toHaveBeenCalledWith(1, 'Doing')
+    expect(screen.getByText('Doing')).toBeInTheDocument()
+  })
+
+  it('shows plain column names when renaming is not allowed', () => {
+    render(<KanbanBoard issues={[makeIssue({ id: 1 })]} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Rename column name' })).not.toBeInTheDocument()
+  })
+
   it('flags a column as over its WIP limit', () => {
     const issues = [
       makeIssue({ id: 1, status: { id: 2, name: 'In Progress', category: 'in_progress', order: 1 } }),

@@ -14,10 +14,18 @@ import { isScrumWorkspace, workspaceUrl } from './workspaceTabs'
 import { useUpdateWorkflowTransition, useWorkflowTransitions } from '@/api/boards'
 import { extractErrorMessage } from '@/api/errors'
 import { useClients } from '@/api/clients'
-import { useAddMember, useProjectBoard, useRemoveMember, useUpdateMemberRole, useUpdateProject } from '@/api/projects'
+import {
+  useAddMember,
+  useCreateLabel,
+  useProjectBoard,
+  useRemoveMember,
+  useUpdateLabel,
+  useUpdateMemberRole,
+  useUpdateProject,
+} from '@/api/projects'
 import { useTeams } from '@/api/teams'
 import { useUsers } from '@/api/users'
-import { Avatar, Button, Input, StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
+import { Avatar, Button, InlineEdit, Input, StatusBadge, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
 import { CATEGORY_LABELS } from '@/lib/text'
 
@@ -70,6 +78,7 @@ function GeneralTab() {
           label="Key"
           value={key}
           maxLength={100}
+          disabled={!project.can_manage}
           onChange={(e) => setKey(e.target.value.replace(/[^A-Za-z0-9]/g, ''))}
         />
         {keyChanged && key && (
@@ -79,7 +88,13 @@ function GeneralTab() {
           </div>
         )}
       </div>
-      <Input id="settings-name" label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+      <Input
+        id="settings-name"
+        label="Name"
+        value={name}
+        disabled={!project.can_manage}
+        onChange={(e) => setName(e.target.value)}
+      />
       <Input
         id="settings-description"
         label="Description"
@@ -387,8 +402,8 @@ function TasksTab() {
   return (
     <div className={styles.form}>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--tf-text-subtle)' }}>
-        These task names are offered as the summary when creating an issue in {project.name}. Changing
-        the list doesn&apos;t rename existing issues.
+        These task names are offered as the summary when creating a job in {project.name}. Changing
+        the list doesn&apos;t rename existing jobs.
       </p>
       <TaskNamesEditor id="settings-tasks" value={taskNames} onChange={setTaskNames} />
       {updateProject.isError && (
@@ -410,6 +425,69 @@ function TasksTab() {
   )
 }
 
+const LABEL_COLORS = ['#DCDFE4', '#DEEBFF', '#DCFCE7', '#FFEDD5', '#FCE7F3', '#EDE9FE', '#CCFBF1', '#FFF7D6']
+
+function LabelsTab() {
+  const { project } = useProjectContext()
+  const updateLabel = useUpdateLabel(project.key)
+  const createLabel = useCreateLabel(project.key)
+  const [newName, setNewName] = useState('')
+  const canEdit = project.can_manage
+
+  return (
+    <div className={styles.form}>
+      <p className={styles.hint} style={{ margin: 0 }}>
+        Labels tag jobs in {project.name}.{' '}
+        {canEdit ? 'Click a name to rename it everywhere it is used.' : 'Only the workspace lead or an admin can change them.'}
+      </p>
+      {project.labels.length === 0 && <p className={styles.hint}>No labels yet.</p>}
+      <ul className={styles.labelList} aria-label="Labels">
+        {project.labels.map((label) => (
+          <li key={label.id} className={styles.labelRow}>
+            <span className={styles.labelSwatch} style={{ background: label.color }} aria-hidden="true" />
+            <InlineEdit
+              value={label.name}
+              label="Label name"
+              maxLength={60}
+              canEdit={canEdit}
+              onSave={(name) => updateLabel.mutateAsync({ id: label.id, name })}
+            />
+          </li>
+        ))}
+      </ul>
+      {canEdit && (
+        <form
+          className={styles.labelAdd}
+          onSubmit={(e) => {
+            e.preventDefault()
+            const name = newName.trim()
+            if (!name) return
+            const color = LABEL_COLORS[project.labels.length % LABEL_COLORS.length]
+            createLabel.mutate({ name, color }, { onSuccess: () => setNewName('') })
+          }}
+        >
+          <Input
+            id="new-label"
+            aria-label="New label name"
+            placeholder="New label"
+            maxLength={60}
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <Button type="submit" variant="subtle" disabled={!newName.trim() || createLabel.isPending}>
+            <Plus size={14} /> Add label
+          </Button>
+        </form>
+      )}
+      {createLabel.isError && (
+        <div role="alert" style={{ color: 'var(--tf-danger)', fontSize: 13 }}>
+          {extractErrorMessage(createLabel.error)}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ProjectSettingsPage() {
   const { project } = useProjectContext()
 
@@ -421,6 +499,7 @@ export function ProjectSettingsPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="board">Board</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
+          <TabsTrigger value="labels">Labels</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
           <TabsTrigger value="workflow">Workflow</TabsTrigger>
           <TabsTrigger value="transitions">Transition rules</TabsTrigger>
@@ -433,6 +512,9 @@ export function ProjectSettingsPage() {
         </TabsContent>
         <TabsContent value="tasks">
           <TasksTab />
+        </TabsContent>
+        <TabsContent value="labels">
+          <LabelsTab />
         </TabsContent>
         <TabsContent value="people">
           <PeopleTab />

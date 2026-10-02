@@ -36,7 +36,7 @@ import type {
   IssueListItem,
   Priority,
 } from '@/api/types'
-import { Avatar, Skeleton } from '@/design-system'
+import { Avatar, InlineEdit, Skeleton } from '@/design-system'
 import { sentenceCase } from '@/lib/text'
 import { useAuthStore } from '@/store/authStore'
 
@@ -57,6 +57,9 @@ interface KanbanBoardProps {
   defaultSwimlaneMode?: SwimlaneMode
   showSwimlanePicker?: boolean
   availableSwimlanes?: SwimlaneMode[]
+  /** When set, column names can be renamed in place (double-click); index is the column's
+   * position in `columns`. */
+  onRenameColumn?: (index: number, name: string) => Promise<unknown>
   /** Extra toolbar content rendered at the end of the filters bar — e.g. a "Configure board"
    * button. Kept as an injected node rather than a boards-API-aware prop so this component
    * stays generic across all four board scopes (project, epic, team, my-work). */
@@ -103,6 +106,7 @@ export function KanbanBoard({
   cardColorStyle,
   cardConfigByProject,
   onMoveIssue,
+  onRenameColumn,
   emptyMessage = 'No jobs to show.',
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
@@ -343,6 +347,7 @@ export function KanbanBoard({
               setCollapsed={setCollapsed}
               issuesById={issuesById}
               configFor={configFor}
+              onRenameColumn={onRenameColumn}
             />
           ))}
           <DragOverlay>
@@ -364,6 +369,7 @@ function BoardLane({
   setCollapsed,
   issuesById,
   configFor,
+  onRenameColumn,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -372,6 +378,7 @@ function BoardLane({
   setCollapsed: (fn: (prev: Set<number>) => Set<number>) => void
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
+  onRenameColumn?: (index: number, name: string) => Promise<unknown>
 }) {
   return (
     <div className={styles.lane}>
@@ -408,6 +415,7 @@ function BoardLane({
               issueIds={ids}
               issuesById={issuesById}
               configFor={configFor}
+              onRename={onRenameColumn && ((name) => onRenameColumn(colIndex, name))}
             />
           )
         })}
@@ -428,6 +436,7 @@ function BoardColumnView({
   issueIds,
   issuesById,
   configFor,
+  onRename,
 }: {
   containerId: string
   title: string
@@ -440,6 +449,7 @@ function BoardColumnView({
   issueIds: number[]
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
+  onRename?: (name: string) => Promise<unknown>
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
@@ -454,7 +464,14 @@ function BoardColumnView({
         {!collapsed && (
           <>
             {color && <span className={styles.columnDot} style={{ background: color }} />}
-            <span>{title}</span>
+            {onRename ? (
+              // Clicking the name doesn't collapse the column; double-clicking renames it.
+              <span className={styles.columnTitle} onClick={(e) => e.stopPropagation()}>
+                <InlineEdit value={title} label="Column name" maxLength={50} activation="doubleClick" onSave={onRename} />
+              </span>
+            ) : (
+              <span>{title}</span>
+            )}
             <span className={`${styles.columnCount} ${overLimit ? styles.overLimit : ''}`}>
               {count}
               {wipLimit != null ? ` / ${wipLimit}` : ''}
