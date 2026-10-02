@@ -23,7 +23,8 @@ export function useSignup() {
   const setSession = useAuthStore((s) => s.setSession)
   return useMutation({
     mutationFn: async (payload: {
-      email: string
+      /** Sign-up is by invitation only; the email comes from the invitation. */
+      invite_token: string
       username: string
       password: string
       display_name?: string
@@ -74,4 +75,20 @@ export function useLogout() {
     logout()
     queryClient.clear()
   }
+}
+
+/** Change the signed-in user's own settings (e.g. desktop notifications). */
+export function useUpdateMySettings() {
+  const setUser = useAuthStore((s) => s.setUser)
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { desktop_notifications?: boolean }) => {
+      const { data } = await apiClient.patch<CurrentUser>('/auth/me/', payload)
+      return data
+    },
+    onSuccess: (data) => {
+      setUser(data)
+      queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+  })
 }

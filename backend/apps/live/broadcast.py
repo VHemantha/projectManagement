@@ -36,11 +36,24 @@ def notify(kind: str, project: str | None = None, key: str | None = None) -> Non
     transaction.on_commit(lambda: _send(event))
 
 
-def _send(event: dict) -> None:
+def user_group(user_id: int) -> str:
+    """Each signed-in user's own group: their open tabs join it for personal events."""
+    return f"user_{user_id}"
+
+
+def push_to_user(user_id: int, payload: dict) -> None:
+    """Send one person a personal event (a desktop-notification candidate: new DM, @mention,
+    bell notification) after the transaction commits. Unlike change notices this carries the
+    text to show, because it is only ever sent to its recipient."""
+    event = {"type": "inbox.event", "event": payload}
+    transaction.on_commit(lambda: _send(event, user_group(user_id)))
+
+
+def _send(event: dict, group: str = LIVE_GROUP) -> None:
     layer = get_channel_layer()
     if layer is None:
         return
     try:
-        async_to_sync(layer.group_send)(LIVE_GROUP, event)
+        async_to_sync(layer.group_send)(group, event)
     except Exception:  # e.g. Redis briefly unavailable
         logger.warning("Live update broadcast failed: %s", event, exc_info=True)

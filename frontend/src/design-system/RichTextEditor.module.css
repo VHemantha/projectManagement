@@ -41,8 +41,8 @@
   font-size: 12.5px;
 }
 .editor :global(pre) {
-  background: #172b4d;
-  color: #fff;
+  background: var(--tf-inverse-bg);
+  color: var(--tf-text-inverse);
   padding: var(--tf-space-3);
   border-radius: var(--tf-radius-md);
   overflow-x: auto;
@@ -84,6 +84,6 @@
   background: var(--tf-surface-hover);
 }
 .toolBtn[data-active='true'] {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
 }

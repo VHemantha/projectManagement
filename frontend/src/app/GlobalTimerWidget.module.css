@@ -45,6 +45,6 @@
   border-radius: 50%;
   border: none;
   background: var(--tf-status-done-text);
-  color: #fff;
+  color: var(--tf-text-inverse);
   cursor: pointer;
 }

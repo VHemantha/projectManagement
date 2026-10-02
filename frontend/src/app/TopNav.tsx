@@ -40,7 +40,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
         <Tooltip label="Create a new job">
           <button
             className={styles.iconBtn}
-            style={{ background: 'var(--tf-blue)', color: '#fff', borderRadius: 'var(--tf-radius-md)', width: 'auto', padding: '0 12px', display: 'flex', gap: 4 }}
+            style={{ background: 'var(--tf-primary)', color: 'var(--tf-text-inverse)', borderRadius: 'var(--tf-radius-md)', width: 'auto', padding: '0 12px', display: 'flex', gap: 4 }}
             onClick={() => openCreateIssue()}
           >
             <Plus size={16} />
@@ -54,7 +54,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
       <div className={styles.topnavSearch}>
         <div className={styles.searchInput} onClick={toggleQuickSearch}>
           <Search size={15} />
-          <span>Search jobs, projects…</span>
+          <span>Search jobs, workspaces…</span>
           <kbd className={styles.searchKbd}>Ctrl K</kbd>
         </div>
       </div>

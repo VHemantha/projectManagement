@@ -16,6 +16,7 @@ import {
 import styles from './SprintReportPage.module.css'
 import { useSprintBurndown, useSprints, useVelocity } from '@/api/sprints'
 import { useProjectContext } from '@/features/projects/useProjectContext'
+import { isScrumWorkspace } from '@/features/projects/workspaceTabs'
 
 export function SprintReportPage() {
   const { project } = useProjectContext()
@@ -34,8 +35,8 @@ export function SprintReportPage() {
     remaining: burndown!.remaining[i],
   }))
 
-  if (project.project_type !== 'scrum') {
-    return <div className={styles.page}>Reports are available for Scrum projects.</div>
+  if (!isScrumWorkspace(project)) {
+    return <div className={styles.page}>Reports are available for Scrum workspaces.</div>
   }
 
   return (
@@ -83,7 +84,7 @@ export function SprintReportPage() {
                         type="monotone"
                         dataKey="remaining"
                         name="Remaining"
-                        stroke="var(--tf-blue)"
+                        stroke="var(--tf-primary)"
                         strokeWidth={2}
                         dot={{ r: 3 }}
                         connectNulls={false}
@@ -93,7 +94,7 @@ export function SprintReportPage() {
                 </div>
                 <div className={styles.legend}>
                   <span className={styles.legendItem}>
-                    <span className={styles.swatch} style={{ background: 'var(--tf-blue)' }} /> Remaining points
+                    <span className={styles.swatch} style={{ background: 'var(--tf-primary)' }} /> Remaining points
                   </span>
                   <span className={styles.legendItem}>
                     <span className={styles.swatch} style={{ background: 'var(--tf-text-subtle)' }} /> Ideal burn

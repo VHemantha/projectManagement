@@ -6,13 +6,21 @@ import { useProjects } from '@/api/projects'
 import type { ProjectSummary } from '@/api/types'
 import { Avatar } from '@/design-system'
 import { type DataColumn, DataTable } from '@/features/tables/DataTable'
+import { FEATURES } from '@/lib/features'
 
 const EMPTY: ProjectSummary[] = []
+
+function typeLabel(p: ProjectSummary): string {
+  if (p.is_client_workspace) return 'Client jobs'
+  // Scrum/Kanban only means something while the Scrum feature is on.
+  if (!FEATURES.scrum) return 'Workspace'
+  return p.project_type === 'scrum' ? 'Scrum' : 'Kanban'
+}
 
 const columns: DataColumn<ProjectSummary>[] = [
   {
     id: 'name',
-    label: 'Project',
+    label: 'Workspace',
     required: true,
     size: 260,
     value: (p) => p.name,
@@ -33,10 +41,10 @@ const columns: DataColumn<ProjectSummary>[] = [
     id: 'project_type',
     label: 'Type',
     size: 130,
-    value: (p) => (p.is_client_workspace ? 'Client jobs' : p.project_type === 'scrum' ? 'Scrum' : 'Kanban'),
+    value: typeLabel,
     cell: (p) => (
       <span className={styles.typeBadge}>
-        {p.is_client_workspace ? 'Client jobs' : p.project_type === 'scrum' ? 'Scrum' : 'Kanban'}
+        {typeLabel(p)}
       </span>
     ),
   },
@@ -76,7 +84,7 @@ const columns: DataColumn<ProjectSummary>[] = [
   },
 ]
 
-/** The Projects section's landing pane (shown at the bare /projects route, to the right of the
+/** The Workspaces section's landing pane (shown at the bare /workspaces route, to the right of the
  * persistent tree in ProjectsSectionLayout): every project in a customisable, sortable table. */
 export function ProjectsListPage() {
   const { data: projects, isLoading } = useProjects()
@@ -85,7 +93,7 @@ export function ProjectsListPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All projects</h1>
+        <h1 className={styles.title}>All workspaces</h1>
       </div>
       <DataTable
         tableId="projects"
@@ -93,11 +101,11 @@ export function ProjectsListPage() {
         data={projects ?? EMPTY}
         getRowId={(p) => p.key}
         isLoading={isLoading}
-        emptyMessage="No projects yet. Create your first one to get started."
-        onRowClick={(p) => navigate(`/projects/${p.key}`)}
-        exportName="projects"
+        emptyMessage="No workspaces yet. Create your first one to get started."
+        onRowClick={(p) => navigate(`/workspaces/${p.key}`)}
+        exportName="workspaces"
         defaultSort={[{ id: 'name', desc: false }]}
-        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} workspace${n === 1 ? '' : 's'}`}
       />
     </div>
   )

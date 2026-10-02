@@ -8,6 +8,30 @@ export interface User {
   is_staff: boolean
 }
 
+/** A person in the org chart: admin (organisation staff), team lead or member. */
+export interface HierarchyNode extends User {
+  role: 'admin' | 'lead' | 'member'
+  teams: string[]
+}
+
+export interface HierarchyTeam {
+  id: number
+  name: string
+  avatar_color: string
+  parent_id: number | null
+  leads: HierarchyNode[]
+  members: HierarchyNode[]
+}
+
+/** Derived from roles and team membership: there is no reporting-line field. */
+export interface UserHierarchy {
+  derived: boolean
+  basis: string
+  admins: HierarchyNode[]
+  teams: HierarchyTeam[]
+  no_team: HierarchyNode[]
+}
+
 export type ProjectType = 'scrum' | 'kanban'
 
 export interface ClientMini {
@@ -76,6 +100,13 @@ export interface ProjectDetail extends Omit<ProjectSummary, 'issue_count'> {
   versions: Version[]
   contributing_teams: TeamMini[]
   budgeted_hours: number | null
+  /** Hours logged against the workspace's jobs. */
+  actual_hours: number
+  /** ISO date (yyyy-MM-dd) or null. */
+  deadline: string | null
+  special_notes: string
+  /** Whether the current user may edit budget, deadline, description and notes. */
+  can_manage: boolean
   job_value: string | null
   job_value_currency: string
   /** Standard task names offered as the summary in the Create issue dialog. */

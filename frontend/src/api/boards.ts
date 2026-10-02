@@ -66,3 +66,19 @@ export function useDeleteBoardStatus(boardId: number | undefined, projectKey: st
     },
   })
 }
+
+/** Rename one column (and its status, when the status carries the column's name). */
+export function useRenameColumn(boardId: number | undefined, projectKey: string | undefined) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ index, name }: { index: number; name: string }) => {
+      const { data } = await apiClient.patch<BoardConfig>(`/boards/${boardId}/columns/${index}/`, { name })
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['boards', boardId, 'config'] })
+      if (projectKey) queryClient.invalidateQueries({ queryKey: ['projects', projectKey, 'board'] })
+      queryClient.invalidateQueries({ queryKey: ['issues'] }) // cards show status names
+    },
+  })
+}

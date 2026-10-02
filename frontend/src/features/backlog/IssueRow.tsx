@@ -39,7 +39,7 @@ export function IssueRow({ issue }: { issue: IssueListItem }) {
         {issue.labels.slice(0, 2).map((l) => (
           <span
             key={l.id}
-            style={{ fontSize: 11, padding: '1px 6px', borderRadius: 3, background: l.color, color: '#172B4D' }}
+            style={{ fontSize: 11, padding: '1px 6px', borderRadius: 3, background: l.color, color: 'var(--tf-text)' }}
           >
             {l.name}
           </span>

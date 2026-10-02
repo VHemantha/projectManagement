@@ -21,7 +21,7 @@ export function ProjectSwitcher({ expanded }: { expanded: boolean }) {
         className={styles.sidebarSectionLabel}
         style={{ opacity: 0.6, textTransform: 'none', fontWeight: 400 }}
       >
-        No projects yet
+        No workspaces yet
       </div>
     )
   }
@@ -31,7 +31,7 @@ export function ProjectSwitcher({ expanded }: { expanded: boolean }) {
       {recent.map((project) => (
         <NavLink
           key={project.id}
-          to={`/projects/${project.key}`}
+          to={`/workspaces/${project.key}`}
           className={({ isActive }) => `${styles.navItem} ${isActive ? styles.active : ''}`}
         >
           <span

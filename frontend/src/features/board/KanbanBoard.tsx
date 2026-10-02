@@ -16,9 +16,29 @@ import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react
 
 import styles from './KanbanBoard.module.css'
 import { BoardCard } from './BoardCard'
+import {
+  type BoardFilters,
+  DUE_FILTER_LABELS,
+  type DueFilter,
+  filterIssues,
+  hasActiveFilters,
+  labelOptions,
+  NO_FILTERS,
+  PRIORITY_ORDER,
+} from './boardFilters'
 import { type Lane, type SwimlaneMode, computeLanes } from './laneUtils'
-import type { BoardColumn, CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
-import { Avatar, Skeleton } from '@/design-system'
+import type {
+  BoardColumn,
+  CardColorRule,
+  CardColors,
+  CardColorStyle,
+  CardFieldKey,
+  IssueListItem,
+  Priority,
+} from '@/api/types'
+import { Avatar, InlineEdit, Skeleton } from '@/design-system'
+import { defaultColumnColor } from '@/lib/palette'
+import { sentenceCase } from '@/lib/text'
 import { useAuthStore } from '@/store/authStore'
 
 /** How a card is drawn: which fields it shows and how it's colour-coded (a board's settings). */
@@ -38,6 +58,9 @@ interface KanbanBoardProps {
   defaultSwimlaneMode?: SwimlaneMode
   showSwimlanePicker?: boolean
   availableSwimlanes?: SwimlaneMode[]
+  /** When set, column names can be renamed in place (double-click); index is the column's
+   * position in `columns`. */
+  onRenameColumn?: (index: number, name: string) => Promise<unknown>
   /** Extra toolbar content rendered at the end of the filters bar — e.g. a "Configure board"
    * button. Kept as an injected node rather than a boards-API-aware prop so this component
    * stays generic across all four board scopes (project, epic, team, my-work). */
@@ -62,7 +85,7 @@ const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
   none: 'No swimlanes',
   epic: 'Swimlanes: Epic',
   assignee: 'Swimlanes: Assignee',
-  project: 'Swimlanes: Project',
+  project: 'Swimlanes: Workspace',
   parent: 'Swimlanes: Parent',
 }
 
@@ -84,12 +107,14 @@ export function KanbanBoard({
   cardColorStyle,
   cardConfigByProject,
   onMoveIssue,
+  onRenameColumn,
   emptyMessage = 'No jobs to show.',
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
-  const [onlyMine, setOnlyMine] = useState(false)
-  const [assigneeFilter, setAssigneeFilter] = useState<number | null>(null)
+  const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS)
+  const setFilter = <K extends keyof BoardFilters>(key: K, value: BoardFilters[K]) =>
+    setFilters((prev) => ({ ...prev, [key]: value }))
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [sections, setSections] = useState<Record<string, number[]>>({})
   const [issuesById, setIssuesById] = useState<Record<number, IssueListItem>>({})
@@ -111,13 +136,11 @@ export function KanbanBoard({
     setSwimlaneMode(defaultSwimlaneMode)
   }, [defaultSwimlaneMode])
 
-  const filteredIssues = useMemo(() => {
-    return issues.filter((issue) => {
-      if (onlyMine && issue.assignee?.id !== currentUser?.id) return false
-      if (assigneeFilter != null && issue.assignee?.id !== assigneeFilter) return false
-      return true
-    })
-  }, [issues, onlyMine, assigneeFilter, currentUser])
+  const filteredIssues = useMemo(
+    () => filterIssues(issues, filters, currentUser?.id),
+    [issues, filters, currentUser],
+  )
+  const labels = useMemo(() => labelOptions(issues), [issues])
 
   const lanes = useMemo(() => computeLanes(filteredIssues, swimlaneMode), [filteredIssues, swimlaneMode])
 
@@ -223,10 +246,11 @@ export function KanbanBoard({
         <button
           className={styles.select}
           style={{
-            background: onlyMine ? 'var(--tf-blue-subtle)' : undefined,
-            color: onlyMine ? 'var(--tf-blue)' : undefined,
+            background: filters.onlyMine ? 'var(--tf-primary-subtle)' : undefined,
+            color: filters.onlyMine ? 'var(--tf-primary)' : undefined,
           }}
-          onClick={() => setOnlyMine((v) => !v)}
+          aria-pressed={filters.onlyMine}
+          onClick={() => setFilter('onlyMine', !filters.onlyMine)}
         >
           Only my jobs
         </button>
@@ -236,14 +260,59 @@ export function KanbanBoard({
               a && (
                 <span
                   key={a.id}
-                  className={assigneeFilter === a.id ? styles.avatarActive : ''}
-                  onClick={() => setAssigneeFilter((prev) => (prev === a.id ? null : a.id))}
+                  className={filters.assigneeId === a.id ? styles.avatarActive : ''}
+                  onClick={() => setFilter('assigneeId', filters.assigneeId === a.id ? null : a.id)}
                 >
                   <Avatar name={a.display_name} src={a.avatar} size={28} />
                 </span>
               ),
           )}
         </div>
+        <select
+          className={styles.select}
+          aria-label="Filter by priority"
+          value={filters.priority ?? ''}
+          onChange={(e) => setFilter('priority', (e.target.value || null) as Priority | null)}
+        >
+          <option value="">Any priority</option>
+          {PRIORITY_ORDER.map((p) => (
+            <option key={p} value={p}>
+              {sentenceCase(p)}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.select}
+          aria-label="Filter by due date"
+          value={filters.due}
+          onChange={(e) => setFilter('due', e.target.value as DueFilter)}
+        >
+          {(Object.keys(DUE_FILTER_LABELS) as DueFilter[]).map((d) => (
+            <option key={d} value={d}>
+              {DUE_FILTER_LABELS[d]}
+            </option>
+          ))}
+        </select>
+        {labels.length > 0 && (
+          <select
+            className={styles.select}
+            aria-label="Filter by label"
+            value={filters.label ?? ''}
+            onChange={(e) => setFilter('label', e.target.value || null)}
+          >
+            <option value="">Any label</option>
+            {labels.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
+        {hasActiveFilters(filters) && (
+          <button type="button" className={styles.clearFilters} onClick={() => setFilters(NO_FILTERS)}>
+            Clear filters
+          </button>
+        )}
         {showSwimlanePicker && (
           <select
             className={styles.select}
@@ -279,6 +348,7 @@ export function KanbanBoard({
               setCollapsed={setCollapsed}
               issuesById={issuesById}
               configFor={configFor}
+              onRenameColumn={onRenameColumn}
             />
           ))}
           <DragOverlay>
@@ -300,6 +370,7 @@ function BoardLane({
   setCollapsed,
   issuesById,
   configFor,
+  onRenameColumn,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -308,6 +379,7 @@ function BoardLane({
   setCollapsed: (fn: (prev: Set<number>) => Set<number>) => void
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
+  onRenameColumn?: (index: number, name: string) => Promise<unknown>
 }) {
   return (
     <div className={styles.lane}>
@@ -328,7 +400,8 @@ function BoardLane({
               key={key}
               containerId={key}
               title={col.name}
-              color={col.color}
+              // Unset columns still get distinct colours, in column order.
+              color={col.color ?? defaultColumnColor(col.name, colIndex)}
               count={ids.length}
               wipLimit={col.wip_limit}
               overLimit={overLimit}
@@ -344,6 +417,7 @@ function BoardLane({
               issueIds={ids}
               issuesById={issuesById}
               configFor={configFor}
+              onRename={onRenameColumn && ((name) => onRenameColumn(colIndex, name))}
             />
           )
         })}
@@ -364,6 +438,7 @@ function BoardColumnView({
   issueIds,
   issuesById,
   configFor,
+  onRename,
 }: {
   containerId: string
   title: string
@@ -376,6 +451,7 @@ function BoardColumnView({
   issueIds: number[]
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
+  onRename?: (name: string) => Promise<unknown>
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
@@ -390,7 +466,14 @@ function BoardColumnView({
         {!collapsed && (
           <>
             {color && <span className={styles.columnDot} style={{ background: color }} />}
-            <span>{title}</span>
+            {onRename ? (
+              // Clicking the name doesn't collapse the column; double-clicking renames it.
+              <span className={styles.columnTitle} onClick={(e) => e.stopPropagation()}>
+                <InlineEdit value={title} label="Column name" maxLength={50} activation="doubleClick" onSave={onRename} />
+              </span>
+            ) : (
+              <span>{title}</span>
+            )}
             <span className={`${styles.columnCount} ${overLimit ? styles.overLimit : ''}`}>
               {count}
               {wipLimit != null ? ` / ${wipLimit}` : ''}

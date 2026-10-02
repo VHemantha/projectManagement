@@ -1,0 +1,82 @@
+.wrap,
+.editing {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.editable {
+  cursor: text;
+  border-radius: var(--tf-radius-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.editable:hover {
+  background: var(--tf-surface-hover);
+  box-shadow: 0 0 0 3px var(--tf-surface-hover);
+}
+
+/* The pencil shows on hover/focus so names stay uncluttered. */
+.editButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--tf-radius-sm);
+  background: transparent;
+  color: var(--tf-text-subtle);
+  cursor: pointer;
+  opacity: 0;
+}
+.wrap:hover .editButton,
+.editButton:focus-visible {
+  opacity: 1;
+}
+.editButton:hover {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+}
+@media (hover: none) {
+  .editButton {
+    opacity: 1;
+  }
+}
+
+.input {
+  min-width: 120px;
+  width: 100%;
+  font: inherit;
+  color: var(--tf-text);
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border-focus);
+  border-radius: var(--tf-radius-md);
+  padding: 1px 6px;
+  outline: 2px solid var(--tf-primary-subtle);
+}
+.input[aria-invalid='true'] {
+  border-color: var(--tf-danger);
+  outline-color: var(--tf-danger-bg);
+}
+
+.error {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: var(--tf-z-dropdown);
+  padding: 4px 8px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+  font-size: 12px;
+  font-weight: 400;
+  width: max-content;
+  max-width: 260px;
+  white-space: normal;
+  box-shadow: var(--tf-shadow-sm);
+}

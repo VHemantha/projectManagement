@@ -1,23 +1,24 @@
 .layout {
   display: flex;
   height: 100%;
+  min-height: 0;
 }
 
-.sidebar {
-  width: var(--tf-project-sidebar-width);
-  background: var(--tf-surface-sunken);
-  border-right: 1px solid var(--tf-border);
-  flex-shrink: 0;
+.tabs {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: var(--tf-space-2);
-  padding: var(--tf-space-4) var(--tf-space-3);
+  flex-wrap: wrap;
+  gap: var(--tf-space-2) var(--tf-space-3);
+  padding: var(--tf-space-3) var(--tf-space-5) 0;
+  border-bottom: 1px solid var(--tf-border);
+  background: var(--tf-surface);
 }
 
 .projectAvatar {
@@ -27,17 +28,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--tf-text-inverse);
   font-weight: 700;
   font-size: 13px;
   flex-shrink: 0;
+  align-self: center;
+  margin-bottom: var(--tf-space-2);
+}
+
+.headerText {
+  min-width: 0;
+  margin-bottom: var(--tf-space-2);
 }
 
 .projectName {
-  font-size: 14px;
+  margin: 0;
+  font-size: 16px;
   font-weight: 600;
   color: var(--tf-text);
-  line-height: 1.2;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .projectType {
@@ -45,101 +57,56 @@
   color: var(--tf-text-subtle);
 }
 
-.nav {
+/* The tab strip sits beside the name on wide screens and wraps under it on narrow ones,
+   scrolling sideways rather than squeezing. */
+.tabBar {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 0 var(--tf-space-2);
+  justify-content: flex-start;
+  overflow-x: auto;
+  margin-left: var(--tf-space-4);
 }
-
-.navItem {
-  display: flex;
-  align-items: center;
-  gap: var(--tf-space-3);
-  height: 32px;
-  padding: 0 var(--tf-space-3);
-  border-radius: var(--tf-radius-md);
-  color: var(--tf-text-secondary);
-  font-size: 14px;
-}
-.navItem:hover {
-  background: var(--tf-surface-hover);
-  text-decoration: none;
-}
-.navItem[aria-current='page'] {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
-  font-weight: 500;
+.tabBar > div {
+  border-bottom: none;
 }
 
 .content {
   flex: 1;
-  min-width: 0;
+  min-height: 0;
   overflow-y: auto;
 }
-
-.footer {
-  margin-top: auto;
-  padding: var(--tf-space-3);
+.withPanel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
 }
 
-/* Collapsed (desktop): a narrow icon rail like the main sidebar. */
-@media (min-width: 769px) {
-  .sidebar.collapsed {
-    width: 56px;
-    align-items: center;
-  }
-  .collapsed .header {
-    padding: var(--tf-space-3) 0;
-  }
-  .collapsed .headerText,
-  .collapsed .navLabel {
-    display: none;
-  }
-  .collapsed .nav {
-    align-items: center;
-    padding: 0;
-    gap: 4px;
-  }
-  .collapsed .navItem {
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    padding: 0;
-  }
-  .collapsed .footer {
-    padding: var(--tf-space-3) 0;
-  }
+.main {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
 }
 
-/* Mobile: stack the per-project nav above the content and turn the vertical nav
-   into a horizontally-scrolling tab bar so it never squeezes the page. */
+.content:focus-visible {
+  outline: none;
+}
+
 @media (max-width: 768px) {
   .layout {
-    flex-direction: column;
     height: auto;
   }
-  .sidebar {
-    width: 100%;
-    border-right: none;
-    border-bottom: 1px solid var(--tf-border);
-    overflow: visible;
+  .header {
+    padding: var(--tf-space-3) var(--tf-space-3) 0;
   }
-  .nav {
-    flex-direction: row;
-    overflow-x: auto;
-    gap: 4px;
-    padding: 0 var(--tf-space-2) var(--tf-space-2);
-  }
-  .navItem {
-    flex-shrink: 0;
-    white-space: nowrap;
-  }
-  /* The horizontal tab bar always shows labels; collapsing is a desktop feature. */
-  .footer {
-    display: none;
+  .tabBar {
+    flex-basis: 100%;
+    margin-left: 0;
   }
   .content {
     overflow-y: visible;
+  }
+  .withPanel {
+    height: auto;
   }
 }

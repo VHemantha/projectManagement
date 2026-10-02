@@ -89,8 +89,8 @@ export function MessageComposer({ channel, onSend, onTyping }: MessageComposerPr
               key={u.id}
               style={{
                 fontSize: 12,
-                background: 'var(--tf-blue-subtle)',
-                color: 'var(--tf-blue)',
+                background: 'var(--tf-primary-subtle)',
+                color: 'var(--tf-primary)',
                 borderRadius: 999,
                 padding: '2px 8px',
                 cursor: 'pointer',

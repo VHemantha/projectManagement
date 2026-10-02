@@ -32,8 +32,8 @@
   background: var(--tf-surface-hover);
 }
 .epicChip.active {
-  background: var(--tf-blue-subtle);
-  color: var(--tf-blue);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
 }
 .epicDot {
   width: 8px;

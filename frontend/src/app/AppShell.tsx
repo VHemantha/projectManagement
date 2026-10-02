@@ -8,6 +8,8 @@ import { GlobalSidebar } from './GlobalSidebar'
 import { TopNav } from './TopNav'
 import { useCurrentUser } from '@/api/auth'
 import { useLiveUpdates } from '@/api/useLiveUpdates'
+import { DesktopNotificationsPrompt } from '@/features/notifications/DesktopNotificationsPrompt'
+import { useDesktopNotifications } from '@/features/notifications/useDesktopNotifications'
 import { usePresenceSocket } from '@/api/usePresenceSocket'
 import { CreateIssueModal } from '@/features/issues/CreateIssueModal'
 import { IssueDetailModal } from '@/features/issues/IssueDetailModal'
@@ -22,6 +24,7 @@ export function AppShell() {
   useCurrentUser()
   usePresenceSocket()
   useLiveUpdates()
+  useDesktopNotifications()
 
   // Note: the drawer is closed explicitly by tapping a nav item or the backdrop.
   // While it's open it covers the whole screen, so no other navigation is
@@ -41,6 +44,7 @@ export function AppShell() {
       <div className={styles.main}>
         <TopNav onOpenDrawer={() => setDrawerOpen(true)} />
         {/* Global, route-driven breadcrumb trail shown on every page. */}
+        <DesktopNotificationsPrompt />
         <Breadcrumbs />
         <div className={styles.body}>
           <ErrorBoundary resetKey={location.pathname}>

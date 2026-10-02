@@ -200,6 +200,19 @@ CORS_ALLOWED_ORIGINS = env_list(
 CORS_ALLOW_CREDENTIALS = True
 
 # Celery
+# Email (invitations). Console by default: messages are printed to the server log. For real
+# delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values
+# (e.g. Amazon SES SMTP credentials).
+EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", "localhost")
+EMAIL_PORT = int(env("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "TrackFlow <no-reply@trackflow.local>")
+# Base URL of the web app for links in emails (invitations). Empty: use the admin's browser origin.
+FRONTEND_URL = env("FRONTEND_URL", "")
+
 CELERY_BROKER_URL = env("REDIS_URL", "redis://localhost:6379/0")
 CELERY_RESULT_BACKEND = env("REDIS_URL", "redis://localhost:6379/0")
 CELERY_TASK_ALWAYS_EAGER = env_bool("CELERY_TASK_ALWAYS_EAGER", True)

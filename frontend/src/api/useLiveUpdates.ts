@@ -1,6 +1,7 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 
+import { emitInboxEvent, type InboxEvent, setLiveConnected } from './inboxEvents'
 import { useAuthStore } from '@/store/authStore'
 
 const MAX_BACKOFF_MS = 10_000
@@ -33,6 +34,8 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
         add(['issues']) // every board, backlog and issue list
         add(['activity'])
         add(['projects'], true) // issue counts in the projects table
+        // The open workspace's own details: logged time feeds its actual hours.
+        if (e.project) add(['projects', e.project], true)
         if (e.key) add(['issue', e.key])
         break
       case 'issue':
@@ -56,6 +59,7 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
       case 'teams':
         add(['teams'])
         add(['reports', 'nav-tree'])
+        add(['users', 'hierarchy']) // the People org chart groups people by team
         break
       case 'clients':
         add(['clients'])
@@ -107,19 +111,25 @@ export function useLiveUpdates() {
       socket = new WebSocket(wsUrl(accessToken))
 
       socket.onopen = () => {
+        setLiveConnected(true)
         if (hasConnected) invalidate(queryClient, ALL_EVENTS) // catch up on anything missed
         hasConnected = true
         attempt = 0
       }
 
       socket.onmessage = (message) => {
-        const event = JSON.parse(message.data) as LiveEvent
+        const event = JSON.parse(message.data) as LiveEvent | (InboxEvent & { type: 'inbox' })
+        if (event.type === 'inbox') {
+          emitInboxEvent(event)
+          return
+        }
         if (event.type !== 'live.change') return
         pending.push(event)
         flushTimer ??= setTimeout(flush, FLUSH_DELAY_MS)
       }
 
       socket.onclose = () => {
+        setLiveConnected(false)
         if (cancelled) return
         const delay = Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS)
         attempt += 1
@@ -133,6 +143,7 @@ export function useLiveUpdates() {
 
     return () => {
       cancelled = true
+      setLiveConnected(false)
       if (reconnectTimer) clearTimeout(reconnectTimer)
       if (flushTimer) clearTimeout(flushTimer)
       socket?.close()

@@ -135,6 +135,40 @@ describe('KanbanBoard', () => {
     expect(patchMutate).toHaveBeenCalledWith({ key: 'TRK-2', patch: { allocated_value: '350' } })
   })
 
+  it('filters cards by priority and label from the toolbar, keeping the columns', async () => {
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', summary: 'Urgent VAT', priority: 'high', labels: [{ id: 1, name: 'VAT', color: '#ccc' }] }),
+      makeIssue({ id: 2, key: 'TRK-2', summary: 'Routine', priority: 'low', status: { id: 3, name: 'Done', category: 'done', order: 2 } }),
+    ]
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by priority' }), 'high')
+    expect(screen.getByText('Urgent VAT')).toBeInTheDocument()
+    expect(screen.queryByText('Routine')).not.toBeInTheDocument()
+    expect(screen.getByText('Done')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
+    expect(screen.getByText('Routine')).toBeInTheDocument()
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Filter by label' }), 'VAT')
+    expect(screen.queryByText('Routine')).not.toBeInTheDocument()
+  })
+
+  it('renames a column in place when renaming is allowed', async () => {
+    const onRenameColumn = vi.fn(() => Promise.resolve())
+    render(
+      <KanbanBoard issues={[makeIssue({ id: 1 })]} columns={columns} onMoveIssue={vi.fn()} onRenameColumn={onRenameColumn} />,
+    )
+    await userEvent.dblClick(screen.getByText('In Progress'))
+    const input = screen.getByRole('textbox', { name: 'Column name' })
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Doing{Enter}')
+    expect(onRenameColumn).toHaveBeenCalledWith(1, 'Doing')
+    expect(screen.getByText('Doing')).toBeInTheDocument()
+  })
+
+  it('shows plain column names when renaming is not allowed', () => {
+    render(<KanbanBoard issues={[makeIssue({ id: 1 })]} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'Rename column name' })).not.toBeInTheDocument()
+  })
+
   it('flags a column as over its WIP limit', () => {
     const issues = [
       makeIssue({ id: 1, status: { id: 2, name: 'In Progress', category: 'in_progress', order: 1 } }),

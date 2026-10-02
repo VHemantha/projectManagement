@@ -75,7 +75,7 @@
   border: none;
   border-top: 1px solid var(--tf-border);
   background: transparent;
-  color: var(--tf-blue);
+  color: var(--tf-primary);
   font-size: 12px;
   cursor: pointer;
 }

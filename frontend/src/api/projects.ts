@@ -2,7 +2,7 @@ import { type UseQueryResult, useMutation, useQueries, useQuery, useQueryClient 
 import { useCallback } from 'react'
 
 import { apiClient } from './client'
-import type { Board, Paginated, ProjectDetail, ProjectMembership, ProjectSummary, ProjectType } from './types'
+import type { Board, Label, Paginated, ProjectDetail, ProjectMembership, ProjectSummary, ProjectType } from './types'
 
 export function useProjects() {
   return useQuery({
@@ -95,6 +95,8 @@ export interface UpdateProjectPayload {
   primary_team_id?: number | null
   contributing_team_ids?: number[]
   budgeted_hours?: number | null
+  deadline?: string | null
+  special_notes?: string
   job_value?: string | null
   job_value_currency?: string
   task_names?: string[]
@@ -150,5 +152,30 @@ export function useRemoveMember(key: string) {
       await apiClient.delete(`/projects/${key}/members/${id}/`)
     },
     onSuccess: invalidate,
+  })
+}
+
+export function useCreateLabel(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { name: string; color?: string }) => {
+      const { data } = await apiClient.post<Label>(`/projects/${key}/labels/`, payload)
+      return data
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['projects', key] }),
+  })
+}
+
+export function useUpdateLabel(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...patch }: { id: number; name?: string; color?: string }) => {
+      const { data } = await apiClient.patch<Label>(`/projects/${key}/labels/${id}/`, patch)
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects', key] })
+      queryClient.invalidateQueries({ queryKey: ['issues'] }) // cards show label names
+    },
   })
 }

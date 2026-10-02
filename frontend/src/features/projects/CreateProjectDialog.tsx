@@ -8,6 +8,7 @@ import { useCreateProject } from '@/api/projects'
 import type { ProjectType } from '@/api/types'
 import { useUsers } from '@/api/users'
 import { Button, Dialog, DialogContent, Input } from '@/design-system'
+import { FEATURES } from '@/lib/features'
 import { suggestKey } from '@/lib/projectKey'
 
 interface CreateProjectDialogProps {
@@ -19,7 +20,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
   const [name, setName] = useState('')
   const [key, setKey] = useState('')
   const [keyTouched, setKeyTouched] = useState(false)
-  const [projectType, setProjectType] = useState<ProjectType>('scrum')
+  const [projectType, setProjectType] = useState<ProjectType>('kanban')
   const [leadId, setLeadId] = useState<string>('')
   const [taskNames, setTaskNames] = useState<string[]>([])
   const { data: users } = useUsers()
@@ -35,7 +36,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
     setName('')
     setKey('')
     setKeyTouched(false)
-    setProjectType('scrum')
+    setProjectType('kanban')
     setLeadId('')
     setTaskNames([])
     createProject.reset()
@@ -47,7 +48,8 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
       {
         name,
         key,
-        project_type: projectType,
+        // Without the Scrum feature every new workspace is Kanban.
+        project_type: FEATURES.scrum ? projectType : 'kanban',
         lead_id: leadId ? Number(leadId) : undefined,
         task_names: taskNames,
       },
@@ -55,7 +57,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         onSuccess: (project) => {
           onOpenChange(false)
           reset()
-          navigate(`/projects/${project.key}`)
+          navigate(`/workspaces/${project.key}`)
         },
       },
     )
@@ -69,30 +71,32 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
         if (!next) reset()
       }}
     >
-      <DialogContent title="Create project" maxWidth={520}>
+      <DialogContent title="Create workspace" maxWidth={520}>
         <form className={styles.form} onSubmit={handleSubmit}>
           {createProject.isError && (
             <div className={styles.formError}>{extractErrorMessage(createProject.error)}</div>
           )}
 
-          <div>
-            <div className={styles.typeRow}>
-              <div
-                className={`${styles.typeCard} ${projectType === 'scrum' ? styles.selected : ''}`}
-                onClick={() => setProjectType('scrum')}
-              >
-                <div className={styles.typeCardTitle}>Scrum</div>
-                <div className={styles.typeCardDesc}>Backlog, sprints, and a sprint board.</div>
-              </div>
-              <div
-                className={`${styles.typeCard} ${projectType === 'kanban' ? styles.selected : ''}`}
-                onClick={() => setProjectType('kanban')}
-              >
-                <div className={styles.typeCardTitle}>Kanban</div>
-                <div className={styles.typeCardDesc}>Continuous flow board, no sprints.</div>
+          {FEATURES.scrum && (
+            <div>
+              <div className={styles.typeRow}>
+                <div
+                  className={`${styles.typeCard} ${projectType === 'scrum' ? styles.selected : ''}`}
+                  onClick={() => setProjectType('scrum')}
+                >
+                  <div className={styles.typeCardTitle}>Scrum</div>
+                  <div className={styles.typeCardDesc}>Backlog, sprints, and a sprint board.</div>
+                </div>
+                <div
+                  className={`${styles.typeCard} ${projectType === 'kanban' ? styles.selected : ''}`}
+                  onClick={() => setProjectType('kanban')}
+                >
+                  <div className={styles.typeCardTitle}>Kanban</div>
+                  <div className={styles.typeCardDesc}>Continuous flow board, no sprints.</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <Input
             id="project-name"
@@ -146,7 +150,7 @@ export function CreateProjectDialog({ open, onOpenChange }: CreateProjectDialogP
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={createProject.isPending}>
-              {createProject.isPending ? 'Creating…' : 'Create project'}
+              {createProject.isPending ? 'Creating…' : 'Create workspace'}
             </Button>
           </div>
         </form>

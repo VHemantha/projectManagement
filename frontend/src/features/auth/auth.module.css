@@ -29,11 +29,11 @@
   width: 28px;
   height: 28px;
   border-radius: var(--tf-radius-md);
-  background: var(--tf-blue);
+  background: var(--tf-primary);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--tf-text-inverse);
   font-weight: 700;
   font-size: 15px;
 }

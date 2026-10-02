@@ -4,13 +4,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import styles from './TeamBoardPage.module.css'
 import { extractErrorMessage } from '@/api/errors'
-import { useDeleteTeam, useTeam } from '@/api/teams'
+import { useDeleteTeam, useTeam, useUpdateTeam } from '@/api/teams'
 import type { TeamDetail } from '@/api/types'
 import { TeamBoard } from './TeamBoard'
 import { TeamGoalsTab } from './TeamGoalsTab'
 import { TeamIssuesTab } from './TeamIssuesTab'
 import { TeamMembersTab } from './TeamMembersTab'
-import { Button, Dialog, DialogContent, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
+import { Button, Dialog, DialogContent, InlineEdit, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
 function DeleteTeamDialog({
@@ -35,7 +35,7 @@ function DeleteTeamDialog({
             <li>the team&apos;s chat channel and all of its messages</li>
           </ul>
           <p style={{ margin: 0, color: 'var(--tf-text-subtle)' }}>
-            Members, projects and jobs are kept. Projects and sub-teams linked to this team are
+            Members, workspaces and jobs are kept. Workspaces and sub-teams linked to this team are
             unlinked from it.
           </p>
           {deleteTeam.isError && (
@@ -64,10 +64,12 @@ export function TeamDetailPage() {
   const { data: team } = useTeam(teamId)
   const currentUser = useAuthStore((s) => s.user)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const updateTeam = useUpdateTeam(Number(teamId))
 
   if (!team) return null
 
-  // Mirrors the backend rule (TeamViewSet.perform_destroy): staff or one of the team's leads.
+  // Mirrors the backend rule (TeamViewSet.perform_update/perform_destroy): staff or one of the
+  // team's leads may rename or delete it.
   const canDelete =
     !!currentUser &&
     (currentUser.is_staff || team.memberships.some((m) => m.user.id === currentUser.id && m.role === 'lead'))
@@ -79,13 +81,21 @@ export function TeamDetailPage() {
           {team.name.slice(0, 2).toUpperCase()}
         </span>
         <div>
-          <div className={styles.title}>{team.name}</div>
+          <InlineEdit
+            as="div"
+            className={styles.title}
+            value={team.name}
+            label="Team name"
+            maxLength={150}
+            canEdit={canDelete}
+            onSave={(name) => updateTeam.mutateAsync({ name })}
+          />
           <div className={styles.subtitle}>
             {team.memberships.length} members
             {team.parent && (
               <>
                 {' · Part of '}
-                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-blue)' }}>
+                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-primary)' }}>
                   {team.parent.name}
                 </Link>
               </>

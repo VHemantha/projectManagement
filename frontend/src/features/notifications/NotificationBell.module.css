@@ -40,17 +40,17 @@
   background: var(--tf-surface-hover);
 }
 .row.unread {
-  background: var(--tf-blue-subtle);
+  background: var(--tf-primary-subtle);
 }
 .row.unread:hover {
-  background: #cfe2ff;
+  background: var(--tf-surface-pressed);
 }
 
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--tf-blue);
+  background: var(--tf-primary);
   margin-top: 5px;
   flex-shrink: 0;
 }

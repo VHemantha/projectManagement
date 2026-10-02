@@ -261,10 +261,10 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           shown instead, so this is skipped there to avoid a duplicate trail. */}
       {isModal && (
         <div className={styles.breadcrumb}>
-          <Link to="/projects">Projects</Link> / <Link to={`/projects/${issue.project}`}>{issue.project}</Link> /{' '}
+          <Link to="/workspaces">Workspaces</Link> / <Link to={`/workspaces/${issue.project}`}>{issue.project}</Link> /{' '}
           <IssueKey value={issue.key} />
           <div className={styles.headerActions} style={{ marginLeft: 'auto' }}>
-            <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={onClose}>
+            <Link to={`/workspaces/${issue.project}/issues/${issue.key}`} onClick={onClose}>
               <Button variant="subtle" size="sm" iconOnly aria-label="Open full page">
                 <ExternalLink size={14} />
               </Button>
@@ -314,7 +314,7 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           </Button>
         </div>
         {issue.issue_type.name === 'Epic' && (
-          <Link to={`/projects/${issue.project}/epics/${issue.key}/board`} onClick={onClose}>
+          <Link to={`/workspaces/${issue.project}/epics/${issue.key}/board`} onClick={onClose}>
             <Button variant="secondary" size="sm">
               View epic on board
             </Button>

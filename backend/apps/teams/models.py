@@ -8,7 +8,7 @@ class Team(models.Model):
     )
     name = models.CharField(max_length=150)
     description = models.TextField(blank=True)
-    avatar_color = models.CharField(max_length=7, default="#0C66E4")
+    avatar_color = models.CharField(max_length=7, default="#6A3DF0")  # the primary violet
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL, through="TeamMembership", related_name="teams"
     )

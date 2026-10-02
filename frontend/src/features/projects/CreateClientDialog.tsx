@@ -94,10 +94,10 @@ function ClientForm({
           style={{ marginTop: 2 }}
         />
         <span>
-          <strong>Requires projects</strong>
+          <strong>Requires workspaces</strong>
           <br />
           <span style={{ color: 'var(--tf-text-subtle)' }}>
-            When off, jobs can be added for this client directly, without creating a project first.
+            When off, jobs can be added for this client directly, without creating a workspace first.
           </span>
         </span>
       </label>

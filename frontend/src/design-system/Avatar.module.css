@@ -6,8 +6,8 @@
   overflow: hidden;
   flex-shrink: 0;
   font-weight: 600;
-  color: #fff;
-  background: var(--tf-blue);
+  color: var(--tf-text-inverse);
+  background: var(--tf-primary);
   user-select: none;
 }
 

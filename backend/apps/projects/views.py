@@ -2,6 +2,7 @@ from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.workflow.serializers import BoardSerializer
@@ -9,6 +10,7 @@ from apps.workflow.services import provision_project_defaults
 
 from .keys import get_project_or_404
 from .models import Component, Label, Project, ProjectMembership, Version
+from .permissions import can_manage_project
 from .serializers import (
     ComponentSerializer,
     LabelSerializer,
@@ -56,7 +58,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         board = project.boards.first()
         if not board:
-            return Response({"detail": "No board configured for this project."}, status=404)
+            return Response({"detail": "No board configured for this workspace."}, status=404)
         return Response(BoardSerializer(board).data)
 
 
@@ -95,8 +97,29 @@ class LabelListCreateView(ProjectLookupListMixin, generics.ListCreateAPIView):
     def get_queryset(self):
         return Label.objects.filter(project=self.get_project())
 
+    def get_serializer_context(self):
+        return {**super().get_serializer_context(), "project": self.get_project()}
+
     def perform_create(self, serializer):
-        serializer.save(project=self.get_project())
+        project = self.get_project()
+        if not can_manage_project(self.request.user, project):
+            raise PermissionDenied("Only the workspace lead, a workspace admin or an organisation admin can add labels.")
+        serializer.save(project=project)
+
+
+class LabelDetailView(ProjectLookupListMixin, generics.RetrieveUpdateAPIView):
+    """PATCH /api/projects/<key>/labels/<id>/ — rename or recolour a label. It changes the label
+    on every job that has it, so only workspace managers may do it."""
+
+    serializer_class = LabelSerializer
+
+    def get_queryset(self):
+        return Label.objects.filter(project=self.get_project())
+
+    def perform_update(self, serializer):
+        if not can_manage_project(self.request.user, serializer.instance.project):
+            raise PermissionDenied("Only the workspace lead, a workspace admin or an organisation admin can change labels.")
+        serializer.save()
 
 
 class ComponentListCreateView(ProjectLookupListMixin, generics.ListCreateAPIView):

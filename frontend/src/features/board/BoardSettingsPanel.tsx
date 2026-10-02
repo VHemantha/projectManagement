@@ -22,6 +22,7 @@ import {
 import { useDeleteBoardStatus, useUpdateBoardConfig } from '@/api/boards'
 import { extractErrorMessage } from '@/api/errors'
 import { useIssueTypes } from '@/api/issues'
+import { COLUMN_SWATCHES, SOLID } from '@/lib/palette'
 import type {
   Board,
   BoardColumn,
@@ -57,7 +58,7 @@ const CATEGORY_OPTIONS: { value: WorkflowStatus['category']; label: string }[] =
 ]
 
 // Offered as quick picks next to the full colour picker.
-const SWATCHES = ['#0c66e4', '#36b37e', '#ffab00', '#e5493a', '#8777d9', '#00b8d9', '#626f86']
+const SWATCHES = COLUMN_SWATCHES
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 const DUE_DATE_BUCKETS: DueDateBucket[] = ['overdue', 'due_soon', 'on_track']
@@ -355,7 +356,7 @@ export function BoardSettingsForm({
           </>
         )}
         {cardColorRule === 'label' && (
-          <p className={styles.note}>Cards use the colour of their first label, as set on the project&apos;s labels.</p>
+          <p className={styles.note}>Cards use the colour of their first label, as set on the workspace&apos;s labels.</p>
         )}
       </Section>
 
@@ -445,7 +446,7 @@ function ColorPicker({
       <input
         type="color"
         className={styles.colorInput}
-        value={value ?? '#626f86'}
+        value={value ?? SOLID.grey}
         aria-label={`${label}: custom colour`}
         onChange={(e) => onChange(e.target.value)}
       />

@@ -50,7 +50,7 @@ def member_client(member):
 def test_any_authenticated_user_can_read_board_config(member_client, board):
     resp = member_client.get(f"/api/boards/{board.id}/config/")
     assert resp.status_code == 200
-    assert len(resp.data["column_config"]) == 4
+    assert len(resp.data["column_config"]) == 6
 
 
 def test_non_admin_member_cannot_patch_board_config(member_client, board):
@@ -106,7 +106,7 @@ def test_workspace_admin_can_configure_board_without_being_project_lead(board):
 
 def test_default_transitions_are_provisioned_with_reassign_rules(project):
     transitions = project.workflow.transitions.all()
-    assert transitions.count() == 5
+    assert transitions.count() == 8
     send_for_review = transitions.get(name="Send for review")
     assert send_for_review.set_current_responsible_to == "reviewer"
 
@@ -114,7 +114,7 @@ def test_default_transitions_are_provisioned_with_reassign_rules(project):
 def test_workflow_transition_list_is_scoped_to_project(member_client, project):
     resp = member_client.get(f"/api/projects/{project.key}/workflow/transitions/")
     assert resp.status_code == 200
-    assert len(resp.data) == 5
+    assert len(resp.data) == 8
 
 
 def test_only_set_current_responsible_to_is_editable_on_a_transition(lead_client, project):
@@ -265,7 +265,8 @@ def test_new_issues_start_in_the_first_board_column(lead_client, board, project)
 
     task, _ = IssueType.objects.get_or_create(name="Task", project=None)
     # Put "In progress" first.
-    config = [board.column_config[1], board.column_config[0], *board.column_config[2:]]
+    cols = board.column_config
+    config = [cols[2], cols[0], cols[1], *cols[3:]]
     assert lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json").status_code == 200
     resp = lead_client.post(
         "/api/issues/", {"project": project.key, "summary": "Starts where?", "issue_type_id": task.id}, format="json"

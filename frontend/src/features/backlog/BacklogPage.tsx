@@ -23,6 +23,7 @@ import { useCreateSprint, useSprints } from '@/api/sprints'
 import type { IssueListItem, Sprint } from '@/api/types'
 import { Button } from '@/design-system'
 import { useProjectContext } from '@/features/projects/useProjectContext'
+import { DEFAULT_EPIC_COLOR } from '@/lib/palette'
 
 type SectionId = 'backlog' | number
 
@@ -210,7 +211,7 @@ export function BacklogPage() {
               })
             }
           >
-            <span className={styles.epicDot} style={{ background: epic.epic?.epic_color ?? '#8777D9' }} />
+            <span className={styles.epicDot} style={{ background: epic.epic?.epic_color ?? DEFAULT_EPIC_COLOR }} />
             {epic.summary}
           </div>
         ))}

@@ -5,12 +5,13 @@ import { Link, useLocation } from 'react-router-dom'
 
 import styles from './Breadcrumbs.module.css'
 import type { TeamDetail, TeamSummary, User } from '@/api/types'
+import { DEFAULT_TAB } from '@/features/projects/workspaceTabs'
 
 // Fixed URL segments map to a nicely-cased label. Anything not listed here is a
 // dynamic value (a project key, a team/user id, an issue key) and is resolved
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
-  projects: 'Projects',
+  workspaces: 'Workspaces',
   'all-issues': 'All jobs board',
   teams: 'Teams',
   people: 'People',
@@ -28,6 +29,17 @@ const STATIC_LABELS: Record<string, string> = {
   settings: 'Settings',
   review: 'Review',
   epics: 'Epics',
+}
+
+// Workspace tabs (?tab=…) get a crumb of their own after the workspace key.
+const TAB_LABELS: Record<string, string> = {
+  kanban: 'Kanban',
+  summary: 'Summary',
+  backlog: 'Backlog',
+  jobs: 'Jobs',
+  timeline: 'Timeline',
+  reports: 'Reports',
+  settings: 'Settings',
 }
 
 interface Crumb {
@@ -54,6 +66,11 @@ export function Breadcrumbs() {
     const label = STATIC_LABELS[segment] ?? resolveDynamicLabel(queryClient, segment, prev)
     return { label, path: '/' + segments.slice(0, index + 1).join('/') }
   })
+  if (segments.length === 2 && segments[0] === 'workspaces') {
+    const tab = new URLSearchParams(location.search).get('tab') ?? DEFAULT_TAB
+    const label = TAB_LABELS[tab] ?? TAB_LABELS[DEFAULT_TAB]
+    crumbs.push({ label, path: `${location.pathname}?tab=${tab}` })
+  }
 
   return (
     <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
@@ -98,8 +115,8 @@ function resolveDynamicLabel(
   segment: string,
   prev: string | undefined,
 ): string {
-  if (prev === 'projects') {
-    // Project keys keep the case they were created with ("Pochin"), so show them as-is.
+  if (prev === 'workspaces') {
+    // Workspace keys keep the case they were created with ("Pochin"), so show them as-is.
     return segment
   }
 

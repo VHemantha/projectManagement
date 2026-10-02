@@ -31,7 +31,7 @@ def test_create_project_provisions_workflow_and_board(api_client, user):
     assert Workflow.objects.filter(project=project).exists()
     board = Board.objects.get(project=project)
     assert board.board_type == "kanban"
-    assert len(board.column_config) == 4
+    assert [c["name"] for c in board.column_config] == ["Backlog", "To do", "In progress", "In review", "Blocked", "Done"]
 
 
 def test_create_project_makes_creator_an_admin_member(api_client, user):
@@ -113,3 +113,34 @@ def test_project_task_names_rejects_non_list(api_client):
     )
     assert resp.status_code == 400
     assert "task_names" in resp.data
+
+
+def test_workspaces_alias_serves_the_same_endpoints(api_client):
+    """Projects are "workspaces" in the UI; /api/workspaces/ mirrors /api/projects/ so either works."""
+    resp = api_client.post(
+        "/api/workspaces/", {"key": "Ws", "name": "Workspace One", "project_type": "kanban"}, format="json"
+    )
+    assert resp.status_code == 201
+    assert Project.objects.filter(key="Ws").exists()
+
+    listed = api_client.get("/api/workspaces/")
+    old = api_client.get("/api/projects/")
+    assert listed.status_code == 200
+    assert listed.data == old.data
+
+    detail = api_client.get("/api/workspaces/Ws/")
+    assert detail.status_code == 200
+    assert detail.data["name"] == "Workspace One"
+    assert api_client.get("/api/workspaces/Ws/board/").status_code == 200
+
+    patched = api_client.patch("/api/workspaces/Ws/", {"name": "Renamed"}, format="json")
+    assert patched.status_code == 200
+    assert api_client.get("/api/projects/Ws/").data["name"] == "Renamed"
+
+
+def test_workspace_wording_in_validation_errors(api_client):
+    api_client.post("/api/projects/", {"key": "Dup", "name": "One", "project_type": "kanban"}, format="json")
+    resp = api_client.post("/api/projects/", {"key": "dup", "name": "Two", "project_type": "kanban"}, format="json")
+    assert resp.status_code == 400
+    assert "workspace" in str(resp.data["key"][0])
+    assert Project._meta.verbose_name == "workspace"

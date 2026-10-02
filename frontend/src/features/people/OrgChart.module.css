@@ -1,0 +1,218 @@
+.chart {
+  display: flex;
+  flex-direction: column;
+  /* "safe" keeps wide charts scrollable from their left edge instead of clipping it. */
+  align-items: safe center;
+  gap: 0;
+  overflow-x: auto;
+  padding-bottom: var(--tf-space-4);
+}
+
+.basis {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  margin: 0 0 var(--tf-space-4);
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.tier {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border-radius: 12px;
+  background: var(--tf-accent-violet-bg);
+}
+
+.tierLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-accent-violet);
+}
+
+.nodes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--tf-space-2);
+}
+
+/* Vertical line from the admins down to the row of teams. */
+.trunk {
+  width: 2px;
+  height: 24px;
+  background: var(--tf-border);
+}
+
+.branches {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: safe center;
+  gap: var(--tf-space-4);
+  padding-top: 24px;
+  min-width: min-content;
+}
+/* Horizontal bar joining the team branches. */
+.branches::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 120px;
+  right: 120px;
+  height: 2px;
+  background: var(--tf-border);
+}
+
+.branch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--tf-space-2);
+  width: 240px;
+  flex-shrink: 0;
+  padding: var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-radius: 12px;
+  background: var(--tf-surface);
+  box-shadow: var(--tf-shadow-card);
+}
+/* Short drop line from the bar into each branch. */
+.branch::before {
+  content: '';
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  width: 2px;
+  height: 24px;
+  background: var(--tf-border);
+}
+
+.teamHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 3px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text);
+}
+
+.teamDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.leads,
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.members {
+  padding-left: var(--tf-space-3);
+  border-left: 2px solid var(--tf-border);
+}
+
+.subTeams {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-1);
+  padding-left: var(--tf-space-3);
+  border-left: 2px dashed var(--tf-border);
+}
+
+.subTeam {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-2);
+  border-radius: 8px;
+  background: var(--tf-surface-sunken);
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--tf-border);
+  border-radius: 10px;
+  background: var(--tf-surface);
+  text-align: left;
+  cursor: pointer;
+}
+.node:hover,
+.node:focus-visible {
+  border-color: var(--tf-primary);
+}
+.node[data-role='admin'] {
+  width: 220px;
+}
+.node[data-role='lead'] {
+  background: var(--tf-accent-blue-bg);
+  border-color: transparent;
+}
+
+.nodeText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nodeName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nodeRole,
+.nodeTeams {
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+/* Phones: stack the team branches instead of laying them side by side. */
+@media (max-width: 768px) {
+  .branches {
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 0;
+    width: 100%;
+  }
+  .branches::before,
+  .branch::before {
+    display: none;
+  }
+  .branch {
+    width: 100%;
+  }
+  .node[data-role='admin'] {
+    width: 100%;
+  }
+}

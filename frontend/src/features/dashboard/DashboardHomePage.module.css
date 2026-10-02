@@ -49,7 +49,7 @@
   border-bottom: none;
 }
 .issueRow:hover {
-  color: var(--tf-blue);
+  color: var(--tf-primary);
 }
 
 .summary {

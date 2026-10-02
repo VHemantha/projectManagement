@@ -5,6 +5,10 @@
 }
 
 .trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
   background: none;
   border: none;
   padding: var(--tf-space-2) 2px;
@@ -19,8 +23,8 @@
   color: var(--tf-text);
 }
 .trigger[data-state='active'] {
-  color: var(--tf-blue);
-  border-bottom-color: var(--tf-blue);
+  color: var(--tf-primary);
+  border-bottom-color: var(--tf-primary);
 }
 
 .content {

@@ -34,7 +34,7 @@
   text-decoration: none;
 }
 .email:hover {
-  color: var(--tf-blue);
+  color: var(--tf-primary);
   text-decoration: underline;
 }
 

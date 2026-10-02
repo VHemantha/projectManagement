@@ -1,10 +1,11 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import styles from './auth.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import { useLogin } from '@/api/auth'
 import { Button, Input } from '@/design-system'
+import { markJustLoggedIn } from '@/features/notifications/desktopNotifications'
 
 export function LoginPage() {
   const [email, setEmail] = useState('')
@@ -19,6 +20,7 @@ export function LoginPage() {
       { email, password },
       {
         onSuccess: () => {
+          markJustLoggedIn() // the app may now offer desktop notifications, once
           const from = (location.state as { from?: string } | null)?.from ?? '/'
           navigate(from, { replace: true })
         },
@@ -66,7 +68,7 @@ export function LoginPage() {
           </Button>
         </form>
         <div className={styles.footer}>
-          Don&apos;t have an account? <Link to="/signup">Sign up</Link>
+          New here? Accounts are by invitation: use the link in your invitation email.
         </div>
       </div>
       {/* Company attribution — a small "powered by" credit with the current

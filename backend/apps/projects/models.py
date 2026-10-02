@@ -8,7 +8,7 @@ from django.db.models.functions import Lower
 KEY_PATTERN = r"^[A-Za-z][A-Za-z0-9]{1,99}$"
 key_validator = RegexValidator(
     regex=KEY_PATTERN,
-    message="Project key must be 2-100 letters/digits, starting with a letter.",
+    message="Workspace key must be 2-100 letters/digits, starting with a letter.",
 )
 
 
@@ -62,9 +62,12 @@ class Project(models.Model):
     # that doesn't derive from rate × hours (BillableRate), which matters for services
     # businesses tracking margin (job_value - effective cost) alongside hours budget vs actual.
     budgeted_hours = models.FloatField(null=True, blank=True)
+    # Shown on the workspace dashboard panel beside the board.
+    deadline = models.DateField(null=True, blank=True)
+    special_notes = models.TextField(blank=True)
     job_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     job_value_currency = models.CharField(max_length=3, default="USD")
-    avatar_color = models.CharField(max_length=7, default="#0C66E4")
+    avatar_color = models.CharField(max_length=7, default="#6A3DF0")  # the primary violet
     default_assignee_rule = models.CharField(
         max_length=20,
         choices=[("unassigned", "Unassigned"), ("project_lead", "Project Lead")],
@@ -87,6 +90,10 @@ class Project(models.Model):
 
     class Meta:
         ordering = ["key"]
+        # Shown to users as "workspaces"; the model/table keep their original name so existing
+        # data, foreign keys and the /api/projects/ endpoints stay unchanged.
+        verbose_name = "workspace"
+        verbose_name_plural = "workspaces"
         constraints = [models.UniqueConstraint(Lower("key"), name="project_key_unique_ignoring_case")]
 
     def __str__(self):

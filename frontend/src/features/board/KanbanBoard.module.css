@@ -27,7 +27,7 @@
   margin-left: 0;
 }
 .avatarStack > .avatarActive {
-  outline: 2px solid var(--tf-blue);
+  outline: 2px solid var(--tf-primary);
   outline-offset: 1px;
 }
 
@@ -38,6 +38,18 @@
   background: var(--tf-surface);
   padding: 0 var(--tf-space-2);
   font-size: 13px;
+}
+
+.clearFilters {
+  border: none;
+  background: none;
+  color: var(--tf-text-link);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.clearFilters:hover {
+  text-decoration: underline;
 }
 
 .scrollArea {
@@ -168,7 +180,7 @@
   font-weight: 600;
   padding: 1px 6px;
   border-radius: 3px;
-  color: #172b4d;
+  color: var(--tf-text);
 }
 
 .cardSummary {
@@ -255,4 +267,9 @@
   background: var(--tf-surface);
   color: var(--tf-text);
   font-size: 12px;
+}
+
+.columnTitle {
+  display: inline-flex;
+  min-width: 0;
 }

@@ -1,15 +1,19 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.projects.models import ProjectMembership
+from apps.live.broadcast import notify
+from apps.projects.permissions import can_manage_project
+from trackflow.naming import clean_name
 
 from .models import Board, IssueType, Workflow, WorkflowStatus, WorkflowTransition
 from .serializers import (
     BoardConfigSerializer,
     IssueTypeSerializer,
+    STATUS_NAME_MAX,
     WorkflowTransitionSerializer,
     status_issue_counts,
 )
@@ -34,17 +38,8 @@ class IssueTypeListView(generics.ListAPIView):
 
 
 def _can_configure_board(user, board: Board) -> bool:
-    """Same ad-hoc helper-function style as timesheets' _can_approve: no dedicated
-    BoardMembership model exists (or is worth adding for v1) — a project admin/lead, or a
-    workspace admin, can edit board configuration."""
-    if user.is_staff:
-        return True
-    project = board.project
-    if project.lead_id == user.id:
-        return True
-    return ProjectMembership.objects.filter(
-        project=project, user=user, role=ProjectMembership.Role.ADMIN
-    ).exists()
+    """No dedicated BoardMembership model: whoever manages the workspace configures its board."""
+    return can_manage_project(user, board.project)
 
 
 class BoardConfigView(generics.RetrieveUpdateAPIView):
@@ -57,7 +52,7 @@ class BoardConfigView(generics.RetrieveUpdateAPIView):
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
         if request.method not in permissions.SAFE_METHODS and not _can_configure_board(request.user, obj):
-            raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
 
 
 class BoardStatusDetailView(APIView):
@@ -70,7 +65,7 @@ class BoardStatusDetailView(APIView):
     def delete(self, request, pk, status_id):
         board = get_object_or_404(Board.objects.select_related("project__workflow"), pk=pk)
         if not _can_configure_board(request.user, board):
-            raise PermissionDenied("Only a project admin/lead or workspace admin can configure this board.")
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
         workflow = board.project.workflow
         wf_status = get_object_or_404(WorkflowStatus, pk=status_id, workflow=workflow)
 
@@ -91,6 +86,57 @@ class BoardStatusDetailView(APIView):
             return Response({"detail": "A workflow needs at least one status."}, status=status.HTTP_400_BAD_REQUEST)
         wf_status.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BoardColumnView(APIView):
+    """PATCH /api/boards/<id>/columns/<index>/ {"name": ...} — rename one column in place.
+
+    Column names are unique on a board (ignoring case). When the column holds a single status
+    that carries the column's old name, that status is renamed too, so cards, status pickers
+    and filters show the new name."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, pk, index):
+        board = get_object_or_404(Board.objects.select_for_update().select_related("project__workflow"), pk=pk)
+        if not _can_configure_board(request.user, board):
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
+        columns = list(board.column_config or [])
+        if not 0 <= index < len(columns):
+            return Response({"detail": "No such column."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            name = clean_name(request.data.get("name"), max_length=STATUS_NAME_MAX, what="Column name")
+        except ValidationError as exc:
+            return Response({"name": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
+
+        column = dict(columns[index])
+        old_name = column.get("name", "")
+        if any(i != index and str(c.get("name", "")).lower() == name.lower() for i, c in enumerate(columns)):
+            return Response({"name": [f"This board already has a column called '{name}'."]}, status=status.HTTP_400_BAD_REQUEST)
+
+        workflow = board.project.workflow
+        status_ids = column.get("status_ids") or []
+        renamed_status = None
+        if len(status_ids) == 1:
+            wf_status = WorkflowStatus.objects.filter(pk=status_ids[0], workflow=workflow).first()
+            if wf_status and wf_status.name.lower() == str(old_name).lower() and wf_status.name != name:
+                if workflow.statuses.exclude(pk=wf_status.pk).filter(name__iexact=name).exists():
+                    return Response(
+                        {"name": [f"A status called '{name}' already exists in this workspace."]},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                wf_status.name = name
+                wf_status.save(update_fields=["name"])
+                renamed_status = wf_status
+
+        column["name"] = name
+        columns[index] = column
+        board.column_config = columns
+        board.save(update_fields=["column_config"])
+        if renamed_status is not None:
+            notify("issues", project=board.project.key)  # cards and job lists show status names
+        return Response(BoardConfigSerializer(board).data)
 
 
 class WorkflowTransitionListView(generics.ListAPIView):
@@ -118,13 +164,5 @@ class WorkflowTransitionDetailView(generics.UpdateAPIView):
 
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
-        project = obj.workflow.project
-        allowed = (
-            request.user.is_staff
-            or project.lead_id == request.user.id
-            or ProjectMembership.objects.filter(
-                project=project, user=request.user, role=ProjectMembership.Role.ADMIN
-            ).exists()
-        )
-        if not allowed:
-            raise PermissionDenied("Only a project admin/lead or workspace admin can edit transition rules.")
+        if not can_manage_project(request.user, obj.workflow.project):
+            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can edit transition rules.")

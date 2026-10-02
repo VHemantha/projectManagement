@@ -1,95 +1,123 @@
-import {
-  Calendar,
-  ChevronsLeft,
-  ChevronsRight,
-  ClipboardList,
-  LayoutDashboard,
-  ListTodo,
-  Settings,
-  SquareKanban,
-} from 'lucide-react'
-import { Navigate, NavLink, Outlet, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom'
 
 import styles from './ProjectLayout.module.css'
-import { useProject } from '@/api/projects'
+import { ProjectIssuesPage } from './ProjectIssuesPage'
+import { ProjectSettingsPage } from './ProjectSettingsPage'
+import { ProjectSummaryPage } from './ProjectSummaryPage'
+import { WorkspaceContext } from './useProjectContext'
+import { WorkspaceDashboardPanel } from './WorkspaceDashboardPanel'
+import { isScrumWorkspace, resolveTab, tabForLegacySection, type WorkspaceTab, workspaceTabs } from './workspaceTabs'
+import { useProject, useUpdateProject } from '@/api/projects'
 import { PlaceholderPage } from '@/app/PlaceholderPage'
-import rail from '@/app/SideRail.module.css'
-import { Tooltip } from '@/design-system'
-import { usePanel } from '@/store/sidebarStore'
-import { sentenceCase } from '@/lib/text'
+import { InlineEdit, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
+import { BacklogPage } from '@/features/backlog/BacklogPage'
+import { ProjectBoardPage } from '@/features/board/ProjectBoardPage'
+import { SprintReportPage } from '@/features/reports/SprintReportPage'
+import { TimelinePage } from '@/features/timeline/TimelinePage'
 
+const TAB_PAGES: Record<WorkspaceTab, () => React.ReactElement> = {
+  kanban: () => <ProjectBoardPage />,
+  summary: () => <ProjectSummaryPage />,
+  backlog: () => <BacklogPage />,
+  jobs: () => <ProjectIssuesPage />,
+  timeline: () => <TimelinePage />,
+  reports: () => <SprintReportPage />,
+  settings: () => <ProjectSettingsPage />,
+}
+
+/** A workspace: one page with a tab per section (?tab=kanban, ?tab=jobs, …), Kanban first. */
 export function ProjectLayout() {
   const { key } = useParams<{ key: string }>()
   const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { data: project, isLoading } = useProject(key)
-  // The project menu collapses to an icon rail like the main sidebar (remembered).
-  const panel = usePanel('projectNav')
+  const updateProject = useUpdateProject(project?.key ?? key ?? '')
 
-  if (isLoading) return <PlaceholderPage title="Loading project…" />
-  if (!project) return <PlaceholderPage title="Project not found" />
-  // Opened by an old key (the project was renamed) or in different letter case.
+  if (isLoading) return <PlaceholderPage title="Loading workspace…" />
+  if (!project) return <PlaceholderPage title="Workspace not found" />
+  // Opened by an old key (the workspace was renamed) or in different letter case.
   if (key !== project.key) {
-    const rest = location.pathname.slice(`/projects/${key}`.length)
-    return <Navigate replace to={`/projects/${project.key}${rest}${location.search}`} />
+    return <Navigate replace to={`/workspaces/${project.key}${location.search}`} />
   }
 
-  const base = `/projects/${project.key}`
-  const navItems = [
-    { to: base, label: 'Summary', icon: LayoutDashboard, end: true },
-    { to: `${base}/board`, label: project.project_type === 'scrum' ? 'Sprint board' : 'Board', icon: SquareKanban },
-    ...(project.project_type === 'scrum'
-      ? [{ to: `${base}/backlog`, label: 'Backlog', icon: ListTodo }]
-      : []),
-    { to: `${base}/timeline`, label: 'Timeline', icon: Calendar },
-    { to: `${base}/issues`, label: 'Jobs', icon: ClipboardList },
-    { to: `${base}/reports`, label: 'Reports', icon: LayoutDashboard },
-    { to: `${base}/settings`, label: 'Project settings', icon: Settings },
-  ]
+  const tabs = workspaceTabs(project)
+  const tab = resolveTab(searchParams.get('tab'), project)
+  // A hidden or unknown tab (e.g. ?tab=summary with the Summary feature off) lands on Kanban.
+  const requested = searchParams.get('tab')
+  if (requested && requested !== tab) {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', tab)
+    return <Navigate replace to={`/workspaces/${project.key}?${params}`} />
+  }
+  const subtitle = project.is_client_workspace
+    ? 'Client jobs'
+    : isScrumWorkspace(project)
+      ? 'Scrum workspace'
+      : 'Workspace'
 
   return (
-    <div className={styles.layout}>
-      <aside
-        className={`${styles.sidebar} ${panel.open ? '' : styles.collapsed}`}
-        aria-label={`${project.name} menu`}
-      >
-        <div className={styles.header}>
-          <Tooltip label={panel.open ? '' : `${project.name} (${project.key})`} side="right">
-            <span className={styles.projectAvatar} style={{ background: project.avatar_color }}>
+    <WorkspaceContext.Provider value={{ project }}>
+      <div className={styles.layout}>
+        <Tabs
+          value={tab}
+          // Each tab is its own history entry, so Back returns to the previous tab. Manual activation
+          // (click/Enter/Space) so focusing a tab doesn't add a second entry.
+          activationMode="manual"
+          onValueChange={(next) => setSearchParams({ tab: next })}
+          className={styles.tabs}
+        >
+          <header className={styles.header}>
+            <span className={styles.projectAvatar} style={{ background: project.avatar_color }} aria-hidden="true">
               {project.key.slice(0, 2).toUpperCase()}
             </span>
-          </Tooltip>
-          <div className={styles.headerText}>
-            <div className={styles.projectName}>{project.name}</div>
-            <div className={styles.projectType}>{sentenceCase(`${project.project_type} project`)}</div>
-          </div>
-        </div>
-        <nav className={styles.nav}>
-          {navItems.map(({ to, label, icon: Icon, end }) => (
-            // Collapsed: icon only, named by its tooltip (like the main sidebar).
-            <Tooltip key={to} label={panel.open ? '' : label} side="right">
-              <NavLink to={to} end={end} className={styles.navItem} aria-label={label}>
-                <Icon size={16} strokeWidth={1.75} />
-                <span className={styles.navLabel}>{label}</span>
-              </NavLink>
-            </Tooltip>
-          ))}
-        </nav>
-        <div className={styles.footer}>
-          <Tooltip label={panel.open ? 'Collapse menu' : 'Expand menu'} side="right">
-            <button
-              type="button"
-              className={rail.toggle}
-              onClick={panel.toggle}
-              aria-label={panel.open ? 'Collapse project menu' : 'Expand project menu'}
-            >
-              {panel.open ? <ChevronsLeft size={18} /> : <ChevronsRight size={18} />}
-            </button>
-          </Tooltip>
-        </div>
-      </aside>
-      <div className={styles.content}>
-        <Outlet context={{ project }} />
+            <div className={styles.headerText}>
+              <InlineEdit
+                as="h1"
+                className={styles.projectName}
+                value={project.name}
+                label="Workspace name"
+                canEdit={project.can_manage}
+                onSave={(name) => updateProject.mutateAsync({ name })}
+              />
+              <div className={styles.projectType}>
+                {project.key} · {subtitle}
+              </div>
+            </div>
+            <div className={styles.tabBar}>
+              <TabsList aria-label={`${project.name} sections`}>
+                {tabs.map(({ id, label, icon: Icon }) => (
+                  <TabsTrigger key={id} value={id}>
+                    <Icon size={15} strokeWidth={1.9} aria-hidden="true" />
+                    {label}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </header>
+          {/* Only the open tab is mounted, so hidden tabs fetch nothing. */}
+          <TabsContent value={tab} className={styles.content}>
+            {tab === 'kanban' ? (
+              // The board shares its tab with the workspace dashboard panel on its right.
+              <div className={styles.withPanel}>
+                <div className={styles.main}>{TAB_PAGES.kanban()}</div>
+                <WorkspaceDashboardPanel project={project} />
+              </div>
+            ) : (
+              TAB_PAGES[tab]()
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
-    </div>
+    </WorkspaceContext.Provider>
   )
+}
+
+/** Old sub-page URLs (/workspaces/KEY/board, /issues, /settings …) open the matching tab,
+ * keeping any other query parameters. */
+export function WorkspaceSectionRedirect() {
+  const { key, section } = useParams<{ key: string; section: string }>()
+  const location = useLocation()
+  const params = new URLSearchParams(location.search)
+  params.set('tab', tabForLegacySection(section))
+  return <Navigate replace to={`/workspaces/${key}?${params}${location.hash}`} />
 }

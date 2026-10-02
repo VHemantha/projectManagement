@@ -83,7 +83,7 @@
 }
 .resizer:hover,
 .resizer.isResizing {
-  background: var(--tf-blue);
+  background: var(--tf-primary);
 }
 
 .td {
@@ -177,7 +177,7 @@
   gap: 8px;
   padding: 3px 8px;
   border-radius: var(--tf-radius-sm);
-  background: var(--tf-blue-subtle);
+  background: var(--tf-primary-subtle);
   font-size: 13px;
 }
 
@@ -197,7 +197,7 @@
 .bulkLink {
   border: none;
   background: none;
-  color: var(--tf-blue);
+  color: var(--tf-primary);
   font-size: 12px;
   cursor: pointer;
 }

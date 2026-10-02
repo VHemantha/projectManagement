@@ -122,7 +122,7 @@ export function ChannelList({ selectedChannelId, onSelect }: ChannelListProps) {
         ) : (
           <>
             {renderGroup('General', general)}
-            {renderGroup('Projects', project)}
+            {renderGroup('Workspaces', project)}
             {renderGroup('Teams', team)}
             {renderDmGroup()}
             {renderGroup('Channels', topic)}

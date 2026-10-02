@@ -26,11 +26,12 @@ export function IssueTypeIcon({ typeName, size = 16 }: IssueTypeIconProps) {
         height: size + 2,
         borderRadius: 3,
         background: cfg.color,
+        color: 'var(--tf-text-inverse)',
         flexShrink: 0,
       }}
       title={typeName}
     >
-      <Icon size={size - 3} color="#fff" strokeWidth={2.5} fill={typeName === 'Story' ? '#fff' : 'none'} />
+      <Icon size={size - 3} color="currentColor" strokeWidth={2.5} fill={typeName === 'Story' ? 'currentColor' : 'none'} />
     </span>
   )
 }

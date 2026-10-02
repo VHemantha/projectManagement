@@ -17,16 +17,17 @@ import styles from './AppShell.module.css'
 import { ProjectSwitcher } from './ProjectSwitcher'
 import { Tooltip } from '@/design-system'
 
+// Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
-  { to: '/', label: 'Your work', icon: UserRound, end: true },
-  { to: '/projects', label: 'Projects', icon: LayoutGrid },
-  { to: '/teams', label: 'Teams', icon: Users },
-  { to: '/people', label: 'People', icon: Contact },
-  { to: '/filters', label: 'Filters', icon: ListFilter },
-  { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard },
-  { to: '/chat', label: 'Chat', icon: MessageSquare },
-  { to: '/timesheets', label: 'Timesheets', icon: Clock },
-  { to: '/apps', label: 'Apps', icon: Grid3x3 },
+  { to: '/', label: 'Your work', icon: UserRound, tone: 'violet', end: true },
+  { to: '/workspaces', label: 'Workspaces', icon: LayoutGrid, tone: 'blue' },
+  { to: '/teams', label: 'Teams', icon: Users, tone: 'teal' },
+  { to: '/people', label: 'People', icon: Contact, tone: 'pink' },
+  { to: '/filters', label: 'Filters', icon: ListFilter, tone: 'orange' },
+  { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },
+  { to: '/chat', label: 'Chat', icon: MessageSquare, tone: 'violet' },
+  { to: '/timesheets', label: 'Timesheets', icon: Clock, tone: 'orange' },
+  { to: '/apps', label: 'Apps', icon: Grid3x3, tone: 'teal' },
 ]
 
 interface GlobalSidebarProps {
@@ -61,7 +62,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
         </Link>
       </Tooltip>
       <nav className={styles.sidebarNav}>
-        {NAV_ITEMS.map(({ to, label, icon: Icon, end }) => (
+        {NAV_ITEMS.map(({ to, label, icon: Icon, tone, end }) => (
           // When collapsed the item is icon-only, so the tooltip names it; when
           // labels are visible the hint would be redundant, so it's switched off.
           <Tooltip key={to} label={showLabels ? '' : label} side="right">
@@ -69,12 +70,14 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
                 Tooltip only merges string classes, and NavLink marks the active
                 route with aria-current="page", which the CSS targets directly. */}
             <NavLink to={to} end={end} className={styles.navItem} onClick={onCloseDrawer}>
-              <Icon size={20} strokeWidth={1.75} />
+              <span className={styles.navIcon} data-tone={tone} aria-hidden="true">
+                <Icon size={17} strokeWidth={2} />
+              </span>
               {showLabels && <span>{label}</span>}
             </NavLink>
           </Tooltip>
         ))}
-        {showLabels && <div className={styles.sidebarSectionLabel}>Recent projects</div>}
+        {showLabels && <div className={styles.sidebarSectionLabel}>Recent workspaces</div>}
         <ProjectSwitcher expanded={showLabels} />
       </nav>
       <div className={styles.sidebarFooter}>

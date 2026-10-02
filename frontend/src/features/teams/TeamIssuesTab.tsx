@@ -68,7 +68,7 @@ export function TeamIssuesTab({ team }: { team: TeamDetail }) {
             <XAxis dataKey="name" fontSize={12} stroke="var(--tf-text-subtle)" />
             <YAxis allowDecimals={false} fontSize={12} stroke="var(--tf-text-subtle)" />
             <Tooltip />
-            <Bar dataKey="issues" fill="var(--tf-blue)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="issues" fill="var(--tf-primary)" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>

@@ -147,4 +147,16 @@ describe('IssueTable', () => {
     expect(screen.getByText('To Do (2)')).toBeInTheDocument()
     expect(screen.getByText('Done (1)')).toBeInTheDocument()
   })
+
+  it('orders status groups like the board columns, not alphabetically', () => {
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', status: { id: 6, name: 'Done', category: 'done', order: 5 } }),
+      makeIssue({ id: 2, key: 'TRK-2', status: { id: 5, name: 'Blocked', category: 'in_progress', order: 4 } }),
+      makeIssue({ id: 3, key: 'TRK-3', status: { id: 1, name: 'Backlog', category: 'todo', order: 0 } }),
+      makeIssue({ id: 4, key: 'TRK-4', status: { id: 3, name: 'In progress', category: 'in_progress', order: 2 } }),
+    ]
+    render(<IssueTable tableId="test" issues={issues} groupBy="status" />)
+    const headers = screen.getAllByText(/\(1\)$/).map((el) => el.textContent)
+    expect(headers).toEqual(['Backlog (1)', 'In progress (1)', 'Blocked (1)', 'Done (1)'])
+  })
 })

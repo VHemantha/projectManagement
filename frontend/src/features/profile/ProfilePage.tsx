@@ -4,6 +4,7 @@ import styles from './ProfilePage.module.css'
 import { useUpdateProfile } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { Avatar, Button, Input } from '@/design-system'
+import { DesktopNotificationSetting } from '@/features/notifications/DesktopNotificationsPrompt'
 
 export function ProfilePage() {
   const user = useAuthStore((s) => s.user)
@@ -71,6 +72,10 @@ export function ProfilePage() {
           {updateProfile.isSuccess && <span className={styles.savedMsg}>Saved</span>}
         </div>
       </form>
+      <section className={styles.form} aria-label="Notifications" style={{ marginTop: 32 }}>
+        <h2 style={{ margin: 0, fontSize: 16 }}>Notifications</h2>
+        <DesktopNotificationSetting />
+      </section>
     </div>
   )
 }
