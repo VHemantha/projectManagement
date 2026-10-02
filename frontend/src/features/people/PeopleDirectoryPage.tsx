@@ -1,17 +1,48 @@
-import { useNavigate } from 'react-router-dom'
+import { LayoutGrid, Network } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { OrgChart } from './OrgChart'
 import styles from './PeopleDirectoryPage.module.css'
-import { useUsers } from '@/api/users'
+import { useUserHierarchy, useUsers } from '@/api/users'
 import { Avatar, CopyButton } from '@/design-system'
 
+type View = 'list' | 'diagram'
+
 export function PeopleDirectoryPage() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const view: View = searchParams.get('view') === 'diagram' ? 'diagram' : 'list'
   const { data: users, isLoading } = useUsers()
+  const { data: hierarchy, isLoading: hierarchyLoading } = useUserHierarchy(view === 'diagram')
   const navigate = useNavigate()
 
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>People</h1>
-      {isLoading ? (
+      <div className={styles.header}>
+        <h1 className={styles.title}>People</h1>
+        <div className={styles.viewToggle} role="group" aria-label="View">
+          <button
+            type="button"
+            aria-pressed={view === 'list'}
+            onClick={() => setSearchParams({}, { replace: true })}
+          >
+            <LayoutGrid size={14} aria-hidden="true" /> List
+          </button>
+          <button
+            type="button"
+            aria-pressed={view === 'diagram'}
+            onClick={() => setSearchParams({ view: 'diagram' }, { replace: true })}
+          >
+            <Network size={14} aria-hidden="true" /> Diagram
+          </button>
+        </div>
+      </div>
+      {view === 'diagram' ? (
+        hierarchyLoading || !hierarchy ? (
+          <div>Loading…</div>
+        ) : (
+          <OrgChart hierarchy={hierarchy} />
+        )
+      ) : isLoading ? (
         <div>Loading…</div>
       ) : (
         <div className={styles.grid}>

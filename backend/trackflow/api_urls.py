@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
+from apps.accounts.hierarchy import UserHierarchyView
 from apps.accounts.views import UserListView
 from apps.issues.views import RecentActivityView
 from apps.workflow.views import IssueTypeListView
@@ -18,6 +19,7 @@ urlpatterns = [
     path("health/", health, name="health"),
     path("auth/", include("apps.accounts.urls")),
     path("users/", UserListView.as_view(), name="user-list"),
+    path("users/hierarchy/", UserHierarchyView.as_view(), name="user-hierarchy"),
     path("projects/", include("apps.projects.urls")),
     # "Projects" are called "workspaces" in the UI. Same endpoints under the new name, namespaced
     # so URL reversing of the original names is unaffected.
