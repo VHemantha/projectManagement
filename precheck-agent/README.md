@@ -27,13 +27,20 @@ citations into evidence, the verdict and the coverage figure.
 | `../backend/apps/precheck` | run history, findings, evidence, audit log and feedback in the PM application |
 | `../frontend/src/features/precheck` | the job card panel |
 
+**Zip archives.** A zip in the job folder is opened in memory and each file inside is read as
+its own document ("Trial Balance.xlsx (in Documents.zip)"); a document's version is its CRC,
+so re-uploading the zip with one file changed re-reads only that file. Limits: 100 MB per zip,
+300 files, one level of zip-inside-zip. Password-protected files and other archive types
+(.rar, .7z) are reported as unreadable. Drive cannot link inside a zip, so "Open in Drive"
+opens the zip itself.
+
 ## Run it
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 29 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 35 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run

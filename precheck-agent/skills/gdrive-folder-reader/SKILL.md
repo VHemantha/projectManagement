@@ -21,6 +21,12 @@ The service signs in to Google Drive for you, read-only. You never see a key and
 3. Ask for the smallest range that answers the question: `sheet 'TB' rows 40-80`, `pages 3-4`, `paragraphs 10-30`. Never ask for a whole file.
 4. If one slice is still not enough, do not try again. Return `unclear` and the question a person should answer.
 
+## Documents inside a zip
+
+Some folders hold a zip. The service has already opened it: each file inside is a document of
+its own, named like `Trial Balance.xlsx (in Documents.zip)`, with its own `file_id`. Treat it
+exactly like any other document.
+
 ## What kind of document is this?
 
 Go by the file name first, then the first lines.

@@ -15,6 +15,7 @@ from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_core.messages import AIMessage, HumanMessage
 
+from .archives import display_name
 from .budget import empty_usage, usage_from_message
 from .config import Settings, get_settings
 from .drive import link_to_place
@@ -73,7 +74,7 @@ def documents_for(chunks: list[dict], files: dict[str, dict]) -> list[dict]:
         docs.append({
             "type": "document",
             "source": {"type": "content", "content": [{"type": "text", "text": b["text"]} for b in chunk["blocks"]]},
-            "title": f"{file['name']} — {chunk['location']}",
+            "title": f"{display_name(file)} — {chunk['location']}",
             "context": f"file_id: {chunk['file_id']}; kind: {chunk['document_class'].replace('_', ' ')}",
             "citations": {"enabled": True},
         })
@@ -174,7 +175,7 @@ def evidence_from(file: dict, blocks: list[dict], quote: str = "") -> dict:
     return {
         "id": "E-" + sha(file["file_id"], file["version"], location, quote)[:10],
         "file_id": file["file_id"],
-        "file_name": file["name"],
+        "file_name": display_name(file),
         "location": location,
         "quote": quote,
         "drive_url": link_to_place(file, first),

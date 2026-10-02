@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     local_drive_root: str = "./fixtures"
     max_files_per_folder: int = 400
     max_file_bytes: int = 25_000_000
+    # Zip archives in a job folder are opened and each file inside is read as its own document.
+    max_zip_bytes: int = 100_000_000
+    max_zip_members: int = 300
 
     # --- indexing --------------------------------------------------------------------------
     embedder: str = "hash"  # "hash" (built in, no download) | "fastembed" (local ONNX model)

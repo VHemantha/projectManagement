@@ -38,6 +38,10 @@ class DriveFile:
         return asdict(self)
 
 
+def is_zip(name: str, mime_type: str = "") -> bool:
+    return name.lower().endswith(".zip") or mime_type in ("application/zip", "application/x-zip-compressed")
+
+
 class DriveError(Exception):
     """A plain-language problem reaching the folder (not shared, not found, no key)."""
 
@@ -60,6 +64,7 @@ class GoogleDrive:
         self._svc = build("drive", "v3", credentials=creds, cache_discovery=False)
         self._max_files = settings.max_files_per_folder
         self._max_bytes = settings.max_file_bytes
+        self._max_zip_bytes = settings.max_zip_bytes
 
     def list_folder(self, folder_id: str) -> list[DriveFile]:
         """Metadata only — no file content is downloaded here."""
@@ -123,7 +128,7 @@ class GoogleDrive:
         elif file.mime_type.startswith("application/vnd.google-apps."):
             return b"", name, mime  # forms, drawings, shortcuts: nothing to read
         else:
-            if file.size > self._max_bytes:
+            if file.size > (self._max_zip_bytes if is_zip(file.name, file.mime_type) else self._max_bytes):
                 return b"", name, mime
             request = self._svc.files().get_media(fileId=file.id, supportsAllDrives=True)
         buffer = io.BytesIO()
