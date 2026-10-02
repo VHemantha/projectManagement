@@ -41,24 +41,23 @@
    "title": "Debtors schedule.xlsx does not agree to the trial balance",
    "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
    "evidence_ids": [
-    "E-5957ac5543",
-    "E-b5e6d90a84"
+    "E-c0c2d394c0",
+    "E-cbc09085ee"
    ],
    "source": "rule",
    "confidence": "high"
   },
   {
-   "id": "A-64ac148a-1",
-   "direction_ref": "none",
-   "area": "Trade debtors",
+   "id": "A-428d61a2-1",
+   "direction_ref": "D2",
+   "area": "workpapers",
    "status": "addressed",
    "severity": "low",
    "kind": "fact",
-   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
+   "title": "Confirm the accruals workpaper is complete and signed off",
    "why": "The job folder shows this: Accruals workpaper FY25",
    "evidence_ids": [
-    "E-779d61edf3",
-    "E-b5e6d90a84"
+    "E-779d61edf3"
    ],
    "source": "ai",
    "confidence": "medium"
@@ -79,22 +78,39 @@
    "confidence": "medium"
   },
   {
-   "id": "A-a1d32c41-1",
-   "direction_ref": "D2",
-   "area": "workpapers",
+   "id": "A-9c2558fd-1",
+   "direction_ref": "none",
+   "area": "Trade debtors",
    "status": "addressed",
    "severity": "low",
    "kind": "fact",
-   "title": "Confirm the accruals workpaper is complete and signed off",
+   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
    "why": "The job folder shows this: Accruals workpaper FY25",
    "evidence_ids": [
-    "E-779d61edf3"
+    "E-779d61edf3",
+    "E-cbc09085ee"
    ],
    "source": "ai",
    "confidence": "medium"
   },
   {
-   "id": "A-d14ca4d8-1",
+   "id": "A-b0d9e8bd-1",
+   "direction_ref": "none",
+   "area": "Retained earnings",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Retained earnings moved from 42,400 to 99,900. Is this movement explai",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3",
+    "E-9d378f9acb"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-fe7e8e96-1",
    "direction_ref": "D1",
    "area": "ledger",
    "status": "addressed",
@@ -107,33 +123,9 @@
    ],
    "source": "ai",
    "confidence": "medium"
-  },
-  {
-   "id": "A-d7b5098b-1",
-   "direction_ref": "none",
-   "area": "Retained earnings",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Retained earnings moved from 42,400 to 99,900. Is this movement explai",
-   "why": "The job folder shows this: Accruals workpaper FY25",
-   "evidence_ids": [
-    "E-779d61edf3",
-    "E-ad2135fe18"
-   ],
-   "source": "ai",
-   "confidence": "medium"
   }
  ],
  "evidence": [
-  {
-   "id": "E-5957ac5543",
-   "file_id": "acme-fy25:Debtors schedule.xlsx",
-   "file_name": "Debtors schedule.xlsx",
-   "location": "sheet 'Debtors', row 4",
-   "quote": "row 4: Total |  | 112400",
-   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
-  },
   {
    "id": "E-779d61edf3",
    "file_id": "acme-fy25:Workpaper - accruals.txt",
@@ -141,6 +133,14 @@
    "location": "line 1",
    "quote": "Accruals workpaper FY25",
    "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
+  },
+  {
+   "id": "E-9d378f9acb",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 9",
+   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
   },
   {
    "id": "E-a2461d8da5",
@@ -151,15 +151,15 @@
    "drive_url": "local://acme-fy25/Tax computation.txt"
   },
   {
-   "id": "E-ad2135fe18",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 9",
-   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   "id": "E-c0c2d394c0",
+   "file_id": "acme-fy25:Debtors schedule.xlsx",
+   "file_name": "Debtors schedule.xlsx",
+   "location": "sheet 'Debtors', row 4",
+   "quote": "row 4: Total |  | 112400",
+   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
   },
   {
-   "id": "E-b5e6d90a84",
+   "id": "E-cbc09085ee",
    "file_id": "acme-fy25:Trial Balance FY25.xlsx",
    "file_name": "Trial Balance FY25.xlsx",
    "location": "sheet 'TB', row 3",
@@ -215,43 +215,51 @@
    ]
   },
   "checked": {
-   "label": "7 rules run, 3 failed",
+   "label": "7 rules run, 1 failed, 2 flagged for a closer look",
    "rules": 7,
-   "failed": 3,
+   "failed": 1,
+   "flagged": 2,
    "detail": [
     {
      "label": "A trial balance is in the folder",
      "passed": true,
+     "flagged": false,
      "note": ""
     },
     {
      "label": "Every file can be read",
      "passed": true,
+     "flagged": false,
      "note": ""
     },
     {
      "label": "Trial balance debits equal credits",
      "passed": true,
+     "flagged": false,
      "note": ""
     },
     {
      "label": "Reconciliations show no difference",
      "passed": true,
+     "flagged": false,
      "note": ""
     },
     {
      "label": "Schedules agree to the trial balance",
      "passed": false,
+     "flagged": false,
      "note": "Debtors schedule.xlsx does not agree to the trial balance"
     },
     {
      "label": "Large movements against last year",
      "passed": false,
+     "flagged": true,
      "note": "Trade debtors moved 98% against last year"
     },
     {
      "label": "Large movements against last year",
      "passed": false,
+     "flagged": true,
      "note": "Retained earnings moved 136% against last year"
     }
    ]
@@ -366,7 +374,7 @@
     "task_id": "T1",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1639,
     "output": 45,
     "cache_write": 0,
@@ -377,7 +385,7 @@
     "task_id": "T2",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1496,
     "output": 35,
     "cache_write": 0,
@@ -388,7 +396,7 @@
     "task_id": "T3",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1484,
     "output": 42,
     "cache_write": 0,
@@ -399,7 +407,7 @@
     "task_id": "T4",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1460,
     "output": 39,
     "cache_write": 0,
@@ -410,7 +418,7 @@
     "task_id": "T5",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1461,
     "output": 39,
     "cache_write": 0,
@@ -421,7 +429,7 @@
     "task_id": "judge",
     "model": "fake-judge",
     "calls": 1,
-    "run_id": "f0d472ec27a6442a801bcdf8762c828e",
+    "run_id": "29552aaf4cec40a6a944bbb2c1dfa6cc",
     "input": 1670,
     "output": 639,
     "cache_write": 0,

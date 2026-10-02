@@ -8,7 +8,7 @@ const MAX_BACKOFF_MS = 10_000
 // Notices arrive in bursts (one per saved row); refetch once per burst.
 const FLUSH_DELAY_MS = 300
 
-type LiveKind = 'issues' | 'issue' | 'board' | 'project' | 'sprints' | 'teams' | 'clients'
+type LiveKind = 'issues' | 'issue' | 'board' | 'project' | 'sprints' | 'teams' | 'clients' | 'precheck'
 
 interface LiveEvent {
   type: 'live.change'
@@ -64,6 +64,10 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
       case 'clients':
         add(['clients'])
         add(['reports', 'nav-tree'])
+        break
+      case 'precheck': // a job's AI pre-check: progress, result, decisions on findings
+        if (e.key) add(['precheck', e.key])
+        add(['precheck-run'])
         break
     }
   }

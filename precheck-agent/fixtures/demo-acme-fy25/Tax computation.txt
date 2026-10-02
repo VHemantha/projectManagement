@@ -1,0 +1,6 @@
+Corporation tax computation FY25
+Profit per accounts 57,500
+Add back depreciation 6,000
+Less capital allowances (4,500)
+Taxable profit 59,000
+Corporation tax payable at 19% 11,210

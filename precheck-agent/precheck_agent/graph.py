@@ -188,9 +188,17 @@ def run_rules(state: State) -> dict:
                 "severity": r["severity"], "title": r["title"], "why": r["why"], "evidence_ids": ev_ids, "source": "rule",
                 "needs_judgment": r["needs_judgment"], "question": r["question"],
             })
-    failed = len(findings)
-    emit("checked", f"{len(results)} rules run, {failed} failed", rules=len(results), failed=failed)
+    emit("checked", rules_label(results), rules=len(results), failed=sum(1 for r in results if r["passed"] is False and not r["needs_judgment"]))
     return {"rule_results": results, "rule_findings": findings, "evidence": evidence}
+
+
+def rules_label(results: list[dict]) -> str:
+    """"22 rules run, 2 failed" — plus how many were only flagged for a reader to look into
+    (a large movement is not a failure in itself)."""
+    failed = sum(1 for r in results if r["passed"] is False and not r["needs_judgment"])
+    flagged = sum(1 for r in results if r["passed"] is False and r["needs_judgment"])
+    label = f"{len(results)} rules run, {failed} failed"
+    return label + (f", {flagged} flagged for a closer look" if flagged else "")
 
 
 # --- 5. plan (code) ---------------------------------------------------------------------------
@@ -475,9 +483,11 @@ def build_final(state: State) -> dict:
             "detail": [{"name": f["name"], "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"]} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
         },
         "checked": {
-            "label": f"{len(rules)} rules run, {sum(1 for r in rules if r['passed'] is False)} failed",
-            "rules": len(rules), "failed": sum(1 for r in rules if r["passed"] is False),
-            "detail": [{"label": r["label"], "passed": r["passed"], "note": "" if r["passed"] else r["title"]} for r in rules],
+            "label": rules_label(rules),
+            "rules": len(rules), "failed": sum(1 for r in rules if r["passed"] is False and not r["needs_judgment"]),
+            "flagged": sum(1 for r in rules if r["passed"] is False and r["needs_judgment"]),
+            "detail": [{"label": r["label"], "passed": r["passed"], "flagged": bool(r["needs_judgment"]) and not r["passed"],
+                        "note": "" if r["passed"] else r["title"]} for r in rules],
         },
         "compared": {
             "label": f"{len(job['direction_items'])} Direction Note items compared",
