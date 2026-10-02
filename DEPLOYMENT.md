@@ -343,6 +343,7 @@ database.** Take and download a backup first.
 | Edit config/secrets | `sudo nano /srv/trackflow/shared/.env` then `sudo systemctl restart trackflow` |
 | List releases | `ls -lt /srv/trackflow/releases/` |
 | **Roll back** | `sudo ln -sfn /srv/trackflow/releases/<previous-id> /srv/trackflow/current && sudo systemctl restart trackflow` (only safe if that release's migrations are compatible) |
+| AI pre-check agent logs / restart | `sudo journalctl -u trackflow-precheck -f` / `sudo systemctl restart trackflow-precheck` (see §16) |
 | OS security updates | Installed automatically (unattended-upgrades). Reboot occasionally: `sudo reboot` |
 | Redeploy (from your PC) | `SSH_KEY=... ./deploy/scripts/deploy_backend.sh` / `./deploy/scripts/deploy_frontend.sh` |
 | Your IP changed, SSH times out (from your PC) | `aws cloudformation deploy ... --parameter-overrides SshCidr=<new-ip>/32` (same flags as §11.1) |
@@ -389,6 +390,72 @@ the parameters you want to change. Don't change `UbuntuAmiId` casually: a new AM
 | `WARNING: UNPROTECTED PRIVATE KEY FILE` (Windows OpenSSH) | In PowerShell: `icacls $HOME\.ssh\trackflow-key.pem /inheritance:r /grant:r "$($env:USERNAME):R"` |
 | Stack fails on `Database`: engine version not available | AWS retired that minor version. Run `aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[?starts_with(EngineVersion,'16')].EngineVersion"` and set `EngineVersion` in the template to a listed 16.x version. |
 | Instance slow or out of memory | `free -h`. The micro box has 1 GB RAM + 2 GB swap. Lower `--workers` in `deploy/ec2/trackflow.service` to 1, or move to t3.small (not free). |
+
+## 16. AI pre-check agent
+
+The AI pre-check is a second service, `precheck-agent`, on the same EC2 instance. It ships with
+the backend: `deploy_backend.sh` uploads it, and the server installs it as the systemd unit
+`trackflow-precheck`, listening on `127.0.0.1:8100` only (nothing new is exposed to the
+internet; the Django app is its only caller). No CloudFormation change is needed.
+
+What a deploy does for it, automatically and idempotently (`deploy/ec2/precheck_deploy.sh`):
+
+- creates `/srv/trackflow/shared/precheck.env` once, with a generated service token, and
+  copies that token and the agent's address into the app's `.env`;
+- creates the database `trackflow_precheck` on the app's Postgres with the `pgvector`
+  extension (installing the `postgresql-NN-pgvector` package for a local database; on RDS the
+  extension is built in);
+- installs the agent's packages into `/srv/trackflow/precheck-venv` and starts the service.
+
+If any of that fails, the main app still deploys and the job card says the pre-check is not
+reachable.
+
+### 16.1 First time only: give it its two keys
+
+After the first deploy that includes the agent, from Git Bash on your machine:
+
+```bash
+SSH_KEY=~/.ssh/trackflow-key.pem ./deploy/scripts/set_precheck_secrets.sh
+```
+
+It asks for the **Claude API key** (typing is hidden) and the path to the **Google service
+account key** (.json), stores both on the server readable only by root and the app user, and
+restarts the agent. It prints the service account's email: share each job's Drive folder with
+that address as **Viewer**. Run it again whenever you rotate a key. The keys are never written
+to the repository.
+
+### 16.2 Check it
+
+```bash
+ssh -i ~/.ssh/trackflow-key.pem ubuntu@<InstancePublicIp>
+curl -s http://127.0.0.1:8100/healthz          # {"status":"ok", "llm_mode":"anthropic", ...}
+sudo journalctl -u trackflow-precheck -n 50    # its log
+```
+
+Then open a job in the app, add its Drive folder link and Direction Note items in the **AI
+pre-check** panel, and press **Run pre-check**.
+
+### 16.3 Operations
+
+| Task | Command (on the server) |
+|---|---|
+| Logs (live) | `sudo journalctl -u trackflow-precheck -f` |
+| Restart | `sudo systemctl restart trackflow-precheck` |
+| Change a budget or model | `sudo nano /srv/trackflow/shared/precheck.env`, then restart |
+| Turn it off | `sudo systemctl disable --now trackflow-precheck` (the rest of the app is unaffected) |
+
+- **Memory.** The agent adds roughly 300 MB. On `t3.micro` (1 GB) it runs but leans on swap;
+  `t3.small` (2 GB) is the comfortable size. To move: re-run the `aws cloudformation deploy`
+  command from §6 with `InstanceType=t3.small` and the same other parameters. The instance
+  restarts (a few minutes of downtime); its address and data are kept.
+- **Cost.** Measured on the demo job: about $0.03 for a first run and $0 for a re-run with no
+  file changes. A run can never exceed the budget in `precheck.env` (12 reader calls, 40,000
+  uncached input tokens, 4,000 output tokens: under $0.10).
+- **Backups.** `trackflow_precheck` holds only an index and caches rebuilt from Drive, so it is
+  not in the nightly backup. Run history, findings and decisions live in the main database,
+  which is.
+- **Data.** Passages from client documents are sent to the Claude API to be read. Check that
+  your Anthropic account's data-retention terms suit client data before production use.
 
 ## Security notes and known limitations
 

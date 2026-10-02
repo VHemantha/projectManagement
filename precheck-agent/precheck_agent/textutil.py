@@ -4,9 +4,11 @@ import re
 
 
 def est_tokens(text: str) -> int:
-    """Cheap, slightly pessimistic token estimate (no API call): used only for budgets and
-    chunk sizing, never for billing. Billing uses the usage each response reports."""
-    return math.ceil(len(text) / 3.5) if text else 0
+    """Cheap, deliberately pessimistic token estimate (no API call): used only for budgets and
+    chunk sizing, never for billing. Billing uses the usage each response reports. Calibrated
+    against real runs (2 Oct 2026): numbers and table rows tokenise at about 2.5 characters per
+    token, so the budget reserves enough before parallel readers start."""
+    return math.ceil(len(text) / 2.5) if text else 0
 
 
 def sha(*parts: str) -> str:

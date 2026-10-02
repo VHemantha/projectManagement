@@ -8,3 +8,6 @@ __pycache__/
 .pytest_cache/
 freeze.tmp
 service-account*.json
+# Google service account keys never belong in the repository.
+afit-precheck-*.json
+*-key.json

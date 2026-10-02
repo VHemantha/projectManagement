@@ -232,7 +232,8 @@ def rule_variances(docs, settings: Settings):
             continue
         for table in d["parsed"]["tables"]:
             for row_no, name, debit, credit, prior in _tb_rows(table) or []:
-                if prior is None or _is_total(name) or not name:
+                # Reserves move by the year's result: that is not an unusual movement.
+                if prior is None or _is_total(name) or not name or re.search(r"retained|reserve|profit and loss account", name.lower()):
                     continue
                 checked = True
                 current = debit - credit

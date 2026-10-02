@@ -1,0 +1,27 @@
+[Unit]
+Description=AFIT Connect AI pre-check agent (FastAPI + LangGraph)
+After=network-online.target postgresql.service trackflow.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trackflow
+Group=trackflow
+# `current` is a symlink to the active release; it is resolved at (re)start. The service reads
+# its settings from .env in this directory, a symlink to /srv/trackflow/shared/precheck.env.
+WorkingDirectory=/srv/trackflow/current/precheck-agent
+# One process on purpose: a run's budget and its background thread live in this process.
+# Listens on localhost only; the PM application is its only caller.
+ExecStart=/srv/trackflow/precheck-venv/bin/uvicorn precheck_agent.api:app \
+    --host 127.0.0.1 --port 8100 --workers 1 --no-access-log
+Restart=always
+RestartSec=5
+# Keeps a runaway run from starving the main app on a small instance.
+MemoryMax=700M
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

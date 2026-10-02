@@ -79,7 +79,7 @@ def test_rules_on_real_files(env):
     assert results["Reconciliations show no difference"]["passed"] is True
     assert results["Schedules agree to the trial balance"]["passed"] is False
     movers = [r for r in run_rules(docs, get_settings()) if r["rule_id"].startswith("variance") and not r["passed"]]
-    assert {m["area"] for m in movers} == {"Trade debtors", "Retained earnings"} and all(m["needs_judgment"] and m["question"] for m in movers)
+    assert {m["area"] for m in movers} == {"Trade debtors"} and all(m["needs_judgment"] and m["question"] for m in movers)
 
 
 def test_local_drive_versions_change_with_content(env):

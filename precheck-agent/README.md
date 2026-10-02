@@ -33,7 +33,7 @@ citations into evidence, the verdict and the coverage figure.
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/python -m pytest tests            # 29 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 29 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run
@@ -43,24 +43,28 @@ on `fixtures/` with scripted answers and labels every result as a demo.
 
 ## Tokens and cost per run
 
-**Not yet measured against Claude.** No API key or Drive folder was available when this was
-built, so the figures below are estimates from the demo fixture (5 documents, 3 Direction Note
-items, 2 rule flags → 5 reader calls + 1 judge call), using the service's own token estimate
-and list prices on 2 Oct 2026. Replace this table with the output of the command underneath.
+Measured against Claude on 2 Oct 2026 with the demo fixture (`fixtures/demo-acme-fy25`: 5
+documents, 3 Direction Note items, 1 rule flag), list prices, SQLite storage:
 
-| Run | Reader calls | Uncached input | Output | Estimated cost |
-|---|---|---|---|---|
-| First run | 5 | ~9,200 | ~850 | ~$0.02 |
-| Re-run, nothing changed | 0 | 0 | 0 | $0.00 |
-| Re-run, one file changed | 1 | ~1,600 + judge ~1,200 | ~650 | ~$0.01 |
-| Worst case allowed by the budget | 12 | 40,000 | 4,000 | under $0.10 |
+| Run | Reader calls | Model calls | Input (uncached) | Cache write / read | Output | Cost | Time |
+|---|---|---|---|---|---|---|---|
+| First run | 4 | 5 | 14,563 | 0 / 0 | 1,475 | $0.030 | 19 s |
+| Re-run, nothing changed | 0 | 0 | 0 | 0 / 0 | 0 | $0.000 | under 1 s |
+| One escalation (Opus), measured separately | – | 1 | 713 | 0 / 0 | 87 | $0.005 | – |
+| Worst case allowed by the budget | 12 | – | 40,000 | – | 4,000 | under $0.10 | – |
+
+A reader call is about 2,700–3,200 input tokens (system prompt with its skill, two tool
+definitions, up to 6 chunks) and 50–290 output tokens; the judge was 3,101 in, 1,147 out.
+Nothing is served from the prompt cache: every prefix is below its model's cache minimum (see
+below), so the saving comes from not calling the model at all on unchanged work. One synthetic
+job is not a benchmark: measure 20 real jobs before fixing the budget.
 
 ```bash
 python -m precheck_agent.measure --folder <Drive folder id> --client <client id> --items items.txt
 ```
 
-It prints the real table (input, cache write, cache read, output, cost) for a first run and an
-unchanged re-run, and reports whether citations and the structured judge output worked.
+prints this table for any job folder and reports whether citations and the structured judge
+output worked.
 
 Why the cost is predictable: unchanged files are never re-read (keyed by file id + checksum +
 parser version); a reader sees at most 6 chunks / 3,000 tokens; reader answers are cached by an
@@ -74,7 +78,7 @@ what it skipped.
 - **A reader's own skill and the finding format are preloaded by code**, not fetched through
   `load_skill`. Both are needed on every call, and fetching them would make each reader two
   model calls instead of one. `load_skill` stays available for the other skills.
-- **No prompt-cache marker on reader calls with Haiku**: the stable prefix is ~1,400 tokens,
+- **No prompt-cache marker on reader calls with Haiku**: the stable prefix is roughly 2,000-2,500 tokens,
   below Haiku 4.5's 4,096-token cache minimum, and it is not padded. The code adds the marker
   (and sends one reader per type first) automatically if the prefix ever becomes cacheable.
 - **The plan node never calls a model**: an item code cannot map by its wording goes to the
@@ -86,20 +90,25 @@ what it skipped.
 - **The Direction Note and the Drive folder link are minimal stand-ins** entered on the job
   card, until the Direction Note generator exists. Approved knowledge is not read (none exists).
 
-## Not verified, or not built
+## Verified, not verified, not built
 
-- **Calls to Claude**: citations on custom-content documents through `create_agent`, the
-  judge's `output_config.format`, `thinking: between_tools` on Sonnet 5.5, and Opus
-  escalation are written to the current documentation but have never run against the API.
-- **Google Drive**: the service-account client is untested against a real folder. Links open
-  at the cited cells only for Google Sheets (first-sheet ranges are reliable; other sheets
-  depend on Drive honouring the sheet name); Docs and PDFs open at the file.
-- **Postgres + pgvector and the Postgres checkpointer**: written, but only SQLite was run
-  (Docker would not start on the build machine). The database needs the `vector` extension
-  (for example the `pgvector/pgvector:pg16` image, or RDS). Run `precheck_agent.measure` with
-  `PRECHECK_DATABASE_URL` pointing at it before deploying.
+- **Verified against Claude** (2 Oct 2026): reader citations on custom-content documents through
+  `create_agent` (every AI finding came back tied to a passage), the judge's
+  `output_config.format` with thinking set to `between_tools` on Sonnet 5.5, and Opus
+  escalation at low effort.
+- **Verified on Postgres 16 + pgvector 0.6**: the full test suite, including the leakage test
+  and the Postgres checkpointer (`PRECHECK_TEST_DATABASE_URL=... pytest`).
+- **Partly verified: Google Drive.** Sign-in with the service account and the "folder not
+  shared" message work against the real API; no folder had been shared with the account, so
+  listing, download and export of real files have not run. Links open at the cited cells only for Google Sheets (first-sheet ranges are
+  reliable; other sheets depend on Drive honouring the sheet name); Docs and PDFs open at the
+  file.
+- **Not verified: the AWS deploy scripts** (`deploy/ec2/precheck_deploy.sh`,
+  `deploy/scripts/set_precheck_secrets.sh`). They are syntax-checked and their logic was
+  exercised locally, but they have not run on the server. See DEPLOYMENT.md §16.
 - **Not built**: the Batch API path for scheduled or bulk re-runs; the fenced semantic cache
   (exact-match caches only); the 1-hour cache for an AFIT-wide knowledge prefix (no knowledge
-  yet); prior-year comparatives as a rule; deployment scripts for this service.
+  yet); prior-year comparatives as a rule; AWS Secrets Manager (keys are in a root-owned file
+  on the instance, like the app's other secrets).
 - **Rules are heuristics** tested on one synthetic job. Expect to tune them, and the budget,
   on 20 real jobs.

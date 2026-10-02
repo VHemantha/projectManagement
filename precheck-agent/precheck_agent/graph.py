@@ -8,6 +8,7 @@ prompt prefix is long enough to be cached, lets one reader per type finish first
 read the cache instead of all paying to write it.)
 """
 import operator
+import os
 import time
 from typing import Annotated, TypedDict
 
@@ -75,6 +76,9 @@ def emit(stage: str, label: str, state: str = "done", **counts) -> None:
 
 def load_job(state: State) -> dict:
     emit("read", "Opening the job", "running")
+    s = get_settings()
+    if s.llm_mode != "fake" and not (s.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")):
+        raise PrecheckStop("The pre-check service has no Claude API key configured. Ask an administrator to set it.")
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
         raise PrecheckStop("This job has no Google Drive folder linked. Add the folder on the job card, then run the pre-check.")
@@ -243,7 +247,8 @@ def plan(state: State) -> dict:
             direct.append(task)  # nothing to read: no model call; the judge step reports it as unclear
             continue
         task["cache_key"] = reader_cache_key(task, chunks, s)
-        task["est_input"] = est_tokens(system_prompt(reader)) + sum(c["tokens"] for c in chunks) + 200
+        # system prompt + chunks + the two tool definitions and the question (~500 tokens measured)
+        task["est_input"] = est_tokens(system_prompt(reader)) + sum(c["tokens"] for c in chunks) + 500
         task["cached"] = cache.get_value(DONE_NS, task["cache_key"]) is not None
         tasks.append(task)
 

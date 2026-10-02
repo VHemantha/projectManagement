@@ -21,12 +21,15 @@ def _checkpointer():
     s = get_settings()
     if s.database_url.startswith("postgresql"):
         from langgraph.checkpoint.postgres import PostgresSaver
-        from psycopg import Connection
         from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
 
+        # A pool, not one long-lived connection: readers checkpoint in parallel, and a dropped
+        # connection is replaced instead of failing every later run.
         dsn = s.database_url.replace("postgresql+psycopg://", "postgresql://")
-        conn = Connection.connect(dsn, autocommit=True, prepare_threshold=0, row_factory=dict_row)
-        saver = PostgresSaver(conn)
+        pool = ConnectionPool(dsn, min_size=1, max_size=6, open=True,
+                              kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row})
+        saver = PostgresSaver(pool)
         saver.setup()
         return saver
     from langgraph.checkpoint.sqlite import SqliteSaver

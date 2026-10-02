@@ -1,6 +1,7 @@
 """Test setup: a temp database, a local directory standing in for Drive, an in-memory PM
 application and scripted models. The real graph, agents, storage and parsers run unchanged."""
 import csv
+import os
 from pathlib import Path
 
 import pytest
@@ -88,7 +89,17 @@ def env(tmp_path, monkeypatch):
 
     drive_root = tmp_path / "drive"
     drive_root.mkdir()
-    monkeypatch.setenv("PRECHECK_DATABASE_URL", f"sqlite:///{(tmp_path / 'precheck.db').as_posix()}")
+    # SQLite by default. Set PRECHECK_TEST_DATABASE_URL to a Postgres with pgvector to run the
+    # same tests against the production storage (the schema is emptied before each test).
+    pg_url = os.environ.get("PRECHECK_TEST_DATABASE_URL")
+    if pg_url:
+        import sqlalchemy as sa
+
+        engine = sa.create_engine(pg_url)
+        with engine.begin() as conn:
+            conn.execute(sa.text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
+        engine.dispose()
+    monkeypatch.setenv("PRECHECK_DATABASE_URL", pg_url or f"sqlite:///{(tmp_path / 'precheck.db').as_posix()}")
     monkeypatch.setenv("PRECHECK_LLM_MODE", "fake")
     monkeypatch.setenv("PRECHECK_DRIVE_MODE", "local")
     monkeypatch.setenv("PRECHECK_LOCAL_DRIVE_ROOT", str(drive_root))

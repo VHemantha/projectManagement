@@ -110,10 +110,16 @@ class Store:
         self.dim = dim
         (self.manifest, self.chunks, self.parsed, self.emb, self.node_cache, self.runs) = _tables(self.is_pg, dim)
         with self.engine.begin() as conn:
-            if self.is_pg:
-                conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
-            else:
+            if not self.is_pg:
                 conn.execute(sa.text("PRAGMA journal_mode=WAL"))
+        if self.is_pg:
+            # Creating the extension needs a privileged role; in production the deploy script
+            # has already done it, so a refusal here is fine as long as the extension exists.
+            try:
+                with self.engine.begin() as conn:
+                    conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
+            except sa.exc.DBAPIError:
+                pass
         metadata.create_all(self.engine, tables=[self.manifest, self.chunks, self.parsed, self.emb, self.node_cache, self.runs])
 
     # -- vectors ---------------------------------------------------------------------------

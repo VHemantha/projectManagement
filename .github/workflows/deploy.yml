@@ -29,6 +29,13 @@ jobs:
           pip install -r requirements.txt
           pytest -q
 
+      - name: Pre-check agent tests
+        working-directory: precheck-agent
+        run: |
+          python -m venv .venv
+          .venv/bin/pip install -q -r requirements-dev.txt
+          .venv/bin/python -m pytest -q
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"

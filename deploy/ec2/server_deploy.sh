@@ -8,6 +8,7 @@
 #   /srv/trackflow/releases/<id>/   extracted release (backend/ + deploy/ec2/)
 #   /srv/trackflow/current          symlink -> active release
 #   /srv/trackflow/venv             shared virtualenv
+#   /srv/trackflow/precheck-venv    the AI pre-check agent's virtualenv (see precheck_deploy.sh)
 #   /srv/trackflow/shared/.env      secrets/config (written at first boot)
 #   /srv/trackflow/shared/{media,static,backups}
 set -euo pipefail
@@ -55,6 +56,17 @@ log "Installing Python dependencies"
 "$VENV/bin/pip" install --quiet --upgrade pip
 "$VENV/bin/pip" install --quiet -r "$RELEASE_DIR/backend/requirements.txt"
 
+# AI pre-check agent (settings, database, packages). It sets PRECHECK_* in the app's .env, so
+# it runs before the app restarts. A problem here must not stop the main app from deploying.
+PRECHECK_OK=0
+if [ -d "$RELEASE_DIR/precheck-agent" ]; then
+  if bash "$DEPLOY_DIR/precheck_deploy.sh" prepare "$RELEASE_DIR"; then
+    PRECHECK_OK=1
+  else
+    echo "WARNING: could not prepare the AI pre-check agent; the main app will still deploy." >&2
+  fi
+fi
+
 ln -sfn "$ENV_FILE" "$RELEASE_DIR/backend/.env"
 chmod -R a+rX "$RELEASE_DIR"
 
@@ -101,6 +113,10 @@ if [ "$healthy" != 1 ]; then
   echo "Health check FAILED. Recent app logs:" >&2
   journalctl -u trackflow -n 60 --no-pager >&2 || true
   exit 1
+fi
+
+if [ "$PRECHECK_OK" = 1 ]; then
+  bash "$DEPLOY_DIR/precheck_deploy.sh" start "$RELEASE_DIR"     || echo "WARNING: the AI pre-check agent is not running; the rest of the app is live." >&2
 fi
 
 log "Pruning old releases (keeping $KEEP_RELEASES)"
