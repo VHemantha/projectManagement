@@ -1,10 +1,12 @@
 import { LayoutGrid, Network } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { InvitationList, InviteButton } from './Invitations'
 import { OrgChart } from './OrgChart'
 import styles from './PeopleDirectoryPage.module.css'
 import { useUserHierarchy, useUsers } from '@/api/users'
 import { Avatar, CopyButton } from '@/design-system'
+import { useAuthStore } from '@/store/authStore'
 
 type View = 'list' | 'diagram'
 
@@ -14,11 +16,13 @@ export function PeopleDirectoryPage() {
   const { data: users, isLoading } = useUsers()
   const { data: hierarchy, isLoading: hierarchyLoading } = useUserHierarchy(view === 'diagram')
   const navigate = useNavigate()
+  const isAdmin = useAuthStore((s) => !!s.user?.is_staff)
 
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>People</h1>
+        {isAdmin && <InviteButton />}
         <div className={styles.viewToggle} role="group" aria-label="View">
           <button
             type="button"
@@ -36,6 +40,7 @@ export function PeopleDirectoryPage() {
           </button>
         </div>
       </div>
+      {isAdmin && view === 'list' && <InvitationList />}
       {view === 'diagram' ? (
         hierarchyLoading || !hierarchy ? (
           <div>Loading…</div>

@@ -7,7 +7,6 @@
 .header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--tf-space-3);
   margin-bottom: var(--tf-space-5);
@@ -17,6 +16,7 @@
   font-size: var(--tf-font-size-xl);
   font-weight: 600;
   margin: 0;
+  margin-right: auto;
 }
 
 .viewToggle {

@@ -1,6 +1,7 @@
 import json
 
 from django.contrib.auth import authenticate
+from django.db import transaction
 from rest_framework import generics, permissions, status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
@@ -8,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from .invitations import accept_invitation, find_usable_invitation
 from .models import TablePreference, User
 from .serializers import LoginSerializer, MeSerializer, SignupSerializer, UserSerializer
 
@@ -21,10 +23,19 @@ class SignupView(generics.CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = SignupSerializer
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        # Locked so two sign-ups can't both use one invitation.
+        invitation, problem = find_usable_invitation(request.data.get("invite_token"), lock=True)
+        if problem:
+            code = status.HTTP_403_FORBIDDEN if not request.data.get("invite_token") else status.HTTP_410_GONE
+            return Response({"detail": problem}, status=code)
+        # The email is the invited one, whatever the form sent.
+        serializer = self.get_serializer(data={**request.data, "email": invitation.email})
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        accept_invitation(invitation, user)
+        user.refresh_from_db()
         return Response(
             {"user": MeSerializer(user).data, "tokens": _tokens_for(user)},
             status=status.HTTP_201_CREATED,

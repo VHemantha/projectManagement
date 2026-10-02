@@ -23,7 +23,8 @@ export function useSignup() {
   const setSession = useAuthStore((s) => s.setSession)
   return useMutation({
     mutationFn: async (payload: {
-      email: string
+      /** Sign-up is by invitation only; the email comes from the invitation. */
+      invite_token: string
       username: string
       password: string
       display_name?: string

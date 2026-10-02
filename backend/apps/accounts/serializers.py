@@ -20,10 +20,13 @@ class MeSerializer(UserSerializer):
 
 class SignupSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    # Sign-up is by invitation only; the account's email comes from the invitation.
+    invite_token = serializers.CharField(write_only=True)
+    email = serializers.EmailField(required=False)
 
     class Meta:
         model = User
-        fields = ["email", "username", "password", "display_name", "job_title"]
+        fields = ["email", "username", "password", "display_name", "job_title", "invite_token"]
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
@@ -31,6 +34,7 @@ class SignupSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
+        validated_data.pop("invite_token", None)
         password = validated_data.pop("password")
         user = User(**validated_data)
         user.set_password(password)

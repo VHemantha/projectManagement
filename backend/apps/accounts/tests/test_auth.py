@@ -19,10 +19,21 @@ def existing_user():
     return user
 
 
-def test_signup_creates_user_and_returns_tokens(api_client):
+def invite(email):
+    """An invitation token for `email` (sign-up is by invitation only)."""
+    from apps.accounts.invitations import _issue_token
+    from apps.accounts.models import Invitation
+
+    invitation = Invitation(email=email)
+    token = _issue_token(invitation)
+    invitation.save()
+    return token
+
+
+def test_signup_with_an_invitation_creates_user_and_returns_tokens(api_client):
     resp = api_client.post(
         "/api/auth/signup/",
-        {"email": "new@example.com", "username": "newperson", "password": "a-strong-pw-1"},
+        {"username": "newperson", "password": "a-strong-pw-1", "invite_token": invite("new@example.com")},
         format="json",
     )
     assert resp.status_code == 201
@@ -32,10 +43,21 @@ def test_signup_creates_user_and_returns_tokens(api_client):
     assert User.objects.filter(email="new@example.com").exists()
 
 
-def test_signup_rejects_duplicate_email(api_client, existing_user):
+def test_public_signup_is_closed(api_client):
     resp = api_client.post(
         "/api/auth/signup/",
-        {"email": existing_user.email, "username": "someoneelse", "password": "a-strong-pw-1"},
+        {"email": "new@example.com", "username": "newperson", "password": "a-strong-pw-1"},
+        format="json",
+    )
+    assert resp.status_code == 403
+    assert "invitation only" in resp.data["detail"]
+    assert not User.objects.filter(email="new@example.com").exists()
+
+
+def test_signup_rejects_duplicate_username(api_client, existing_user):
+    resp = api_client.post(
+        "/api/auth/signup/",
+        {"username": existing_user.username, "password": "a-strong-pw-1", "invite_token": invite("other@example.com")},
         format="json",
     )
     assert resp.status_code == 400
