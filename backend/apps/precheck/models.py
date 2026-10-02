@@ -152,7 +152,7 @@ class ModelRun(models.Model):
     what knowledge was in scope, and the tokens used."""
 
     precheck = models.ForeignKey(AIPrecheck, on_delete=models.CASCADE, related_name="model_runs")
-    node = models.CharField(max_length=20)  # read | judge | escalate
+    node = models.CharField(max_length=20)  # read | read_image | judge | escalate | draft
     task_id = models.CharField(max_length=80, blank=True)
     model = models.CharField(max_length=80)
     calls = models.PositiveIntegerField(default=1)

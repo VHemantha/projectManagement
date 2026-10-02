@@ -1,4 +1,4 @@
-"""Zip archives in a job folder.
+"""Files that hold other files: zip archives and emails with attachments.
 
 Some job folders hold one zip with the documents inside. The archive is opened in memory and
 each file inside becomes its own document, exactly as if it sat in the folder: it is parsed,
@@ -6,14 +6,20 @@ classified, indexed and cited on its own ("Trial Balance.xlsx (in Documents.zip)
 
 A member's id is "<zip file id>!<path inside the zip>" and its version is the CRC and size of
 its content, so re-uploading the zip with one file changed re-reads only that file.
+
+An email is handled the same way: the email is a document, and each file attached to it is a
+document of its own ("Invoice.pdf (attached to RE Year end.eml)"), with the id
+"<email id>!<attachment name>". Emails inside zips, and zips attached to emails, both work.
 """
 import io
 import zipfile
+import zlib
 
 from .config import Settings
+from .emails import is_email, read_email
 
 SEP = "!"
-MAX_DEPTH = 2  # a zip inside a zip is opened; deeper nesting is not
+MAX_DEPTH = 3  # e.g. a zip, an email in it, a zip attached to that email; deeper is not opened
 
 
 def container_of(file_id: str) -> str:
@@ -22,8 +28,13 @@ def container_of(file_id: str) -> str:
 
 
 def display_name(file: dict) -> str:
-    """"Trial Balance.xlsx (in Documents.zip)" for a document inside a zip, else its name."""
-    for part in (file.get("path") or "").split("/"):
+    """"Trial Balance.xlsx (in Documents.zip)" for a document inside a zip, "Invoice.pdf
+    (attached to Query.eml)" for an email attachment, else its name."""
+    parts = (file.get("path") or "").split("/")
+    for part in reversed(parts):
+        if is_email(part):
+            return f"{file['name']} (attached to {part})"
+    for part in parts:
         if part.lower().endswith(".zip"):
             return f"{file['name']} (in {part})"
     return file["name"]
@@ -69,14 +80,53 @@ def members(data: bytes, zip_file: dict, settings: Settings, depth: int = 1) -> 
             continue
         budget -= info.file_size
         content = archive.read(info)
-        if base.lower().endswith(".zip"):
-            if depth >= MAX_DEPTH:
-                out.append({**doc, "error": "A zip inside a zip inside a zip is not opened."})
-                continue
-            inner, problem = members(content, doc, settings, depth + 1)
-            out.extend(inner)
-            if problem:
-                out.append({**doc, "error": problem})
-            continue
-        out.append({**doc, "data": content})
+        out.extend(_expand(doc, content, settings, depth))
     return out, ""
+
+
+def _expand(doc: dict, content: bytes, settings: Settings, depth: int) -> list[dict]:
+    """One file found inside a zip or an email: itself, or what it holds when it is a zip or
+    an email with attachments."""
+    name = doc["name"].lower()
+    if name.endswith(".zip"):
+        if depth >= MAX_DEPTH:
+            return [{**doc, "error": "This zip is nested too deeply to open."}]
+        inner, problem = members(content, doc, settings, depth + 1)
+        return inner + ([{**doc, "error": problem}] if problem else [])
+    if is_email(name) and depth < MAX_DEPTH:
+        return [{**doc, "data": content}] + attachments(content, doc, settings, depth + 1)
+    return [{**doc, "data": content}]
+
+
+def attachments(data: bytes, email_file: dict, settings: Settings, depth: int = 1) -> list[dict]:
+    """The files attached to an email, as documents of their own. Small pictures embedded in
+    the body (signature logos) are left out. An email that cannot be opened has none: the
+    parser reports the problem on the email itself."""
+    try:
+        mail = read_email(data, email_file["name"])
+    except Exception:
+        return []
+    out, seen = [], set()
+    for name, content, inline in mail["attachments"][: settings.max_zip_members]:
+        if inline and len(content) < settings.min_inline_image_bytes:
+            continue
+        key = name
+        while key in seen:  # two attachments with one name stay two documents
+            key += "~"
+        seen.add(key)
+        doc = {
+            "id": f"{email_file['id']}{SEP}{key}",
+            "name": name,
+            "mime_type": "",
+            "version": f"{zlib.crc32(content):08x}-{len(content)}",
+            "modified_time": email_file.get("modified_time", ""),
+            "size": len(content),
+            "web_url": email_file["web_url"],  # the link opens the email (or the zip it is in)
+            "path": f"{email_file.get('path', '')}{email_file['name']}/",
+            "archive": email_file["name"],
+        }
+        if len(content) > settings.max_file_bytes:
+            out.append({**doc, "error": "This attachment is too large to read."})
+            continue
+        out.extend(_expand(doc, content, settings, depth))
+    return out

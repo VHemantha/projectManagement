@@ -99,14 +99,14 @@ def test_zip_next_to_loose_files_and_a_zip_inside_a_zip(env):
     inner = io.BytesIO()
     with zipfile.ZipFile(inner, "w") as z:
         z.writestr("Workpaper - payroll.txt", "Payroll workpaper\nPrepared by AB on 3 May 2025\nConclusion: payroll agrees to the ledger.\n")
-    folder = zip_folder(env, "mixed", inner_dir="", extra={"More/Inner.zip": inner.getvalue(), "photo.png": b"\x89PNG"})
+    folder = zip_folder(env, "mixed", inner_dir="", extra={"More/Inner.zip": inner.getvalue(), "backup.bak": b"\x00\x01"})
     (folder / "Notes for reviewer.txt").write_text("Engagement notes\nClient year end is 31 March 2025.\n", encoding="utf-8")
     env.pm.add_job("1", "client-zip", "mixed")
     result = env.run("1")
     detail = {d["name"]: d for d in result["trail"]["read"]["detail"]}
     assert "Notes for reviewer.txt" in detail  # a loose file beside the zip
     assert "Workpaper - payroll.txt (in Documents.zip)" in detail  # from the zip inside the zip
-    assert detail["photo.png (in Documents.zip)"]["problem"] == "This file type is not read by the pre-check."
+    assert detail["backup.bak (in Documents.zip)"]["problem"] == "This file type is not read by the pre-check."
     assert result["trail"]["read"]["documents"] == 8
     # The one-extra-slice tool can reach a document inside the zip, and only in this job.
     store = get_store()

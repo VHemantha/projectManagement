@@ -182,6 +182,26 @@ def evidence_from(file: dict, blocks: list[dict], quote: str = "") -> dict:
     }
 
 
+def _ground(line: str, chunks: list[dict]) -> list[tuple[dict, dict]]:
+    """The model answered without citing. Code looks for the passage itself: a row or line that
+    contains a phrase the answer puts in quotation marks, or two of the figures it names. Only
+    text that is really in the documents can match, so the evidence is still built by code from
+    the source; an answer that matches nothing stays without evidence and becomes `unclear`."""
+    quotes = [q.lower() for q in re.findall(r'"([^"]{8,})"', line)]
+    figures = {n for n in re.findall(r"\d[\d,./]*\d", line) if len(re.sub(r"\D", "", n)) >= 3}
+    plain = {n for n in figures if not re.fullmatch(r"(19|20)\d\d", n)}  # a year alone proves nothing
+    hits = []
+    for chunk in chunks:
+        for block in chunk["blocks"]:
+            text = block["text"]
+            quoted = sum(q in text.lower() for q in quotes)
+            found = {n for n in figures if n in text}
+            if quoted or (len(found) >= 2 and found & plain):
+                hits.append((3 * quoted + len(found), chunk, block))
+    hits.sort(key=lambda h: -h[0])
+    return [(chunk, block) for _, chunk, block in hits[:2]]
+
+
 def parse_reader_answer(message: AIMessage, chunks: list[dict], files: dict[str, dict], slice_state: dict | None = None) -> tuple[list[dict], dict]:
     """Final reader message -> (findings, evidence by id). Enforces the guardrail in code:
     an `addressed` or `exception` line with no cited passage becomes `unclear`."""
@@ -208,6 +228,11 @@ def parse_reader_answer(message: AIMessage, chunks: list[dict], files: dict[str,
             ev = evidence_from(files[sl["file_id"]], sl["blocks"][:6])
             evidence[ev["id"]] = ev
             ids.append(ev["id"])
+        if not ids and status in ("addressed", "exception"):
+            for chunk, block in _ground(text, chunks):
+                ev = evidence_from(files[chunk["file_id"]], [block])
+                evidence[ev["id"]] = ev
+                ids.append(ev["id"])
         if not ids and status in ("addressed", "exception"):
             status, why = "unclear", clip_words(f"The answer came with no source passage. Can someone confirm: {title}?", 25)
         findings.append({"status": status, "severity": severity, "title": title, "why": why, "evidence_ids": ids})

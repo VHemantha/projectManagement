@@ -42,9 +42,32 @@ without verifying. Measured on the demo job with a three-finding history: the dr
 **Zip archives.** A zip in the job folder is opened in memory and each file inside is read as
 its own document ("Trial Balance.xlsx (in Documents.zip)"); a document's version is its CRC,
 so re-uploading the zip with one file changed re-reads only that file. Limits: 100 MB per zip,
-300 files, one level of zip-inside-zip. Password-protected files and other archive types
+300 files, nesting up to three levels deep. Password-protected files and other archive types
 (.rar, .7z) are reported as unreadable. Drive cannot link inside a zip, so "Open in Drive"
 opens the zip itself.
+
+**Emails.** `.eml` and Outlook `.msg` files are read by code, with no model call. The email is
+a document (sender, date, subject, then the body, cited as "email line N") and each attachment
+is a document of its own ("Invoice.pdf (attached to RE Year end.eml)"), including emails
+inside zips and forwarded emails. Pictures embedded in the body under 20 KB are treated as
+logos and left out. An email is always classed as correspondence, so "RE: Trial balance" never
+satisfies a rule that looks for a trial balance, and every reader may be shown emails.
+
+**Images and scans.** A photo, screenshot or scanned PDF has no text for a library to extract,
+so the reader model (Haiku) looks at it once and writes out what it says; that transcript is
+then chunked, searched and quoted like any other document, located as "image read by AI,
+line N". This is the one model call outside read, judge and escalate. Code does the rest: any
+type Pillow opens (PNG, JPEG, GIF, WebP, BMP, TIFF, HEIC, ICO, AVIF) is turned upright, shrunk
+to 1,568 px and sent as JPEG; a scanned PDF or multi-page TIFF is cut to its first 5 pages
+(and says so). The transcript is stored against the file's id and version, so an image is paid
+for once. A run reads at most 10 images (`PRECHECK_BUDGET_IMAGE_CALLS`), counted apart from
+the reader budget; the rest are reported as not read yet, the result is marked partial, and
+the next run reads them. SVG and HTML files are text already and are read by code. Measured
+(2 Oct 2026, Haiku 4.5): a one-page voucher photo was 1,755 tokens in, 155 out ($0.0025); a
+two-page scanned PDF 3,367 in, 99 out ($0.0039); a dense screenshot 1,766 in, 654 out ($0.005).
+So ten images add roughly $0.03-0.05 to a first run and nothing to later runs. A full run on a zip holding five documents, an email with a photographed board minute, a voucher photo and a two-page scan cost $0.046 and took 28 s; the re-run cost nothing. A quote from an
+image is the model's reading of it, not text copied from the file: the location says so, and
+the reviewer should open the image where a figure rests on it alone.
 
 ## Run it
 
@@ -52,7 +75,7 @@ opens the zip itself.
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 40 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 47 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run
@@ -115,6 +138,10 @@ what it skipped.
   `create_agent` (every AI finding came back tied to a passage), the judge's
   `output_config.format` with thinking set to `between_tools` on Sonnet 5.5, and Opus
   escalation at low effort.
+- **Verified against Claude** (2 Oct 2026): reading a rotated BMP photo, a two-page scanned
+  PDF and a TIFF attached to a real Outlook `.msg`; an instruction written inside the image was
+  copied out as text and not followed. Real `.msg` files open with their attachments. Not
+  verified: handwriting, HEIC photos from a phone, and accuracy on poor scans.
 - **Verified on Postgres 16 + pgvector 0.6**: the full test suite, including the leakage test
   and the Postgres checkpointer (`PRECHECK_TEST_DATABASE_URL=... pytest`).
 - **Partly verified: Google Drive.** Sign-in with the service account and the "folder not

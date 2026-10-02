@@ -2,7 +2,7 @@
 name: gdrive-folder-reader
 description: How to look inside a job's Drive folder cheaply - list first, read a slice not a file - and how to decide what kind of document an unfamiliar file is. Use before asking for more of a file.
 metadata:
-  version: "1.0"
+  version: "1.1"
 ---
 
 # Reading a job's Drive folder
@@ -27,6 +27,22 @@ Some folders hold a zip. The service has already opened it: each file inside is 
 its own, named like `Trial Balance.xlsx (in Documents.zip)`, with its own `file_id`. Treat it
 exactly like any other document.
 
+## Emails
+
+An email in the folder is a document: who sent it, when, the subject, then the body, cited as
+`email line N`. Each file attached to it is a document of its own, named like
+`Invoice.pdf (attached to RE Year end query.eml)`. An email is evidence of what someone said,
+not of what the books show: quote it as an explanation or a confirmation, and still look for the
+figure in the ledger or schedule.
+
+## Images and scans
+
+A photo, a screenshot or a scanned PDF was read once by a model and written out as text. Its
+passages are located as `image read by AI, line N` or `scan read by AI, page N, line N`. Treat
+that text as a careful reading, not as the file itself: `[unreadable]` means the mark could not
+be made out, so do not fill it in. If a figure that matters rests only on an image, say so in
+your reason so the reviewer opens the image.
+
 ## What kind of document is this?
 
 Go by the file name first, then the first lines.
@@ -46,6 +62,7 @@ Go by the file name first, then the first lines.
 | questionnaire | "questionnaire", "checklist"; questions with answers |
 | job_instructions | "instructions", "engagement", "planning"; what the job should cover |
 | workpaper | "workpaper", "working"; a test with a conclusion |
+| correspondence | any email, whatever its subject (tax authority emails are tax_correspondence) |
 | other | anything else - say what it seems to be |
 
 A file can only be one class. If two fit, choose the one that describes what the file is for.

@@ -132,6 +132,12 @@ def demo_drafter(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
 
 
+def demo_vision(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """Demo mode cannot see: it says so, and the file is reported as needing a person."""
+    text = "Shows: an image (demo mode has no model, so the image was not read)"
+    return AIMessage(content=text, usage_metadata={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+
+
 _fake: dict[str, ScriptedChatModel] = {}
 
 
@@ -147,7 +153,7 @@ def reset_fakes() -> None:
 
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter}[role])
+        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter, "vision": demo_vision}[role])
     return _fake[role]
 
 
@@ -157,12 +163,13 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return f"fake-{role}"
-    return {"reader": s.reader_model, "judge": s.judge_model, "escalate": s.escalate_model}[role]
+    return {"reader": s.reader_model, "judge": s.judge_model, "escalate": s.escalate_model, "vision": s.vision_model or s.reader_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
     """role: "reader" | "judge" | "escalate" | "drafter" (the judge model, drafting a Direction
-    Note). max_tokens is set on every call (token rule 8)."""
+    Note) | "vision" (the reader model, writing out an image). max_tokens is set on every call
+    (token rule 8)."""
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return _fake_model(role)
@@ -176,6 +183,8 @@ def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
     if s.refusal_fallbacks and role != "reader":
         common["betas"] = ["server-side-fallback-2026-07-01"]
         common["model_kwargs"] = {"fallbacks": "default"}
+    if role == "vision":
+        return ChatAnthropic(model=s.vision_model or s.reader_model, max_tokens=s.image_max_tokens, **common)
     if role == "reader":
         # Haiku 4.5: no thinking unless asked for, and it rejects the effort parameter.
         return ChatAnthropic(model=s.reader_model, max_tokens=s.reader_max_tokens, **common)

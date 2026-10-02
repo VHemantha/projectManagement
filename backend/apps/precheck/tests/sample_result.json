@@ -50,14 +50,14 @@
    "title": "Debtors schedule.xlsx does not agree to the trial balance",
    "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
    "evidence_ids": [
-    "E-eed66f8333",
-    "E-61d77b59b1"
+    "E-dfcf7770ad",
+    "E-82295b7020"
    ],
    "source": "rule",
    "confidence": "high"
   },
   {
-   "id": "A-4c0f2509-1",
+   "id": "A-093931e7-1",
    "direction_ref": "none",
    "area": "Trade debtors",
    "status": "addressed",
@@ -67,7 +67,22 @@
    "why": "The job folder shows this: Accruals workpaper FY25",
    "evidence_ids": [
     "E-779d61edf3",
-    "E-61d77b59b1"
+    "E-82295b7020"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-5c6d6327-1",
+   "direction_ref": "D2",
+   "area": "workpapers",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Confirm the accruals workpaper is complete and signed off",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3"
    ],
    "source": "ai",
    "confidence": "medium"
@@ -88,22 +103,7 @@
    "confidence": "medium"
   },
   {
-   "id": "A-bbd03d13-1",
-   "direction_ref": "D2",
-   "area": "workpapers",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Confirm the accruals workpaper is complete and signed off",
-   "why": "The job folder shows this: Accruals workpaper FY25",
-   "evidence_ids": [
-    "E-779d61edf3"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  },
-  {
-   "id": "A-dbc8dd7c-1",
+   "id": "A-774a0057-1",
    "direction_ref": "D1",
    "area": "ledger",
    "status": "addressed",
@@ -120,20 +120,20 @@
  ],
  "evidence": [
   {
-   "id": "E-61d77b59b1",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 3",
-   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
    "id": "E-779d61edf3",
    "file_id": "acme-fy25:Workpaper - accruals.txt",
    "file_name": "Workpaper - accruals.txt",
    "location": "line 1",
    "quote": "Accruals workpaper FY25",
    "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
+  },
+  {
+   "id": "E-82295b7020",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 3",
+   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
   },
   {
    "id": "E-a2461d8da5",
@@ -144,7 +144,7 @@
    "drive_url": "local://acme-fy25/Tax computation.txt"
   },
   {
-   "id": "E-eed66f8333",
+   "id": "E-dfcf7770ad",
    "file_id": "acme-fy25:Debtors schedule.xlsx",
    "file_name": "Debtors schedule.xlsx",
    "location": "sheet 'Debtors', row 4",
@@ -166,36 +166,42 @@
    "documents": 5,
    "changed": 5,
    "removed": 0,
+   "images_read": 0,
    "detail": [
     {
      "name": "Bank reconciliation.csv",
      "kind": "reconciliation",
      "changed": true,
-     "problem": ""
+     "problem": "",
+     "note": ""
     },
     {
      "name": "Debtors schedule.xlsx",
      "kind": "schedule",
      "changed": true,
-     "problem": ""
+     "problem": "",
+     "note": ""
     },
     {
      "name": "Tax computation.txt",
      "kind": "tax computation",
      "changed": true,
-     "problem": ""
+     "problem": "",
+     "note": ""
     },
     {
      "name": "Trial Balance FY25.xlsx",
      "kind": "trial balance",
      "changed": true,
-     "problem": ""
+     "problem": "",
+     "note": ""
     },
     {
      "name": "Workpaper - accruals.txt",
      "kind": "schedule",
      "changed": true,
-     "problem": ""
+     "problem": "",
+     "note": ""
     }
    ]
   },
@@ -340,7 +346,7 @@
     "task_id": "T1",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "ed67cda74a8b499d9b65d2250962decf",
+    "run_id": "7bc357be9dc44f3da1f89de5af9a0b32",
     "input": 2294,
     "output": 62,
     "cache_write": 0,
@@ -351,7 +357,7 @@
     "task_id": "T2",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "ed67cda74a8b499d9b65d2250962decf",
+    "run_id": "7bc357be9dc44f3da1f89de5af9a0b32",
     "input": 2095,
     "output": 49,
     "cache_write": 0,
@@ -362,7 +368,7 @@
     "task_id": "T3",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "ed67cda74a8b499d9b65d2250962decf",
+    "run_id": "7bc357be9dc44f3da1f89de5af9a0b32",
     "input": 2077,
     "output": 58,
     "cache_write": 0,
@@ -373,7 +379,7 @@
     "task_id": "T4",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "ed67cda74a8b499d9b65d2250962decf",
+    "run_id": "7bc357be9dc44f3da1f89de5af9a0b32",
     "input": 2044,
     "output": 54,
     "cache_write": 0,
@@ -384,7 +390,7 @@
     "task_id": "judge",
     "model": "fake-judge",
     "calls": 1,
-    "run_id": "ed67cda74a8b499d9b65d2250962decf",
+    "run_id": "7bc357be9dc44f3da1f89de5af9a0b32",
     "input": 2206,
     "output": 747,
     "cache_write": 0,
@@ -404,6 +410,7 @@
   "reused_answers": 0,
   "budget": {
    "reader_calls": 12,
+   "image_calls": 10,
    "uncached_input_tokens": 40000,
    "output_tokens": 4000
   }
@@ -415,7 +422,7 @@
  },
  "versions": {
   "prompt": "2026-10-02.1",
-  "parser": "p1",
+  "parser": "p2",
   "skills": {
    "direction-drafting": "1.0+41b0dac8",
    "finding-format": "1.0+de8f39c5",
@@ -428,5 +435,5 @@
  },
  "knowledge_ids": [],
  "demo": true,
- "duration_s": 0.3
+ "duration_s": 0.6
 }

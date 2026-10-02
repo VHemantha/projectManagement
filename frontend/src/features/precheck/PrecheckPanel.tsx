@@ -576,11 +576,12 @@ function TrailDetail({ stage, run }: { stage: TrailStage; run: Run }) {
   if (stage === 'read') {
     return (
       <ul className={styles.detailList}>
-        {(step.detail as unknown as { name: string; kind: string; changed: boolean; problem: string }[]).map((d) => (
+        {(step.detail as unknown as { name: string; kind: string; changed: boolean; problem: string; note?: string }[]).map((d) => (
           <li key={d.name}>
             <FileText size={13} aria-hidden="true" /> <span className={styles.detailMain}>{d.name}</span>
             <span className={styles.muted}>{d.kind}</span>
             {d.changed && <span className={styles.tag}>new or changed</span>}
+            {d.note && <span className={styles.tag}>{d.note}</span>}
             {d.problem && <span className={styles.tag} data-tone="warning">{d.problem}</span>}
           </li>
         ))}

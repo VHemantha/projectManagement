@@ -69,7 +69,7 @@ const run = (o: Partial<Run> = {}): Run => ({
     { id: 'D2', text: 'Confirm accruals are complete', addressed: false },
   ],
   trail: {
-    read: { label: '14 documents, 3 changed since last run', detail: [{ name: 'TB.xlsx', kind: 'trial balance', changed: true, problem: '' }] },
+    read: { label: '14 documents, 3 changed since last run', detail: [{ name: 'TB.xlsx', kind: 'trial balance', changed: true, problem: '' }, { name: 'Receipt.jpg', kind: 'other', changed: false, problem: '', note: 'text read from the image by AI' }] },
     checked: { label: '22 rules run, 2 failed', detail: [{ label: 'Trial balance debits equal credits', passed: true, note: '' }] },
     compared: { label: '2 Direction Note items compared', detail: [] },
     judged: { label: '5 findings weighed, 3 kept', detail: [], findings_in: 5, findings_out: 3, escalated: 0, how: 'model' },
