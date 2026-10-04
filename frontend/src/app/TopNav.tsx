@@ -37,7 +37,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
         <button className={styles.hamburger} onClick={onOpenDrawer} aria-label="Open menu">
           <Menu size={20} />
         </button>
-        <Tooltip label="Create a new job">
+        <Tooltip label="Create a new task">
           <button
             className={styles.iconBtn}
             style={{ background: 'var(--tf-primary)', color: 'var(--tf-text-inverse)', borderRadius: 'var(--tf-radius-md)', width: 'auto', padding: '0 12px', display: 'flex', gap: 4 }}
@@ -54,7 +54,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
       <div className={styles.topnavSearch}>
         <div className={styles.searchInput} onClick={toggleQuickSearch}>
           <Search size={15} />
-          <span>Search jobs, workspaces…</span>
+          <span>Search tasks, projects…</span>
           <kbd className={styles.searchKbd}>Ctrl K</kbd>
         </div>
       </div>

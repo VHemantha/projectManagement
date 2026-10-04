@@ -79,7 +79,7 @@ def notification_event(notification: Notification) -> dict:
     else:
         title = f"{actor} {notification.get_verb_display()}"
         body = f"{issue.key}: {issue.summary}" if issue else ""
-        url = f"/workspaces/{issue.project.key}/issues/{issue.key}" if issue else "/"
+        url = f"/projects/{issue.project.key}/issues/{issue.key}" if issue else "/"
         tag, channel_id = f"notification-{notification.id}", None
     return {
         "id": f"notification-{notification.id}",

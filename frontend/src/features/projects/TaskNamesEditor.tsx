@@ -51,7 +51,7 @@ export function TaskNamesEditor({
       </div>
       {isDuplicate && trimmed && <span className={styles.hint}>“{trimmed}” is already in the list.</span>}
       {value.length === 0 ? (
-        <span className={styles.empty}>No tasks yet. Jobs can still be created with a custom summary.</span>
+        <span className={styles.empty}>No task names yet. Tasks can still be created with a custom summary.</span>
       ) : (
         <ul className={styles.list}>
           {value.map((task) => (

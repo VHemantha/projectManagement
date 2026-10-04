@@ -18,7 +18,7 @@ export function FiltersPage() {
         <div>Loading…</div>
       ) : !filters || filters.length === 0 ? (
         <div className={styles.empty}>
-          No saved filters yet. Save one from the filter panel on a workspace&apos;s Jobs tab.
+          No saved filters yet. Save one from the filter panel on a project&apos;s Tasks tab.
         </div>
       ) : (
         filters.map((f) => (

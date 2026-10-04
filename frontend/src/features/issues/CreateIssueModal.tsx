@@ -14,8 +14,8 @@ import { useUiStore } from '@/store/uiStore'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 const CUSTOM_SUMMARY = '__custom__'
-// Project choice meaning "no project: add the job to the client's own job list" (for clients
-// that don't require projects).
+// Project choice meaning "no project: add the task to the sub-workspace's own list of tasks"
+// (for sub-workspaces that don't require projects).
 const CLIENT_JOBS = '__client_jobs__'
 
 export function CreateIssueModal() {
@@ -53,13 +53,14 @@ export function CreateIssueModal() {
   const [labelIds, setLabelIds] = useState<number[]>([])
   const [createAnother, setCreateAnother] = useState(false)
 
-  // Team + Client narrow which projects are offered, cascading Team -> Client -> Project;
+  // Workspace + Sub-workspace narrow which projects are offered, cascading Workspace ->
+  // Sub-workspace -> Project (the app's hierarchy);
   // the issue itself stays project-centric (project.primary_team/client remain the source of
   // truth), these pickers just make it faster to find the right project. Client options list
   // every client that exists (not just ones some project already happens to be attached to) —
   // a client with no project yet still needs to be pickable so its gap is visible, rather than
   // silently missing from the dropdown.
-  const clientOptions = clients ?? []
+  const clientOptions = teamId ? (clients ?? []).filter((c) => c.team_id === Number(teamId)) : (clients ?? [])
   const projectsInTeam = teamId
     ? (projects ?? []).filter((p) => p.primary_team?.id === Number(teamId))
     : (projects ?? [])
@@ -167,7 +168,7 @@ export function CreateIssueModal() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? undefined : handleClose())}>
-      <DialogContent title="Create job" maxWidth={560}>
+      <DialogContent title="Create task" maxWidth={560}>
         <form className={styles.form} onSubmit={handleSubmit}>
           {createIssue.isError && (
             <div className={styles.formError}>{extractErrorMessage(createIssue.error)}</div>
@@ -176,7 +177,7 @@ export function CreateIssueModal() {
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-team">
-                Team
+                Workspace
               </label>
               <select
                 id="ci-team"
@@ -187,7 +188,7 @@ export function CreateIssueModal() {
                   setClientId('')
                 }}
               >
-                <option value="">Any team</option>
+                <option value="">Any workspace</option>
                 {teams?.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -197,7 +198,7 @@ export function CreateIssueModal() {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-client">
-                Client
+                Sub-workspace
               </label>
               <select
                 id="ci-client"
@@ -205,7 +206,7 @@ export function CreateIssueModal() {
                 value={clientId}
                 onChange={(e) => setClientId(e.target.value)}
               >
-                <option value="">Any client</option>
+                <option value="">Any sub-workspace</option>
                 {clientOptions.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -227,13 +228,13 @@ export function CreateIssueModal() {
                 onChange={(e) => setProjectKey(e.target.value)}
               >
                 {clientJobsAllowed && (
-                  <option value={CLIENT_JOBS}>No workspace — {selectedClient!.name} jobs</option>
+                  <option value={CLIENT_JOBS}>No project — {selectedClient!.name} tasks</option>
                 )}
                 {projectChoices.length === 0 && (
                   <option value="">
                     {selectedClient?.requires_projects
-                      ? `${selectedClient.name} needs a workspace — create one first`
-                      : 'No workspace for this team/client yet'}
+                      ? `${selectedClient.name} needs a project — create one first`
+                      : 'No project in this workspace/sub-workspace yet'}
                   </option>
                 )}
                 {availableProjects.map((p) => (
@@ -245,7 +246,7 @@ export function CreateIssueModal() {
             </div>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-type">
-                Job type
+                Task type
               </label>
               <select
                 id="ci-type"

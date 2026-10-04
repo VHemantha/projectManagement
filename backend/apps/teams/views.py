@@ -27,7 +27,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         user = self.request.user
         team = serializer.instance
         if not (user.is_staff or team.memberships.filter(user=user, role=TeamMembership.Role.LEAD).exists()):
-            raise PermissionDenied("Only a team lead or an admin can change this team.")
+            raise PermissionDenied("Only a workspace lead or an admin can change this workspace.")
         old_name = team.name
         team = serializer.save()
         if team.name != old_name:
@@ -43,7 +43,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         user = self.request.user
         is_lead = instance.memberships.filter(user=user, role=TeamMembership.Role.LEAD).exists()
         if not (user.is_staff or is_lead):
-            raise PermissionDenied("Only a team lead or an admin can delete this team.")
+            raise PermissionDenied("Only a workspace lead or an admin can delete this workspace.")
         instance.delete()
 
 

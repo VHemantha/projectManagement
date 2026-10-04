@@ -36,7 +36,7 @@ export function SprintReportPage() {
   }))
 
   if (!isScrumWorkspace(project)) {
-    return <div className={styles.page}>Reports are available for Scrum workspaces.</div>
+    return <div className={styles.page}>Reports are available for Scrum projects.</div>
   }
 
   return (

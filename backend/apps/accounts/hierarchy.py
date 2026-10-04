@@ -66,8 +66,8 @@ class UserHierarchyView(generics.GenericAPIView):
         return Response(
             {
                 "derived": True,
-                "basis": "Admins are organisation staff; everyone else is grouped by team membership "
-                "(team leads first). There is no reporting-line field.",
+                "basis": "Admins are organisation staff; everyone else is grouped by workspace membership "
+                "(workspace leads first). There is no reporting-line field.",
                 "admins": admins,
                 "teams": teams,
                 "no_team": no_team,

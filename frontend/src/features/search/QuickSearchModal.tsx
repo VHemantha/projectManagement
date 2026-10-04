@@ -48,21 +48,21 @@ export function QuickSearchModal() {
               <input
                 className={styles.input}
                 autoFocus
-                placeholder="Search jobs and workspaces…"
+                placeholder="Search tasks and projects…"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </div>
             <div className={styles.results}>
               {query.trim().length === 0 && (
-                <div className={styles.empty}>Type to search jobs by key or summary, or a workspace.</div>
+                <div className={styles.empty}>Type to search tasks by key or summary, or a project.</div>
               )}
               {query.trim().length > 0 && !isFetching && !hasResults && (
                 <div className={styles.empty}>No results for &ldquo;{query}&rdquo;.</div>
               )}
               {(data?.issues.length ?? 0) > 0 && (
                 <>
-                  <div className={styles.sectionLabel}>Jobs</div>
+                  <div className={styles.sectionLabel}>Tasks</div>
                   {data!.issues.map((issue) => (
                     <div
                       key={issue.id}
@@ -81,14 +81,14 @@ export function QuickSearchModal() {
               )}
               {(data?.projects.length ?? 0) > 0 && (
                 <>
-                  <div className={styles.sectionLabel}>Workspaces</div>
+                  <div className={styles.sectionLabel}>Projects</div>
                   {data!.projects.map((project) => (
                     <div
                       key={project.id}
                       className={styles.row}
                       onClick={() => {
                         closeQuickSearch()
-                        navigate(`/workspaces/${project.key}`)
+                        navigate(`/projects/${project.key}`)
                       }}
                     >
                       <span

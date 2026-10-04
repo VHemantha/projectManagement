@@ -134,7 +134,7 @@ export function UserWorkloadPage() {
         onGroupByChange={setGroupBy}
         availableGroupBy={['none', 'project', 'status']}
         showProjectColumn
-        emptyMessage="No jobs found for this filter."
+        emptyMessage="No tasks found for this filter."
       />
     </div>
   )

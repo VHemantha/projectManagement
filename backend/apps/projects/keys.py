@@ -77,7 +77,7 @@ def resolve_issue(key: str, queryset=None):
 def get_issue_or_404(key: str, queryset=None):
     issue = resolve_issue(key, queryset)
     if issue is None:
-        raise Http404("No job with that key.")
+        raise Http404("No task with that key.")
     return issue
 
 

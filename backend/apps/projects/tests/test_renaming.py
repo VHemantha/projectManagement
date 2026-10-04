@@ -61,7 +61,7 @@ def test_team_rename_rules(lead, worker, team):
     assert client_for(lead).patch(f"/api/teams/{team.id}/", {"name": "   "}, format="json").status_code == 400
     resp = client_for(lead).patch(f"/api/teams/{team.id}/", {"name": "payroll"}, format="json")
     assert resp.status_code == 400
-    assert "already a team" in str(resp.data["name"][0])
+    assert "already a workspace" in str(resp.data["name"][0])
     # Changing only the case of its own name is fine.
     assert client_for(lead).patch(f"/api/teams/{team.id}/", {"name": "ACCOUNTS"}, format="json").status_code == 200
 

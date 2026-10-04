@@ -203,9 +203,9 @@ function SetupForm({
     <form className={styles.setup} onSubmit={submit}>
       {!setup.ready && (
         <p className={styles.lead}>
-          Before the pre-check can run, this job needs its Google Drive folder. The pre-check reads the folder and
+          Before the pre-check can run, this task needs its Google Drive folder. The pre-check reads the folder and
           checks each Direction Note item against it. You can write the Direction Note yourself, or leave it empty and
-          the AI will draft one from this client&apos;s past jobs and the folder.
+          the AI will draft one from this sub-workspace&apos;s past tasks and the folder.
         </p>
       )}
       <label className={styles.field}>
@@ -242,7 +242,7 @@ function SetupForm({
             {drafting || draft.isPending ? 'Drafting…' : 'Draft with AI'}
           </Button>
           <span className={styles.muted}>
-            Suggests items from this client&apos;s past jobs, what reviewers decided before, and what is in the folder now.
+            Suggests items from this sub-workspace&apos;s past tasks, what reviewers decided before, and what is in the folder now.
             You can edit them.
           </span>
         </div>
@@ -298,7 +298,7 @@ function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void
   if (setup.direction_items.length === 0) {
     return (
       <p className={styles.setupLine}>
-        No Direction Note yet: the AI will draft one from this client&apos;s past jobs and the folder, then check each
+        No Direction Note yet: the AI will draft one from this sub-workspace&apos;s past tasks and the folder, then check each
         item.{' '}
         <button type="button" className={styles.link} onClick={onEdit}>
           Write it yourself or edit the folder
@@ -309,7 +309,7 @@ function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void
   return (
     <p className={styles.setupLine}>
       Checks {setup.direction_items.length} Direction Note item{setup.direction_items.length === 1 ? '' : 's'} against the
-      job&apos;s Drive folder.{' '}
+      task&apos;s Drive folder.{' '}
       <button type="button" className={styles.link} onClick={onEdit}>
         Edit folder and items
       </button>
@@ -321,10 +321,10 @@ function NeverRun({ setup, button, onEdit }: { setup: PrecheckSetup; button: Rea
   return (
     <div className={styles.empty}>
       <p className={styles.lead}>
-        Not run yet. The pre-check reads the job folder, runs the automatic checks and compares each Direction Note
+        Not run yet. The pre-check reads the task folder, runs the automatic checks and compares each Direction Note
         item with the evidence, so a reviewer starts with the open points in front of them.
         {setup.direction_items.length === 0 &&
-          ' This job has no Direction Note, so the AI will draft one first and then verify it.'}
+          ' This task has no Direction Note, so the AI will draft one first and then verify it.'}
       </p>
       <div className={styles.actionsRow}>{button}</div>
       <SetupLine setup={setup} onEdit={onEdit} />
@@ -360,7 +360,7 @@ function RunView({
         <div className={styles.verdict} data-verdict="running" role="status">
           <Loader2 size={28} className={styles.spin} aria-hidden="true" />
           <div className={styles.verdictText}>
-            <div className={styles.verdictWords}>Checking the job…</div>
+            <div className={styles.verdictWords}>Checking the task…</div>
             <p className={styles.summary}>This usually takes under a minute. You can leave this page; the result will be here.</p>
           </div>
         </div>

@@ -119,7 +119,7 @@ export function TeamIssuesTab({ team }: { team: TeamDetail }) {
           onGroupByChange={setGroupBy}
           availableGroupBy={['none', 'project', 'status', 'assignee']}
           showProjectColumn
-          emptyMessage="No jobs assigned to this team's members."
+          emptyMessage="No tasks assigned to this workspace's members."
         />
       </div>
     </div>

@@ -7,6 +7,6 @@ export const WorkspaceContext = createContext<{ project: ProjectDetail } | null>
 
 export function useProjectContext() {
   const value = useContext(WorkspaceContext)
-  if (!value) throw new Error('useProjectContext must be used inside a workspace page')
+  if (!value) throw new Error('useProjectContext must be used inside a project page')
   return value
 }

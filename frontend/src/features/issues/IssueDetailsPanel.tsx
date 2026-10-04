@@ -129,7 +129,7 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
 
       <div className={styles.panelRow}>
         <label className={styles.panelLabel} htmlFor="job-value">
-          Job value{project ? ` (${project.job_value_currency})` : ''}
+          Task value{project ? ` (${project.job_value_currency})` : ''}
         </label>
         <input
           id="job-value"

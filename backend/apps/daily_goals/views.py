@@ -39,7 +39,7 @@ class DailyGoalListCreateView(generics.ListCreateAPIView):
                 team_id__in=target_user_teams, user=self.request.user, role=TeamMembership.Role.LEAD
             ).exists()
             if not allowed:
-                raise PermissionDenied("You can only view your own goals unless you lead one of this person's teams.")
+                raise PermissionDenied("You can only view your own goals unless you lead one of this person's workspaces.")
             qs = qs.filter(user_id=user_id)
         else:
             qs = qs.filter(user=self.request.user)
@@ -103,7 +103,7 @@ class TeamDailyGoalsView(APIView):
     def get(self, request, team_id=None):
         team = get_object_or_404(Team, pk=team_id)
         if not _can_view_team_goals(request.user, team):
-            raise PermissionDenied("Only a lead of this team (or a workspace admin) can view its goals rollup.")
+            raise PermissionDenied("Only a lead of this workspace (or an admin) can view its goals rollup.")
 
         member_ids = TeamMembership.objects.filter(team=team).values_list("user_id", flat=True)
         qs = DailyGoal.objects.filter(user_id__in=member_ids).select_related("user", "linked_issue")

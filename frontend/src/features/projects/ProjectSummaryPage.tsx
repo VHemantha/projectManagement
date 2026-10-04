@@ -44,7 +44,7 @@ function BudgetPanel({ projectKey }: { projectKey: string }) {
       {hasJobValue && (
         <div style={{ display: 'flex', gap: 24, fontSize: 13 }}>
           <div>
-            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11 }}>Job value</div>
+            <div style={{ color: 'var(--tf-text-subtle)', fontSize: 11 }}>Project value</div>
             <div style={{ fontWeight: 600 }}>
               {row.job_value_currency} {Number(row.job_value).toLocaleString()}
             </div>
@@ -106,7 +106,7 @@ export function ProjectSummaryPage() {
       <div className={styles.grid}>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{project.memberships.length}</div>
-          <div className={styles.statLabel}>Team members</div>
+          <div className={styles.statLabel}>Members</div>
         </div>
         <div className={styles.statCard}>
           <div className={styles.statValue}>{project.labels.length}</div>

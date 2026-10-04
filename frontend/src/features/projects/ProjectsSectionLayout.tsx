@@ -2,114 +2,142 @@ import {
   Building2,
   ChevronsLeft,
   ChevronsRight,
+  ExternalLink,
+  FolderKanban,
   FolderPlus,
-  Layers,
   LayoutGrid,
+  ListTodo,
   Plus,
   Search,
   UserPlus,
   Users,
-  type LucideIcon,
 } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import styles from './ProjectsSectionLayout.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
 import { CreateProjectDialog } from './CreateProjectDialog'
-import { useNavTree } from '@/api/reports'
+import { type NavTreeNode, useNavTree } from '@/api/reports'
 import rail from '@/app/SideRail.module.css'
 import { Button, Skeleton, Tooltip, TreeView, type TreeNode } from '@/design-system'
 import { usePanel } from '@/store/sidebarStore'
 
-type TreeMode = 'group' | 'team' | 'client'
-
-const TREE_MODES: [TreeMode, string][] = [
-  ['group', 'Group'],
-  ['team', 'Team'],
-  ['client', 'Client'],
-]
-
-const TREE_MODE_ICONS: Record<TreeMode, LucideIcon> = { group: Layers, team: Users, client: Building2 }
-
-const TREE_EMPTY_MESSAGE: Record<TreeMode, string> = {
-  group: 'No groups yet.',
-  team: 'No teams yet.',
-  client: 'No clients yet.',
+/** Where a new project or sub-workspace goes when it is started from a row of the tree. */
+interface Placement {
+  teamId?: number
+  clientId?: number
 }
 
-/** Persistent Group/Team -> Client tree on the left; the right side shows the selected page —
- * the All issues board (which a client leaf opens, filtered to that branch), the All projects
- * table, or a project's own tabs via ProjectLayout. Mirrors Chat's channel-list/thread-pane
- * split so browsing to a client's work and seeing its cards happens in one continuous page. */
+function boardUrl(node: NavTreeNode) {
+  const params = new URLSearchParams(
+    Object.entries(node.board_query ?? {}).map(([k, v]) => [k, String(v)]),
+  )
+  return `/projects/all-issues?${params}`
+}
+
+function nodeIcon(node: TreeNode): ReactNode {
+  const n = node as NavTreeNode
+  if (n.type === 'workspace') return <Users size={14} aria-hidden="true" className={styles.treeIcon} />
+  if (n.type === 'sub_workspace') return <Building2 size={14} aria-hidden="true" className={styles.treeIcon} />
+  if (n.is_client_tasks) return <ListTodo size={14} aria-hidden="true" className={styles.treeIcon} />
+  return <FolderKanban size={14} aria-hidden="true" className={styles.treeIcon} />
+}
+
+/** The Projects section: the hierarchy tree on the left —
+ *
+ *    Workspace > Sub-workspace > Project   (a project opens its tasks)
+ *
+ * — and the selected page on the right: the All tasks board (which a sub-workspace opens,
+ * filtered to it), the All projects table, or a project's own tabs via ProjectLayout. */
 export function ProjectsSectionLayout() {
   const navigate = useNavigate()
-  const [treeMode, setTreeMode] = useState<TreeMode>('group')
   const [treeSearch, setTreeSearch] = useState('')
-  const [createOpen, setCreateOpen] = useState(false)
-  const [createClientOpen, setCreateClientOpen] = useState(false)
-  const { data: treeNodes, isLoading } = useNavTree(treeMode)
+  const [createProject, setCreateProject] = useState<Placement | null>(null)
+  const [createSubWorkspace, setCreateSubWorkspace] = useState<Placement | null>(null)
+  const { data: treeNodes, isLoading } = useNavTree('hierarchy')
   // Collapsed by default to an icon rail; expanded on request (remembered).
   const panel = usePanel('projectsTree')
   const [focusSearch, setFocusSearch] = useState(false)
-  const openInMode = (mode: TreeMode) => {
-    setTreeMode(mode)
-    panel.setOpen(true)
+
+  const handleLeafClick = (node: TreeNode) => {
+    const n = node as NavTreeNode
+    if (n.type === 'project' && n.project_key) navigate(`/projects/${n.project_key}`)
+    // A workspace or sub-workspace with nothing in it yet has no children to expand into.
+    else if (n.type === 'workspace' && typeof n.team_id === 'number') navigate(`/workspaces/${n.team_id}`)
+    else if (n.type === 'sub_workspace') navigate(boardUrl(n))
   }
 
-  const handleTreeLeafClick = (node: TreeNode) => {
-    // The tree stops at clients: a client opens the All issues board filtered to its branch.
-    // board_query uses the /api/issues/ filter names, which the board reads from its URL.
-    if (node.type === 'client' && node.board_query && typeof node.board_query === 'object') {
-      const params = new URLSearchParams(
-        Object.entries(node.board_query as Record<string, string | number | boolean>).map(([k, v]) => [k, String(v)]),
+  const rowActions = (node: TreeNode): ReactNode => {
+    const n = node as NavTreeNode
+    if (n.type === 'workspace' && typeof n.team_id === 'number') {
+      return (
+        <>
+          <Tooltip label={`New sub-workspace in ${n.label}`} side="bottom">
+            <button type="button" className={styles.rowAction} aria-label={`New sub-workspace in ${n.label}`} onClick={() => setCreateSubWorkspace({ teamId: n.team_id })}>
+              <Plus size={13} />
+            </button>
+          </Tooltip>
+          <Tooltip label={`Open ${n.label}`} side="bottom">
+            <button type="button" className={styles.rowAction} aria-label={`Open ${n.label}`} onClick={() => navigate(`/workspaces/${n.team_id}`)}>
+              <ExternalLink size={13} />
+            </button>
+          </Tooltip>
+        </>
       )
-      navigate(`/workspaces/all-issues?${params}`)
     }
-    // A team/group with no projects yet has no children to expand into, so TreeView treats it
-    // as a leaf too — send it to the team's own detail page instead of doing nothing.
-    if ((node.type === 'team' || node.type === 'group') && typeof node.team_id === 'number') {
-      navigate(`/teams/${node.team_id}`)
+    if (n.type === 'sub_workspace') {
+      return (
+        <>
+          {typeof n.client_id === 'number' && (
+            <Tooltip label={`New project in ${n.label}`} side="bottom">
+              <button
+                type="button"
+                className={styles.rowAction}
+                aria-label={`New project in ${n.label}`}
+                onClick={() => setCreateProject({ clientId: n.client_id ?? undefined })}
+              >
+                <Plus size={13} />
+              </button>
+            </Tooltip>
+          )}
+          <Tooltip label={`All tasks in ${n.label}`} side="bottom">
+            <button type="button" className={styles.rowAction} aria-label={`All tasks in ${n.label}`} onClick={() => navigate(boardUrl(n))}>
+              <LayoutGrid size={13} />
+            </button>
+          </Tooltip>
+        </>
+      )
     }
+    return null
   }
 
   return (
     <div className={styles.layout}>
       {!panel.open ? (
-        <aside className={rail.rail} aria-label="Workspaces panel (collapsed)">
-          <Tooltip label="Expand workspaces panel" side="right">
-            <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand workspaces panel">
+        <aside className={rail.rail} aria-label="Projects panel (collapsed)">
+          <Tooltip label="Expand projects panel" side="right">
+            <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand projects panel">
               <ChevronsRight size={18} />
             </button>
           </Tooltip>
-          <Tooltip label="Create workspace" side="right">
-            <button type="button" className={rail.button} onClick={() => setCreateOpen(true)} aria-label="Create workspace">
+          <Tooltip label="Create project" side="right">
+            <button type="button" className={rail.button} onClick={() => setCreateProject({})} aria-label="Create project">
               <FolderPlus size={18} />
             </button>
           </Tooltip>
-          <Tooltip label="All jobs board" side="right">
-            <NavLink to="/workspaces/all-issues" className={rail.button} aria-label="All jobs board">
+          <Tooltip label="All tasks board" side="right">
+            <NavLink to="/projects/all-issues" className={rail.button} aria-label="All tasks board">
               <LayoutGrid size={18} />
             </NavLink>
           </Tooltip>
           <span className={rail.divider} />
-          {TREE_MODES.map(([mode, label]) => {
-            const Icon = TREE_MODE_ICONS[mode]
-            return (
-              <Tooltip key={mode} label={`Browse by ${label.toLowerCase()}`} side="right">
-                <button
-                  type="button"
-                  className={rail.button}
-                  data-active={treeMode === mode}
-                  onClick={() => openInMode(mode)}
-                  aria-label={`Browse by ${label.toLowerCase()}`}
-                >
-                  <Icon size={18} />
-                </button>
-              </Tooltip>
-            )
-          })}
-          <Tooltip label="Search teams and clients" side="right">
+          <Tooltip label="Browse workspaces" side="right">
+            <button type="button" className={rail.button} onClick={panel.toggle} aria-label="Browse workspaces">
+              <Users size={18} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Search workspaces, sub-workspaces and projects" side="right">
             <button
               type="button"
               className={rail.button}
@@ -117,94 +145,95 @@ export function ProjectsSectionLayout() {
                 setFocusSearch(true)
                 panel.setOpen(true)
               }}
-              aria-label="Search teams and clients"
+              aria-label="Search workspaces, sub-workspaces and projects"
             >
               <Search size={18} />
             </button>
           </Tooltip>
-          <Tooltip label="New client" side="right">
-            <button type="button" className={rail.button} onClick={() => setCreateClientOpen(true)} aria-label="New client">
+          <Tooltip label="New sub-workspace" side="right">
+            <button type="button" className={rail.button} onClick={() => setCreateSubWorkspace({})} aria-label="New sub-workspace">
               <UserPlus size={18} />
             </button>
           </Tooltip>
         </aside>
       ) : (
-      <aside className={styles.sidebar} aria-label="Workspaces panel">
-        <div className={styles.sidebarHeader}>
-          <span className={styles.sidebarTitle}>Workspaces</span>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-              <Plus size={14} /> Create
-            </Button>
-            <Tooltip label="Collapse panel" side="bottom">
-              <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse workspaces panel">
-                <ChevronsLeft size={18} />
-              </button>
-            </Tooltip>
-          </div>
-        </div>
-
-        <NavLink
-          to="/workspaces/all-issues"
-          className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
-        >
-          <LayoutGrid size={14} /> All jobs board
-        </NavLink>
-
-        <div className={styles.modeRow}>
-          {TREE_MODES.map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              className={styles.modeBtn}
-              data-active={treeMode === mode}
-              onClick={() => setTreeMode(mode)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        <div className={styles.searchRow}>
-          <input
-            className={styles.search}
-            placeholder="Search team, client…"
-            aria-label="Search teams and clients"
-            value={treeSearch}
-            autoFocus={focusSearch}
-            onBlur={() => setFocusSearch(false)}
-            onChange={(e) => setTreeSearch(e.target.value)}
-          />
-          <Button variant="secondary" size="sm" onClick={() => setCreateClientOpen(true)} aria-label="New client">
-            <Plus size={14} />
-          </Button>
-        </div>
-
-        <div className={styles.tree}>
-          {isLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12 }}>
-              {[0, 1, 2].map((row) => (
-                <Skeleton key={row} height={13} width={row % 2 === 0 ? '60%' : '40%'} />
-              ))}
+        <aside className={styles.sidebar} aria-label="Projects panel">
+          <div className={styles.sidebarHeader}>
+            <span className={styles.sidebarTitle}>Projects</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <Button variant="primary" size="sm" onClick={() => setCreateProject({})}>
+                <Plus size={14} /> Create
+              </Button>
+              <Tooltip label="Collapse panel" side="bottom">
+                <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse projects panel">
+                  <ChevronsLeft size={18} />
+                </button>
+              </Tooltip>
             </div>
-          ) : (
-            <TreeView
-              nodes={treeNodes ?? []}
-              onLeafClick={handleTreeLeafClick}
-              filterQuery={treeSearch}
-              emptyMessage={TREE_EMPTY_MESSAGE[treeMode]}
+          </div>
+
+          <NavLink
+            to="/projects/all-issues"
+            className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
+          >
+            <LayoutGrid size={14} /> All tasks board
+          </NavLink>
+
+          <div className={styles.hierarchyHint} aria-hidden="true">
+            Workspace › Sub-workspace › Project
+          </div>
+
+          <div className={styles.searchRow}>
+            <input
+              className={styles.search}
+              placeholder="Search workspace, sub-workspace, project…"
+              aria-label="Search workspaces, sub-workspaces and projects"
+              value={treeSearch}
+              autoFocus={focusSearch}
+              onBlur={() => setFocusSearch(false)}
+              onChange={(e) => setTreeSearch(e.target.value)}
             />
-          )}
-        </div>
-      </aside>
+            <Button variant="secondary" size="sm" onClick={() => setCreateSubWorkspace({})} aria-label="New sub-workspace">
+              <Plus size={14} />
+            </Button>
+          </div>
+
+          <div className={styles.tree}>
+            {isLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12 }}>
+                {[0, 1, 2].map((row) => (
+                  <Skeleton key={row} height={13} width={row % 2 === 0 ? '60%' : '40%'} />
+                ))}
+              </div>
+            ) : (
+              <TreeView
+                nodes={treeNodes ?? []}
+                onLeafClick={handleLeafClick}
+                filterQuery={treeSearch}
+                renderIcon={nodeIcon}
+                renderActions={rowActions}
+                emptyMessage="No workspaces yet."
+              />
+            )}
+          </div>
+        </aside>
       )}
 
       <div className={styles.content}>
         <Outlet />
       </div>
 
-      <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <CreateClientDialog open={createClientOpen} onOpenChange={setCreateClientOpen} />
+      <CreateProjectDialog
+        open={createProject !== null}
+        onOpenChange={(open) => !open && setCreateProject(null)}
+        defaultTeamId={createProject?.teamId}
+        defaultClientId={createProject?.clientId}
+      />
+      <CreateClientDialog
+        open={createSubWorkspace !== null}
+        onOpenChange={(open) => !open && setCreateSubWorkspace(null)}
+        defaultTeamId={createSubWorkspace?.teamId}
+      />
     </div>
   )
 }

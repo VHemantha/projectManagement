@@ -61,7 +61,7 @@ def invite_url(request, token: str) -> str:
 
 def _send_invitation_email(invitation: Invitation, url: str) -> bool:
     inviter = invitation.invited_by.display_name if invitation.invited_by else "An admin"
-    team = f" in the {invitation.team.name} team" if invitation.team else ""
+    team = f" in the {invitation.team.name} workspace" if invitation.team else ""
     try:
         send_mail(
             subject="You're invited to TrackFlow",

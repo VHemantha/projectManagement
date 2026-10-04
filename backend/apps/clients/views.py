@@ -5,10 +5,20 @@ from .serializers import ClientSerializer
 
 
 class ClientListCreateView(generics.ListCreateAPIView):
+    """Sub-workspaces. ?team=<id> lists one workspace's; ?team=none those not in a workspace."""
+
     serializer_class = ClientSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = None
-    queryset = Client.objects.all()
+
+    def get_queryset(self):
+        qs = Client.objects.select_related("team")
+        team = self.request.query_params.get("team")
+        if team == "none":
+            qs = qs.filter(team__isnull=True)
+        elif team:
+            qs = qs.filter(team_id=team)
+        return qs
 
     def perform_create(self, serializer):
         from apps.orgs.models import Organization

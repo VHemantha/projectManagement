@@ -9,9 +9,10 @@ from apps.projects.models import Project
 from apps.teams.models import Team
 from apps.timesheets.budget import issue_actual_hours, project_actual_hours, project_effective_cost
 
-NO_TEAM_LABEL = "No Team"
-NO_CLIENT_LABEL = "Internal / No Client"
+NO_TEAM_LABEL = "No workspace"
+NO_CLIENT_LABEL = "No sub-workspace"
 NO_GROUP_LABEL = "Ungrouped"
+CLIENT_TASKS_LABEL = "Tasks without a project"
 
 
 def _client_leaf(node_id: str, label: str, board_query: dict, project_count: int) -> dict:
@@ -153,8 +154,80 @@ def _tree_by_client():
     return nodes
 
 
+def _project_node(project: Project) -> dict:
+    """A project is a leaf: opening it shows its board of tasks. A sub-workspace's automatic
+    list (for tasks added without a project) is named for what it holds."""
+    return {
+        "id": f"project-{project.id}",
+        "type": "project",
+        "label": CLIENT_TASKS_LABEL if project.is_client_workspace else project.name,
+        "project_key": project.key,
+        "is_client_tasks": project.is_client_workspace,
+        "children": [],
+    }
+
+
+def _sub_workspace_node(node_id: str, label: str, projects: list, board_query: dict, client_id=None) -> dict:
+    """Real projects first (by name); the automatic list of loose tasks last."""
+    projects = sorted(projects, key=lambda p: (p.is_client_workspace, p.name.lower()))
+    return {
+        "id": node_id,
+        "type": "sub_workspace",
+        "label": label,
+        "client_id": client_id,
+        "board_query": board_query,
+        "children": [_project_node(p) for p in projects],
+    }
+
+
+def _tree_by_hierarchy():
+    """Workspace (Team) > Sub-workspace (Client) > Project — the app's one hierarchy; tasks are
+    opened from a project. A sub-workspace sits in the workspace of Client.team; a project sits
+    in its sub-workspace. A project with no sub-workspace sits directly in its own workspace
+    (primary_team) under "No sub-workspace", and anything with no workspace at all is gathered
+    under "No workspace", so nothing is unreachable."""
+    projects = list(Project.objects.filter(is_archived=False).only(
+        "id", "key", "name", "client_id", "primary_team_id", "is_client_workspace"
+    ))
+    by_client: dict[int, list] = {}
+    loose_by_team: dict = {}
+    for p in projects:
+        if p.client_id:
+            by_client.setdefault(p.client_id, []).append(p)
+        else:
+            loose_by_team.setdefault(p.primary_team_id, []).append(p)
+
+    clients_by_team: dict = {}
+    for client in Client.objects.all().order_by("name"):
+        clients_by_team.setdefault(client.team_id, []).append(client)
+
+    def branch(team_id) -> list[dict]:
+        prefix = f"ws-{team_id or 'none'}"
+        team_query = {"team": team_id, "exclude_sub_teams": True} if team_id else {"no_team": True}
+        children = [
+            _sub_workspace_node(f"{prefix}-sub-{c.id}", c.name, by_client.get(c.id, []), {"client": c.id}, c.id)
+            for c in clients_by_team.get(team_id, [])
+        ]
+        if loose_by_team.get(team_id):
+            children.append(
+                _sub_workspace_node(f"{prefix}-sub-none", NO_CLIENT_LABEL, loose_by_team[team_id], {**team_query, "no_client": True})
+            )
+        return children
+
+    nodes = [
+        {"id": f"ws-{team.id}", "type": "workspace", "label": team.name, "team_id": team.id, "children": branch(team.id)}
+        for team in Team.objects.all().order_by("name")
+    ]
+    unplaced = branch(None)
+    if unplaced:
+        nodes.append({"id": "ws-none", "type": "workspace", "label": NO_TEAM_LABEL, "children": unplaced})
+    return nodes
+
+
 class NavTreeView(APIView):
-    """GET /api/reports/nav-tree/?group_by=team|client|group — returns the nested
+    """GET /api/reports/nav-tree/?group_by=hierarchy|team|client|group. "hierarchy" (what the
+    app's tree uses) is Workspace > Sub-workspace > Project; see _tree_by_hierarchy. The older
+    modes below are kept for API compatibility: they return the nested
     Team/Group -> Client structure (or a flat Client list) for the Projects page's tree-nav
     view in one call. The tree stops at clients: each client leaf carries a `board_query` that
     opens the All issues board filtered to that branch. A project with multiple contributing
@@ -167,7 +240,9 @@ class NavTreeView(APIView):
 
     def get(self, request):
         group_by = request.query_params.get("group_by", "team")
-        if group_by == "client":
+        if group_by == "hierarchy":
+            nodes = _tree_by_hierarchy()
+        elif group_by == "client":
             nodes = _tree_by_client()
         elif group_by == "group":
             nodes = _tree_by_group()

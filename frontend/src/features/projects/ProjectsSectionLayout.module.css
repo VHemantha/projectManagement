@@ -47,27 +47,36 @@
   color: var(--tf-primary);
 }
 
-.modeRow {
-  display: flex;
-  gap: 4px;
+/* The order the tree follows, spelled out once above it. */
+.hierarchyHint {
   padding: 0 var(--tf-space-3) var(--tf-space-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--tf-text-subtle);
 }
 
-.modeBtn {
-  flex: 1;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 5px 8px;
-  border: 1px solid var(--tf-border);
+.treeIcon {
+  flex-shrink: 0;
+  color: var(--tf-text-subtle);
+}
+
+.rowAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
   border-radius: var(--tf-radius-sm);
-  background: var(--tf-surface);
-  color: var(--tf-text-secondary);
+  background: transparent;
+  color: var(--tf-text-subtle);
   cursor: pointer;
 }
-.modeBtn[data-active='true'] {
-  background: var(--tf-primary-subtle);
+.rowAction:hover,
+.rowAction:focus-visible {
+  background: var(--tf-surface);
   color: var(--tf-primary);
-  border-color: var(--tf-primary);
 }
 
 .searchRow {

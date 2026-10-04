@@ -51,7 +51,7 @@ export function CreateTaskFromMessageDialog({ message, open, onOpenChange }: Cre
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Workspace</label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Project</label>
               <select
                 style={{ width: '100%', height: 36, borderRadius: 4, border: '2px solid var(--tf-border)', padding: '0 10px' }}
                 value={projectKey}

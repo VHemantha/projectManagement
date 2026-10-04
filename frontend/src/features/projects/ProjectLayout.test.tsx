@@ -25,7 +25,7 @@ function Stub({ name }: { name: string }) {
   return <div data-testid="tab-page">{`${name} for ${p.key}`}</div>
 }
 vi.mock('@/features/board/ProjectBoardPage', () => ({ ProjectBoardPage: () => <Stub name="board" /> }))
-vi.mock('./ProjectIssuesPage', () => ({ ProjectIssuesPage: () => <Stub name="jobs" /> }))
+vi.mock('./ProjectIssuesPage', () => ({ ProjectIssuesPage: () => <Stub name="tasks" /> }))
 vi.mock('./ProjectSettingsPage', () => ({ ProjectSettingsPage: () => <Stub name="settings" /> }))
 vi.mock('./ProjectSummaryPage', () => ({ ProjectSummaryPage: () => <Stub name="summary" /> }))
 vi.mock('@/features/timeline/TimelinePage', () => ({ TimelinePage: () => <Stub name="timeline" /> }))
@@ -43,7 +43,7 @@ function renderAt(url: string) {
     <MemoryRouter initialEntries={[url]}>
       <Routes>
         <Route
-          path="/workspaces/:key"
+          path="/projects/:key"
           element={
             <>
               <ProjectLayout />
@@ -51,7 +51,7 @@ function renderAt(url: string) {
             </>
           }
         />
-        <Route path="/workspaces/:key/:section" element={<WorkspaceSectionRedirect />} />
+        <Route path="/projects/:key/:section" element={<WorkspaceSectionRedirect />} />
       </Routes>
     </MemoryRouter>,
   )
@@ -59,29 +59,29 @@ function renderAt(url: string) {
 
 describe('Workspace page', () => {
   it('opens on the Kanban tab, first in the tab bar', () => {
-    renderAt('/workspaces/Pochin')
+    renderAt('/projects/Pochin')
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((t) => t.textContent)).toEqual(['Kanban', 'Jobs', 'Timeline', 'Settings'])
+    expect(tabs.map((t) => t.textContent)).toEqual(['Kanban', 'Tasks', 'Timeline', 'Settings'])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('tab-page')).toHaveTextContent('board for Pochin')
     expect(screen.getByRole('complementary', { name: 'Workspace dashboard' })).toBeInTheDocument()
   })
 
   it('shows the dashboard panel only beside the board', () => {
-    renderAt('/workspaces/Pochin?tab=jobs')
+    renderAt('/projects/Pochin?tab=jobs')
     expect(screen.queryByRole('complementary', { name: 'Workspace dashboard' })).not.toBeInTheDocument()
   })
 
   it('deep-links to a tab with ?tab= and switches tabs in the URL', async () => {
-    renderAt('/workspaces/Pochin?tab=jobs')
-    expect(screen.getByTestId('tab-page')).toHaveTextContent('jobs for Pochin')
+    renderAt('/projects/Pochin?tab=jobs')
+    expect(screen.getByTestId('tab-page')).toHaveTextContent('tasks for Pochin')
     await userEvent.click(screen.getByRole('tab', { name: 'Settings' }))
     expect(screen.getByTestId('tab-page')).toHaveTextContent('settings for Pochin')
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=settings')
   })
 
   it('sends the hidden Summary (and Scrum backlog) to Kanban', () => {
-    renderAt('/workspaces/Pochin?tab=summary')
+    renderAt('/projects/Pochin?tab=summary')
     expect(screen.getByTestId('tab-page')).toHaveTextContent('board for Pochin')
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=kanban')
     expect(screen.queryByRole('tab', { name: 'Summary' })).not.toBeInTheDocument()
@@ -89,13 +89,13 @@ describe('Workspace page', () => {
   })
 
   it('opens old sub-page URLs on the matching tab', () => {
-    renderAt('/workspaces/Pochin/issues?assignee=3')
-    expect(screen.getByTestId('tab-page')).toHaveTextContent('jobs for Pochin')
-    expect(screen.getByTestId('search')).toHaveTextContent('?assignee=3&tab=jobs')
+    renderAt('/projects/Pochin/issues?assignee=3')
+    expect(screen.getByTestId('tab-page')).toHaveTextContent('tasks for Pochin')
+    expect(screen.getByTestId('search')).toHaveTextContent('?assignee=3&tab=tasks')
   })
 
   it('goes to the canonical key, keeping the tab', () => {
-    renderAt('/workspaces/POCHIN?tab=timeline')
+    renderAt('/projects/POCHIN?tab=timeline')
     expect(screen.getByTestId('tab-page')).toHaveTextContent('timeline for Pochin')
   })
 })

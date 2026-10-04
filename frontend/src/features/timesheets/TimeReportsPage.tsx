@@ -29,7 +29,7 @@ const overBudget = (variance: number | null) =>
 const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
   {
     id: 'project',
-    label: 'Workspace',
+    label: 'Project',
     required: true,
     size: 240,
     value: (r) => r.project_name,
@@ -39,13 +39,13 @@ const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
       </>
     ),
   },
-  { id: 'client', label: 'Client', value: (r) => r.client, defaultHidden: true },
+  { id: 'client', label: 'Sub-workspace', value: (r) => r.client, defaultHidden: true },
   { id: 'team', label: 'Team', value: (r) => r.team, defaultHidden: true },
   { id: 'lead', label: 'Lead', value: (r) => r.lead, defaultHidden: true },
-  { id: 'job_count', label: 'Jobs', value: (r) => r.job_count, numeric: true, defaultHidden: true },
-  { id: 'open_jobs', label: 'Open jobs', value: (r) => r.open_jobs, numeric: true, defaultHidden: true },
-  { id: 'done_jobs', label: 'Done jobs', value: (r) => r.done_jobs, numeric: true, defaultHidden: true },
-  { id: 'archived_jobs', label: 'Archived jobs', value: (r) => r.archived_jobs, numeric: true, defaultHidden: true },
+  { id: 'job_count', label: 'Tasks', value: (r) => r.job_count, numeric: true, defaultHidden: true },
+  { id: 'open_jobs', label: 'Open tasks', value: (r) => r.open_jobs, numeric: true, defaultHidden: true },
+  { id: 'done_jobs', label: 'Done tasks', value: (r) => r.done_jobs, numeric: true, defaultHidden: true },
+  { id: 'archived_jobs', label: 'Archived tasks', value: (r) => r.archived_jobs, numeric: true, defaultHidden: true },
   { id: 'budgeted', label: 'Budgeted (h)', value: (r) => r.budgeted_hours, numeric: true },
   { id: 'actual', label: 'Actual (h)', value: (r) => hours(r.actual_hours), numeric: true },
   {
@@ -66,7 +66,7 @@ const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
       </span>
     ),
   },
-  { id: 'job_value', label: 'Job value', numeric: true, value: (r) => (r.job_value == null ? null : Number(r.job_value)), cell: (r) => money(r.job_value_currency, r.job_value) },
+  { id: 'job_value', label: 'Project value', numeric: true, value: (r) => (r.job_value == null ? null : Number(r.job_value)), cell: (r) => money(r.job_value_currency, r.job_value) },
   { id: 'cost', label: 'Effective cost', numeric: true, value: (r) => Number(r.effective_cost), cell: (r) => money(r.job_value_currency, r.effective_cost) },
   {
     id: 'margin',
@@ -82,7 +82,7 @@ const PROJECT_COLUMNS: DataColumn<ProjectBudgetRow>[] = [
 ]
 
 const JOB_COLUMNS: DataColumn<IssueBudgetRow>[] = [
-  { id: 'key', label: 'Job', required: true, size: 120, value: (r) => r.issue_key, cell: (r) => <IssueKey value={r.issue_key} /> },
+  { id: 'key', label: 'Task', required: true, size: 120, value: (r) => r.issue_key, cell: (r) => <IssueKey value={r.issue_key} /> },
   { id: 'summary', label: 'Summary', size: 260, value: (r) => r.summary },
   { id: 'type', label: 'Type', value: (r) => r.issue_type, defaultHidden: true },
   { id: 'status', label: 'Status', value: (r) => r.status, defaultHidden: true },
@@ -98,15 +98,15 @@ const JOB_COLUMNS: DataColumn<IssueBudgetRow>[] = [
     value: (r) => hours(r.variance_hours),
     cell: (r) => <span style={overBudget(r.variance_hours)}>{hours(r.variance_hours) ?? '—'}</span>,
   },
-  { id: 'allocated', label: 'Job value', numeric: true, value: (r) => (r.allocated_value == null ? null : Number(r.allocated_value)) },
+  { id: 'allocated', label: 'Task value', numeric: true, value: (r) => (r.allocated_value == null ? null : Number(r.allocated_value)) },
 ]
 
 const ENTRY_COLUMNS: DataColumn<TimeEntry>[] = [
   { id: 'date', label: 'Date', size: 120, value: (e) => e.work_date, cell: (e) => format(new Date(e.work_date), 'MMM d, yyyy') },
   { id: 'user', label: 'User', value: (e) => e.user.display_name },
-  { id: 'project', label: 'Workspace', value: (e) => e.project_key, defaultHidden: true },
-  { id: 'job', label: 'Job', size: 120, value: (e) => e.issue?.key, cell: (e) => (e.issue ? <IssueKey value={e.issue.key} /> : '—') },
-  { id: 'job_summary', label: 'Job summary', size: 240, value: (e) => e.issue?.summary, defaultHidden: true },
+  { id: 'project', label: 'Project', value: (e) => e.project_key, defaultHidden: true },
+  { id: 'job', label: 'Task', size: 120, value: (e) => e.issue?.key, cell: (e) => (e.issue ? <IssueKey value={e.issue.key} /> : '—') },
+  { id: 'job_summary', label: 'Task summary', size: 240, value: (e) => e.issue?.summary, defaultHidden: true },
   { id: 'description', label: 'Description', size: 260, value: (e) => e.description },
   { id: 'billable', label: 'Billable', size: 100, value: (e) => e.is_billable },
   { id: 'tags', label: 'Tags', value: (e) => e.tags.map((t) => t.name).join(', '), defaultHidden: true },
@@ -127,9 +127,9 @@ function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
         columns={PROJECT_COLUMNS}
         data={data.projects}
         getRowId={(r) => r.project_key}
-        emptyMessage="No workspaces yet."
+        emptyMessage="No projects yet."
         exportName="budget-vs-actual"
-        countLabel={(n) => `${n} workspace${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
       />
     )
   }
@@ -158,9 +158,9 @@ function BudgetVsActualMode({ projectKey }: { projectKey: string }) {
         columns={JOB_COLUMNS}
         data={issues}
         getRowId={(r) => r.issue_key}
-        emptyMessage="No jobs with a budget or logged time yet."
+        emptyMessage="No tasks with a budget or logged time yet."
         exportName={`budget-vs-actual-${project.project_key}`}
-        countLabel={(n) => `${n} job${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} task${n === 1 ? '' : 's'}`}
       />
     </>
   )
@@ -196,7 +196,7 @@ export function TimeReportsPage() {
   const byProject = useMemo(() => {
     const map = new Map<string, number>()
     for (const e of entries ?? []) {
-      const key = e.project_key ?? 'No workspace'
+      const key = e.project_key ?? 'No project'
       map.set(key, (map.get(key) ?? 0) + e.duration_seconds / 3600)
     }
     return [...map.entries()].map(([name, hours]) => ({ name, hours: Number(hours.toFixed(2)) }))
@@ -233,7 +233,7 @@ export function TimeReportsPage() {
 
       <div className={styles.filters}>
         <select className={styles.select} value={projectKey} onChange={(e) => setProjectKey(e.target.value)}>
-          <option value="">All workspaces</option>
+          <option value="">All projects</option>
           {(projects ?? []).map((p) => (
             <option key={p.key} value={p.key}>
               {p.name}
@@ -287,7 +287,7 @@ export function TimeReportsPage() {
       </div>
 
       <div className={styles.card}>
-        <div className={styles.cardTitle}>Hours by workspace</div>
+        <div className={styles.cardTitle}>Hours by project</div>
         <div style={{ height: 180 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byProject}>

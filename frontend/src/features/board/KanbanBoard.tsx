@@ -85,7 +85,7 @@ const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
   none: 'No swimlanes',
   epic: 'Swimlanes: Epic',
   assignee: 'Swimlanes: Assignee',
-  project: 'Swimlanes: Workspace',
+  project: 'Swimlanes: Project',
   parent: 'Swimlanes: Parent',
 }
 
@@ -108,7 +108,7 @@ export function KanbanBoard({
   cardConfigByProject,
   onMoveIssue,
   onRenameColumn,
-  emptyMessage = 'No jobs to show.',
+  emptyMessage = 'No tasks to show.',
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
@@ -252,7 +252,7 @@ export function KanbanBoard({
           aria-pressed={filters.onlyMine}
           onClick={() => setFilter('onlyMine', !filters.onlyMine)}
         >
-          Only my jobs
+          Only my tasks
         </button>
         <div className={styles.avatarStack}>
           {assignees.map(

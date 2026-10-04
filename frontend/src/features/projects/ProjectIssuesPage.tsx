@@ -29,7 +29,7 @@ export function ProjectIssuesPage() {
       <IssueFilterPanel issues={issues} filters={filters} onChange={setFilters} />
       <div className={styles.main}>
         <div className={styles.titleRow}>
-          <h1 className={styles.title}>Jobs</h1>
+          <h1 className={styles.title}>Tasks</h1>
           <label className={styles.archivedToggle}>
             <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
             Show archived

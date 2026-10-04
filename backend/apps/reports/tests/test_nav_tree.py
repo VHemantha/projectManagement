@@ -63,7 +63,7 @@ def test_by_team_ends_at_client_leaves_with_board_filters(api_client, user, team
     assert platform["Acme Corp"]["children"] == []
     assert platform["Acme Corp"]["board_query"] == {"team": team_id, "exclude_sub_teams": True, "client": acme_client.id}
     assert platform["Acme Corp"]["project_count"] == 1
-    assert platform["Internal / No Client"]["board_query"] == {
+    assert platform["No sub-workspace"]["board_query"] == {
         "team": team_id, "exclude_sub_teams": True, "no_client": True,
     }
 
@@ -82,16 +82,16 @@ def test_a_project_with_multiple_contributing_teams_counts_under_each(api_client
     project.contributing_teams.set([teams["growth"]])
 
     nodes = {n["label"]: n for n in api_client.get("/api/reports/nav-tree/?group_by=team").data["nodes"]}
-    assert _leaves(nodes["Platform"])["Internal / No Client"]["project_count"] == 1
-    assert _leaves(nodes["Growth"])["Internal / No Client"]["project_count"] == 1
+    assert _leaves(nodes["Platform"])["No sub-workspace"]["project_count"] == 1
+    assert _leaves(nodes["Growth"])["No sub-workspace"]["project_count"] == 1
 
 
 def test_no_team_catch_all_filters_on_no_team(api_client, user):
     _make_project("NVD", user)
 
     nodes = api_client.get("/api/reports/nav-tree/?group_by=team").data["nodes"]
-    no_team = next(n for n in nodes if n["label"] == "No Team")
-    assert _leaves(no_team)["Internal / No Client"]["board_query"] == {"no_team": True, "no_client": True}
+    no_team = next(n for n in nodes if n["label"] == "No workspace")
+    assert _leaves(no_team)["No sub-workspace"]["board_query"] == {"no_team": True, "no_client": True}
 
 
 def test_by_client_is_a_flat_list_of_client_leaves(api_client, user, acme_client):
@@ -102,7 +102,7 @@ def test_by_client_is_a_flat_list_of_client_leaves(api_client, user, acme_client
     assert nodes["Acme Corp"]["board_query"] == {"client": acme_client.id}
     assert nodes["Acme Corp"]["project_count"] == 1
     assert nodes["Acme Corp"]["children"] == []
-    assert nodes["Internal / No Client"]["board_query"] == {"no_client": True}
+    assert nodes["No sub-workspace"]["board_query"] == {"no_client": True}
 
 
 def test_by_group_merges_a_top_level_teams_own_and_sub_teams_projects(api_client, user, teams):
@@ -118,7 +118,7 @@ def test_by_group_merges_a_top_level_teams_own_and_sub_teams_projects(api_client
     resp = api_client.get("/api/reports/nav-tree/?group_by=group")
     assert resp.status_code == 200
     group_node = next(n for n in resp.data["nodes"] if n["label"] == "Group 1")
-    leaf = _leaves(group_node)["Internal / No Client"]
+    leaf = _leaves(group_node)["No sub-workspace"]
     assert leaf["project_count"] == 2
     assert leaf["board_query"] == {"team": group.id, "no_client": True}
     # The sub-teams themselves shouldn't appear as their own top-level group nodes.

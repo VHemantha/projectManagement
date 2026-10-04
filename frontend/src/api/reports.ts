@@ -3,16 +3,20 @@ import { useQuery } from '@tanstack/react-query'
 import { apiClient } from './client'
 import type { TreeNode } from '@/design-system'
 
+/** A row of the hierarchy tree: Workspace > Sub-workspace > Project. */
 export interface NavTreeNode extends TreeNode {
-  type: 'group' | 'team' | 'client' | 'project' | 'board'
-  key?: string
-  board_id?: number
+  type: 'workspace' | 'sub_workspace' | 'project'
   project_key?: string
   team_id?: number
+  client_id?: number | null
+  /** /api/issues/ filters for this branch's tasks (on sub-workspaces). */
+  board_query?: Record<string, string | number | boolean>
+  /** The sub-workspace's list of tasks added without a project. */
+  is_client_tasks?: boolean
   children: NavTreeNode[]
 }
 
-export function useNavTree(groupBy: 'team' | 'client' | 'group') {
+export function useNavTree(groupBy: 'hierarchy') {
   return useQuery({
     queryKey: ['reports', 'nav-tree', groupBy],
     queryFn: async () => {

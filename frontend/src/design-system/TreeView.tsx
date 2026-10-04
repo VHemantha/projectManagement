@@ -18,6 +18,8 @@ interface TreeViewProps {
    * rather than hiding non-matching siblings outright — keeps surrounding structure visible. */
   filterQuery?: string
   renderIcon?: (node: TreeNode) => ReactNode
+  /** Buttons at the end of a row. Clicks on them do not expand the row or open the leaf. */
+  renderActions?: (node: TreeNode) => ReactNode
   emptyMessage?: string
 }
 
@@ -40,7 +42,7 @@ function collectExpandIds(nodes: TreeNode[], query: string, acc: Set<string>) {
 
 /** Simple hand-rolled recursive tree — indentation + chevron-to-expand, matching this app's
  * dense information-first style rather than pulling in a third-party tree-view library. */
-export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, emptyMessage = 'Nothing here yet.' }: TreeViewProps) {
+export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, renderActions, emptyMessage = 'Nothing here yet.' }: TreeViewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const query = filterQuery?.trim().toLowerCase() ?? ''
 
@@ -64,6 +66,7 @@ export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, emptyMes
     if (query && !nodeMatches(node, query)) return null
     const hasChildren = (node.children?.length ?? 0) > 0
     const isExpanded = hasChildren && (expanded.has(node.id) || forceExpanded.has(node.id))
+    const actions = renderActions?.(node)
 
     return (
       <div key={node.id}>
@@ -79,6 +82,11 @@ export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, emptyMes
           )}
           {renderIcon?.(node)}
           <span className={styles.label}>{node.label}</span>
+          {actions && (
+            <span className={styles.actions} onClick={(e) => e.stopPropagation()}>
+              {actions}
+            </span>
+          )}
         </div>
         {hasChildren && isExpanded && node.children!.map((child) => renderNode(child, depth + 1))}
       </div>

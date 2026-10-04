@@ -33,6 +33,23 @@
   text-overflow: ellipsis;
 }
 
+/* Per-row buttons (e.g. "New project in …"), shown on hover or keyboard focus. */
+.actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 2px;
+  opacity: 0;
+}
+.row:hover .actions,
+.row:focus-within .actions {
+  opacity: 1;
+}
+@media (hover: none) {
+  .actions {
+    opacity: 1;
+  }
+}
+
 .empty {
   padding: var(--tf-space-4);
   color: var(--tf-text-subtle);

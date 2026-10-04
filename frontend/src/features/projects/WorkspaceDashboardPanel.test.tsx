@@ -77,7 +77,7 @@ describe('WorkspaceDashboardPanel', () => {
 
   it('saves the description when leaving the box', () => {
     renderPanel(makeProject())
-    const box = screen.getByLabelText('Workspace description')
+    const box = screen.getByLabelText('Project description')
     fireEvent.change(box, { target: { value: 'Quarterly VAT' } })
     fireEvent.blur(box)
     expect(mutateAsync).toHaveBeenCalledWith({ description: 'Quarterly VAT' })

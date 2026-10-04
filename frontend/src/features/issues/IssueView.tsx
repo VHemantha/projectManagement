@@ -81,7 +81,7 @@ function LinkedIssuesSection({ issueKey, projectKey }: { issueKey: string; proje
 
   return (
     <div>
-      <div className={styles.sectionLabel}>Linked jobs ({links?.length ?? 0})</div>
+      <div className={styles.sectionLabel}>Linked tasks ({links?.length ?? 0})</div>
       {links?.map((l) => (
         <div key={l.id} className={styles.linkRow}>
           <span className={styles.linkType}>{sentenceCase(l.link_type)}</span>
@@ -146,7 +146,7 @@ function LinkedIssuesSection({ issueKey, projectKey }: { issueKey: string; proje
         </div>
       ) : (
         <Button variant="secondary" size="sm" onClick={() => setAdding(true)} style={{ marginTop: 8 }}>
-          <Plus size={14} /> Link job
+          <Plus size={14} /> Link task
         </Button>
       )}
     </div>
@@ -262,10 +262,10 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           shown instead, so this is skipped there to avoid a duplicate trail. */}
       {isModal && (
         <div className={styles.breadcrumb}>
-          <Link to="/workspaces">Workspaces</Link> / <Link to={`/workspaces/${issue.project}`}>{issue.project}</Link> /{' '}
+          <Link to="/projects">Projects</Link> / <Link to={`/projects/${issue.project}`}>{issue.project}</Link> /{' '}
           <IssueKey value={issue.key} />
           <div className={styles.headerActions} style={{ marginLeft: 'auto' }}>
-            <Link to={`/workspaces/${issue.project}/issues/${issue.key}`} onClick={onClose}>
+            <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={onClose}>
               <Button variant="subtle" size="sm" iconOnly aria-label="Open full page">
                 <ExternalLink size={14} />
               </Button>
@@ -308,14 +308,14 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
             variant="subtle"
             size="sm"
             onClick={() => updateIssue.mutate({ is_archived: !issue.is_archived })}
-            title={issue.is_archived ? 'Show this job on boards again' : 'Hide this job from boards and lists'}
+            title={issue.is_archived ? 'Show this task on boards again' : 'Hide this task from boards and lists'}
           >
             {issue.is_archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {issue.is_archived ? 'Restore' : 'Archive'}
           </Button>
         </div>
         {issue.issue_type.name === 'Epic' && (
-          <Link to={`/workspaces/${issue.project}/epics/${issue.key}/board`} onClick={onClose}>
+          <Link to={`/projects/${issue.project}/epics/${issue.key}/board`} onClick={onClose}>
             <Button variant="secondary" size="sm">
               View epic on board
             </Button>
@@ -327,9 +327,9 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
         <div className={styles.archivedBanner} role="status">
           <Archive size={14} />
           <span>
-            {`This job is archived${
+            {`This task is archived${
               issue.archived_at ? ` (${formatDistanceToNow(new Date(issue.archived_at), { addSuffix: true })})` : ''
-            }. It's hidden from boards, the backlog and job lists.`}
+            }. It's hidden from boards, the backlog and task lists.`}
           </span>
           <button type="button" onClick={() => updateIssue.mutate({ is_archived: false })}>
             Restore

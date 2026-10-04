@@ -10,7 +10,7 @@ export const VERDICT_WORDS: Record<Exclude<Verdict, ''>, string> = {
 export const KIND_LABELS: Record<FindingKind, string> = {
   fact: 'Fact',
   rule: 'Rule',
-  client_preference: 'Client preference',
+  client_preference: 'Sub-workspace preference',
   ai_suggestion: 'AI suggestion',
 }
 
@@ -38,13 +38,13 @@ export const DISPOSITION_ACTIONS: { value: Disposition; label: string }[] = [
 ]
 
 export const BASIS_LABELS: Record<string, string> = {
-  history: 'From past jobs',
-  current: 'From this job\'s folder',
-  standard: 'Standard for this kind of job',
+  history: 'From past tasks',
+  current: 'From this task\'s folder',
+  standard: 'Standard for this kind of task',
 }
 
 export const TRAIL: { stage: TrailStage; name: string; waiting: string }[] = [
-  { stage: 'read', name: 'Read', waiting: 'Documents in the job folder' },
+  { stage: 'read', name: 'Read', waiting: 'Documents in the task folder' },
   { stage: 'checked', name: 'Checked', waiting: 'Automatic checks' },
   { stage: 'compared', name: 'Compared', waiting: 'Direction Note items' },
   { stage: 'judged', name: 'Judged', waiting: 'Findings weighed' },

@@ -56,7 +56,7 @@ class LabelSerializer(serializers.ModelSerializer):
             if self.instance is not None:
                 clash = clash.exclude(pk=self.instance.pk)
             if clash.exists():
-                raise serializers.ValidationError(f"This workspace already has a label called '{name}'.")
+                raise serializers.ValidationError(f"This project already has a label called '{name}'.")
         return name
 
     def validate_color(self, value):
@@ -175,7 +175,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         return bool(request and can_manage_project(request.user, obj))
 
     def validate_name(self, value):
-        return clean_name(value, max_length=Project._meta.get_field("name").max_length, what="Workspace name")
+        return clean_name(value, max_length=Project._meta.get_field("name").max_length, what="Project name")
 
     def validate_budgeted_hours(self, value):
         if value is not None and value < 0:
@@ -183,7 +183,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        # Name, key, budget, deadline, description and notes are the workspace managers' to
+        # Name, key, budget, deadline, description and notes are the project managers' to
         # change; everyone else sees them read-only.
         request = self.context.get("request")
         if self.instance is not None and request is not None:
@@ -191,10 +191,15 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             touched = {f for f in MANAGED_FIELDS.intersection(attrs) if attrs[f] != getattr(self.instance, f)}
             if touched and not can_manage_project(request.user, self.instance):
                 raise PermissionDenied(
-                    "Only the workspace lead, a workspace admin or an organisation admin can change "
+                    "Only the project lead, a project admin or an organisation admin can change "
                     + ", ".join(sorted(f.replace("_", " ") for f in touched))
                     + "."
                 )
+        # A project sits in its sub-workspace's workspace: picking a sub-workspace without a
+        # workspace places the project there too.
+        client = attrs.get("client")
+        if client is not None and client.team_id and "primary_team" not in attrs:
+            attrs["primary_team"] = client.team
         return attrs
 
     def validate_task_names(self, value):
@@ -212,7 +217,7 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
             seen.add(name.lower())
             cleaned.append(name)
         if len(cleaned) > MAX_TASK_NAMES:
-            raise serializers.ValidationError(f"A workspace can have at most {MAX_TASK_NAMES} tasks.")
+            raise serializers.ValidationError(f"A project can have at most {MAX_TASK_NAMES} task names.")
         return cleaned
 
     def validate_key(self, value):
@@ -220,10 +225,10 @@ class ProjectDetailSerializer(serializers.ModelSerializer):
         value = value.strip()
         if not re.match(KEY_PATTERN, value):
             raise serializers.ValidationError(
-                "Workspace key must be 2-100 letters/digits, starting with a letter."
+                "Project key must be 2-100 letters/digits, starting with a letter."
             )
         if key_in_use(value, exclude_project=self.instance):
-            raise serializers.ValidationError("That key is already used by another workspace.")
+            raise serializers.ValidationError("That key is already used by another project.")
         return value
 
     def create(self, validated_data):

@@ -19,13 +19,13 @@ const TAB_PAGES: Record<WorkspaceTab, () => React.ReactElement> = {
   kanban: () => <ProjectBoardPage />,
   summary: () => <ProjectSummaryPage />,
   backlog: () => <BacklogPage />,
-  jobs: () => <ProjectIssuesPage />,
+  tasks: () => <ProjectIssuesPage />,
   timeline: () => <TimelinePage />,
   reports: () => <SprintReportPage />,
   settings: () => <ProjectSettingsPage />,
 }
 
-/** A workspace: one page with a tab per section (?tab=kanban, ?tab=jobs, …), Kanban first. */
+/** A project: one page with a tab per section (?tab=kanban, ?tab=tasks, …), Kanban first. */
 export function ProjectLayout() {
   const { key } = useParams<{ key: string }>()
   const location = useLocation()
@@ -33,11 +33,11 @@ export function ProjectLayout() {
   const { data: project, isLoading } = useProject(key)
   const updateProject = useUpdateProject(project?.key ?? key ?? '')
 
-  if (isLoading) return <PlaceholderPage title="Loading workspace…" />
-  if (!project) return <PlaceholderPage title="Workspace not found" />
-  // Opened by an old key (the workspace was renamed) or in different letter case.
+  if (isLoading) return <PlaceholderPage title="Loading project…" />
+  if (!project) return <PlaceholderPage title="Project not found" />
+  // Opened by an old key (the project was renamed) or in different letter case.
   if (key !== project.key) {
-    return <Navigate replace to={`/workspaces/${project.key}${location.search}`} />
+    return <Navigate replace to={`/projects/${project.key}${location.search}`} />
   }
 
   const tabs = workspaceTabs(project)
@@ -47,13 +47,16 @@ export function ProjectLayout() {
   if (requested && requested !== tab) {
     const params = new URLSearchParams(searchParams)
     params.set('tab', tab)
-    return <Navigate replace to={`/workspaces/${project.key}?${params}`} />
+    return <Navigate replace to={`/projects/${project.key}?${params}`} />
   }
-  const subtitle = project.is_client_workspace
-    ? 'Client jobs'
+  const kind = project.is_client_workspace
+    ? 'Tasks without a project'
     : isScrumWorkspace(project)
-      ? 'Scrum workspace'
-      : 'Workspace'
+      ? 'Scrum project'
+      : 'Project'
+  // Where the project sits: Workspace › Sub-workspace.
+  const placement = [project.primary_team?.name, project.client?.name].filter(Boolean).join(' › ')
+  const subtitle = placement ? `${kind} in ${placement}` : kind
 
   return (
     <WorkspaceContext.Provider value={{ project }}>
@@ -75,7 +78,7 @@ export function ProjectLayout() {
                 as="h1"
                 className={styles.projectName}
                 value={project.name}
-                label="Workspace name"
+                label="Project name"
                 canEdit={project.can_manage}
                 onSave={(name) => updateProject.mutateAsync({ name })}
               />
@@ -97,7 +100,7 @@ export function ProjectLayout() {
           {/* Only the open tab is mounted, so hidden tabs fetch nothing. */}
           <TabsContent value={tab} className={styles.content}>
             {tab === 'kanban' ? (
-              // The board shares its tab with the workspace dashboard panel on its right.
+              // The board shares its tab with the project dashboard panel on its right.
               <div className={styles.withPanel}>
                 <div className={styles.main}>{TAB_PAGES.kanban()}</div>
                 <WorkspaceDashboardPanel project={project} />
@@ -112,12 +115,12 @@ export function ProjectLayout() {
   )
 }
 
-/** Old sub-page URLs (/workspaces/KEY/board, /issues, /settings …) open the matching tab,
+/** Old sub-page URLs (/projects/KEY/board, /issues, /settings …) open the matching tab,
  * keeping any other query parameters. */
 export function WorkspaceSectionRedirect() {
   const { key, section } = useParams<{ key: string; section: string }>()
   const location = useLocation()
   const params = new URLSearchParams(location.search)
   params.set('tab', tabForLegacySection(section))
-  return <Navigate replace to={`/workspaces/${key}?${params}${location.hash}`} />
+  return <Navigate replace to={`/projects/${key}?${params}${location.hash}`} />
 }

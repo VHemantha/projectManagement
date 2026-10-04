@@ -70,6 +70,9 @@ export interface CreateProjectPayload {
   project_type: ProjectType
   lead_id?: number
   task_names?: string[]
+  /** The sub-workspace (client) and workspace (team) the project sits in. */
+  client_id?: number | null
+  primary_team_id?: number | null
 }
 
 export function useCreateProject() {
@@ -81,6 +84,7 @@ export function useCreateProject() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['reports', 'nav-tree'] })
     },
   })
 }

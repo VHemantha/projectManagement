@@ -53,7 +53,7 @@ class ChannelSerializer(serializers.ModelSerializer):
         if value == self.instance.name:
             return value
         if self.instance.channel_type not in self.RENAMEABLE:
-            raise serializers.ValidationError("This channel is named after its workspace, team or members.")
+            raise serializers.ValidationError("This channel is named after its project, workspace or members.")
         name = clean_name(value, max_length=Channel._meta.get_field("name").max_length, what="Channel name")
         clash = Channel.objects.filter(
             organization_id=self.instance.organization_id, channel_type__in=self.RENAMEABLE, name__iexact=name

@@ -60,7 +60,7 @@ describe('SignupPage', () => {
       error: null,
     }
     renderAt('/signup?invite=tok123')
-    expect(screen.getByText(/Boss invited you to join as a worker in the Payroll team/)).toBeInTheDocument()
+    expect(screen.getByText(/Boss invited you to join as a worker in the Payroll workspace/)).toBeInTheDocument()
     const email = screen.getByLabelText('Email')
     expect(email).toHaveValue('new@example.com')
     expect(email).toBeDisabled()
@@ -76,7 +76,7 @@ describe('SignupPage', () => {
 })
 
 describe('Inviting people', () => {
-  it('sends an invitation with role and team', async () => {
+  it('sends an invitation with role and workspace', async () => {
     render(
       <TooltipProvider>
         <InviteButton />
@@ -85,7 +85,7 @@ describe('Inviting people', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Invite people' }))
     await userEvent.type(screen.getByLabelText('Email'), 'new@example.com')
     await userEvent.selectOptions(screen.getByLabelText('Role'), 'admin')
-    await userEvent.selectOptions(screen.getByLabelText('Team (optional)'), '4')
+    await userEvent.selectOptions(screen.getByLabelText('Workspace (optional)'), '4')
     await userEvent.click(screen.getByRole('button', { name: 'Send invitation' }))
     expect(mocks.createMutate).toHaveBeenCalledWith({ email: 'new@example.com', role: 'admin', team_id: 4 })
   })

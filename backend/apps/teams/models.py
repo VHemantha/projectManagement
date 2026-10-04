@@ -3,6 +3,9 @@ from django.db import models
 
 
 class Team(models.Model):
+    """Shown to users as a "workspace": the top of Workspace > Sub-workspace (clients.Client) >
+    Project > Task. The model and the /api/teams/ endpoints keep their original name."""
+
     organization = models.ForeignKey(
         "orgs.Organization", on_delete=models.CASCADE, related_name="teams"
     )
@@ -23,6 +26,8 @@ class Team(models.Model):
 
     class Meta:
         ordering = ["name"]
+        verbose_name = "workspace"
+        verbose_name_plural = "workspaces"
 
     def __str__(self):
         return self.name

@@ -84,7 +84,7 @@ function GeneralTab() {
         />
         {keyChanged && key && (
           <div className={styles.keyWarning} role="note">
-            Saving renames every job in this workspace ({project.key}-12 becomes {key}-12). Old links and keys
+            Saving renames every task in this project ({project.key}-12 becomes {key}-12). Old links and keys
             keep working.
           </div>
         )}
@@ -105,15 +105,20 @@ function GeneralTab() {
       />
 
       <div>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Client</label>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Sub-workspace</label>
         <div style={{ display: 'flex', gap: 8 }}>
           <select
             className={styles.roleSelect}
             style={{ width: '100%', height: 36 }}
             value={clientId}
-            onChange={(e) => setClientId(e.target.value)}
+            onChange={(e) => {
+              setClientId(e.target.value)
+              // The project goes where its sub-workspace is.
+              const picked = clients?.find((c) => String(c.id) === e.target.value)
+              if (picked?.team_id) setPrimaryTeamId(String(picked.team_id))
+            }}
           >
-            <option value="">No client (internal)</option>
+            <option value="">No sub-workspace (internal)</option>
             {clients?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -132,14 +137,14 @@ function GeneralTab() {
       </div>
 
       <div>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Primary team</label>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Workspace</label>
         <select
           className={styles.roleSelect}
           style={{ width: '100%', height: 36 }}
           value={primaryTeamId}
           onChange={(e) => setPrimaryTeamId(e.target.value)}
         >
-          <option value="">No team</option>
+          <option value="">No workspace</option>
           {teams?.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -150,7 +155,7 @@ function GeneralTab() {
 
       <div>
         <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
-          Other contributing teams
+          Other contributing workspaces
         </label>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 16px' }}>
           {teams
@@ -180,12 +185,12 @@ function GeneralTab() {
           min={0}
           value={budgetedHours}
           disabled={!project.can_manage}
-          title={project.can_manage ? undefined : 'Only the workspace lead or an admin can change the budget.'}
+          title={project.can_manage ? undefined : 'Only the project lead or an admin can change the budget.'}
           onChange={(e) => setBudgetedHours(e.target.value)}
         />
         <Input
           id="settings-job-value"
-          label="Job value"
+          label="Project value"
           type="number"
           min={0}
           step="0.01"
@@ -403,8 +408,8 @@ function TasksTab() {
   return (
     <div className={styles.form}>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--tf-text-subtle)' }}>
-        These task names are offered as the summary when creating a job in {project.name}. Changing
-        the list doesn&apos;t rename existing jobs.
+        These task names are offered as the summary when creating a task in {project.name}. Changing
+        the list doesn&apos;t rename existing tasks.
       </p>
       <TaskNamesEditor id="settings-tasks" value={taskNames} onChange={setTaskNames} />
       {updateProject.isError && (
@@ -436,8 +441,8 @@ function LabelsTab() {
   return (
     <div className={styles.form}>
       <p className={styles.hint} style={{ margin: 0 }}>
-        Labels tag jobs in {project.name}.{' '}
-        {canEdit ? 'Click a name to rename it everywhere it is used.' : 'Only the workspace lead or an admin can change them.'}
+        Labels tag tasks in {project.name}.{' '}
+        {canEdit ? 'Click a name to rename it everywhere it is used.' : 'Only the project lead or an admin can change them.'}
       </p>
       {project.labels.length === 0 && <p className={styles.hint}>No labels yet.</p>}
       <ul className={styles.labelList} aria-label="Labels">

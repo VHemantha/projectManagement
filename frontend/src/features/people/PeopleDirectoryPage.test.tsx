@@ -75,15 +75,15 @@ describe('People page', () => {
     expect(within(admins).getByText('Hema')).toBeInTheDocument()
     expect(within(admins).getByText('Admin')).toBeInTheDocument()
 
-    const accounts = screen.getByRole('region', { name: 'Accounts team' })
+    const accounts = screen.getByRole('region', { name: 'Accounts workspace' })
     const names = within(accounts).getAllByRole('button').map((b) => b.textContent)
     expect(names[0]).toContain('Lena')
-    expect(names[0]).toContain('Team lead')
+    expect(names[0]).toContain('Workspace lead')
     expect(names[1]).toContain('Ann')
     // Payroll is a sub-team of Accounts, so it sits inside the Accounts branch.
-    expect(within(accounts).getByRole('region', { name: 'Payroll team' })).toHaveTextContent('Pat')
+    expect(within(accounts).getByRole('region', { name: 'Payroll workspace' })).toHaveTextContent('Pat')
 
-    expect(screen.getByRole('region', { name: 'No team' })).toHaveTextContent('Solo')
+    expect(screen.getByRole('region', { name: 'No workspace' })).toHaveTextContent('Solo')
     expect(screen.getByText(/grouped by team membership/)).toBeInTheDocument()
   })
 })

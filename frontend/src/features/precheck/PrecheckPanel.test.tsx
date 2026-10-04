@@ -129,7 +129,7 @@ describe('PrecheckPanel states', () => {
       ],
     }))
     render(<PrecheckPanel jobKey="ACME-1" />)
-    expect(screen.getByText('Checking the job…')).toBeInTheDocument()
+    expect(screen.getByText('Checking the task…')).toBeInTheDocument()
     const steps = screen.getAllByRole('listitem')
     expect(steps.map((s) => s.getAttribute('data-state'))).toEqual(['done', 'running', 'waiting', 'waiting', 'waiting'])
     expect(steps[0]).toHaveTextContent('14 documents, 3 changed since last run')
@@ -225,7 +225,7 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByLabelText(/Direction Note items/)).toHaveValue('Agree the debtors schedule to the trial balance\nCheck the tax computation')
     const why = screen.getByText('Drafted by AI: why each item is here').parentElement!
     expect(why).toHaveTextContent('D1')
-    expect(why).toHaveTextContent("From past jobs: Accepted on last year's job.")
+    expect(why).toHaveTextContent("From past tasks: Accepted on last year's job.")
     expect(why).not.toHaveTextContent('Check the tax computation')
   })
 

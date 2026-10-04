@@ -47,7 +47,7 @@ export function WorkspaceDashboardPanel({ project }: { project: ProjectDetail })
 
   if (!open) {
     return (
-      <aside className={styles.rail} aria-label="Workspace dashboard">
+      <aside className={styles.rail} aria-label="Project dashboard">
         <Tooltip label="Show dashboard" side="left">
           <button type="button" className={styles.railToggle} onClick={() => setOpen(true)} aria-label="Show dashboard">
             <ChevronsLeft size={18} />
@@ -69,7 +69,7 @@ export function WorkspaceDashboardPanel({ project }: { project: ProjectDetail })
   return (
     <>
       {narrow && <div className={styles.backdrop} onClick={() => setOpen(false)} aria-hidden="true" />}
-      <aside className={`${styles.panel} ${narrow ? styles.overlay : ''}`} aria-label="Workspace dashboard">
+      <aside className={`${styles.panel} ${narrow ? styles.overlay : ''}`} aria-label="Project dashboard">
         <div className={styles.panelHeader}>
           <h2 className={styles.panelTitle}>Dashboard</h2>
           <Tooltip label="Hide dashboard" side="left">
@@ -91,10 +91,10 @@ export function WorkspaceDashboardPanel({ project }: { project: ProjectDetail })
         <Card icon={<FileText size={16} />} tone="violet" title="Description">
           <AutosaveText
             id="workspace-description"
-            label="Workspace description"
+            label="Project description"
             value={project.description}
             canEdit={project.can_manage}
-            placeholder="What this workspace is for…"
+            placeholder="What this project is for…"
             emptyText="No description."
             onSave={(value) => save({ description: value })}
           />
@@ -114,7 +114,7 @@ export function WorkspaceDashboardPanel({ project }: { project: ProjectDetail })
         </Card>
 
         {!project.can_manage && (
-          <p className={styles.readOnlyHint}>Only the workspace lead or an admin can edit these.</p>
+          <p className={styles.readOnlyHint}>Only the project lead or an admin can edit these.</p>
         )}
       </aside>
     </>
