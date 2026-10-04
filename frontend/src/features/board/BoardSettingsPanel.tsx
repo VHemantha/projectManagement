@@ -48,7 +48,7 @@ const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'labels', label: 'Labels' },
   { key: 'current_responsible', label: 'Current responsible' },
   { key: 'time_logged', label: 'Time logged vs budget' },
-  { key: 'job_value', label: 'Job value' },
+  { key: 'job_value', label: 'Task value' },
 ]
 
 const CATEGORY_OPTIONS: { value: WorkflowStatus['category']; label: string }[] = [
@@ -174,7 +174,7 @@ export function BoardSettingsForm({
     if (hidden.length) {
       return `Add ${hidden.map((s) => `"${s.name}"`).join(', ')} to a column first — ${
         hidden.length === 1 ? 'it still has' : 'they still have'
-      } jobs that would disappear from the board.`
+      } tasks that would disappear from the board.`
     }
     return null
   }
@@ -236,7 +236,7 @@ export function BoardSettingsForm({
       </Section>
 
       {unmapped.length > 0 && (
-        <Section title="Statuses not on the board" hint="Jobs in these statuses don't appear on any column.">
+        <Section title="Statuses not on the board" hint="Tasks in these statuses don't appear on any column.">
           <div className={styles.unmappedList}>
             {unmapped.map((st) => (
               <UnmappedStatusRow
@@ -294,7 +294,7 @@ export function BoardSettingsForm({
             >
               <option value="none">Nothing</option>
               <option value="priority">Priority</option>
-              <option value="issue_type">Job type</option>
+              <option value="issue_type">Task type</option>
               <option value="label">First label</option>
               <option value="due_date">Due date</option>
             </select>
@@ -352,11 +352,11 @@ export function BoardSettingsForm({
                 onChange={(c) => setOverride('due_date', b, c)}
               />
             ))}
-            <p className={styles.note}>Done jobs and jobs without a due date aren&apos;t coloured.</p>
+            <p className={styles.note}>Done tasks and tasks without a due date aren&apos;t coloured.</p>
           </>
         )}
         {cardColorRule === 'label' && (
-          <p className={styles.note}>Cards use the colour of their first label, as set on the workspace&apos;s labels.</p>
+          <p className={styles.note}>Cards use the colour of their first label, as set on the project&apos;s labels.</p>
         )}
       </Section>
 
@@ -624,7 +624,7 @@ function UnmappedStatusRow({
       <StatusBadge label={CATEGORY_LABELS[status.category]} category={status.category as StatusCategory} />
       {status.issue_count > 0 ? (
         <span className={styles.warn}>
-          {status.issue_count} job{status.issue_count === 1 ? '' : 's'} hidden — tick it on a column
+          {status.issue_count} task{status.issue_count === 1 ? '' : 's'} hidden — tick it on a column
         </span>
       ) : canDelete ? (
         <Button variant="subtle" size="sm" disabled={deleting} onClick={onDelete}>

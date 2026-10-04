@@ -20,7 +20,7 @@ MAX_DIRECTION_ITEMS = 40
 def _job(request, key: str) -> Issue:
     issue = get_issue_or_404(key, Issue.objects.select_related("project__client", "status", "drive_folder"))
     if not services.can_open_job(request.user, issue):
-        raise PermissionDenied("You can't open this job, so you can't see or run its pre-check.")
+        raise PermissionDenied("You can't open this task, so you can't see or run its pre-check.")
     return issue
 
 
@@ -120,7 +120,7 @@ def _refuse_to_start(issue):
             status=status.HTTP_400_BAD_REQUEST,
         )
     if _runs(issue).filter(status=AIPrecheck.Status.RUNNING).exists():
-        return Response({"detail": "A pre-check is already running for this job."}, status=status.HTTP_409_CONFLICT)
+        return Response({"detail": "A pre-check is already running for this task."}, status=status.HTTP_409_CONFLICT)
     return None
 
 
@@ -146,7 +146,7 @@ class RunDetailView(APIView):
     def get(self, request, run_id):
         run = get_object_or_404(AIPrecheck.objects.select_related("issue"), run_id=run_id)
         if not services.can_open_job(request.user, run.issue):
-            raise PermissionDenied("You can't open this job, so you can't see its pre-check.")
+            raise PermissionDenied("You can't open this task, so you can't see its pre-check.")
         return Response(_full(run))
 
 
@@ -159,7 +159,7 @@ class FindingDispositionView(APIView):
     def post(self, request, pk):
         finding = get_object_or_404(AIFinding.objects.select_related("precheck__issue__project"), pk=pk)
         if not services.can_open_job(request.user, finding.precheck.issue):
-            raise PermissionDenied("You can't open this job.")
+            raise PermissionDenied("You can't open this task.")
         disposition = str(request.data.get("disposition", ""))
         if disposition not in AIFeedback.Disposition.values:
             return Response({"disposition": ["Choose accepted, rejected, not_applicable, needs_clarification or cleared."]}, status=400)

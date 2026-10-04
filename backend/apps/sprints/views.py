@@ -50,7 +50,7 @@ class SprintStartView(APIView):
         if sprint.state != Sprint.State.FUTURE:
             return Response({"detail": "Only a future sprint can be started."}, status=400)
         if Sprint.objects.filter(project=sprint.project, state=Sprint.State.ACTIVE).exists():
-            return Response({"detail": "This workspace already has an active sprint."}, status=400)
+            return Response({"detail": "This project already has an active sprint."}, status=400)
 
         serializer = SprintStartSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

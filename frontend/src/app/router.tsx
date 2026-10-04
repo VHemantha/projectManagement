@@ -1,7 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
-import { LegacyProjectsRedirect } from './LegacyProjectsRedirect'
+import { LegacyTeamsRedirect, LegacyWorkspacesRedirect, WorkspaceRoute } from './LegacyRedirects'
 import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
@@ -18,7 +18,6 @@ import { ProjectsSectionLayout } from '@/features/projects/ProjectsSectionLayout
 import { DashboardHomePage } from '@/features/dashboard/DashboardHomePage'
 import { FiltersPage } from '@/features/search/FiltersPage'
 import { AllIssuesBoardPage } from '@/features/board/AllIssuesBoardPage'
-import { TeamDetailPage } from '@/features/teams/TeamDetailPage'
 import { TeamsListPage } from '@/features/teams/TeamsListPage'
 import { ChatPage } from '@/features/chat/ChatPage'
 import { TimeReportsPage } from '@/features/timesheets/TimeReportsPage'
@@ -35,25 +34,29 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           { path: '/', element: <MyWorkPage /> },
-          { path: '/workspaces/:key/issues/:issueKey', element: <IssueDetailPage /> },
-          { path: '/workspaces/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
+          // Workspace > Sub-workspace > Project > Task. Projects (and their tasks) live under
+          // /projects; workspaces under /workspaces. See LegacyRedirects for the older URLs.
+          { path: '/projects/:key/issues/:issueKey', element: <IssueDetailPage /> },
+          { path: '/projects/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
           {
-            path: '/workspaces',
+            path: '/projects',
             element: <ProjectsSectionLayout />,
             children: [
               { index: true, element: <ProjectsListPage /> },
-              // Hyphenated on purpose: workspace keys are letters/digits only, so this can never
-              // shadow a real workspace's /workspaces/:key route.
+              // Hyphenated on purpose: project keys are letters/digits only, so this can never
+              // shadow a real project's /projects/:key route.
               { path: 'all-issues', element: <AllIssuesBoardPage /> },
-              // One page per workspace; its sections are tabs picked with ?tab=.
+              // One page per project; its sections are tabs picked with ?tab=.
               { path: ':key', element: <ProjectLayout /> },
               // Old per-section URLs (/board, /issues, /settings …) open the matching tab.
               { path: ':key/:section', element: <WorkspaceSectionRedirect /> },
             ],
           },
-          { path: '/projects/*', element: <LegacyProjectsRedirect /> },
-          { path: '/teams', element: <TeamsListPage /> },
-          { path: '/teams/:teamId', element: <TeamDetailPage /> },
+          { path: '/workspaces', element: <TeamsListPage /> },
+          // A number is a workspace; anything else is an old project link and is redirected.
+          { path: '/workspaces/:teamId', element: <WorkspaceRoute /> },
+          { path: '/workspaces/*', element: <LegacyWorkspacesRedirect /> },
+          { path: '/teams/*', element: <LegacyTeamsRedirect /> },
           { path: '/people', element: <PeopleDirectoryPage /> },
           { path: '/people/:userId', element: <UserWorkloadPage /> },
           { path: '/filters', element: <FiltersPage /> },

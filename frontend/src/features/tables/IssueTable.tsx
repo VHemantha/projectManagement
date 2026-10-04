@@ -179,7 +179,7 @@ function buildColumns(
             header: () => (
               <input
                 type="checkbox"
-                aria-label="Select all jobs"
+                aria-label="Select all tasks"
                 checked={selection.allSelected}
                 onChange={selection.toggleAll}
                 onClick={(e) => e.stopPropagation()}
@@ -234,7 +234,7 @@ function buildColumns(
     ...(showProjectColumn
       ? [
           helper.accessor('project_key', {
-            header: 'Workspace',
+            header: 'Project',
             size: 90,
             sortFn: 'alphanumeric',
           }),
@@ -380,7 +380,7 @@ const GROUP_LABELS: Record<GroupByOption, string> = {
   none: 'No grouping',
   status: 'Group by status',
   assignee: 'Group by assignee',
-  project: 'Group by workspace',
+  project: 'Group by project',
   reviewer: 'Group by reviewer',
   current_responsible: 'Group by current responsible',
 }
@@ -395,7 +395,7 @@ export function IssueTable({
   onGroupByChange,
   showProjectColumn = false,
   projectStatuses,
-  emptyMessage = 'No jobs found.',
+  emptyMessage = 'No tasks found.',
 }: IssueTableProps) {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -539,7 +539,7 @@ export function IssueTable({
           </span>
         )}
         <span style={{ fontSize: 12, color: 'var(--tf-text-subtle)', marginLeft: 'auto' }}>
-          {filtered.length} job{filtered.length === 1 ? '' : 's'}
+          {filtered.length} task{filtered.length === 1 ? '' : 's'}
         </span>
       </div>
 

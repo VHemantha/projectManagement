@@ -125,7 +125,7 @@ class BoardConfigSerializer(serializers.ModelSerializer):
 
         # An issue whose status isn't on any column silently disappears from the board.
         hidden = [
-            f"{statuses[sid].name} ({n} job{'' if n == 1 else 's'})"
+            f"{statuses[sid].name} ({n} task{'' if n == 1 else 's'})"
             for sid, n in status_issue_counts(workflow).items()
             if n and sid in statuses and sid not in column_of_status
         ]

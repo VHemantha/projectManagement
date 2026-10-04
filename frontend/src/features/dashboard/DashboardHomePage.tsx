@@ -102,7 +102,7 @@ export function DashboardHomePage() {
         </div>
 
         <div className={styles.card}>
-          <div className={styles.cardTitle}>My jobs by status</div>
+          <div className={styles.cardTitle}>My tasks by status</div>
           {pieData.length === 0 ? (
             <div className={styles.empty}>No data yet.</div>
           ) : (

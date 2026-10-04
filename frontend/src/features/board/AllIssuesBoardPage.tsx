@@ -13,9 +13,9 @@ import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
 const PAGE_SIZE = 300
 const NONE = 'none'
 
-/** Cross-project board in the Projects section: every project's issues, narrowed by Team
- * (a team's own + contributing projects; a Group also covers its sub-teams, like the tree) and
- * by Client. Cards and columns follow each project's own board settings (see
+/** Cross-project board in the Projects section: every project's tasks, narrowed by Workspace
+ * (a workspace's own + contributing projects; a top-level workspace also covers the workspaces
+ * inside it) and by Sub-workspace. Cards and columns follow each project's own board settings (see
  * useCrossProjectBoard). The filters live in the URL (using the /api/issues/ filter
  * names), so a filtered view can be bookmarked or shared and the Projects tree's client leaves
  * can link straight to it. */
@@ -78,18 +78,18 @@ export function AllIssuesBoardPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All jobs board</h1>
+        <h1 className={styles.title}>All tasks board</h1>
         <div className={styles.filters}>
           <label className={styles.filter}>
-            <span className={styles.filterLabel}>Team</span>
+            <span className={styles.filterLabel}>Workspace</span>
             <select
               className={styles.select}
               value={teamValue}
               onChange={(e) => setFilter('team', e.target.value)}
-              aria-label="Filter by team"
+              aria-label="Filter by workspace"
             >
-              <option value="">Any team</option>
-              <option value={NONE}>No team</option>
+              <option value="">Any workspace</option>
+              <option value={NONE}>No workspace</option>
               {teamOptions.map(({ team, depth }) => (
                 <option key={team.id} value={team.id}>
                   {depth ? `   ${team.name}` : team.name}
@@ -98,15 +98,15 @@ export function AllIssuesBoardPage() {
             </select>
           </label>
           <label className={styles.filter}>
-            <span className={styles.filterLabel}>Client</span>
+            <span className={styles.filterLabel}>Sub-workspace</span>
             <select
               className={styles.select}
               value={clientValue}
               onChange={(e) => setFilter('client', e.target.value)}
-              aria-label="Filter by client"
+              aria-label="Filter by sub-workspace"
             >
-              <option value="">Any client</option>
-              <option value={NONE}>No client (internal)</option>
+              <option value="">Any sub-workspace</option>
+              <option value={NONE}>No sub-workspace (internal)</option>
               {clients?.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -116,7 +116,7 @@ export function AllIssuesBoardPage() {
           </label>
           {selectedClient && (
             <button type="button" className={styles.clear} onClick={() => setClientSettingsOpen(true)}>
-              <Settings size={13} style={{ verticalAlign: '-2px' }} /> Client settings
+              <Settings size={13} style={{ verticalAlign: '-2px' }} /> Sub-workspace settings
             </button>
           )}
           {filtersActive && (
@@ -127,9 +127,9 @@ export function AllIssuesBoardPage() {
           {!isLoading && (
             <span className={styles.count}>
               {total > issues.length
-                ? `Showing ${issues.length} of ${total} jobs`
-                : `${total} job${total === 1 ? '' : 's'}`}
-              {excludeSubTeams && selectedHasSubTeams && ' · excluding sub-teams'}
+                ? `Showing ${issues.length} of ${total} tasks`
+                : `${total} task${total === 1 ? '' : 's'}`}
+              {excludeSubTeams && selectedHasSubTeams && ' · excluding workspaces inside it'}
             </span>
           )}
         </div>
@@ -143,7 +143,7 @@ export function AllIssuesBoardPage() {
           isLoading={isLoading || board.isLoading}
           defaultSwimlaneMode="project"
           availableSwimlanes={['none', 'project', 'assignee']}
-          emptyMessage={filtersActive ? 'No jobs match this team/client.' : 'No jobs yet.'}
+          emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = board.resolveStatus(issue, column)
             if (statusId === null) return

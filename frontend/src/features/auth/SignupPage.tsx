@@ -53,7 +53,7 @@ export function SignupPage() {
             <p style={{ margin: 0, fontSize: 13, color: 'var(--tf-text-subtle)' }}>
               {preview.data.invited_by_name ?? 'An admin'} invited you to join as{' '}
               {preview.data.role === 'admin' ? 'an admin' : 'a worker'}
-              {preview.data.team_name ? ` in the ${preview.data.team_name} team` : ''}.
+              {preview.data.team_name ? ` in the ${preview.data.team_name} workspace` : ''}.
             </p>
             {signup.isError && <div className={styles.formError}>{extractErrorMessage(signup.error)}</div>}
             <Input id="email" label="Email" type="email" value={preview.data.email} disabled readOnly />

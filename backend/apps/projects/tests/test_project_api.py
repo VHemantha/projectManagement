@@ -138,9 +138,9 @@ def test_workspaces_alias_serves_the_same_endpoints(api_client):
     assert api_client.get("/api/projects/Ws/").data["name"] == "Renamed"
 
 
-def test_workspace_wording_in_validation_errors(api_client):
+def test_project_wording_in_validation_errors(api_client):
     api_client.post("/api/projects/", {"key": "Dup", "name": "One", "project_type": "kanban"}, format="json")
     resp = api_client.post("/api/projects/", {"key": "dup", "name": "Two", "project_type": "kanban"}, format="json")
     assert resp.status_code == 400
-    assert "workspace" in str(resp.data["key"][0])
-    assert Project._meta.verbose_name == "workspace"
+    assert "another project" in str(resp.data["key"][0])
+    assert Project._meta.verbose_name == "project"

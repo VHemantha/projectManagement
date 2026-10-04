@@ -10,6 +10,7 @@ import { TeamBoard } from './TeamBoard'
 import { TeamGoalsTab } from './TeamGoalsTab'
 import { TeamIssuesTab } from './TeamIssuesTab'
 import { TeamMembersTab } from './TeamMembersTab'
+import { TeamSubWorkspacesTab } from './TeamSubWorkspacesTab'
 import { Button, Dialog, DialogContent, InlineEdit, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
@@ -31,12 +32,12 @@ function DeleteTeamDialog({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, fontSize: 14 }}>
           <p style={{ margin: 0 }}>This permanently deletes:</p>
           <ul style={{ margin: 0, paddingLeft: 20 }}>
-            <li>the team and its {team.memberships.length} membership(s)</li>
-            <li>the team&apos;s chat channel and all of its messages</li>
+            <li>the workspace and its {team.memberships.length} membership(s)</li>
+            <li>the workspace&apos;s chat channel and all of its messages</li>
           </ul>
           <p style={{ margin: 0, color: 'var(--tf-text-subtle)' }}>
-            Members, workspaces and jobs are kept. Workspaces and sub-teams linked to this team are
-            unlinked from it.
+            Members, sub-workspaces, projects and tasks are kept. Sub-workspaces, projects and
+            workspaces inside this one are unlinked from it.
           </p>
           {deleteTeam.isError && (
             <div style={{ color: 'var(--tf-danger)' }}>{extractErrorMessage(deleteTeam.error)}</div>
@@ -48,9 +49,9 @@ function DeleteTeamDialog({
             <Button
               variant="danger"
               disabled={deleteTeam.isPending}
-              onClick={() => deleteTeam.mutate(team.id, { onSuccess: () => navigate('/teams') })}
+              onClick={() => deleteTeam.mutate(team.id, { onSuccess: () => navigate('/workspaces') })}
             >
-              {deleteTeam.isPending ? 'Deleting…' : 'Delete team'}
+              {deleteTeam.isPending ? 'Deleting…' : 'Delete workspace'}
             </Button>
           </div>
         </div>
@@ -85,7 +86,7 @@ export function TeamDetailPage() {
             as="div"
             className={styles.title}
             value={team.name}
-            label="Team name"
+            label="Workspace name"
             maxLength={150}
             canEdit={canDelete}
             onSave={(name) => updateTeam.mutateAsync({ name })}
@@ -95,7 +96,7 @@ export function TeamDetailPage() {
             {team.parent && (
               <>
                 {' · Part of '}
-                <Link to={`/teams/${team.parent.id}`} style={{ color: 'var(--tf-primary)' }}>
+                <Link to={`/workspaces/${team.parent.id}`} style={{ color: 'var(--tf-primary)' }}>
                   {team.parent.name}
                 </Link>
               </>
@@ -103,7 +104,7 @@ export function TeamDetailPage() {
             {team.sub_teams.length > 0 && (
               <>
                 {' · '}
-                {team.sub_teams.length} sub-team{team.sub_teams.length > 1 ? 's' : ''}
+                {team.sub_teams.length} workspace{team.sub_teams.length > 1 ? 's' : ''} inside
               </>
             )}
           </div>
@@ -112,22 +113,26 @@ export function TeamDetailPage() {
           <div style={{ marginLeft: 'auto' }}>
             <Button variant="subtle" onClick={() => setDeleteOpen(true)}>
               <Trash2 size={14} />
-              Delete team
+              Delete workspace
             </Button>
           </div>
         )}
       </div>
       {canDelete && <DeleteTeamDialog team={team} open={deleteOpen} onOpenChange={setDeleteOpen} />}
 
-      <Tabs defaultValue="board" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <Tabs defaultValue="sub-workspaces" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '0 24px' }}>
           <TabsList>
+            <TabsTrigger value="sub-workspaces">Sub-workspaces</TabsTrigger>
             <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="issues">Jobs</TabsTrigger>
-            <TabsTrigger value="goals">Team goals</TabsTrigger>
+            <TabsTrigger value="issues">Tasks</TabsTrigger>
+            <TabsTrigger value="goals">Goals</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
           </TabsList>
         </div>
+        <TabsContent value="sub-workspaces" style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <TeamSubWorkspacesTab team={team} />
+        </TabsContent>
         <TabsContent value="board" style={{ flex: 1, minHeight: 0 }}>
           <TeamBoard team={team} />
         </TabsContent>

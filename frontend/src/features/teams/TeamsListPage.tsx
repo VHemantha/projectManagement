@@ -13,13 +13,13 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
   const createTeam = useCreateTeam()
   const navigate = useNavigate()
 
-  // Only top-level teams (no parent of their own) are offered as a parent — matches the org
-  // chart's exact 2-level depth (Group -> Team), same as the nav-tree's "By Group" mode.
+  // Only top-level workspaces (no parent of their own) can hold another — matches the org
+  // chart's exact 2-level depth.
   const topLevelTeams = (teams ?? []).filter((t) => !t.parent)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent title="Create team" maxWidth={420}>
+      <DialogContent title="Create workspace" maxWidth={420}>
         <form
           style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
           onSubmit={(e) => {
@@ -31,13 +31,13 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
                   onOpenChange(false)
                   setName('')
                   setParentId('')
-                  navigate(`/teams/${team.id}`)
+                  navigate(`/workspaces/${team.id}`)
                 },
               },
             )
           }}
         >
-          <Input id="team-name" label="Team name" required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+          <Input id="team-name" label="Workspace name" required autoFocus placeholder="e.g. Team 1" value={name} onChange={(e) => setName(e.target.value)} />
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
               Part of (optional)
@@ -50,7 +50,7 @@ function CreateTeamDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
             >
-              <option value="">No group (top-level)</option>
+              <option value="">None (top level)</option>
               {topLevelTeams.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
@@ -80,9 +80,9 @@ export function TeamsListPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>Teams</h1>
+        <h1 className={styles.title}>Workspaces</h1>
         <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          <Plus size={16} /> Create team
+          <Plus size={16} /> Create workspace
         </Button>
       </div>
       {isLoading ? (
@@ -90,7 +90,7 @@ export function TeamsListPage() {
       ) : (
         <div className={styles.grid}>
           {teams?.map((team) => (
-            <div key={team.id} className={styles.card} onClick={() => navigate(`/teams/${team.id}`)}>
+            <div key={team.id} className={styles.card} onClick={() => navigate(`/workspaces/${team.id}`)}>
               <span className={styles.avatar} style={{ background: team.avatar_color }}>
                 {team.name.slice(0, 2).toUpperCase()}
               </span>

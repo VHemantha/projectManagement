@@ -94,15 +94,15 @@ def emit(stage: str, label: str, state: str = "done", **counts) -> None:
 # --- 1. load_job (code) -----------------------------------------------------------------------
 
 def load_job(state: State) -> dict:
-    emit("read", "Opening the job", "running")
+    emit("read", "Opening the task", "running")
     s = get_settings()
     if s.llm_mode != "fake" and not (s.anthropic_api_key or os.environ.get("ANTHROPIC_API_KEY")):
         raise PrecheckStop("The pre-check service has no Claude API key configured. Ask an administrator to set it.")
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
-        raise PrecheckStop("This job has no Google Drive folder linked. Add the folder on the job card, then run the pre-check.")
+        raise PrecheckStop("This task has no Google Drive folder linked. Add the folder on the task card, then run the pre-check.")
     if not job.get("client_id"):
-        raise PrecheckStop("This job is not linked to a client, so the pre-check cannot keep its documents separate.")
+        raise PrecheckStop("This task's project is not in a sub-workspace, so the pre-check cannot keep its documents separate. Put the project in a sub-workspace first.")
     return {"job": job, "started_at": state.get("started_at") or time.time(), "round": 0}
 
 
@@ -129,7 +129,7 @@ def sync_drive(state: State) -> dict:
     for fid in removed:
         store.delete_file(job["client_id"], state["job_id"], fid)
     if not listing:
-        raise PrecheckStop("The job's Drive folder is empty, so there is nothing to check yet.")
+        raise PrecheckStop("The task's Drive folder is empty, so there is nothing to check yet.")
     sync = {"total": len(listing), "changed": changed, "removed": len(removed), "first_run": not manifest}
     since = "all new" if not manifest else f"{len(changed)} changed since last run"
     emit("read", f"{len(listing)} files in the folder, {since}", "running", documents=len(listing), changed=len(changed))
@@ -275,7 +275,7 @@ def index(state: State) -> dict:
     # opened is represented by the documents inside it.
     files = {fid: row for fid, row in manifest.items() if row["document_class"] != ARCHIVE_CLASS or row["error"]}
     if not any(row["document_class"] != ARCHIVE_CLASS for row in files.values()):
-        raise PrecheckStop("The job's Drive folder has no documents the pre-check can read.")
+        raise PrecheckStop("The task's Drive folder has no documents the pre-check can read.")
     sync = {**state["sync"], "total": len(files), "changed": changed}
     label = f"{len(files)} documents, " + ("all new" if sync["first_run"] else f"{len(changed)} changed since last run")
     emit("read", label, documents=len(files), changed=len(changed))
@@ -339,7 +339,7 @@ def draft_directions(state: State) -> dict:
     match; if the model cannot be used, code falls back to the standard list for the kinds of
     document present. In a full run the drafted items are then verified like any others."""
     s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
-    emit("compared", "Drafting the Direction Note from past jobs and the folder", "running")
+    emit("compared", "Drafting the Direction Note from past tasks and the folder", "running")
     cache = StoreCache(store)
     body = D.draft_input(job, state["files"], state["rule_results"])
     key = D.draft_cache_key(job["client_id"], state["job_id"], body, s)

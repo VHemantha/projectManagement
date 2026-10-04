@@ -77,7 +77,7 @@ def test_worker_can_view_but_not_change_dashboard_fields(worker, project, patch)
     assert data["can_manage"] is False
     resp = client.patch("/api/projects/Dash/", patch, format="json")
     assert resp.status_code == 403
-    assert "workspace lead" in str(resp.data["detail"])
+    assert "project lead" in str(resp.data["detail"])
 
 
 def test_worker_can_still_save_settings_that_send_unchanged_dashboard_fields(worker, project):

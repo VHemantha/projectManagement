@@ -44,7 +44,7 @@ export function CardValue({ issue }: { issue: IssueListItem }) {
           min={0}
           step="0.01"
           autoFocus
-          aria-label={`Job value for ${issue.key}`}
+          aria-label={`Task value for ${issue.key}`}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKeyDown}
@@ -59,8 +59,8 @@ export function CardValue({ issue }: { issue: IssueListItem }) {
       type="button"
       className={styles.cardValueButton}
       data-empty={!shown}
-      aria-label={shown ? `Job value ${shown}, click to edit` : `Add job value for ${issue.key}`}
-      title="Job value"
+      aria-label={shown ? `Task value ${shown}, click to edit` : `Add task value for ${issue.key}`}
+      title="Task value"
       onPointerDown={stop}
       onClick={(e) => {
         stop(e)

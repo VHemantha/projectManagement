@@ -58,7 +58,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         board = project.boards.first()
         if not board:
-            return Response({"detail": "No board configured for this workspace."}, status=404)
+            return Response({"detail": "No board configured for this project."}, status=404)
         return Response(BoardSerializer(board).data)
 
 
@@ -103,7 +103,7 @@ class LabelListCreateView(ProjectLookupListMixin, generics.ListCreateAPIView):
     def perform_create(self, serializer):
         project = self.get_project()
         if not can_manage_project(self.request.user, project):
-            raise PermissionDenied("Only the workspace lead, a workspace admin or an organisation admin can add labels.")
+            raise PermissionDenied("Only the project lead, a project admin or an organisation admin can add labels.")
         serializer.save(project=project)
 
 
@@ -118,7 +118,7 @@ class LabelDetailView(ProjectLookupListMixin, generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         if not can_manage_project(self.request.user, serializer.instance.project):
-            raise PermissionDenied("Only the workspace lead, a workspace admin or an organisation admin can change labels.")
+            raise PermissionDenied("Only the project lead, a project admin or an organisation admin can change labels.")
         serializer.save()
 
 

@@ -55,7 +55,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
         if self.instance is not None:
             clash = clash.exclude(pk=self.instance.pk)
         if clash.exists():
-            raise serializers.ValidationError(f"There's already a team called '{name}'.")
+            raise serializers.ValidationError(f"There's already a workspace called '{name}'.")
         return name
 
     def validate_parent_id(self, value):
@@ -63,13 +63,13 @@ class TeamDetailSerializer(serializers.ModelSerializer):
             return value
         if self.instance is not None:
             if value.id == self.instance.id:
-                raise serializers.ValidationError("A team can't be its own parent.")
+                raise serializers.ValidationError("A workspace can't be placed inside itself.")
             # Walk up from the proposed parent — if we ever hit this instance, the proposed
             # parent is a descendant of this team, which would create a cycle.
             ancestor = value
             while ancestor is not None:
                 if ancestor.id == self.instance.id:
-                    raise serializers.ValidationError("A team can't be parented under one of its own sub-teams.")
+                    raise serializers.ValidationError("A workspace can't be placed inside a workspace that is inside it.")
                 ancestor = ancestor.parent
         return value
 

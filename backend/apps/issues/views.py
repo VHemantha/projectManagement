@@ -87,7 +87,7 @@ class IssueViewSet(viewsets.ModelViewSet):
         keys = request.data.get("keys")
         archived = request.data.get("archived", True)
         if not isinstance(keys, list) or not keys or not isinstance(archived, bool):
-            return Response({"detail": "Send a non-empty list of job keys and archived: true/false."}, status=400)
+            return Response({"detail": "Send a non-empty list of task keys and archived: true/false."}, status=400)
         issues = Issue.objects.filter(key__in=[str(k) for k in keys])
         ids = list(issues.values_list("id", flat=True))
         count = set_archived(Issue.objects.filter(id__in=ids) | Issue.objects.filter(parent_id__in=ids), archived)

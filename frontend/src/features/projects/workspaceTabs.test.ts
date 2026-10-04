@@ -14,19 +14,19 @@ afterEach(() => {
 
 describe('workspace tabs', () => {
   it('puts Kanban first and hides Scrum views and Summary by default', () => {
-    expect(ids(kanban)).toEqual(['kanban', 'jobs', 'timeline', 'settings'])
+    expect(ids(kanban)).toEqual(['kanban', 'tasks', 'timeline', 'settings'])
     // A Scrum workspace looks like a Kanban one while the Scrum feature is off.
-    expect(ids(scrum)).toEqual(['kanban', 'jobs', 'timeline', 'settings'])
+    expect(ids(scrum)).toEqual(['kanban', 'tasks', 'timeline', 'settings'])
     expect(workspaceTabs(scrum)[0].label).toBe('Kanban')
   })
 
   it('restores the Scrum views and Summary when their flags are on', () => {
     FEATURES.scrum = true
     FEATURES.summary = true
-    expect(ids(scrum)).toEqual(['kanban', 'summary', 'backlog', 'jobs', 'timeline', 'reports', 'settings'])
+    expect(ids(scrum)).toEqual(['kanban', 'summary', 'backlog', 'tasks', 'timeline', 'reports', 'settings'])
     expect(workspaceTabs(scrum)[0].label).toBe('Sprint board')
     // Kanban workspaces never get the sprint-only tabs.
-    expect(ids(kanban)).toEqual(['kanban', 'summary', 'jobs', 'timeline', 'settings'])
+    expect(ids(kanban)).toEqual(['kanban', 'summary', 'tasks', 'timeline', 'settings'])
   })
 
   it('falls back to Kanban for missing, unknown or hidden tabs', () => {
@@ -34,12 +34,13 @@ describe('workspace tabs', () => {
     expect(resolveTab('nope', kanban)).toBe('kanban')
     expect(resolveTab('summary', kanban)).toBe('kanban')
     expect(resolveTab('backlog', scrum)).toBe('kanban')
-    expect(resolveTab('jobs', kanban)).toBe('jobs')
+    expect(resolveTab('tasks', kanban)).toBe('tasks')
+    expect(resolveTab('jobs', kanban)).toBe('tasks') // the tab's name until Oct 2026
   })
 
   it('maps old sub-page URLs to tabs', () => {
     expect(tabForLegacySection('board')).toBe('kanban')
-    expect(tabForLegacySection('issues')).toBe('jobs')
+    expect(tabForLegacySection('issues')).toBe('tasks')
     expect(tabForLegacySection('settings')).toBe('settings')
     expect(tabForLegacySection('whatever')).toBe('kanban')
   })

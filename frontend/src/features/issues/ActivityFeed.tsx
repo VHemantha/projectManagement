@@ -28,7 +28,7 @@ function HistoryLine({ entry }: { entry: { user: { display_name: string } | null
   if (entry.field_changed === 'is_archived') {
     return (
       <div className={styles.historyText}>
-        <b>{entry.user?.display_name ?? 'Someone'}</b> {entry.new_value === 'True' ? 'archived' : 'restored'} this job
+        <b>{entry.user?.display_name ?? 'Someone'}</b> {entry.new_value === 'True' ? 'archived' : 'restored'} this task
       </div>
     )
   }
@@ -92,7 +92,7 @@ function ChatLinkRow({ link }: { link: { id: number; message_id: number; channel
           </span>
           <MessageSquare size={12} color="var(--tf-text-subtle)" />
           <span className={styles.commentTime}>
-            {link.created_task ? 'created this job from chat' : 'linked a chat message'}
+            {link.created_task ? 'created this task from chat' : 'linked a chat message'}
           </span>
         </div>
         <div style={{ padding: '4px 12px 8px' }}>

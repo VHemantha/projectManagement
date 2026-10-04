@@ -20,8 +20,9 @@ import { Tooltip } from '@/design-system'
 // Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
   { to: '/', label: 'Your work', icon: UserRound, tone: 'violet', end: true },
-  { to: '/workspaces', label: 'Workspaces', icon: LayoutGrid, tone: 'blue' },
-  { to: '/teams', label: 'Teams', icon: Users, tone: 'teal' },
+  // The hierarchy, top down: Workspaces hold sub-workspaces, which hold projects.
+  { to: '/workspaces', label: 'Workspaces', icon: Users, tone: 'teal' },
+  { to: '/projects', label: 'Projects', icon: LayoutGrid, tone: 'blue' },
   { to: '/people', label: 'People', icon: Contact, tone: 'pink' },
   { to: '/filters', label: 'Filters', icon: ListFilter, tone: 'orange' },
   { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },
@@ -77,7 +78,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
             </NavLink>
           </Tooltip>
         ))}
-        {showLabels && <div className={styles.sidebarSectionLabel}>Recent workspaces</div>}
+        {showLabels && <div className={styles.sidebarSectionLabel}>Recent projects</div>}
         <ProjectSwitcher expanded={showLabels} />
       </nav>
       <div className={styles.sidebarFooter}>

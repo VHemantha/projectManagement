@@ -107,6 +107,7 @@ class Issue(models.Model):
     class Meta:
         ordering = ["rank"]
         indexes = [models.Index(fields=["project", "status"])]
+        verbose_name = "task"  # shown to users as tasks (formerly "jobs")
 
     def __str__(self):
         return f"{self.key} {self.summary}"

@@ -8,12 +8,12 @@ import type { TeamDetail, TeamSummary, User } from '@/api/types'
 import { DEFAULT_TAB } from '@/features/projects/workspaceTabs'
 
 // Fixed URL segments map to a nicely-cased label. Anything not listed here is a
-// dynamic value (a project key, a team/user id, an issue key) and is resolved
+// dynamic value (a project key, a workspace/user id, a task key) and is resolved
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
   workspaces: 'Workspaces',
-  'all-issues': 'All jobs board',
-  teams: 'Teams',
+  projects: 'Projects',
+  'all-issues': 'All tasks board',
   people: 'People',
   filters: 'Filters',
   dashboards: 'Dashboards',
@@ -24,19 +24,19 @@ const STATIC_LABELS: Record<string, string> = {
   board: 'Board',
   backlog: 'Backlog',
   timeline: 'Timeline',
-  issues: 'Jobs',
+  issues: 'Tasks',
   reports: 'Reports',
   settings: 'Settings',
   review: 'Review',
   epics: 'Epics',
 }
 
-// Workspace tabs (?tab=…) get a crumb of their own after the workspace key.
+// Project tabs (?tab=…) get a crumb of their own after the project key.
 const TAB_LABELS: Record<string, string> = {
   kanban: 'Kanban',
   summary: 'Summary',
   backlog: 'Backlog',
-  jobs: 'Jobs',
+  tasks: 'Tasks',
   timeline: 'Timeline',
   reports: 'Reports',
   settings: 'Settings',
@@ -60,13 +60,13 @@ export function Breadcrumbs() {
 
   // Turn each URL segment into a crumb, resolving dynamic ids/keys to readable
   // names where we can. `prev` gives each segment its context (e.g. the id after
-  // "teams" is a team, the id after "people" is a user).
+  // "workspaces" is a workspace, the id after "people" is a user).
   const crumbs: Crumb[] = segments.map((segment, index) => {
     const prev = segments[index - 1]
     const label = STATIC_LABELS[segment] ?? resolveDynamicLabel(queryClient, segment, prev)
     return { label, path: '/' + segments.slice(0, index + 1).join('/') }
   })
-  if (segments.length === 2 && segments[0] === 'workspaces') {
+  if (segments.length === 2 && segments[0] === 'projects' && segments[1] !== 'all-issues') {
     const tab = new URLSearchParams(location.search).get('tab') ?? DEFAULT_TAB
     const label = TAB_LABELS[tab] ?? TAB_LABELS[DEFAULT_TAB]
     crumbs.push({ label, path: `${location.pathname}?tab=${tab}` })
@@ -115,12 +115,12 @@ function resolveDynamicLabel(
   segment: string,
   prev: string | undefined,
 ): string {
-  if (prev === 'workspaces') {
-    // Workspace keys keep the case they were created with ("Pochin"), so show them as-is.
+  if (prev === 'projects') {
+    // Project keys keep the case they were created with ("Pochin"), so show them as-is.
     return segment
   }
 
-  if (prev === 'teams') {
+  if (prev === 'workspaces') {
     const fromList = queryClient
       .getQueryData<TeamSummary[]>(['teams'])
       ?.find((team) => String(team.id) === segment)

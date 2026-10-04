@@ -122,8 +122,8 @@ export function ChannelList({ selectedChannelId, onSelect }: ChannelListProps) {
         ) : (
           <>
             {renderGroup('General', general)}
-            {renderGroup('Workspaces', project)}
-            {renderGroup('Teams', team)}
+            {renderGroup('Projects', project)}
+            {renderGroup('Workspaces', team)}
             {renderDmGroup()}
             {renderGroup('Channels', topic)}
             {!channels?.length && <div className={styles.empty}>No channels yet.</div>}

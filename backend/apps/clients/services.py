@@ -20,10 +20,11 @@ def get_or_create_client_workspace(client: Client, user) -> Project:
         organization=client.organization,
         key=suggest_key(client.name),
         name=client.name,
-        description=f"Jobs for {client.name} that don't belong to a workspace.",
+        description=f"Tasks for {client.name} that don't belong to a project.",
         project_type=Project.ProjectType.KANBAN,
         lead=user,
         client=client,
+        primary_team=client.team,  # stays in the sub-workspace's workspace
         is_client_workspace=True,
     )
     provision_project_defaults(workspace)

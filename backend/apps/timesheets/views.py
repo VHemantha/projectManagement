@@ -162,7 +162,7 @@ class TimesheetViewSet(viewsets.ModelViewSet):
     def approve(self, request, pk=None):
         timesheet = get_object_or_404(Timesheet, pk=pk)
         if not _can_approve(request.user, timesheet):
-            raise PermissionDenied("Only an organisation admin or one of this period's workspace leads can approve.")
+            raise PermissionDenied("Only an organisation admin or one of this period's project leads can approve.")
         if timesheet.status != Timesheet.Status.SUBMITTED:
             return Response({"detail": "Only a submitted timesheet can be approved."}, status=400)
 
@@ -177,7 +177,7 @@ class TimesheetViewSet(viewsets.ModelViewSet):
     def reject(self, request, pk=None):
         timesheet = get_object_or_404(Timesheet, pk=pk)
         if not _can_approve(request.user, timesheet):
-            raise PermissionDenied("Only an organisation admin or one of this period's workspace leads can reject.")
+            raise PermissionDenied("Only an organisation admin or one of this period's project leads can reject.")
         if timesheet.status != Timesheet.Status.SUBMITTED:
             return Response({"detail": "Only a submitted timesheet can be rejected."}, status=400)
         note = request.data.get("note", "").strip()

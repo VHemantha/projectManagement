@@ -356,10 +356,10 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         client = attrs.pop("client_id", None)
         if self.instance is None and not attrs.get("project"):
             if client is None:
-                raise serializers.ValidationError({"project": "Choose a project, or a client to add the job to."})
+                raise serializers.ValidationError({"project": "Choose a project, or a sub-workspace to add the task to."})
             if client.requires_projects:
                 raise serializers.ValidationError(
-                    {"project": f"Jobs for {client.name} must belong to one of its projects — choose a project."}
+                    {"project": f"Tasks in {client.name} must belong to one of its projects — choose a project."}
                 )
             attrs["project"] = get_or_create_client_workspace(client, self.context["request"].user)
         return attrs

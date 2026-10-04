@@ -11,16 +11,16 @@ import { FEATURES } from '@/lib/features'
 const EMPTY: ProjectSummary[] = []
 
 function typeLabel(p: ProjectSummary): string {
-  if (p.is_client_workspace) return 'Client jobs'
+  if (p.is_client_workspace) return 'Tasks without a project'
   // Scrum/Kanban only means something while the Scrum feature is on.
-  if (!FEATURES.scrum) return 'Workspace'
+  if (!FEATURES.scrum) return 'Project'
   return p.project_type === 'scrum' ? 'Scrum' : 'Kanban'
 }
 
 const columns: DataColumn<ProjectSummary>[] = [
   {
     id: 'name',
-    label: 'Workspace',
+    label: 'Project',
     required: true,
     size: 260,
     value: (p) => p.name,
@@ -48,8 +48,8 @@ const columns: DataColumn<ProjectSummary>[] = [
       </span>
     ),
   },
-  { id: 'client', label: 'Client', value: (p) => p.client?.name, size: 160 },
-  { id: 'team', label: 'Team', value: (p) => p.primary_team?.name, defaultHidden: true, size: 160 },
+  { id: 'client', label: 'Sub-workspace', value: (p) => p.client?.name, size: 160 },
+  { id: 'team', label: 'Workspace', value: (p) => p.primary_team?.name, size: 160 },
   {
     id: 'lead',
     label: 'Lead',
@@ -65,7 +65,7 @@ const columns: DataColumn<ProjectSummary>[] = [
         <span style={{ color: 'var(--tf-text-subtle)' }}>Unassigned</span>
       ),
   },
-  { id: 'issue_count', label: 'Jobs', value: (p) => p.issue_count, numeric: true, size: 90 },
+  { id: 'issue_count', label: 'Tasks', value: (p) => p.issue_count, numeric: true, size: 90 },
   { id: 'description', label: 'Description', value: (p) => p.description, defaultHidden: true, size: 240 },
   {
     id: 'created_at',
@@ -93,7 +93,7 @@ export function ProjectsListPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All workspaces</h1>
+        <h1 className={styles.title}>All projects</h1>
       </div>
       <DataTable
         tableId="projects"
@@ -101,11 +101,11 @@ export function ProjectsListPage() {
         data={projects ?? EMPTY}
         getRowId={(p) => p.key}
         isLoading={isLoading}
-        emptyMessage="No workspaces yet. Create your first one to get started."
-        onRowClick={(p) => navigate(`/workspaces/${p.key}`)}
-        exportName="workspaces"
+        emptyMessage="No projects yet. Create your first one to get started."
+        onRowClick={(p) => navigate(`/projects/${p.key}`)}
+        exportName="projects"
         defaultSort={[{ id: 'name', desc: false }]}
-        countLabel={(n) => `${n} workspace${n === 1 ? '' : 's'}`}
+        countLabel={(n) => `${n} project${n === 1 ? '' : 's'}`}
       />
     </div>
   )

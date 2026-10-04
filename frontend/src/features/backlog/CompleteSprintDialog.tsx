@@ -27,7 +27,7 @@ export function CompleteSprintDialog({ sprint, otherOpenSprints, onClose }: Comp
       {sprint && (
         <DialogContent title={`Complete ${sprint.name}`} maxWidth={440}>
           <p style={{ fontSize: 14, color: 'var(--tf-text-secondary)', marginBottom: 16 }}>
-            Move incomplete jobs to:
+            Move incomplete tasks to:
           </p>
           <select
             style={{

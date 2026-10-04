@@ -31,7 +31,10 @@ export function useCreateTeam() {
       const { data } = await apiClient.post<TeamDetail>('/teams/', payload)
       return data
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['teams'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teams'] })
+      queryClient.invalidateQueries({ queryKey: ['reports', 'nav-tree'] })
+    },
   })
 }
 
@@ -45,6 +48,7 @@ export function useUpdateTeam(teamId: number) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['teams'] })
       queryClient.invalidateQueries({ queryKey: ['teams', teamId] })
+      queryClient.invalidateQueries({ queryKey: ['reports', 'nav-tree'] })
     },
   })
 }
@@ -93,6 +97,7 @@ export function useDeleteTeam() {
       // The team's chat channel is deleted and projects lose it as their primary team.
       queryClient.invalidateQueries({ queryKey: ['chat', 'channels'] })
       queryClient.invalidateQueries({ queryKey: ['projects'] })
+      queryClient.invalidateQueries({ queryKey: ['reports', 'nav-tree'] })
     },
   })
 }

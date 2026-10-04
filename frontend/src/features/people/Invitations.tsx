@@ -99,9 +99,9 @@ function InviteForm({ onDone }: { onDone: () => void }) {
         </select>
       </label>
       <label className={styles.field}>
-        <span>Team (optional)</span>
+        <span>Workspace (optional)</span>
         <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-          <option value="">No team</option>
+          <option value="">No workspace</option>
           {teams?.map((t) => (
             <option key={t.id} value={t.id}>
               {t.name}
@@ -148,7 +148,7 @@ export function InvitationList() {
           <tr>
             <th>Email</th>
             <th>Role</th>
-            <th>Team</th>
+            <th>Workspace</th>
             <th>Status</th>
             <th>Sent</th>
             <th aria-label="Actions" />

@@ -52,7 +52,7 @@ class BoardConfigView(generics.RetrieveUpdateAPIView):
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
         if request.method not in permissions.SAFE_METHODS and not _can_configure_board(request.user, obj):
-            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
+            raise PermissionDenied("Only a project admin/lead or an organisation admin can configure this board.")
 
 
 class BoardStatusDetailView(APIView):
@@ -65,14 +65,14 @@ class BoardStatusDetailView(APIView):
     def delete(self, request, pk, status_id):
         board = get_object_or_404(Board.objects.select_related("project__workflow"), pk=pk)
         if not _can_configure_board(request.user, board):
-            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
+            raise PermissionDenied("Only a project admin/lead or an organisation admin can configure this board.")
         workflow = board.project.workflow
         wf_status = get_object_or_404(WorkflowStatus, pk=status_id, workflow=workflow)
 
         issue_count = status_issue_counts(workflow).get(wf_status.id, 0)
         if issue_count:
             return Response(
-                {"detail": f"{issue_count} job(s) are in '{wf_status.name}'. Move them to another status first."},
+                {"detail": f"{issue_count} task(s) are in '{wf_status.name}'. Move them to another status first."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         for project_board in board.project.boards.all():
@@ -101,7 +101,7 @@ class BoardColumnView(APIView):
     def patch(self, request, pk, index):
         board = get_object_or_404(Board.objects.select_for_update().select_related("project__workflow"), pk=pk)
         if not _can_configure_board(request.user, board):
-            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can configure this board.")
+            raise PermissionDenied("Only a project admin/lead or an organisation admin can configure this board.")
         columns = list(board.column_config or [])
         if not 0 <= index < len(columns):
             return Response({"detail": "No such column."}, status=status.HTTP_404_NOT_FOUND)
@@ -123,7 +123,7 @@ class BoardColumnView(APIView):
             if wf_status and wf_status.name.lower() == str(old_name).lower() and wf_status.name != name:
                 if workflow.statuses.exclude(pk=wf_status.pk).filter(name__iexact=name).exists():
                     return Response(
-                        {"name": [f"A status called '{name}' already exists in this workspace."]},
+                        {"name": [f"A status called '{name}' already exists in this project."]},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
                 wf_status.name = name
@@ -165,4 +165,4 @@ class WorkflowTransitionDetailView(generics.UpdateAPIView):
     def check_object_permissions(self, request, obj):
         super().check_object_permissions(request, obj)
         if not can_manage_project(request.user, obj.workflow.project):
-            raise PermissionDenied("Only a workspace admin/lead or an organisation admin can edit transition rules.")
+            raise PermissionDenied("Only a project admin/lead or an organisation admin can edit transition rules.")
