@@ -1,5 +1,6 @@
 """Starting a pre-check, receiving its events, and shaping what the job card shows."""
 import json
+import re
 import urllib.error
 import urllib.request
 import uuid
@@ -121,10 +122,43 @@ def job_payload(issue) -> dict:
     }
 
 
+_BULLET = re.compile(r"^\s*(?:[-•*–·▪>]|\d{1,2}[.)]|[a-zA-Z][.)])\s+")
+
+
+def clean_direction_lines(texts: list[str]) -> list[str]:
+    """A Direction Note pasted from a document arrives one line per item. Put it back together:
+    a line starting in lower case continues the one above, a heading ending in ":" leads each
+    bullet under it, and bullet marks are dropped. (The agent applies the same rule to items
+    saved before this existed.)"""
+    out: list[dict] = []
+    heading = ""
+    for raw in texts:
+        raw = " ".join(str(raw).split())
+        bulleted = bool(_BULLET.match(raw))
+        text = _BULLET.sub("", raw).strip()
+        if not text:
+            continue
+        if out and not bulleted and not text.endswith(":") and text[0].islower() and not out[-1]["heading"]:
+            out[-1]["text"] += " " + text
+            continue
+        if text.endswith(":"):
+            heading = text.rstrip(":").strip()
+            out.append({"text": heading, "heading": True, "used": False})
+            continue
+        if not bulleted:
+            heading = ""
+        if heading and bulleted:
+            next(h for h in reversed(out) if h["heading"])["used"] = True
+            text = f"{heading}: {text}"
+        out.append({"text": text, "heading": False, "used": False})
+    return [i["text"] for i in out if not (i["heading"] and i["used"])]
+
+
 def save_direction_items(issue, texts: list[str], user) -> None:
     """Replace the job's Direction Note items, keeping the ref (and, for AI-drafted items, the
     origin and reason) of any item whose text is unchanged so earlier runs still line up. An
     item a person rewrites becomes their own."""
+    texts = clean_direction_lines(texts)
     existing = {i.text: i for i in issue.direction_items.all()}
     used = {i.ref for i in existing.values()}
     next_number = max([int(r[1:]) for r in used if r[1:].isdigit()] + [0]) + 1
@@ -251,6 +285,7 @@ def _store_result(run: AIPrecheck, result: dict) -> None:
     run.direction_items = result["direction_items"]
     run.trail = result["trail"]
     run.skipped = result["skipped"]
+    run.analysis = result.get("analysis") or {}
     usage = result["usage"]
     run.usage = {k: usage[k] for k in ("totals", "model_calls", "reader_calls", "cost_usd", "cache_share", "reused_answers", "budget")}
     run.models_used = result["models"]
@@ -324,6 +359,7 @@ def serialize_run(run: AIPrecheck, full: bool = True) -> dict:
         "trail": run.trail,
         "progress": run.progress,
         "skipped": run.skipped,
+        "analysis": run.analysis,
         "failure_reason": run.failure_reason,
         "usage": run.usage,
         "models": run.models_used,

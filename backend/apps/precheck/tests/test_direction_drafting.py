@@ -165,3 +165,36 @@ def test_draft_only_request(client_, user, service):
     audit = ModelRun.objects.get(precheck__run_id=run_id)
     assert (audit.node, audit.input_tokens, audit.skill_versions) == ("draft", 2100, {"direction-drafting": "1.0+abc"})
     assert client_.post("/api/precheck/runs/", {"job": issue.key}, format="json").status_code == 201  # no longer blocked
+
+
+def test_a_pasted_direction_note_is_cleaned_when_saved(client_, user):
+    issue = make_job(user, "Acme", "AcmeFY26")
+    pasted = [
+        "- Property sale and purchase agreements, settlement documentation, subdivision records",
+        "and chattel information.",
+        "Confirm or record as unknown:",
+        "- Entity name and type.",
+        "- New entity or continuing entity.",
+        "Agree the bank reconciliation to the ledger",
+    ]
+    resp = client_.put(f"/api/precheck/jobs/{issue.key}/setup/", {"direction_items": pasted}, format="json")
+    assert [i["text"] for i in resp.data["direction_items"]] == [
+        "Property sale and purchase agreements, settlement documentation, subdivision records and chattel information.",
+        "Confirm or record as unknown: Entity name and type.",
+        "Confirm or record as unknown: New entity or continuing entity.",
+        "Agree the bank reconciliation to the ledger",
+    ]
+
+
+def test_the_year_on_year_analysis_is_kept_with_the_run(client_, user):
+    issue = make_job(user, "Acme", "AcmeFY26")
+    DirectionItem.objects.create(issue=issue, ref="D1", text="Agree the bank reconciliation to the ledger")
+    run_id = client_.post("/api/precheck/runs/", {"job": issue.key}, format="json").data["run_id"]
+    result = copy.deepcopy(SAMPLE)
+    result["run_id"] = run_id
+    result["analysis"] = {"available": True, "this_year": "FY2026", "last_year": "FY2025", "summary": ["Bank data stops on 27 Feb 2026."],
+                          "lines": [{"id": "P1", "label": "Insurance", "last_year": 1255.0, "status": "not_yet"}], "checks": [], "bank": []}
+    assert APIClient().post("/api/precheck/internal/events/", {"run_id": run_id, "type": "ai_precheck.completed", "result": result},
+                            format="json", **TOKEN).status_code == 200
+    latest = client_.get(f"/api/precheck/jobs/{issue.key}/").data["latest"]
+    assert latest["analysis"]["this_year"] == "FY2026" and latest["analysis"]["lines"][0]["label"] == "Insurance"

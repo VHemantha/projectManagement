@@ -94,6 +94,9 @@ class AIPrecheck(models.Model):
     trail = models.JSONField(default=dict)  # the five "how the AI got here" steps, with real counts
     progress = models.JSONField(default=list)  # live events while running
     skipped = models.JSONField(default=list)  # what a partial run did not get to, and why
+    # This year's documents against last year's accounts: lines, checks, bank summaries and
+    # commentary. Every figure in it was produced by code in the agent.
+    analysis = models.JSONField(default=dict)
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)

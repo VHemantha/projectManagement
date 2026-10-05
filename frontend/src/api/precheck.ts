@@ -69,6 +69,47 @@ export interface RunSummary {
   demo: boolean
 }
 
+export type YoyStatus = 'covered' | 'partly' | 'not_yet' | 'at_year_end' | 'not_expected' | 'unclear'
+
+export interface YoyRef {
+  id: string
+  label: string
+  evidence_id: string | null
+}
+
+export interface YoyLine {
+  id: string
+  label: string
+  section: string
+  last_year: number
+  year_before: number | null
+  this_year: number | null
+  change: number | null
+  change_pct: number | null
+  status: YoyStatus
+  comment: string
+  question: string
+  refs: YoyRef[]
+  evidence_ids: string[]
+}
+
+/** This year's documents against last year's accounts. Every amount was produced by code. */
+export interface YearOnYear {
+  available: true
+  how: 'model' | 'cache' | 'code only'
+  this_year: string
+  last_year: string
+  period: string
+  baseline: string[]
+  documents: { this_year: number; last_year: number }
+  summary: string[]
+  lines: YoyLine[]
+  checks: { label: string; passed: boolean; detail: string; evidence_ids: string[] }[]
+  bank: { account: string; from: string; to: string; opening: number | null; closing: number | null; money_in: number; money_out: number; transactions: number }[]
+  new_this_year: { text: string; refs: YoyRef[] }[]
+  evidence?: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
+}
+
 export interface Run extends RunSummary {
   direction_items: (DirectionItem & { addressed: boolean })[]
   trail: Partial<Record<TrailStage, TrailStep>>
@@ -86,6 +127,8 @@ export interface Run extends RunSummary {
   models: Partial<Record<'reader' | 'judge' | 'escalate', string>>
   duration_s: number | null
   findings: Finding[]
+  /** Absent on runs from before the year-on-year analysis existed. */
+  analysis?: YearOnYear | { available: false; reason: string }
 }
 
 export interface PrecheckSetup {

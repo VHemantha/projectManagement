@@ -138,6 +138,25 @@ def demo_vision(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     return AIMessage(content=text, usage_metadata={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
 
 
+def demo_analyst(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """Stand-in for the year-on-year analysis: a line is covered when a bank payer/payee or a
+    file of this year shares a word with it, otherwise nothing has arrived for it yet."""
+    payload = json.loads(_flatten(messages[-1].content).split("INPUT:", 1)[1])
+    refs = [(p["id"], p["name"]) for b in payload["bank"] for p in b["by_payer_or_payee"]]
+    refs += [(c["id"], c["label"]) for c in payload["current_year_figures"]]
+    refs += [(d["id"], d["name"]) for d in payload["current_documents"]]
+    words = lambda text: {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", text.lower())}  # noqa: E731
+    lines = []
+    for line in payload["prior_year_lines"]:
+        hit = [rid for rid, text in refs if words(line["label"]) & words(text)][:2]
+        lines.append({"id": line["id"], "status": "covered" if hit else "not_yet", "refs": hit,
+                      "comment": "Matching material is in this year's documents." if hit else "Nothing in this year's documents matches it yet.",
+                      "question": "" if hit else f"Has {line['label']} continued this year?"})
+    text = json.dumps({"summary": [f"{sum(1 for x in lines if x['status'] == 'covered')} of last year's lines are covered so far."],
+                       "lines": lines, "new_this_year": []})
+    return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
+
+
 _fake: dict[str, ScriptedChatModel] = {}
 
 
@@ -153,7 +172,8 @@ def reset_fakes() -> None:
 
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter, "vision": demo_vision}[role])
+        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter, "vision": demo_vision,
+                       "analyst": demo_analyst}[role])
     return _fake[role]
 
 
@@ -163,7 +183,8 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return f"fake-{role}"
-    return {"reader": s.reader_model, "judge": s.judge_model, "escalate": s.escalate_model, "vision": s.vision_model or s.reader_model}[role]
+    return {"reader": s.reader_model, "judge": s.judge_model, "escalate": s.escalate_model, "vision": s.vision_model or s.reader_model,
+            "analyst": s.judge_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
@@ -173,7 +194,7 @@ def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return _fake_model(role)
-    if role == "drafter":
+    if role in ("drafter", "analyst"):
         role = "judge"
     from langchain_anthropic import ChatAnthropic
 

@@ -2,8 +2,11 @@
 one exception in `index`: a picture or a scanned PDF has no text for code to extract, so the
 reader model writes out what it says, once per file version (see vision.py).
 
-    load_job -> sync_drive -> index -> run_rules -> plan -> read (fan-out) -> collect
-             -> judge -> [escalate] -> publish
+    load_job -> sync_drive -> index -> run_rules -> analyse -> [draft_directions] -> plan
+             -> read (fan-out) -> collect -> judge -> [escalate] -> publish
+
+`analyse` compares this year's documents with last year's accounts (see analysis.py): code
+extracts and checks the figures, one judge-model call reads the compact result.
 
 (`collect` is not a tenth step: it only gathers the parallel readers and, when the readers'
 prompt prefix is long enough to be cached, lets one reader per type finish first so the others
@@ -20,6 +23,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import CachePolicy, Send
 from pydantic import ValidationError
 
+from . import analysis as A
 from . import directions as D
 from . import judge as J
 from . import vision
@@ -34,6 +38,7 @@ from .emails import is_email
 from .embeddings import get_embedder
 from .llm import model_id, prefix_is_cacheable
 from .parsing import chunk_blocks, parse_file
+from .periods import assign_years, year_label
 from .pm_client import get_pm
 from .readers import cache_key as reader_cache_key
 from .readers import evidence_from, run_reader, skill_versions, system_prompt
@@ -73,6 +78,9 @@ class State(TypedDict, total=False):
     ai_read: list[str]  # ids of files whose text was read from an image by the model
     rule_results: list[dict]
     rule_findings: list[dict]
+    periods: dict
+    analysis: dict
+    analysis_findings: list[dict]
     tasks: list[dict]
     round: int
     evidence: Annotated[dict, _merge]
@@ -101,6 +109,7 @@ def load_job(state: State) -> dict:
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
         raise PrecheckStop("This task has no Google Drive folder linked. Add the folder on the task card, then run the pre-check.")
+    job = {**job, "direction_items": D.normalize_items(job.get("direction_items") or [])}
     if not job.get("client_id"):
         raise PrecheckStop("This task's project is not in a sub-workspace, so the pre-check cannot keep its documents separate. Put the project in a sub-workspace first.")
     return {"job": job, "started_at": state.get("started_at") or time.time(), "round": 0}
@@ -295,8 +304,20 @@ def run_rules(state: State) -> dict:
         docs.append({"file": row, "parsed": parsed})
         if parsed.get("read_by") == vision.AI_READ:
             ai_read.append(row["file_id"])
+    # Which year each document belongs to. When the folder holds last year's finished pack as
+    # well, the checks run on this year's documents; last year's are the baseline for analyse.
+    periods = assign_years(docs, state["job"])
+    files = {}
+    for fid, row in state["files"].items():
+        info = periods["by_file"].get(fid, {"year": None, "role": "unknown"})
+        files[fid] = {**row, "year": info["year"], "year_role": info["role"], "year_label": year_label(info["role"], info["year"])}
+    checked_docs = [d for d in docs if periods["by_file"][d["file"]["file_id"]]["role"] in ("current", "unknown")] if periods["split"] else docs
     results, findings, evidence = [], [], {}
-    for r in apply_rules(docs, s):
+    for r in apply_rules(checked_docs, s):
+        if periods["split"] and r["rule_id"].startswith("required:") and r["passed"] is False:
+            # Last year's is in the folder; this year's simply has not arrived yet.
+            r.update(severity="medium", title=f"No {r['area']} for FY{periods['current']} yet",
+                     why=f"Last year's {r['area']} is in the folder, but none for FY{periods['current']} has arrived yet.")
         ev_ids = []
         for file_row, block in r.pop("evidence"):
             ev = evidence_from(file_row, [block])
@@ -311,7 +332,54 @@ def run_rules(state: State) -> dict:
                 "needs_judgment": r["needs_judgment"], "question": r["question"],
             })
     emit("checked", rules_label(results), rules=len(results), failed=sum(1 for r in results if r["passed"] is False and not r["needs_judgment"]))
-    return {"rule_results": results, "rule_findings": findings, "evidence": evidence, "ai_read": ai_read}
+    return {"rule_results": results, "rule_findings": findings, "evidence": evidence, "ai_read": ai_read, "periods": periods, "files": files}
+
+
+# --- analyse: this year against last year's accounts -------------------------------------------------
+
+def analyse(state: State) -> dict:
+    """Code extracts last year's lines and this year's figures and runs the checks with a right
+    answer; one judge-model call says what this year's documents cover. Skipped in draft mode."""
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    if state.get("mode") == "draft":
+        return {}
+    periods = state["periods"]
+    docs = []
+    for row in state["files"].values():
+        parsed = store.get_parsed(sha(row["file_id"], row["version"], row["parser_version"])) or {"blocks": [], "tables": []}
+        docs.append({"file": row, "parsed": parsed})
+    ctx = A.prepare(job, docs, periods, s)
+    if not ctx["prior_lines"]:
+        reason = ("No last-year accounts were found in the folder (a final trial balance or signed financial statements), "
+                  "so there is nothing to compare this year with.")
+        emit("compared", "No last-year accounts to compare with", "running")
+        return {"analysis": A.unavailable(reason), "analysis_findings": []}
+    emit("compared", f"Comparing this year with last year's accounts ({len(ctx['prior_lines'])} lines)", "running")
+    body, index = A.build_input(job, periods.get("current"), periods.get("prior"), ctx["start"], ctx["end"], ctx["prior_lines"],
+                                ctx["current_lines"], ctx["exports"], ctx["current_docs"], ctx["checks"])
+    cache = StoreCache(store)
+    key = A.cache_key(job["client_id"], state["job_id"], body, s)
+    usage, skipped, how = [], [], "model"
+    answer = cache.get_value("analysis", key)
+    if answer is not None:
+        how = "cache"
+    else:
+        reason = budget_for(run_id).can_call(est_tokens(A.ROLE + A.TASK) + est_tokens(body))
+        if reason:
+            answer, how = None, "code only"
+            skipped.append({"task_id": "analysis", "direction_ref": "none", "what": "Year-on-year analysis by AI", "reason": reason})
+        else:
+            try:
+                raw, u = A.call_model(body, s)
+                budget_for(run_id).add(u)
+                usage.append({"node": "analysis", "task_id": "analysis", "model": model_id("analyst", s), "calls": 1, "run_id": run_id, **u})
+                answer = A.clean_answer(raw, index, body)
+                cache.set_value("analysis", key, answer)
+            except (ValueError, KeyError, TypeError):
+                logger.exception("Year-on-year analysis answer could not be used")
+                answer, how = None, "code only"
+    output, findings, evidence = A.assemble(ctx, periods, answer, index, how, evidence_from, s)
+    return {"analysis": output, "analysis_findings": findings, "evidence": evidence, "usage": usage, "skipped": skipped}
 
 
 def rules_label(results: list[dict]) -> str:
@@ -391,6 +459,20 @@ def route_after_draft(state: State):
 ITEM_QUESTION = "Do these passages show that this Direction Note item was done? Say what is addressed, and report anything missing, inconsistent or still open."
 
 
+def relevant_files(text: str, files: dict[str, dict], limit: int) -> list[str]:
+    """Ids of the files whose names best match an item's words (code, no model)."""
+    words = {w.rstrip("s") for w in __import__("re").findall(r"[a-z]{3,}", text.lower())} - {"the", "and", "for", "with", "any", "other", "this", "that", "year", "documents", "information"}
+    scored = []
+    for fid, f in files.items():
+        if f.get("document_class") == "archive":
+            continue
+        name = f"{f['name']} {f.get('document_class', '').replace('_', ' ')}".lower()
+        hits = sum(1 for w in words if w in name)
+        if hits:
+            scored.append((-hits, f.get("year_role") != "current", f["name"].lower(), fid))
+    return [fid for *_, fid in sorted(scored)[:limit]]
+
+
 def plan(state: State) -> dict:
     """One task per Direction Note item, plus one per rule exception that needs judgment.
     Each task has a reader type, one question and its retrieved chunks. All in code: the reader
@@ -423,18 +505,23 @@ def plan(state: State) -> dict:
             **w, "task_id": f"T{n}", "reader": reader, "chunk_ids": [c["id"] for c in chunks], "client_id": client_id, "job_id": job_id,
             "origin_run_id": run_id,
             "chunk_refs": [{"file": display_name(state["files"][c["file_id"]]), "location": c["location"]} for c in chunks],
+            # The files in the folder that best match the item: "was X provided?" is answered
+            # by what is in the folder, not only by what a passage says.
+            "listing_ids": relevant_files(w["search"], state["files"], s.listing_files),
         }
-        if not chunks:
+        if not chunks and not task["listing_ids"]:
             direct.append(task)  # nothing to read: no model call; the judge step reports it as unclear
             continue
-        task["cache_key"] = reader_cache_key(task, chunks, s)
-        # system prompt + chunks + the two tool definitions and the question (~500 tokens measured)
-        task["est_input"] = est_tokens(system_prompt(reader)) + sum(c["tokens"] for c in chunks) + 500
+        task["cache_key"] = reader_cache_key(task, chunks, s, [state["files"][f] for f in task["listing_ids"]])
+        # system prompt + chunks + file list + the two tool definitions and the question (~500 tokens measured)
+        task["est_input"] = est_tokens(system_prompt(reader)) + sum(c["tokens"] for c in chunks) + 30 * len(task["listing_ids"]) + 500
         task["cached"] = cache.get_value(DONE_NS, task["cache_key"]) is not None
         tasks.append(task)
 
-    # Budget (token rule 11), reserved here in code before anything is sent to a model.
+    # Budget (token rule 11), reserved here in code before anything is sent to a model. It is
+    # first grown to fit the work found, within the hard caps in config.
     fresh = [t for t in tasks if not t["cached"]]
+    budget.fit(len(fresh), sum(t["est_input"] for t in fresh), s)
     spare = budget.spare_calls(len(fresh))
     for i, t in enumerate(fresh):
         reason = budget.try_reader_call(t["est_input"])
@@ -480,7 +567,7 @@ def read(payload: dict) -> dict:
     task, files = payload["task"], payload["files"]
     s, store = get_settings(), get_store()
     chunks = store.get_chunks(task["client_id"], task["job_id"], task["chunk_ids"])  # scoped to this client and job
-    needed = {c["file_id"] for c in chunks}
+    needed = {c["file_id"] for c in chunks} | set(task.get("listing_ids", []))
     result = run_reader(task, chunks, {k: v for k, v in files.items() if k in needed}, store, task.get("allow_tools", False), s)
     # `cached` tasks reserved nothing in plan; if the cache entry turned out to be gone, count the real usage.
     reserved = 0 if task.get("cached") else task["est_input"]
@@ -557,6 +644,8 @@ def judge(state: State) -> dict:
     run_id = state["run_id"]
     emit("judged", "Weighing the findings", "running")
     inputs = _judge_inputs(state)
+    # Items a reader never got to (the run's limit): reported as "not checked", not as "no evidence".
+    not_checked = {k["direction_ref"] for k in state.get("skipped", []) if k["task_id"].startswith("T")}
     evidence = state.get("evidence", {})
     items = job["direction_items"]
     cache = StoreCache(store)
@@ -579,12 +668,15 @@ def judge(state: State) -> dict:
                 raw, u = J.call_judge(items, inputs, s)
                 budget_for(run_id).add(u)
                 usage.append({"node": "judge", "task_id": "judge", "model": model_id("judge", s), "calls": 1, "run_id": run_id, **u})
-                J.validate_result(raw, inputs, evidence, items)  # must validate before it is cached
+                J.validate_result(raw, inputs, evidence, items, not_checked)  # must validate before it is cached
                 cache.set_value("judge", key, raw)
             except (ValueError, ValidationError, KeyError) as exc:
+                if isinstance(exc, J.Unusable):  # paid for even though it cannot be used
+                    budget_for(run_id).add(exc.usage)
+                    usage.append({"node": "judge", "task_id": "judge", "model": model_id("judge", s), "calls": 1, "run_id": run_id, **exc.usage})
                 raw, source = _passthrough(inputs), "passthrough"
-                skipped.append({"task_id": "judge", "direction_ref": "none", "what": "Consolidating the findings", "reason": f"the judge's answer could not be used ({type(exc).__name__})"})
-    result, notes = J.validate_result(raw, inputs, evidence, items)
+                skipped.append({"task_id": "judge", "direction_ref": "none", "what": "Consolidating the findings", "reason": f"the judge's answer could not be used ({exc if isinstance(exc, J.Unusable) else type(exc).__name__})"})
+    result, notes = J.validate_result(raw, inputs, evidence, items, not_checked)
     notes.update(findings_in=len(inputs), findings_out=len(result["findings"]), judge_source=source)
     emit("judged", f"{len(inputs)} findings weighed, {len(result['findings'])} kept", findings_in=len(inputs), findings_out=len(result["findings"]))
     return {"judge_inputs": inputs, "result": result, "notes": notes, "usage": usage, "skipped": skipped}
@@ -641,11 +733,15 @@ def build_final(state: State) -> dict:
     result, notes = state["result"], state["notes"]
     evidence = state.get("evidence", {})
     order = {"high": 0, "medium": 1, "low": 2}
-    findings = sorted(result["findings"], key=lambda f: (f["status"] == "addressed", order[f["severity"]], f["id"]))
+    # Findings of the year-on-year analysis are added as they are: code made the checks, and the
+    # model's coverage statements were already checked against real ids and figures.
+    findings = sorted(result["findings"] + state.get("analysis_findings", []),
+                      key=lambda f: (f["status"] == "addressed", order[f["severity"]], f["id"]))
     used_evidence = {e for f in findings for e in f["evidence_ids"]}
     verdict = J.compute_verdict(findings, job["direction_items"])
 
     calls = [u for u in state.get("usage", []) if u["run_id"] == run_id]  # this run's own model calls
+    run_budget = budget_for(run_id)
     totals = empty_usage()
     cost = 0.0
     for u in calls:
@@ -673,7 +769,8 @@ def build_final(state: State) -> dict:
             "label": read_label,
             "documents": len(files), "changed": len(changed), "removed": state["sync"]["removed"], "images_read": images_now,
             "detail": [{"name": display_name(f), "kind": f["document_class"].replace("_", " "), "changed": fid in changed, "problem": f["error"],
-                        "note": "text read from the image by AI" if fid in ai_read else ""} for fid, f in sorted(files.items(), key=lambda kv: kv[1]["name"].lower())],
+                        "note": "text read from the image by AI" if fid in ai_read else "", "year": f.get("year_label", "")}
+                       for fid, f in sorted(files.items(), key=lambda kv: (kv[1].get("year") or 0, kv[1]["name"].lower()), reverse=False)],
         },
         "checked": {
             "label": rules_label(rules),
@@ -683,7 +780,8 @@ def build_final(state: State) -> dict:
                         "note": "" if r["passed"] else r["title"]} for r in rules],
         },
         "compared": {
-            "label": f"{len(job['direction_items'])} Direction Note items compared" + (f", {drafted_n} drafted by AI" if drafted_n else ""),
+            "label": f"{len(job['direction_items'])} Direction Note items compared" + (f", {drafted_n} drafted by AI" if drafted_n else "")
+                     + (f"; compared with {state['analysis']['last_year']} accounts" if (state.get("analysis") or {}).get("available") else ""),
             "items": len(job["direction_items"]), "drafted": drafted_n, "drafted_how": (state.get("drafted") or {}).get("how", ""),
             "history_jobs": (state.get("drafted") or {}).get("jobs_seen", 0), "reader_calls": reader_calls, "reused": len(reused), "skipped": len([k for k in skipped if k["task_id"].startswith("T")]),
             "detail": [{
@@ -710,11 +808,17 @@ def build_final(state: State) -> dict:
         "summary": result["summary"], "findings": findings,
         "evidence": [evidence[e] for e in sorted(used_evidence) if e in evidence],
         "trail": trail, "skipped": skipped,
+        "analysis": state.get("analysis") or A.unavailable("The year-on-year analysis did not run."),
+        "periods": {"this_year": (state.get("periods") or {}).get("current"), "last_year": (state.get("periods") or {}).get("prior"),
+                    "split": (state.get("periods") or {}).get("split", False)},
         "usage": {
             "calls": calls, "totals": totals, "model_calls": sum(u["calls"] for u in calls), "reader_calls": reader_calls,
             "cost_usd": round(cost, 6), "cache_share": round(totals["cache_read"] / all_input, 3) if all_input else 0.0,
             "reused_answers": len(reused),
-            "budget": {"reader_calls": s.budget_reader_calls, "image_calls": s.budget_image_calls, "uncached_input_tokens": s.budget_uncached_input_tokens, "output_tokens": s.budget_output_tokens},
+            # The budget this run actually had, after it grew to fit the work.
+            "budget": {"reader_calls": run_budget.reader_calls, "image_calls": run_budget.image_calls,
+                       "uncached_input_tokens": run_budget.uncached_input, "output_tokens": run_budget.output,
+                       "reserved_for_judge_and_analysis": run_budget.reserve},
         },
         "models": {role: model_id(role, s) for role in ("reader", "judge", "escalate")},
         "versions": {"prompt": s.prompt_version, "parser": s.parser_version, "skills": {name: sk.version for name, sk in all_skills().items()}},
@@ -754,7 +858,9 @@ def build_graph(checkpointer=None):
     g.add_edge("sync_drive", "index")
     g.add_edge("index", "run_rules")
     g.add_node("draft_directions", draft_directions)
-    g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "plan"])
+    g.add_node("analyse", analyse)
+    g.add_edge("run_rules", "analyse")
+    g.add_conditional_edges("analyse", route_after_rules, ["draft_directions", "plan"])
     g.add_conditional_edges("draft_directions", route_after_draft, ["plan", END])
     g.add_conditional_edges("plan", route_after_plan, ["read", "judge"])
     g.add_edge("read", "collect")

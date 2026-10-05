@@ -116,7 +116,7 @@ def test_falls_back_to_the_standard_list_when_the_model_cannot_be_used(env, monk
     # Budget reached before drafting: same fallback, and the run says what it skipped.
     env.pm.events.clear()
     env.pm.add_job("2", "client-acme", "acme", direction=[])
-    monkeypatch.setenv("PRECHECK_BUDGET_UNCACHED_INPUT_TOKENS", "100")
+    monkeypatch.setenv("PRECHECK_BUDGET_RESERVE_TOKENS", "100")  # drafting spends the reserve
     get_settings.cache_clear()
     result = env.run("2")
     assert drafted_events(env)[0]["how"] == "standard list"

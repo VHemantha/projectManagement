@@ -2,7 +2,7 @@
 name: gdrive-folder-reader
 description: How to look inside a job's Drive folder cheaply - list first, read a slice not a file - and how to decide what kind of document an unfamiliar file is. Use before asking for more of a file.
 metadata:
-  version: "1.1"
+  version: "1.2"
 ---
 
 # Reading a job's Drive folder
@@ -43,6 +43,20 @@ that text as a careful reading, not as the file itself: `[unreadable]` means the
 be made out, so do not fill it in. If a figure that matters rests only on an image, say so in
 your reason so the reviewer opens the image.
 
+## This year and last year
+
+A folder often holds last year's finished pack (final trial balance, signed financial
+statements) next to what the client has sent for this year. Each passage says which it is
+(`year: this year (FY2026)` or `year: last year's pack (FY2025)`). Answer about this year from
+this year's documents; use last year's only as the comparison, and say so when you do.
+
+## The file list
+
+Besides the passages you get a short list, "Files in the task folder that match this item".
+Citing a line of it shows that the file was provided; it does not show what the file says.
+Use it for questions like "were the bank statements provided?", and look to the passages for
+what a document contains.
+
 ## What kind of document is this?
 
 Go by the file name first, then the first lines.
@@ -63,6 +77,7 @@ Go by the file name first, then the first lines.
 | job_instructions | "instructions", "engagement", "planning"; what the job should cover |
 | workpaper | "workpaper", "working"; a test with a conclusion |
 | correspondence | any email, whatever its subject (tax authority emails are tax_correspondence) |
+| other_evidence | invoices, receipts, donations, loan or property statements, insurance and similar source documents |
 | other | anything else - say what it seems to be |
 
 A file can only be one class. If two fit, choose the one that describes what the file is for.
