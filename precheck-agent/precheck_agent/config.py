@@ -63,10 +63,12 @@ class Settings(BaseSettings):
 
     # --- retrieval / readers ------------------------------------------------------------------
     top_k: int = 6
+    listing_files: int = 12  # file names shown to a reader next to its passages
     reader_context_tokens: int = 3000
     reader_max_tokens: int = 400
     reader_max_steps: int = 3  # model calls inside one reader (answer, or one tool then answer)
-    judge_max_tokens: int = 2500
+    judge_max_tokens: int = 2500  # grows with the number of findings to weigh, up to the cap
+    judge_max_tokens_cap: int = 8000
     escalate_max_tokens: int = 700
     # Smallest prefix each model will cache. Below it a cache marker does nothing, so we do not
     # add one and we never pad a prompt to reach it.
@@ -74,10 +76,30 @@ class Settings(BaseSettings):
         default_factory=lambda: {"haiku": 4096, "sonnet": 2048, "opus": 2048}
     )
 
-    # --- budget per run (starting values; tune after measuring 20 real jobs) --------------------
+    # --- budget per run ------------------------------------------------------------------------
+    # The minimums below suit a small task. A run grows its budget with the work it finds (per
+    # Direction Note item and flagged rule) up to the hard caps, so a task with 17 items is
+    # read in full instead of stopping half way. Measured on a real 57-document task: a reader
+    # call is 4,800-5,800 input tokens.
     budget_reader_calls: int = 12
     budget_uncached_input_tokens: int = 40_000
     budget_output_tokens: int = 4_000
+    budget_input_per_task: int = 6_500
+    budget_output_per_task: int = 300
+    # A rental task has 23 standard checks besides its Direction Note.
+    budget_max_reader_calls: int = 60
+    budget_max_uncached_input_tokens: int = 400_000
+    budget_max_output_tokens: int = 30_000
+    # A pool of its own for the steps that pull everything together (the year-on-year analysis,
+    # a drafted Direction Note, the judge, second looks): readers can never starve them.
+    budget_reserve_tokens: int = 30_000
+    budget_reserve_output_tokens: int = 12_000
+    budget_wider_slices: int = 4  # reader calls that may ask for one wider slice (a second call)
+
+    # --- year-on-year analysis ----------------------------------------------------------------------
+    analysis_min_amount: float = 250.0  # last year's lines smaller than this are not listed
+    analysis_max_tokens: int = 6_000
+    analysis_max_findings: int = 6  # "nothing yet for …" findings; the full list is in the analysis
 
     # --- rules -------------------------------------------------------------------------------
     variance_pct: float = 25.0
@@ -95,7 +117,7 @@ class Settings(BaseSettings):
     )
 
     skills_dir: str = str(REPO_SKILLS_DIR)
-    prompt_version: str = "2026-10-02.2"
+    prompt_version: str = "2026-10-04.1"
 
 
 def family(model_id: str) -> str:

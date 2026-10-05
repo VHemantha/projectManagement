@@ -67,6 +67,59 @@ STANDARD = [
 ]
 
 
+_BULLET = re.compile(r"^\s*(?:[-•*–·▪>]|\d{1,2}[.)]|[a-zA-Z][.)])\s+")
+
+
+def normalize_items(items: list[dict]) -> list[dict]:
+    """A Direction Note pasted from a document arrives one line per item, which breaks it up:
+
+        - Property sale and purchase agreements, settlement documentation, subdivision records
+        and chattel information.                  <- the rest of the line above, not an item
+        Confirm or record as unknown:             <- a heading for the bullets under it
+        - Entity name and type; accounting firm.
+
+    Code puts it back together: a line that continues the one above is joined to it, a heading
+    ending in ":" is put in front of each bullet under it, and bullet marks are dropped. Each
+    item keeps the id of its first line, so earlier results still line up."""
+    out: list[dict] = []
+    heading = ""
+    for item in items:
+        raw = str(item.get("text", "")).strip()
+        if not raw:
+            continue
+        bulleted = bool(_BULLET.match(raw))
+        text = _BULLET.sub("", raw).strip()
+        if not text:
+            continue
+        previous = out[-1] if out else None
+        # Only a line starting in lower case continues the one above: people often type one
+        # item per line without a full stop, and those must stay separate.
+        continues = previous is not None and not bulleted and not text.endswith(":") and text[0].islower()
+        if continues and not previous.get("_heading"):
+            previous["text"] = f"{previous['text']} {text}"
+            previous["_raw_tail"] = text
+            continue
+        if text.endswith(":"):
+            heading = text.rstrip(":").strip()
+            out.append({**item, "text": text, "_heading": True, "_raw_tail": text, "_used": False})
+            continue
+        if not bulleted:
+            heading = ""
+        if heading and bulleted:
+            for h in reversed(out):
+                if h.get("_heading"):
+                    h["_used"] = True
+                    break
+            text = f"{heading}: {text}"
+        out.append({**item, "text": text, "_raw_tail": text})
+    cleaned = []
+    for item in out:
+        if item.get("_heading") and item.get("_used"):
+            continue  # its words now lead each bullet under it
+        cleaned.append({k: v for k, v in item.items() if not k.startswith("_")} | {"text": item["text"].rstrip(":").strip()})
+    return cleaned
+
+
 def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9 ]", "", text.lower()).strip()
 

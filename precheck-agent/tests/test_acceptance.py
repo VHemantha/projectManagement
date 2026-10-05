@@ -82,9 +82,9 @@ def test_6_usage_is_recorded_and_inside_the_budget(env, job):
     s = get_settings()
     u = result["usage"]
     assert u["calls"] and all({"model", "input", "output", "cache_write", "cache_read", "node"} <= set(c) for c in u["calls"])
-    assert u["reader_calls"] <= s.budget_reader_calls
-    assert u["totals"]["input"] <= s.budget_uncached_input_tokens
-    assert u["totals"]["output"] <= s.budget_output_tokens
+    assert u["reader_calls"] <= s.budget_max_reader_calls
+    assert u["totals"]["input"] <= s.budget_max_uncached_input_tokens
+    assert u["totals"]["output"] <= s.budget_max_output_tokens
     assert u["totals"]["input"] == sum(c["input"] for c in u["calls"])
     for call in env.reader.calls:  # each reader got at most 6 chunks
         docs = [b for b in call["messages"][-1].content if b.get("type") == "document"]
@@ -92,7 +92,9 @@ def test_6_usage_is_recorded_and_inside_the_budget(env, job):
 
 
 def test_6b_budget_breach_stops_and_reports_what_was_skipped(env, job, monkeypatch):
+    # The budget grows with the work, up to the hard caps; here the cap is one reader call.
     monkeypatch.setenv("PRECHECK_BUDGET_READER_CALLS", "1")
+    monkeypatch.setenv("PRECHECK_BUDGET_MAX_READER_CALLS", "1")
     get_settings.cache_clear()
     result = env.run(job)
     assert len(env.reader.calls) == 1

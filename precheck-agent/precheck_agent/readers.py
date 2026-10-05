@@ -65,9 +65,22 @@ def skill_versions(reader: str) -> dict[str, str]:
     return {skill_name: get_skill(skill_name).version, "finding-format": get_skill("finding-format").version}
 
 
-def documents_for(chunks: list[dict], files: dict[str, dict]) -> list[dict]:
+LISTING_TITLE = "Files in the task folder that match this item (names only)"
+
+
+def listing_blocks(listing: list[dict]) -> list[dict]:
+    """One citable block per file: its name, kind and year. Citing one shows the file was
+    provided, not what it says."""
+    return [{"text": f"{display_name(f)} — {f.get('document_class', 'other').replace('_', ' ')}, {f.get('year_label') or 'year not stated'}",
+             "loc": "file in the task folder", "section": "listing", "sheet": None, "row": None, "a1": None, "page": None,
+             "file_id": f["file_id"]} for f in listing]
+
+
+def documents_for(chunks: list[dict], files: dict[str, dict], listing: list[dict] | None = None) -> list[dict]:
     """One custom-content document per chunk; one content block per row or passage, so a
-    citation points at an exact row."""
+    citation points at an exact row. The context says which year the document belongs to,
+    since a folder often holds last year's finished pack next to this year's documents. Last
+    comes the list of matching file names, so "was X provided?" can be answered and cited."""
     docs = []
     for chunk in chunks:
         file = files[chunk["file_id"]]
@@ -75,19 +88,33 @@ def documents_for(chunks: list[dict], files: dict[str, dict]) -> list[dict]:
             "type": "document",
             "source": {"type": "content", "content": [{"type": "text", "text": b["text"]} for b in chunk["blocks"]]},
             "title": f"{display_name(file)} — {chunk['location']}",
-            "context": f"file_id: {chunk['file_id']}; kind: {chunk['document_class'].replace('_', ' ')}",
+            "context": f"file_id: {chunk['file_id']}; kind: {chunk['document_class'].replace('_', ' ')}; year: {file.get('year_label') or 'year not stated'}",
+            "citations": {"enabled": True},
+        })
+    if listing:
+        docs.append({
+            "type": "document",
+            "source": {"type": "content", "content": [{"type": "text", "text": b["text"]} for b in listing_blocks(listing)]},
+            "title": LISTING_TITLE,
+            "context": "A file listed here was provided; its name alone does not show what it contains.",
             "citations": {"enabled": True},
         })
     return docs
 
 
+def listing_for(task: dict, files: dict[str, dict]) -> list[dict]:
+    return [files[f] for f in task.get("listing_ids", []) if f in files]
+
+
 def task_message(task: dict, chunks: list[dict], files: dict[str, dict]) -> HumanMessage:
     item = f"Direction Note item {task['direction_ref']}: {task['direction_text']}\n\n" if task.get("direction_text") else ""
-    text = f"{item}Question: {task['question']}\n\nAnswer in the finding format."
-    return HumanMessage(content=[*documents_for(chunks, files), {"type": "text", "text": text}])
+    text = (f"{item}Question: {task['question']}\n\nAnswer in the finding format. "
+            "Answer only with finding lines, one per line: status|severity|title|why, citing the passage on each line. "
+            "No introduction, headings, lists or other text.")
+    return HumanMessage(content=[*documents_for(chunks, files, listing_for(task, files)), {"type": "text", "text": text}])
 
 
-def cache_key(task: dict, chunks: list[dict], settings: Settings | None = None) -> str:
+def cache_key(task: dict, chunks: list[dict], settings: Settings | None = None, listing: list[dict] | None = None) -> str:
     """Exact-match key for a reader result (token rule 6): model, prompt and skill versions,
     the question, and the content hashes of the chunks. If none of those changed, the answer
     cannot have changed, so a re-run after a fix re-reads only what changed.
@@ -99,6 +126,7 @@ def cache_key(task: dict, chunks: list[dict], settings: Settings | None = None) 
     return sha(
         task["client_id"], task["job_id"], model_id("reader", s), s.prompt_version, task["reader"], *sorted(f"{k}={v}" for k, v in versions.items()),
         task.get("direction_ref", ""), task.get("direction_text", ""), task["question"], *[f"{c['id']}:{c['content_hash']}" for c in chunks],
+        *[f"listed:{f['file_id']}:{f['version']}:{f.get('year_label', '')}" for f in listing or []],
     )
 
 
@@ -202,17 +230,28 @@ def _ground(line: str, chunks: list[dict]) -> list[tuple[dict, dict]]:
     return [(chunk, block) for _, chunk, block in hits[:2]]
 
 
-def parse_reader_answer(message: AIMessage, chunks: list[dict], files: dict[str, dict], slice_state: dict | None = None) -> tuple[list[dict], dict]:
+def parse_reader_answer(message: AIMessage, chunks: list[dict], files: dict[str, dict], slice_state: dict | None = None,
+                        listing: list[dict] | None = None) -> tuple[list[dict], dict]:
     """Final reader message -> (findings, evidence by id). Enforces the guardrail in code:
     an `addressed` or `exception` line with no cited passage becomes `unclear`."""
     findings, evidence = [], {}
     for text, cites in _lines_with_citations(message):
+        # Tolerate a bullet, a number or bold around an otherwise well-formed finding line.
+        text = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", text).replace("**", "")
         parts = [p.strip() for p in text.split("|", 3)]
         if len(parts) != 4 or parts[0].lower() not in STATUSES or parts[1].lower() not in SEVERITIES:
             continue
         status, severity, title, why = parts[0].lower(), parts[1].lower(), clip_words(parts[2], 12), clip_words(parts[3], 25)
         ids = []
         for c in cites:
+            if c.get("type") == "content_block_location" and listing and c.get("document_index") == len(chunks):
+                # A cited file name: the file itself is the evidence that it was provided.
+                for block in listing_blocks(listing)[c["start_block_index"]: max(c["end_block_index"], c["start_block_index"] + 1)]:
+                    ev = evidence_from(files[block["file_id"]], [block], display_name(files[block["file_id"]]))
+                    evidence[ev["id"]] = ev
+                    if ev["id"] not in ids:
+                        ids.append(ev["id"])
+                continue
             if c.get("type") != "content_block_location" or not (0 <= c.get("document_index", -1) < len(chunks)):
                 continue
             chunk = chunks[c["document_index"]]
@@ -271,7 +310,7 @@ def run_reader(task: dict, chunks: list[dict], files: dict[str, dict], store: St
         findings, evidence = [{"status": "unclear", "severity": "medium", "title": "The model declined this question",
                                "why": "The reader model would not answer. Can someone check this item by hand?", "evidence_ids": []}], {}
     else:
-        findings, evidence = parse_reader_answer(final, chunks, files, slice_state)
+        findings, evidence = parse_reader_answer(final, chunks, files, slice_state, listing_for(task, files))
     return {
         "findings": findings,
         "evidence": evidence,

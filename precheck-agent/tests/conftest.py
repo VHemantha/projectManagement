@@ -126,6 +126,7 @@ def env(tmp_path, monkeypatch):
     e.escalate = llm.set_fake("escalate", llm.demo_escalate)
     e.drafter = llm.set_fake("drafter", llm.demo_drafter)
     e.vision = llm.set_fake("vision", llm.demo_vision)
+    e.analyst = llm.set_fake("analyst", llm.demo_analyst)
 
     def run(job_id, mode="precheck"):
         return runner.execute(runner.new_run_id(), job_id, mode)

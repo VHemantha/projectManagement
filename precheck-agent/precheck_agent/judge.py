@@ -148,26 +148,46 @@ def _system_message(role: str, text: str, settings: Settings) -> SystemMessage:
     return SystemMessage(content=text)
 
 
-def _structured_call(role: str, system: str, body: str, schema: dict, settings: Settings):
+def _structured_call(role: str, system: str, body: str, schema: dict, settings: Settings, max_tokens: int | None = None):
     model = get_model(role, settings)
     messages = [_system_message(role, system, settings), HumanMessage(content=body)]
     # Structured outputs: the response is constrained to the schema. No citations on this call.
-    message = model.invoke(messages, output_config={"format": {"type": "json_schema", "schema": schema}})
+    extra = {"max_tokens": max_tokens} if max_tokens else {}
+    message = model.invoke(messages, output_config={"format": {"type": "json_schema", "schema": schema}}, **extra)
     return message, usage_from_message(message)
+
+
+class Unusable(ValueError):
+    """The model answered but the answer cannot be used. Carries the usage: it was still paid for."""
+
+    def __init__(self, message: str, usage: dict):
+        super().__init__(message)
+        self.usage = usage
+
+
+def judge_max_tokens(n_findings: int, settings: Settings) -> int:
+    """Room for every finding the judge may keep, within a cap. Measured on a real 57-document
+    task: about 130-150 output tokens per finding in this JSON shape, so 200 leaves headroom."""
+    return min(settings.judge_max_tokens_cap, max(settings.judge_max_tokens, 800 + 200 * n_findings))
 
 
 def call_judge(direction_items: list[dict], findings: list[dict], settings: Settings | None = None) -> tuple[dict, dict]:
     """One call. Returns (raw JSON from the model, usage). Raises ValueError if it is unusable."""
     s = settings or get_settings()
-    message, usage = _structured_call("judge", judge_system(), judge_input(direction_items, findings), RESULT_SCHEMA, s)
+    message, usage = _structured_call("judge", judge_system(), judge_input(direction_items, findings), RESULT_SCHEMA, s,
+                                      judge_max_tokens(len(findings), s))
     if stop_reason(message) == "refusal":
-        raise ValueError("The judge model declined to answer.")
+        raise Unusable("The judge model declined to answer.", usage)
     if stop_reason(message) == "max_tokens":
-        raise ValueError("The judge's answer was cut off before it finished.")
-    return json.loads(text_of(message)), usage
+        raise Unusable("The judge's answer was cut off before it finished.", usage)
+    try:
+        return json.loads(text_of(message)), usage
+    except json.JSONDecodeError as exc:
+        raise Unusable("The judge's answer was not valid JSON.", usage) from exc
 
 
-def validate_result(raw: dict, inputs: list[dict], evidence: dict[str, dict], direction_items: list[dict]) -> tuple[dict, dict]:
+def validate_result(raw: dict, inputs: list[dict], evidence: dict[str, dict], direction_items: list[dict],
+                    not_checked: set[str] | None = None) -> tuple[dict, dict]:
     """Check the judge's JSON against the contract and repair what code owns.
 
     Returns (result, notes). Raises pydantic.ValidationError when the JSON does not match the
@@ -212,6 +232,18 @@ def validate_result(raw: dict, inputs: list[dict], evidence: dict[str, dict], di
             notes["rules_restored"] += 1
     covered = {f["direction_ref"] for f in out}
     for item in direction_items:
+        if item["id"] in covered:
+            continue
+        if item["id"] in (not_checked or set()):
+            # Skipped for the run's limit: say so, rather than suggest nothing was found.
+            out.append({
+                "id": f"gap-{item['id']}", "direction_ref": item["id"], "area": "Direction Note", "status": "unclear", "severity": "medium",
+                "kind": "fact", "title": clip_words(f"Not checked in this run: {item['text']}", 12),
+                "why": "This run reached its limit before this item was read. Run the pre-check again to check it.",
+                "evidence_ids": [], "source": "rule", "confidence": "high",
+            })
+            notes["items_filled"] += 1
+            continue
         if item["id"] not in covered:
             out.append({
                 "id": f"gap-{item['id']}", "direction_ref": item["id"], "area": "Direction Note", "status": "unclear", "severity": "medium",
@@ -261,6 +293,10 @@ def compute_verdict(findings: list[dict], direction_items: list[dict]) -> dict:
         items.append({
             "id": item["id"], "text": item["text"], "addressed": addressed,
             "origin": item.get("origin", "person"), "reason": item.get("reason", ""), "basis": item.get("basis", ""),
+            # A checklist item's status in the firm's words: Complete, Partial, Missing, Clarification required.
+            "status": "complete" if addressed else ("missing" if any(f["status"] == "missing" for f in mine)
+                                                    else "partial" if any(f["status"] in ("exception", "addressed") for f in mine)
+                                                    else "clarification"),
         })
     counts = {sev: sum(1 for f in open_findings if f["severity"] == sev) for sev in SEVERITY}
     return {

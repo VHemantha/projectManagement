@@ -69,13 +69,54 @@ So ten images add roughly $0.03-0.05 to a first run and nothing to later runs. A
 image is the model's reading of it, not text copied from the file: the location says so, and
 the reviewer should open the image where a figure rests on it alone.
 
+**This year against last year.** A task folder often holds last year's finished pack next to
+what the client has sent for this year. Code decides each document's year (a folder named
+`2025`/`FY25`, a date range in the file name, "for the year ended …" inside it, a year in the
+name) and when both years are present:
+- the automatic checks run on this year's documents only (last year's finished workpapers are
+  the baseline, not something to check again);
+- `analyse` takes last year's lines from its final trial balance (or signed statements), this
+  year's figures from a current trial balance if there is one, and summarises each bank export
+  of this year (period, opening and closing balance, money in and out, totals by payer/payee);
+- two checks have a right answer and are done by code: this year's opening bank balance equals
+  last year's closing balance, and the bank data covers the whole year;
+- one judge-model call reads only those compact lists and says, line by line, whether this
+  year's material covers each line of last year's accounts (covered, partly, not received yet,
+  prepared at year end, not expected, unclear) with a short note and question. Code keeps only
+  references that exist and drops any sentence with a figure code did not produce.
+The task card shows it under "Compared with last year". The largest "not received yet" lines
+and failed checks also become findings. Measured on a real 57-document NZ task (2 Oct 2026):
+the analysis call was 4,282 tokens in and 2,589 out (about $0.035).
+
+**Budget.** A run grows its budget with the work it finds (about 6,500 input tokens per reader
+task, measured), up to hard caps (40 reader calls, 240,000 input and 20,000 output tokens). The
+analysis, drafting, the judge and second looks have a reserve of their own (30,000 input,
+12,000 output) that readers cannot use, so a large Direction Note no longer stops the run
+before its findings are weighed. A pasted Direction Note is put back together first (wrapped
+lines joined, headings put in front of their bullets). On the real 57-document task with a
+17-line Direction Note: all 15 items read, findings weighed, about $0.25 for the first run
+(including 7 images read) and nothing for an unchanged re-run.
+
+**Pre-check types.** Each task's setup has a pre-check type. "General" checks the Direction
+Note. "Residential rental" adds AFIT's rental checklist (skills/residential-rental-precheck:
+SKILL.md holds the firm's rules v1.1 of 4 Oct 2026, checks.json the 23 checks BS01-OE02; OE03 is
+covered by BS03/BS04). Each check is one reader task asked what to look for plus the ground
+rules; its status uses the firm's words (Complete, Partial, Missing, Clarification required),
+"missing" only when something shows the item exists, and the verdict reads Ready to start /
+Ready to start with gaps / Blocked. A rental pre-check does not ask for a trial balance. Open
+points become requests to the client, grouped by check, drafted by code and never sent. Last
+year's bank accounts, loans and properties are listed as registers in the year-on-year
+analysis. Measured with real Claude on a small rental folder: 23 checks read, about $0.17.
+A new type is a new checks.json and skill, plus one line in checklists.py and the PM's
+PRECHECK_TYPES.
+
 ## Run it
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 47 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 65 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run

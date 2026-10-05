@@ -24,12 +24,18 @@ def folder_id_from(value: str) -> str:
     return value if _BARE_ID.match(value) and "/" not in value else ""
 
 
+PRECHECK_TYPES = [("general", "General"), ("residential_rental", "Residential rental")]
+
+
 class JobFolder(models.Model):
-    """The Google Drive folder that holds a job's documents."""
+    """The Google Drive folder that holds a job's documents, and which kind of pre-check the
+    task needs. A type other than general adds that type's standard checklist (kept in the
+    agent's skills, e.g. AFIT's residential rental checks)."""
 
     issue = models.OneToOneField("issues.Issue", on_delete=models.CASCADE, related_name="drive_folder")
     folder_id = models.CharField(max_length=200)
     folder_url = models.CharField(max_length=500, blank=True)
+    precheck_type = models.CharField(max_length=30, choices=PRECHECK_TYPES, default="general")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -94,6 +100,12 @@ class AIPrecheck(models.Model):
     trail = models.JSONField(default=dict)  # the five "how the AI got here" steps, with real counts
     progress = models.JSONField(default=list)  # live events while running
     skipped = models.JSONField(default=list)  # what a partial run did not get to, and why
+    # This year's documents against last year's accounts: lines, checks, bank summaries and
+    # commentary. Every figure in it was produced by code in the agent.
+    analysis = models.JSONField(default=dict)
+    precheck_type = models.CharField(max_length=30, default="general")
+    readiness = models.CharField(max_length=40, blank=True)  # the verdict in the type's own words
+    requests = models.JSONField(default=list)  # drafted requests for missing information; never sent
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)

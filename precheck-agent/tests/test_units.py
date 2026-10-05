@@ -18,7 +18,7 @@ from .conftest import make_job_folder
 def test_skills_in_agent_skills_format(env):
     skills = all_skills()
     assert set(skills) == {"gdrive-folder-reader", "ledger-reading", "statements-reading", "tax-reading", "workpaper-reading",
-                           "finding-format", "direction-drafting"}
+                           "finding-format", "direction-drafting", "residential-rental-precheck"}
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
@@ -125,3 +125,18 @@ def test_api_needs_the_service_token_and_returns_a_run_id_at_once(env, job):
     snapshot = runner.graph().get_state({"configurable": {"thread_id": run_id}})
     assert snapshot.values["final"]["run_id"] == run_id
     assert client.get("/precheck/runs/nope", headers={"X-Precheck-Token": "test-token"}).status_code == 404
+
+
+def test_control_characters_never_reach_storage(env):
+    """A file whose text holds NUL bytes stopped a real run on Postgres (4 Oct 2026)."""
+    folder = make_job_folder(env.drive_root, "ctrl-chars")
+    (folder / "Export with nulls.txt").write_bytes(b"Bank export\x00 line one\nTotal\x00\x01 1,200.00\n")
+    env.pm.add_job("1", "client-nul", "ctrl-chars")
+    result = env.run("1")
+    assert result["status"] == "complete"
+    store = get_store()
+    files = store.get_manifest("client-nul", "1")
+    fid = next(f for f, row in files.items() if row["name"] == "Export with nulls.txt")
+    chunks = [c for c in store.search("client-nul", "1", __import__("numpy").ones(get_settings().embedding_dim, dtype="float32"), 50) if c["file_id"] == fid]
+    assert chunks and all("\x00" not in c["text"] and "\x01" not in c["text"] for c in chunks)
+    assert "Bank export line one" in chunks[0]["text"]

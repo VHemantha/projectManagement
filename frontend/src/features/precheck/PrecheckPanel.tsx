@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
+  ClipboardCheck,
   ExternalLink,
   FileSearch,
   FileText,
@@ -21,6 +22,7 @@ import {
 import { type FormEvent, useState } from 'react'
 
 import styles from './PrecheckPanel.module.css'
+import { YearOnYear } from './YearOnYear'
 import {
   BASIS_LABELS,
   costChip,
@@ -37,10 +39,12 @@ import {
 } from './precheckText'
 import { extractErrorMessage } from '@/api/errors'
 import {
+  type ChecklistStatus,
   type DirectionItem,
   type Finding,
   type JobPrecheck,
   type PrecheckSetup,
+  type PrecheckType,
   type Run,
   type Severity,
   type TrailStage,
@@ -51,7 +55,7 @@ import {
   useSavePrecheckSetup,
   useSetDisposition,
 } from '@/api/precheck'
-import { Button, Skeleton } from '@/design-system'
+import { Button, CopyButton, Skeleton } from '@/design-system'
 
 const STAGE_ICONS: Record<TrailStage, typeof FileSearch> = {
   read: FileSearch,
@@ -191,12 +195,13 @@ function SetupForm({
   const draft = useDraftDirections(jobKey)
   const aiItems = setup.direction_items.filter((i) => i.origin === 'ai')
   const [folder, setFolder] = useState(setup.drive_folder_url)
+  const [precheckType, setPrecheckType] = useState<PrecheckType>(setup.precheck_type ?? 'general')
   const [items, setItems] = useState(setup.direction_items.map((i) => i.text).join('\n'))
   const lines = items.split('\n').map((l) => l.trim()).filter(Boolean)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    save.mutate({ drive_folder_url: folder.trim(), direction_items: lines }, { onSuccess: () => onDone?.() })
+    save.mutate({ drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType }, { onSuccess: () => onDone?.() })
   }
 
   return (
@@ -219,6 +224,23 @@ function SetupForm({
           placeholder="https://drive.google.com/drive/folders/…"
         />
         <small>Share the folder (Viewer) with the pre-check service account. The pre-check only reads it.</small>
+      </label>
+      <label className={styles.field}>
+        <span>
+          <ClipboardCheck size={14} aria-hidden="true" /> Pre-check type
+        </span>
+        <select value={precheckType} onChange={(e) => setPrecheckType(e.target.value as PrecheckType)}>
+          {(setup.precheck_types ?? [{ value: 'general', label: 'General' }]).map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <small>
+          {precheckType === 'residential_rental'
+            ? "Adds AFIT's residential rental checklist (23 checks: bank, loans, properties, property managers, expenses, capital items). The Direction Note below is checked as well."
+            : 'Checks the Direction Note below.'}
+        </small>
       </label>
       <label className={styles.field}>
         <span>
@@ -395,7 +417,12 @@ function RunView({
 
       {run.status !== 'failed' && <Trail run={run} />}
 
+      {finished && <StandardChecklist run={run} />}
       {finished && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
+      {finished && <Requests run={run} />}
+
+      {finished && run.analysis?.available && <YearOnYear analysis={run.analysis} />}
+      {finished && run.analysis && !run.analysis.available && <p className={styles.muted}>{run.analysis.reason}</p>}
 
       {finished && (
         <>
@@ -446,17 +473,87 @@ function RunView({
   )
 }
 
+const CHECKLIST_STATUS: Record<ChecklistStatus, string> = {
+  complete: 'Complete',
+  partial: 'Partial',
+  missing: 'Missing',
+  clarification: 'Clarification required',
+}
+
+/** The type's standard checklist (e.g. AFIT's rental checks), each with its status in the
+ * firm's words; hover a check for what it looks for. */
+function StandardChecklist({ run }: { run: Run }) {
+  const checks = run.direction_items.filter((i) => i.origin === 'checklist')
+  if (!checks.length) return null
+  return (
+    <div>
+      <h3 className={styles.sectionTitle}>
+        {checks[0].basis || 'Standard'} checklist ({checks.filter((c) => c.addressed).length} of {checks.length} complete)
+      </h3>
+      <ul className={styles.checklist}>
+        {checks.map((i) => (
+          <li key={i.id} data-addressed={i.addressed}>
+            {i.addressed ? (
+              <Check size={14} className={styles.pass} aria-label="Complete" />
+            ) : (
+              <X size={14} className={styles.fail} aria-label="Not complete" />
+            )}
+            <span className={styles.ref}>{i.id}</span>
+            <span className={styles.detailMain} title={i.reason}>
+              {i.text}
+            </span>
+            {i.status && (
+              <span className={styles.tag} data-tone={i.status === 'complete' ? undefined : 'warning'}>
+                {CHECKLIST_STATUS[i.status]}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** Requests for what is missing, grouped by check and drafted for a person to send. */
+function Requests({ run }: { run: Run }) {
+  const groups = run.requests ?? []
+  if (!groups.length) return null
+  const text = groups.map((g) => `${g.group}\n${g.items.map((i) => `- ${i}`).join('\n')}`).join('\n\n')
+  return (
+    <details className={styles.addressed}>
+      <summary>
+        <ChevronDown size={14} aria-hidden="true" /> Requests to send (drafted, not sent) <span>{groups.length}</span>
+      </summary>
+      <div className={styles.requests}>
+        <CopyButton value={text} label="requests" />
+        {groups.map((g) => (
+          <div key={g.group}>
+            <strong>{g.group}</strong>
+            <ul>
+              {g.items.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
 /** The Direction Note as verified in this run: each item addressed or not, and which ones the
  * AI drafted (with its reason). */
 function DirectionChecklist({ run }: { run: Run }) {
   const drafted = run.direction_items.filter((i) => i.origin === 'ai').length
+  const items = run.direction_items.filter((i) => i.origin !== 'checklist')
+  if (!items.length) return null
   return (
     <div>
       <h3 className={styles.sectionTitle}>
-        Direction Note{drafted > 0 && ` (${drafted} of ${run.direction_items.length} drafted by AI)`}
+        Direction Note{drafted > 0 && ` (${drafted} of ${items.length} drafted by AI)`}
       </h3>
       <ul className={styles.checklist}>
-        {run.direction_items.map((i) => (
+        {items.map((i) => (
           <li key={i.id} data-addressed={i.addressed}>
             {i.addressed ? (
               <Check size={14} className={styles.pass} aria-label="Addressed" />
@@ -507,7 +604,7 @@ function VerdictHeader({ run, action }: { run: Run; action: React.ReactNode }) {
         </span>
       </div>
       <div className={styles.verdictText}>
-        <div className={styles.verdictWords}>{VERDICT_WORDS[verdict]}</div>
+        <div className={styles.verdictWords}>{run.readiness || VERDICT_WORDS[verdict]}</div>
         <p className={styles.summary}>{run.summary}</p>
         <div className={styles.counts} aria-label="Open findings by severity">
           {(['high', 'medium', 'low'] as Severity[]).map((s) => (
@@ -576,11 +673,12 @@ function TrailDetail({ stage, run }: { stage: TrailStage; run: Run }) {
   if (stage === 'read') {
     return (
       <ul className={styles.detailList}>
-        {(step.detail as unknown as { name: string; kind: string; changed: boolean; problem: string; note?: string }[]).map((d) => (
+        {(step.detail as unknown as { name: string; kind: string; changed: boolean; problem: string; note?: string; year?: string }[]).map((d) => (
           <li key={d.name}>
             <FileText size={13} aria-hidden="true" /> <span className={styles.detailMain}>{d.name}</span>
             <span className={styles.muted}>{d.kind}</span>
             {d.changed && <span className={styles.tag}>new or changed</span>}
+            {d.year && <span className={styles.tag}>{d.year}</span>}
             {d.note && <span className={styles.tag}>{d.note}</span>}
             {d.problem && <span className={styles.tag} data-tone="warning">{d.problem}</span>}
           </li>

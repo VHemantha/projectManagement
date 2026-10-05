@@ -48,7 +48,7 @@ def test_documents_inside_a_zip_are_read_like_loose_files(env):
     assert all(container_of(e["file_id"]) == "zipped:Documents.zip" for e in result["evidence"])
     assert {i["id"] for i in result["direction_items"]} == {"D1", "D2", "D3"}
     for call in env.reader.calls:
-        titles = [b["title"] for b in call["messages"][-1].content if b.get("type") == "document"]
+        titles = [b["title"] for b in call["messages"][-1].content if b.get("type") == "document" and not b["title"].startswith("Files in the task folder")]
         assert titles and all("(in Documents.zip)" in t for t in titles)
 
 

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { PrecheckPanel } from './PrecheckPanel'
 import { costChip, trailStep } from './precheckText'
 import type { Finding, JobPrecheck, PrecheckSetup, Run } from '@/api/precheck'
+import { TooltipProvider } from '@/design-system'
 
 const mocks = vi.hoisted(() => ({
   data: null as unknown,
@@ -26,6 +27,11 @@ vi.mock('@/api/precheck', () => ({
 const setup: PrecheckSetup = {
   drive_folder_url: 'https://drive.google.com/drive/folders/abc',
   drive_folder_id: 'abc',
+  precheck_type: 'general',
+  precheck_types: [
+    { value: 'general', label: 'General' },
+    { value: 'residential_rental', label: 'Residential rental' },
+  ],
   direction_items: [
     { id: 'D1', text: 'Agree the bank reconciliation' },
     { id: 'D2', text: 'Confirm accruals are complete' },
@@ -105,9 +111,15 @@ describe('PrecheckPanel states', () => {
     expect(screen.queryByRole('button', { name: 'Draft with AI' })).not.toBeInTheDocument() // needs the folder first
     await userEvent.type(screen.getByLabelText(/Google Drive folder link/), 'https://drive.google.com/drive/folders/xyz')
     await userEvent.type(screen.getByLabelText(/Direction Note items/), 'Agree bank{Enter}Check accruals')
+    await userEvent.selectOptions(screen.getByLabelText(/Pre-check type/), 'residential_rental')
+    expect(screen.getByText(/Adds AFIT's residential rental checklist/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(mocks.save).toHaveBeenCalledWith(
-      { drive_folder_url: 'https://drive.google.com/drive/folders/xyz', direction_items: ['Agree bank', 'Check accruals'] },
+      {
+        drive_folder_url: 'https://drive.google.com/drive/folders/xyz',
+        direction_items: ['Agree bank', 'Check accruals'],
+        precheck_type: 'residential_rental',
+      },
       expect.anything(),
     )
   })
@@ -244,6 +256,29 @@ describe('PrecheckPanel states', () => {
     expect(rows[0]).toHaveTextContent('A bank reconciliation is in the folder.')
     expect(within(rows[1]).getByLabelText('Not addressed')).toBeInTheDocument()
     expect(within(rows[1]).queryByText('AI-drafted')).not.toBeInTheDocument()
+  })
+
+  it("a rental pre-check shows its checklist, readiness in the firm's words and drafted requests", () => {
+    const r = run({ readiness: 'Ready to start with gaps', precheck_type: 'residential_rental' })
+    r.direction_items = [
+      { id: 'BS01', text: 'Bank accounts and transaction completeness', addressed: true, origin: 'checklist', reason: 'Every account used in the year.', basis: 'Residential rental', status: 'complete' },
+      { id: 'BS03', text: 'Loans and annual summary information', addressed: false, origin: 'checklist', reason: 'Per loan: interest, principal, closing balance.', basis: 'Residential rental', status: 'missing' },
+      { id: 'D1', text: 'Confirm the tenant change', addressed: false, origin: 'person', reason: '', basis: '' },
+    ]
+    r.requests = [{ group: 'BS03 Loans and annual summary information', items: ['Please send the annual loan summary for each loan.'] }]
+    mocks.data = panel(r)
+    render(
+      <TooltipProvider>
+        <PrecheckPanel jobKey="ACME-1" />
+      </TooltipProvider>,
+    )
+    expect(screen.getByText('Ready to start with gaps')).toBeInTheDocument()
+    const checklist = screen.getByRole('heading', { name: 'Residential rental checklist (1 of 2 complete)' }).parentElement!
+    expect(within(checklist).getByText('Missing')).toBeInTheDocument()
+    expect(within(checklist).getByText('Loans and annual summary information')).toHaveAttribute('title', 'Per loan: interest, principal, closing balance.')
+    expect(screen.getByRole('heading', { name: 'Direction Note' }).parentElement).toHaveTextContent('Confirm the tenant change')
+    expect(screen.getByText(/Requests to send \(drafted, not sent\)/)).toBeInTheDocument()
+    expect(screen.getByText('Please send the annual loan summary for each loan.')).toBeInTheDocument()
   })
 
   it('complete with nothing found', () => {
