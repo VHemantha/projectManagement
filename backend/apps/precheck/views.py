@@ -12,7 +12,7 @@ from apps.projects.keys import get_issue_or_404
 from trackflow.naming import clean_name
 
 from . import services
-from .models import AIFeedback, AIFinding, AIPrecheck, JobFolder, folder_id_from
+from .models import PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, folder_id_from
 
 MAX_DIRECTION_ITEMS = 40
 
@@ -78,6 +78,12 @@ class JobSetupView(APIView):
                     JobFolder.objects.update_or_create(
                         issue=issue, defaults={"folder_id": folder_id, "folder_url": raw[:500], "updated_by": request.user}
                     )
+        if "precheck_type" in request.data:
+            wanted = str(request.data.get("precheck_type") or "general")
+            if wanted not in {v for v, _ in PRECHECK_TYPES}:
+                errors["precheck_type"] = ["Choose one of the pre-check types offered."]
+            elif not JobFolder.objects.filter(issue=issue).update(precheck_type=wanted) and wanted != "general":
+                errors["precheck_type"] = ["Link the task's Drive folder first."]
         if "direction_items" in request.data:
             items = request.data.get("direction_items")
             if not isinstance(items, list) or len(items) > MAX_DIRECTION_ITEMS:

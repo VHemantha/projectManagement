@@ -97,13 +97,26 @@ lines joined, headings put in front of their bullets). On the real 57-document t
 17-line Direction Note: all 15 items read, findings weighed, about $0.25 for the first run
 (including 7 images read) and nothing for an unchanged re-run.
 
+**Pre-check types.** Each task's setup has a pre-check type. "General" checks the Direction
+Note. "Residential rental" adds AFIT's rental checklist (skills/residential-rental-precheck:
+SKILL.md holds the firm's rules v1.1 of 4 Oct 2026, checks.json the 23 checks BS01-OE02; OE03 is
+covered by BS03/BS04). Each check is one reader task asked what to look for plus the ground
+rules; its status uses the firm's words (Complete, Partial, Missing, Clarification required),
+"missing" only when something shows the item exists, and the verdict reads Ready to start /
+Ready to start with gaps / Blocked. A rental pre-check does not ask for a trial balance. Open
+points become requests to the client, grouped by check, drafted by code and never sent. Last
+year's bank accounts, loans and properties are listed as registers in the year-on-year
+analysis. Measured with real Claude on a small rental folder: 23 checks read, about $0.17.
+A new type is a new checks.json and skill, plus one line in checklists.py and the PM's
+PRECHECK_TYPES.
+
 ## Run it
 
 ```bash
 python -m venv .venv && .venv/Scripts/pip install -r requirements.txt   # Windows; bin/ on Linux
 cp .env.example .env            # set the API key, service token and Google key
 .venv/Scripts/python -m uvicorn precheck_agent.api:app --port 8100
-.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 58 tests, no key needed
+.venv/Scripts/pip install -r requirements-dev.txt && .venv/Scripts/python -m pytest tests   # 65 tests, no key needed
 ```
 
 In the PM application set `PRECHECK_AGENT_URL` and the same `PRECHECK_SERVICE_TOKEN`, and run

@@ -901,3 +901,20 @@
     border-top: 1px solid var(--tf-border);
   }
 }
+
+/* Drafted requests to the client: grouped by check, copied as plain text. */
+.requests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-2) 0 0 var(--tf-space-4);
+  font-size: var(--tf-font-size-base);
+  color: var(--tf-text-secondary);
+}
+.requests ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.requests > :first-child {
+  align-self: flex-start;
+}

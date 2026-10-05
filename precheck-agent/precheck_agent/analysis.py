@@ -601,9 +601,34 @@ def assemble(ctx: dict, periods: dict, answer: dict | None, index: dict, how: st
                  for e in ctx["exports"]],
         "new_this_year": [{"text": n["text"], "refs": [ref_view(r) for r in n["refs"]]} for n in (answer or {}).get("new_this_year", [])],
     }
+    # Expected registers, built from last year's accounts (rental rules: "build the expected
+    # lists of bank accounts, loans and properties from the prior-year accounts").
+    output["registers"] = registers(lines)
     # The analysis carries its own source links, so every line on the card opens its document.
     output["evidence"] = {k: {f: e[f] for f in ("file_name", "location", "quote", "drive_url")} for k, e in evidence.items()}
     return output, findings, evidence
+
+
+REGISTERS = [
+    ("bank_accounts", r"\bbank\b|current account|cheque|savings|call account|term deposit|on call",
+     r"charge|fee|interest|loan|confirmation"),
+    ("loans", r"\bloan\b|mortgage|borrowing|facility|lender", r"interest|fee|shareholder|current account|drawings|director"),
+    ("properties", r"property|land\b|buildings?\b|freehold|rental|dwelling|\bunit\b|\d+\s+\w+\s+(street|st|road|rd|avenue|ave|place|pl|drive|dr|lane|crescent|cres)\b",
+     r"depreciation|rates|insurance|manager|management|repairs|income|rent received|expense"),
+]
+
+
+def registers(lines: list[dict]) -> dict:
+    """Last year's bank accounts, loans and properties, each with this year's status from the
+    analysis — the lists a preparer expects to see evidence for again."""
+    out = {name: [] for name, _, _ in REGISTERS}
+    for ln in lines:
+        for name, include, exclude in REGISTERS:
+            if re.search(include, ln["label"], re.I) and not re.search(exclude, ln["label"], re.I):
+                out[name].append({"label": ln["label"], "last_year": ln["last_year"], "status": ln["status"],
+                                  "evidence_ids": ln["evidence_ids"], "refs": ln["refs"]})
+                break
+    return out
 
 
 def unavailable(reason: str) -> dict:

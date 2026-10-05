@@ -108,7 +108,9 @@ def listing_for(task: dict, files: dict[str, dict]) -> list[dict]:
 
 def task_message(task: dict, chunks: list[dict], files: dict[str, dict]) -> HumanMessage:
     item = f"Direction Note item {task['direction_ref']}: {task['direction_text']}\n\n" if task.get("direction_text") else ""
-    text = f"{item}Question: {task['question']}\n\nAnswer in the finding format."
+    text = (f"{item}Question: {task['question']}\n\nAnswer in the finding format. "
+            "Answer only with finding lines, one per line: status|severity|title|why, citing the passage on each line. "
+            "No introduction, headings, lists or other text.")
     return HumanMessage(content=[*documents_for(chunks, files, listing_for(task, files)), {"type": "text", "text": text}])
 
 
@@ -234,6 +236,8 @@ def parse_reader_answer(message: AIMessage, chunks: list[dict], files: dict[str,
     an `addressed` or `exception` line with no cited passage becomes `unclear`."""
     findings, evidence = [], {}
     for text, cites in _lines_with_citations(message):
+        # Tolerate a bullet, a number or bold around an otherwise well-formed finding line.
+        text = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", text).replace("**", "")
         parts = [p.strip() for p in text.split("|", 3)]
         if len(parts) != 4 or parts[0].lower() not in STATUSES or parts[1].lower() not in SEVERITIES:
             continue

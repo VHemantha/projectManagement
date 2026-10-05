@@ -86,9 +86,10 @@ class Settings(BaseSettings):
     budget_output_tokens: int = 4_000
     budget_input_per_task: int = 6_500
     budget_output_per_task: int = 300
-    budget_max_reader_calls: int = 40
-    budget_max_uncached_input_tokens: int = 240_000
-    budget_max_output_tokens: int = 20_000
+    # A rental task has 23 standard checks besides its Direction Note.
+    budget_max_reader_calls: int = 60
+    budget_max_uncached_input_tokens: int = 400_000
+    budget_max_output_tokens: int = 30_000
     # A pool of its own for the steps that pull everything together (the year-on-year analysis,
     # a drafted Direction Note, the judge, second looks): readers can never starve them.
     budget_reserve_tokens: int = 30_000

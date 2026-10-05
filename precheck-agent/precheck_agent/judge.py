@@ -293,6 +293,10 @@ def compute_verdict(findings: list[dict], direction_items: list[dict]) -> dict:
         items.append({
             "id": item["id"], "text": item["text"], "addressed": addressed,
             "origin": item.get("origin", "person"), "reason": item.get("reason", ""), "basis": item.get("basis", ""),
+            # A checklist item's status in the firm's words: Complete, Partial, Missing, Clarification required.
+            "status": "complete" if addressed else ("missing" if any(f["status"] == "missing" for f in mine)
+                                                    else "partial" if any(f["status"] in ("exception", "addressed") for f in mine)
+                                                    else "clarification"),
         })
     counts = {sev: sum(1 for f in open_findings if f["severity"] == sev) for sev in SEVERITY}
     return {

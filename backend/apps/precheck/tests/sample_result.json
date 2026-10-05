@@ -14,7 +14,8 @@
    "addressed": true,
    "origin": "person",
    "reason": "",
-   "basis": ""
+   "basis": "",
+   "status": "complete"
   },
   {
    "id": "D2",
@@ -22,7 +23,8 @@
    "addressed": true,
    "origin": "person",
    "reason": "",
-   "basis": ""
+   "basis": "",
+   "status": "complete"
   },
   {
    "id": "D3",
@@ -30,7 +32,8 @@
    "addressed": true,
    "origin": "person",
    "reason": "",
-   "basis": ""
+   "basis": "",
+   "status": "complete"
   }
  ],
  "counts": {
@@ -38,6 +41,17 @@
   "medium": 3,
   "low": 0
  },
+ "precheck_type": "general",
+ "readiness": "Ready with exceptions",
+ "requests": [
+  {
+   "group": "Year-on-year",
+   "items": [
+    "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
+    "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?"
+   ]
+  }
+ ],
  "summary": "5 points checked; 1 need attention before review.",
  "findings": [
   {
@@ -50,8 +64,8 @@
    "title": "Debtors schedule.xlsx does not agree to the trial balance",
    "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
    "evidence_ids": [
-    "E-eb60032d88",
-    "E-28b5eafade"
+    "E-a32af2f38a",
+    "E-b1353ee8c8"
    ],
    "source": "rule",
    "confidence": "high"
@@ -68,8 +82,8 @@
    "title": "Retained earnings moved 136% against last year",
    "why": "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
    "evidence_ids": [
-    "E-a55564a8ab",
-    "E-a55564a8ab"
+    "E-b530cec0f8",
+    "E-b530cec0f8"
    ]
   },
   {
@@ -84,13 +98,13 @@
    "title": "Trade debtors moved 98% against last year",
    "why": "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?",
    "evidence_ids": [
-    "E-28b5eafade",
-    "E-28b5eafade",
-    "E-1ec6793ffd"
+    "E-b1353ee8c8",
+    "E-b1353ee8c8",
+    "E-37bf448a1d"
    ]
   },
   {
-   "id": "A-2922d0fc-1",
+   "id": "A-1efb0ee5-1",
    "direction_ref": "D2",
    "area": "workpapers",
    "status": "addressed",
@@ -105,16 +119,17 @@
    "confidence": "medium"
   },
   {
-   "id": "A-6393b1ef-1",
-   "direction_ref": "D1",
-   "area": "ledger",
+   "id": "A-7b3a9aee-1",
+   "direction_ref": "none",
+   "area": "Trade debtors",
    "status": "addressed",
    "severity": "low",
    "kind": "fact",
-   "title": "Agree the bank reconciliation to the cash at bank balance in the\u2026",
-   "why": "The job folder shows this: row 1: Bank reconciliation at 31 March 2025",
+   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
+   "why": "The job folder shows this: Accruals workpaper FY25",
    "evidence_ids": [
-    "E-f04696ae0d"
+    "E-779d61edf3",
+    "E-b1353ee8c8"
    ],
    "source": "ai",
    "confidence": "medium"
@@ -135,17 +150,16 @@
    "confidence": "medium"
   },
   {
-   "id": "A-ac6df234-1",
-   "direction_ref": "none",
-   "area": "Trade debtors",
+   "id": "A-e6a9517b-1",
+   "direction_ref": "D1",
+   "area": "ledger",
    "status": "addressed",
    "severity": "low",
    "kind": "fact",
-   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
-   "why": "The job folder shows this: Accruals workpaper FY25",
+   "title": "Agree the bank reconciliation to the cash at bank balance in the\u2026",
+   "why": "The job folder shows this: row 1: Bank reconciliation at 31 March 2025",
    "evidence_ids": [
-    "E-779d61edf3",
-    "E-28b5eafade"
+    "E-f04696ae0d"
    ],
    "source": "ai",
    "confidence": "medium"
@@ -153,19 +167,11 @@
  ],
  "evidence": [
   {
-   "id": "E-1ec6793ffd",
+   "id": "E-37bf448a1d",
    "file_id": "acme-fy25:Trial Balance FY25.xlsx",
    "file_name": "Trial Balance FY25.xlsx",
    "location": "sheet 'TB', row 5",
    "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
-   "id": "E-28b5eafade",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 3",
-   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
   },
   {
@@ -185,20 +191,28 @@
    "drive_url": "local://acme-fy25/Tax computation.txt"
   },
   {
-   "id": "E-a55564a8ab",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 9",
-   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
-   "id": "E-eb60032d88",
+   "id": "E-a32af2f38a",
    "file_id": "acme-fy25:Debtors schedule.xlsx",
    "file_name": "Debtors schedule.xlsx",
    "location": "sheet 'Debtors', row 4",
    "quote": "row 4: Total |  | 112400",
    "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
+  },
+  {
+   "id": "E-b1353ee8c8",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 3",
+   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
+   "id": "E-b530cec0f8",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 9",
+   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
   },
   {
    "id": "E-f04696ae0d",
@@ -426,7 +440,7 @@
      {
       "id": "C1",
       "label": "Cash at bank: 48,210.00 this year",
-      "evidence_id": "E-1bf7b9711e"
+      "evidence_id": "E-14f7f34e78"
      },
      {
       "id": "D1",
@@ -435,8 +449,8 @@
      }
     ],
     "evidence_ids": [
-     "E-1bf7b9711e",
-     "E-1bf7b9711e",
+     "E-14f7f34e78",
+     "E-14f7f34e78",
      "E-fdf70a4d49"
     ]
    },
@@ -456,18 +470,18 @@
      {
       "id": "C2",
       "label": "Trade debtors: 118,900.00 this year",
-      "evidence_id": "E-28b5eafade"
+      "evidence_id": "E-b1353ee8c8"
      },
      {
       "id": "C4",
       "label": "Trade creditors: 39,310.00 this year",
-      "evidence_id": "E-1ec6793ffd"
+      "evidence_id": "E-37bf448a1d"
      }
     ],
     "evidence_ids": [
-     "E-28b5eafade",
-     "E-28b5eafade",
-     "E-1ec6793ffd"
+     "E-b1353ee8c8",
+     "E-b1353ee8c8",
+     "E-37bf448a1d"
     ]
    },
    {
@@ -486,12 +500,12 @@
      {
       "id": "C3",
       "label": "Prepayments: 4,200.00 this year",
-      "evidence_id": "E-bf8f665ebb"
+      "evidence_id": "E-40bf90aa37"
      }
     ],
     "evidence_ids": [
-     "E-bf8f665ebb",
-     "E-bf8f665ebb"
+     "E-40bf90aa37",
+     "E-40bf90aa37"
     ]
    },
    {
@@ -510,18 +524,18 @@
      {
       "id": "C2",
       "label": "Trade debtors: 118,900.00 this year",
-      "evidence_id": "E-28b5eafade"
+      "evidence_id": "E-b1353ee8c8"
      },
      {
       "id": "C4",
       "label": "Trade creditors: 39,310.00 this year",
-      "evidence_id": "E-1ec6793ffd"
+      "evidence_id": "E-37bf448a1d"
      }
     ],
     "evidence_ids": [
-     "E-1ec6793ffd",
-     "E-28b5eafade",
-     "E-1ec6793ffd"
+     "E-37bf448a1d",
+     "E-b1353ee8c8",
+     "E-37bf448a1d"
     ]
    },
    {
@@ -540,7 +554,7 @@
      {
       "id": "C5",
       "label": "Accruals: 12,000.00 this year",
-      "evidence_id": "E-4336a5dee1"
+      "evidence_id": "E-322a62cfc7"
      },
      {
       "id": "D5",
@@ -549,8 +563,8 @@
      }
     ],
     "evidence_ids": [
-     "E-4336a5dee1",
-     "E-4336a5dee1",
+     "E-322a62cfc7",
+     "E-322a62cfc7",
      "E-a3542ef7bb"
     ]
    },
@@ -570,12 +584,12 @@
      {
       "id": "C6",
       "label": "Directors loan: 20,000.00 this year",
-      "evidence_id": "E-678faa276d"
+      "evidence_id": "E-8a309c6847"
      }
     ],
     "evidence_ids": [
-     "E-678faa276d",
-     "E-678faa276d"
+     "E-8a309c6847",
+     "E-8a309c6847"
     ]
    },
    {
@@ -594,20 +608,48 @@
      {
       "id": "C8",
       "label": "Retained earnings: 99,900.00 this year",
-      "evidence_id": "E-a55564a8ab"
+      "evidence_id": "E-b530cec0f8"
      }
     ],
     "evidence_ids": [
-     "E-a55564a8ab",
-     "E-a55564a8ab"
+     "E-b530cec0f8",
+     "E-b530cec0f8"
     ]
    }
   ],
   "checks": [],
   "bank": [],
   "new_this_year": [],
+  "registers": {
+   "bank_accounts": [
+    {
+     "label": "Cash at bank",
+     "last_year": 51000.0,
+     "status": "covered",
+     "evidence_ids": [
+      "E-14f7f34e78",
+      "E-14f7f34e78",
+      "E-fdf70a4d49"
+     ],
+     "refs": [
+      {
+       "id": "C1",
+       "label": "Cash at bank: 48,210.00 this year",
+       "evidence_id": "E-14f7f34e78"
+      },
+      {
+       "id": "D1",
+       "label": "Bank reconciliation.csv",
+       "evidence_id": "E-fdf70a4d49"
+      }
+     ]
+    }
+   ],
+   "loans": [],
+   "properties": []
+  },
   "evidence": {
-   "E-1bf7b9711e": {
+   "E-14f7f34e78": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 2",
     "quote": "row 2: 1000 | Cash at bank | 48210 |  | 51000",
@@ -619,25 +661,25 @@
     "quote": "Bank reconciliation.csv",
     "drive_url": "local://acme-fy25/Bank reconciliation.csv"
    },
-   "E-28b5eafade": {
+   "E-b1353ee8c8": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 3",
     "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
     "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
    },
-   "E-1ec6793ffd": {
+   "E-37bf448a1d": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 5",
     "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
     "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
    },
-   "E-bf8f665ebb": {
+   "E-40bf90aa37": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 4",
     "quote": "row 4: 1200 | Prepayments | 4200 |  | 4000",
     "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
    },
-   "E-4336a5dee1": {
+   "E-322a62cfc7": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 6",
     "quote": "row 6: 2100 | Accruals |  | 12000 | -11500",
@@ -649,13 +691,13 @@
     "quote": "Workpaper - accruals.txt",
     "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
    },
-   "E-678faa276d": {
+   "E-8a309c6847": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 7",
     "quote": "row 7: 2200 | Directors loan |  | 20000 | -20000",
     "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
    },
-   "E-a55564a8ab": {
+   "E-b530cec0f8": {
     "file_name": "Trial Balance FY25.xlsx",
     "location": "sheet 'TB', row 9",
     "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
@@ -675,7 +717,7 @@
     "task_id": "analysis",
     "model": "fake-analyst",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
     "input": 784,
     "output": 405,
     "cache_write": 0,
@@ -686,8 +728,8 @@
     "task_id": "T1",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
-    "input": 2341,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2452,
     "output": 62,
     "cache_write": 0,
     "cache_read": 0
@@ -697,8 +739,8 @@
     "task_id": "T2",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
-    "input": 2116,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2227,
     "output": 49,
     "cache_write": 0,
     "cache_read": 0
@@ -708,8 +750,8 @@
     "task_id": "T3",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
-    "input": 2120,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2232,
     "output": 58,
     "cache_write": 0,
     "cache_read": 0
@@ -719,8 +761,8 @@
     "task_id": "T4",
     "model": "fake-reader",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
-    "input": 2085,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2196,
     "output": 54,
     "cache_write": 0,
     "cache_read": 0
@@ -730,7 +772,7 @@
     "task_id": "judge",
     "model": "fake-judge",
     "calls": 1,
-    "run_id": "71af63c98a4e4206974bbe5bf7d3c582",
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
     "input": 2206,
     "output": 747,
     "cache_write": 0,
@@ -738,7 +780,7 @@
    }
   ],
   "totals": {
-   "input": 11652,
+   "input": 12097,
    "output": 1375,
    "cache_write": 0,
    "cache_read": 0
@@ -767,8 +809,9 @@
   "skills": {
    "direction-drafting": "1.0+41b0dac8",
    "finding-format": "1.0+de8f39c5",
-   "gdrive-folder-reader": "1.1+5af2551b",
+   "gdrive-folder-reader": "1.2+13f6f6b4",
    "ledger-reading": "1.0+49c1a31a",
+   "residential-rental-precheck": "1.1+b8ec6906",
    "statements-reading": "1.0+ff9bf76b",
    "tax-reading": "1.0+b76e1b37",
    "workpaper-reading": "1.0+fcaaffaa"
@@ -776,5 +819,5 @@
  },
  "knowledge_ids": [],
  "demo": true,
- "duration_s": 0.3
+ "duration_s": 0.4
 }

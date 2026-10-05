@@ -51,9 +51,9 @@ export interface ProgressEvent {
 export interface DirectionItem {
   id: string
   text: string
-  origin?: 'person' | 'ai'
+  origin?: 'person' | 'ai' | 'checklist'
   reason?: string
-  basis?: 'history' | 'current' | 'standard' | ''
+  basis?: 'history' | 'current' | 'standard' | '' | (string & {})
 }
 
 export interface RunSummary {
@@ -110,8 +110,16 @@ export interface YearOnYear {
   evidence?: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
 }
 
+/** A checklist item's status in the firm's words. */
+export type ChecklistStatus = 'complete' | 'partial' | 'missing' | 'clarification'
+
 export interface Run extends RunSummary {
-  direction_items: (DirectionItem & { addressed: boolean })[]
+  direction_items: (DirectionItem & { addressed: boolean; status?: ChecklistStatus })[]
+  precheck_type?: PrecheckType
+  /** The verdict in the type's own words, e.g. "Ready to start with gaps". */
+  readiness?: string
+  /** Requests for missing information, drafted by code and never sent, grouped by check. */
+  requests?: { group: string; items: string[] }[]
   trail: Partial<Record<TrailStage, TrailStep>>
   progress: ProgressEvent[]
   skipped: { task_id: string; direction_ref: string; what: string; reason: string }[]
@@ -131,9 +139,14 @@ export interface Run extends RunSummary {
   analysis?: YearOnYear | { available: false; reason: string }
 }
 
+export type PrecheckType = 'general' | 'residential_rental'
+
 export interface PrecheckSetup {
   drive_folder_url: string
   drive_folder_id: string
+  /** Which kind of pre-check: a type other than general adds the firm's standard checklist. */
+  precheck_type: PrecheckType
+  precheck_types: { value: PrecheckType; label: string }[]
   direction_items: DirectionItem[]
   missing: ('drive_folder' | 'direction_note')[]
   /** True once the Drive folder is linked. With no Direction Note the AI drafts one first. */
@@ -189,7 +202,7 @@ export function useDraftDirections(jobKey: string) {
 export function useSavePrecheckSetup(jobKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { drive_folder_url?: string; direction_items?: string[] }) =>
+    mutationFn: async (payload: { drive_folder_url?: string; direction_items?: string[]; precheck_type?: PrecheckType }) =>
       (await apiClient.put<PrecheckSetup>(`/precheck/jobs/${jobKey}/setup/`, payload)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })

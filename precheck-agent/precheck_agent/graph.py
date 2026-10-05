@@ -24,6 +24,7 @@ from langgraph.types import CachePolicy, Send
 from pydantic import ValidationError
 
 from . import analysis as A
+from . import checklists as C
 from . import directions as D
 from . import judge as J
 from . import vision
@@ -109,7 +110,11 @@ def load_job(state: State) -> dict:
     job = get_pm().get_job(state["job_id"])
     if not job.get("drive_folder_id"):
         raise PrecheckStop("This task has no Google Drive folder linked. Add the folder on the task card, then run the pre-check.")
-    job = {**job, "direction_items": D.normalize_items(job.get("direction_items") or [])}
+    # The task's pre-check type adds its standard checklist (e.g. AFIT's rental checks) ahead of
+    # the Direction Note; both are verified the same way.
+    precheck_type = job.get("precheck_type") if job.get("precheck_type") in C.TYPES else "general"
+    job = {**job, "precheck_type": precheck_type,
+           "direction_items": C.items(precheck_type) + D.normalize_items(job.get("direction_items") or [])}
     if not job.get("client_id"):
         raise PrecheckStop("This task's project is not in a sub-workspace, so the pre-check cannot keep its documents separate. Put the project in a sub-workspace first.")
     return {"job": job, "started_at": state.get("started_at") or time.time(), "round": 0}
@@ -317,7 +322,12 @@ def run_rules(state: State) -> dict:
         files[fid] = {**row, "year": info["year"], "year_role": info["role"], "year_label": year_label(info["role"], info["year"])}
     checked_docs = [d for d in docs if periods["by_file"][d["file"]["file_id"]]["role"] in ("current", "unknown")] if periods["split"] else docs
     results, findings, evidence = [], [], {}
+    required = (C.load(state["job"].get("precheck_type", "general")) or {}).get("required_classes")
     for r in apply_rules(checked_docs, s):
+        # A type's checklist says which documents it requires; a rental pre-check runs before
+        # the accounts exist, so it does not ask for a trial balance.
+        if required is not None and r["rule_id"].startswith("required:") and r["rule_id"].split(":", 1)[1] not in required:
+            continue
         if periods["split"] and r["rule_id"].startswith("required:") and r["passed"] is False:
             # Last year's is in the folder; this year's simply has not arrived yet.
             r.update(severity="medium", title=f"No {r['area']} for FY{periods['current']} yet",
@@ -398,6 +408,8 @@ def rules_label(results: list[dict]) -> str:
 # --- draft_directions (model, only when needed) ---------------------------------------------------
 
 def needs_draft(state: State) -> bool:
+    """Draft a Direction Note when asked to, or when the task has nothing to check against — a
+    task with a standard checklist already has its to-do list."""
     return state.get("mode") == "draft" or not state["job"].get("direction_items")
 
 
@@ -487,7 +499,9 @@ def plan(state: State) -> dict:
     cache = StoreCache(store)
     budget = budget_for(run_id)
     wanted = [
-        {"direction_ref": i["id"], "direction_text": i["text"], "question": ITEM_QUESTION, "search": i["text"], "rule_id": ""}
+        {"direction_ref": i["id"], "direction_text": i["text"], "rule_id": "",
+         **({"question": C.question(i, job["precheck_type"]), "search": i["search"]} if i.get("origin") == "checklist"
+            else {"question": ITEM_QUESTION, "search": i["text"]})}
         for i in job["direction_items"]
     ] + [
         {"direction_ref": "none", "direction_text": "", "question": f["question"], "search": f["question"] + " " + f["area"], "rule_id": f["id"]}
@@ -809,6 +823,9 @@ def build_final(state: State) -> dict:
     status = "partial" if skipped else "complete"
     return {
         "run_id": run_id, "job_id": state["job_id"], "status": status, **verdict,
+        "precheck_type": job.get("precheck_type", "general"),
+        "readiness": C.readiness(job.get("precheck_type", "general"))[verdict["verdict"]],
+        "requests": requests_from(findings, job["direction_items"]),
         "summary": result["summary"], "findings": findings,
         "evidence": [evidence[e] for e in sorted(used_evidence) if e in evidence],
         "trail": trail, "skipped": skipped,
@@ -830,6 +847,28 @@ def build_final(state: State) -> dict:
         "demo": s.llm_mode == "fake",
         "duration_s": round(time.time() - state["started_at"], 1),
     }
+
+
+INTERNAL_NOTE = __import__("re").compile(r"source passage|answer (was|could not be) (not )?(in the expected format|unusable|used)|"
+                                         r"reached its limit|run the pre-check again|by hand|declined|reader", __import__("re").I)
+
+
+def requests_from(findings: list[dict], items: list[dict]) -> list[dict]:
+    """Requests for missing information, drafted by code and never sent: every open "missing" or
+    "unclear" point, grouped by the check or item it belongs to and de-duplicated."""
+    labels = {i["id"]: f"{i['id']} {i['text']}" for i in items}
+    groups: dict[str, list[str]] = {}
+    for f in findings:
+        if f["status"] not in ("missing", "unclear"):
+            continue
+        key = labels.get(f["direction_ref"]) or f.get("area") or "Other"
+        text = f["why"].strip()
+        if INTERNAL_NOTE.search(text):
+            continue  # about the pre-check itself, not something to ask the client
+        if text and text not in groups.setdefault(key, []):
+            groups[key].append(text)
+    order = {labels[i["id"]]: n for n, i in enumerate(items)}
+    return [{"group": k, "items": v} for k, v in sorted(groups.items(), key=lambda kv: (order.get(kv[0], 10**6), kv[0]))]
 
 
 def publish(state: State) -> dict:

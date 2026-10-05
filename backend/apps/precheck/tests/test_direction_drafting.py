@@ -198,3 +198,26 @@ def test_the_year_on_year_analysis_is_kept_with_the_run(client_, user):
                             format="json", **TOKEN).status_code == 200
     latest = client_.get(f"/api/precheck/jobs/{issue.key}/").data["latest"]
     assert latest["analysis"]["this_year"] == "FY2026" and latest["analysis"]["lines"][0]["label"] == "Insurance"
+
+
+def test_a_task_can_be_set_as_a_residential_rental_pre_check(client_, user):
+    issue = Issue.objects.create(project=make_job(user, "Acme", "AcmeRent").project, issue_type=IssueType.objects.get(name="Task", project=None),
+                                 summary="Rental FY26", status=Project.objects.get(key="AcmeRent").workflow.statuses.first(), reporter=user)
+    resp = client_.put(f"/api/precheck/jobs/{issue.key}/setup/", {"precheck_type": "residential_rental"}, format="json")
+    assert resp.status_code == 400 and "Drive folder first" in str(resp.data)
+    resp = client_.put(f"/api/precheck/jobs/{issue.key}/setup/",
+                       {"drive_folder_url": "https://drive.google.com/drive/folders/1UT2p7sK3Ib5_6YzUjMwhNzIPwNRQJEFS", "precheck_type": "residential_rental"}, format="json")
+    assert resp.status_code == 200 and resp.data["precheck_type"] == "residential_rental"
+    assert {t["value"] for t in resp.data["precheck_types"]} == {"general", "residential_rental"}
+    assert client_.put(f"/api/precheck/jobs/{issue.key}/setup/", {"precheck_type": "commercial"}, format="json").status_code == 400
+    payload = APIClient().get(f"/api/precheck/internal/jobs/{issue.id}/", **TOKEN).json()
+    assert payload["precheck_type"] == "residential_rental"
+
+    run_id = client_.post("/api/precheck/runs/", {"job": issue.key}, format="json").data["run_id"]
+    result = copy.deepcopy(SAMPLE)
+    result.update(run_id=run_id, precheck_type="residential_rental", readiness="Ready to start with gaps",
+                  requests=[{"group": "BS03 Loans and annual summary information", "items": ["Send the loan annual summary for each loan."]}])
+    assert APIClient().post("/api/precheck/internal/events/", {"run_id": run_id, "type": "ai_precheck.completed", "result": result},
+                            format="json", **TOKEN).status_code == 200
+    latest = client_.get(f"/api/precheck/jobs/{issue.key}/").data["latest"]
+    assert latest["readiness"] == "Ready to start with gaps" and latest["requests"][0]["group"].startswith("BS03")

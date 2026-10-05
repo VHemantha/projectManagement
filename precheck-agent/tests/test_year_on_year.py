@@ -134,6 +134,11 @@ def test_this_year_is_checked_against_last_years_accounts(env):
     assert lines["Accountancy Fees"]["status"] == "not_yet"
     assert "Bank Charges" not in lines  # below the amount worth listing
 
+    # Registers expected again this year, from last year's accounts.
+    regs = a["registers"]
+    assert [r["label"] for r in regs["bank_accounts"]] == ["ANZ Business Current Account"]
+    assert regs["loans"] == [] and regs["properties"] == []
+
     # Bank export of this year, summarised by code.
     (bank,) = a["bank"]
     assert bank["account"] == ACCOUNT and bank["from"] == "03 Apr 2025" and bank["to"] == "27 Feb 2026" and bank["opening"] == 18479.45

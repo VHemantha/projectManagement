@@ -18,7 +18,7 @@ from .conftest import make_job_folder
 def test_skills_in_agent_skills_format(env):
     skills = all_skills()
     assert set(skills) == {"gdrive-folder-reader", "ledger-reading", "statements-reading", "tax-reading", "workpaper-reading",
-                           "finding-format", "direction-drafting"}
+                           "finding-format", "direction-drafting", "residential-rental-precheck"}
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
