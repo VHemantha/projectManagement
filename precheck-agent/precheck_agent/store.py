@@ -322,7 +322,7 @@ class StoreCache(BaseCache):
     async def aclear(self, namespaces=None):
         self.clear(namespaces)
 
-    # Plain get/set for nodes that cache by hand (judge, escalate).
+    # Plain get/set for steps that cache by hand (the pre-check, drafting).
     def get_value(self, ns: str, key: str):
         return self.get([((ns,), key)]).get(((ns,), key))
 

@@ -1,0 +1,823 @@
+{
+ "run_id": "SAMPLE",
+ "job_id": "SAMPLE",
+ "status": "complete",
+ "verdict": "ready_with_exceptions",
+ "coverage": {
+  "addressed": 3,
+  "total": 3
+ },
+ "direction_items": [
+  {
+   "id": "D1",
+   "text": "Agree the bank reconciliation to the cash at bank balance in the ledger",
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": "",
+   "status": "complete"
+  },
+  {
+   "id": "D2",
+   "text": "Confirm the accruals workpaper is complete and signed off",
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": "",
+   "status": "complete"
+  },
+  {
+   "id": "D3",
+   "text": "Check the corporation tax computation starts from the profit per accounts",
+   "addressed": true,
+   "origin": "person",
+   "reason": "",
+   "basis": "",
+   "status": "complete"
+  }
+ ],
+ "counts": {
+  "high": 0,
+  "medium": 3,
+  "low": 0
+ },
+ "precheck_type": "general",
+ "readiness": "Ready with exceptions",
+ "requests": [
+  {
+   "group": "Year-on-year",
+   "items": [
+    "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
+    "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?"
+   ]
+  }
+ ],
+ "summary": "5 points checked; 1 need attention before review.",
+ "findings": [
+  {
+   "id": "R-c9732f64",
+   "direction_ref": "none",
+   "area": "Trade debtors",
+   "status": "exception",
+   "severity": "medium",
+   "kind": "rule",
+   "title": "Debtors schedule.xlsx does not agree to the trial balance",
+   "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
+   "evidence_ids": [
+    "E-a32af2f38a",
+    "E-b1353ee8c8"
+   ],
+   "source": "rule",
+   "confidence": "high"
+  },
+  {
+   "id": "Y-45c6a37e",
+   "direction_ref": "none",
+   "area": "Year-on-year",
+   "status": "unclear",
+   "severity": "medium",
+   "kind": "rule",
+   "source": "rule",
+   "confidence": "high",
+   "title": "Retained earnings moved 136% against last year",
+   "why": "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
+   "evidence_ids": [
+    "E-b530cec0f8",
+    "E-b530cec0f8"
+   ]
+  },
+  {
+   "id": "Y-a4eb5195",
+   "direction_ref": "none",
+   "area": "Year-on-year",
+   "status": "unclear",
+   "severity": "medium",
+   "kind": "rule",
+   "source": "rule",
+   "confidence": "high",
+   "title": "Trade debtors moved 98% against last year",
+   "why": "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?",
+   "evidence_ids": [
+    "E-b1353ee8c8",
+    "E-b1353ee8c8",
+    "E-37bf448a1d"
+   ]
+  },
+  {
+   "id": "A-1efb0ee5-1",
+   "direction_ref": "D2",
+   "area": "workpapers",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Confirm the accruals workpaper is complete and signed off",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-7b3a9aee-1",
+   "direction_ref": "none",
+   "area": "Trade debtors",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
+   "why": "The job folder shows this: Accruals workpaper FY25",
+   "evidence_ids": [
+    "E-779d61edf3",
+    "E-b1353ee8c8"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-91fddad8-1",
+   "direction_ref": "D3",
+   "area": "tax",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Check the corporation tax computation starts from the profit per accou",
+   "why": "The job folder shows this: Corporation tax computation FY25",
+   "evidence_ids": [
+    "E-a2461d8da5"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  },
+  {
+   "id": "A-e6a9517b-1",
+   "direction_ref": "D1",
+   "area": "ledger",
+   "status": "addressed",
+   "severity": "low",
+   "kind": "fact",
+   "title": "Agree the bank reconciliation to the cash at bank balance in the\u2026",
+   "why": "The job folder shows this: row 1: Bank reconciliation at 31 March 2025",
+   "evidence_ids": [
+    "E-f04696ae0d"
+   ],
+   "source": "ai",
+   "confidence": "medium"
+  }
+ ],
+ "evidence": [
+  {
+   "id": "E-37bf448a1d",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 5",
+   "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
+   "id": "E-779d61edf3",
+   "file_id": "acme-fy25:Workpaper - accruals.txt",
+   "file_name": "Workpaper - accruals.txt",
+   "location": "line 1",
+   "quote": "Accruals workpaper FY25",
+   "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
+  },
+  {
+   "id": "E-a2461d8da5",
+   "file_id": "acme-fy25:Tax computation.txt",
+   "file_name": "Tax computation.txt",
+   "location": "line 1",
+   "quote": "Corporation tax computation FY25",
+   "drive_url": "local://acme-fy25/Tax computation.txt"
+  },
+  {
+   "id": "E-a32af2f38a",
+   "file_id": "acme-fy25:Debtors schedule.xlsx",
+   "file_name": "Debtors schedule.xlsx",
+   "location": "sheet 'Debtors', row 4",
+   "quote": "row 4: Total |  | 112400",
+   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
+  },
+  {
+   "id": "E-b1353ee8c8",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 3",
+   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
+   "id": "E-b530cec0f8",
+   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
+   "file_name": "Trial Balance FY25.xlsx",
+   "location": "sheet 'TB', row 9",
+   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
+   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+  },
+  {
+   "id": "E-f04696ae0d",
+   "file_id": "acme-fy25:Bank reconciliation.csv",
+   "file_name": "Bank reconciliation.csv",
+   "location": "sheet 'Bank reconciliation', row 1",
+   "quote": "row 1: Bank reconciliation at 31 March 2025",
+   "drive_url": "local://acme-fy25/Bank reconciliation.csv"
+  }
+ ],
+ "trail": {
+  "read": {
+   "label": "5 documents, all new",
+   "documents": 5,
+   "changed": 5,
+   "removed": 0,
+   "images_read": 0,
+   "detail": [
+    {
+     "name": "Bank reconciliation.csv",
+     "kind": "reconciliation",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "year not stated"
+    },
+    {
+     "name": "Debtors schedule.xlsx",
+     "kind": "schedule",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "year not stated"
+    },
+    {
+     "name": "Tax computation.txt",
+     "kind": "tax computation",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "year not stated"
+    },
+    {
+     "name": "Workpaper - accruals.txt",
+     "kind": "schedule",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "year not stated"
+    },
+    {
+     "name": "Trial Balance FY25.xlsx",
+     "kind": "trial balance",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "this year (FY2025)"
+    }
+   ]
+  },
+  "checked": {
+   "label": "6 rules run, 1 failed, 1 flagged for a closer look",
+   "rules": 6,
+   "failed": 1,
+   "flagged": 1,
+   "detail": [
+    {
+     "label": "A trial balance is in the folder",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Every file can be read",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Trial balance debits equal credits",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Reconciliations show no difference",
+     "passed": true,
+     "flagged": false,
+     "note": ""
+    },
+    {
+     "label": "Schedules agree to the trial balance",
+     "passed": false,
+     "flagged": false,
+     "note": "Debtors schedule.xlsx does not agree to the trial balance"
+    },
+    {
+     "label": "Large movements against last year",
+     "passed": false,
+     "flagged": true,
+     "note": "Trade debtors moved 98% against last year"
+    }
+   ]
+  },
+  "compared": {
+   "label": "3 Direction Note items compared; compared with FY2024 accounts",
+   "items": 3,
+   "drafted": 0,
+   "drafted_how": "",
+   "history_jobs": 0,
+   "reader_calls": 4,
+   "reused": 0,
+   "skipped": 0,
+   "detail": [
+    {
+     "ref": "D1",
+     "what": "Agree the bank reconciliation to the cash at bank balance in the ledger",
+     "reader": "ledger reader",
+     "passages": [
+      {
+       "file": "Bank reconciliation.csv",
+       "location": "sheet 'Bank reconciliation', rows 1\u20135"
+      },
+      {
+       "file": "Trial Balance FY25.xlsx",
+       "location": "sheet 'TB', rows 1\u201310"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "D2",
+     "what": "Confirm the accruals workpaper is complete and signed off",
+     "reader": "workpaper reader",
+     "passages": [
+      {
+       "file": "Workpaper - accruals.txt",
+       "location": "line 1\u20135"
+      },
+      {
+       "file": "Debtors schedule.xlsx",
+       "location": "sheet 'Debtors', rows 1\u20134"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "D3",
+     "what": "Check the corporation tax computation starts from the profit per accounts",
+     "reader": "tax reader",
+     "passages": [
+      {
+       "file": "Tax computation.txt",
+       "location": "line 1\u20136"
+      }
+     ],
+     "outcome": "read"
+    },
+    {
+     "ref": "none",
+     "what": "Trade debtors moved from 60,000 to 118,900. Is this movement explained anywhere in the workpapers?",
+     "reader": "workpaper reader",
+     "passages": [
+      {
+       "file": "Workpaper - accruals.txt",
+       "location": "line 1\u20135"
+      },
+      {
+       "file": "Debtors schedule.xlsx",
+       "location": "sheet 'Debtors', rows 1\u20134"
+      }
+     ],
+     "outcome": "read"
+    }
+   ]
+  },
+  "judged": {
+   "label": "5 findings weighed, 5 kept",
+   "findings_in": 5,
+   "findings_out": 7,
+   "escalated": 0,
+   "how": "model",
+   "detail": []
+  },
+  "verified": {
+   "label": "7 source passages linked",
+   "evidence": 7,
+   "rejected_no_evidence": 0,
+   "rules_restored": 0,
+   "items_filled": 0,
+   "detail": []
+  }
+ },
+ "skipped": [],
+ "analysis": {
+  "available": true,
+  "how": "model",
+  "this_year": "FY2025",
+  "last_year": "FY2024",
+  "period": "01 Apr 2024 to 31 Mar 2025",
+  "baseline": [
+   "Trial Balance FY25.xlsx"
+  ],
+  "documents": {
+   "this_year": 5,
+   "last_year": 0
+  },
+  "summary": [
+   "7 of last year's lines are covered so far."
+  ],
+  "lines": [
+   {
+    "id": "P1",
+    "label": "Cash at bank",
+    "section": "Assets",
+    "last_year": 51000.0,
+    "year_before": null,
+    "this_year": 48210.0,
+    "change": -2790.0,
+    "change_pct": -5.5,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C1",
+      "label": "Cash at bank: 48,210.00 this year",
+      "evidence_id": "E-14f7f34e78"
+     },
+     {
+      "id": "D1",
+      "label": "Bank reconciliation.csv",
+      "evidence_id": "E-fdf70a4d49"
+     }
+    ],
+    "evidence_ids": [
+     "E-14f7f34e78",
+     "E-14f7f34e78",
+     "E-fdf70a4d49"
+    ]
+   },
+   {
+    "id": "P2",
+    "label": "Trade debtors",
+    "section": "Other",
+    "last_year": 60000.0,
+    "year_before": null,
+    "this_year": 118900.0,
+    "change": 58900.0,
+    "change_pct": 98.2,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C2",
+      "label": "Trade debtors: 118,900.00 this year",
+      "evidence_id": "E-b1353ee8c8"
+     },
+     {
+      "id": "C4",
+      "label": "Trade creditors: 39,310.00 this year",
+      "evidence_id": "E-37bf448a1d"
+     }
+    ],
+    "evidence_ids": [
+     "E-b1353ee8c8",
+     "E-b1353ee8c8",
+     "E-37bf448a1d"
+    ]
+   },
+   {
+    "id": "P3",
+    "label": "Prepayments",
+    "section": "Assets",
+    "last_year": 4000.0,
+    "year_before": null,
+    "this_year": 4200.0,
+    "change": 200.0,
+    "change_pct": 5.0,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C3",
+      "label": "Prepayments: 4,200.00 this year",
+      "evidence_id": "E-40bf90aa37"
+     }
+    ],
+    "evidence_ids": [
+     "E-40bf90aa37",
+     "E-40bf90aa37"
+    ]
+   },
+   {
+    "id": "P4",
+    "label": "Trade creditors",
+    "section": "Other",
+    "last_year": 41000.0,
+    "year_before": null,
+    "this_year": 39310.0,
+    "change": -1690.0,
+    "change_pct": -4.1,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C2",
+      "label": "Trade debtors: 118,900.00 this year",
+      "evidence_id": "E-b1353ee8c8"
+     },
+     {
+      "id": "C4",
+      "label": "Trade creditors: 39,310.00 this year",
+      "evidence_id": "E-37bf448a1d"
+     }
+    ],
+    "evidence_ids": [
+     "E-37bf448a1d",
+     "E-b1353ee8c8",
+     "E-37bf448a1d"
+    ]
+   },
+   {
+    "id": "P5",
+    "label": "Accruals",
+    "section": "Other",
+    "last_year": 11500.0,
+    "year_before": null,
+    "this_year": 12000.0,
+    "change": 500.0,
+    "change_pct": 4.3,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C5",
+      "label": "Accruals: 12,000.00 this year",
+      "evidence_id": "E-322a62cfc7"
+     },
+     {
+      "id": "D5",
+      "label": "Workpaper - accruals.txt",
+      "evidence_id": "E-a3542ef7bb"
+     }
+    ],
+    "evidence_ids": [
+     "E-322a62cfc7",
+     "E-322a62cfc7",
+     "E-a3542ef7bb"
+    ]
+   },
+   {
+    "id": "P6",
+    "label": "Directors loan",
+    "section": "Liabilities",
+    "last_year": 20000.0,
+    "year_before": null,
+    "this_year": 20000.0,
+    "change": 0.0,
+    "change_pct": 0.0,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C6",
+      "label": "Directors loan: 20,000.00 this year",
+      "evidence_id": "E-8a309c6847"
+     }
+    ],
+    "evidence_ids": [
+     "E-8a309c6847",
+     "E-8a309c6847"
+    ]
+   },
+   {
+    "id": "P7",
+    "label": "Retained earnings",
+    "section": "Equity",
+    "last_year": 42400.0,
+    "year_before": null,
+    "this_year": 99900.0,
+    "change": 57500.0,
+    "change_pct": 135.6,
+    "status": "covered",
+    "comment": "Matching material is in this year's documents.",
+    "question": "",
+    "refs": [
+     {
+      "id": "C8",
+      "label": "Retained earnings: 99,900.00 this year",
+      "evidence_id": "E-b530cec0f8"
+     }
+    ],
+    "evidence_ids": [
+     "E-b530cec0f8",
+     "E-b530cec0f8"
+    ]
+   }
+  ],
+  "checks": [],
+  "bank": [],
+  "new_this_year": [],
+  "registers": {
+   "bank_accounts": [
+    {
+     "label": "Cash at bank",
+     "last_year": 51000.0,
+     "status": "covered",
+     "evidence_ids": [
+      "E-14f7f34e78",
+      "E-14f7f34e78",
+      "E-fdf70a4d49"
+     ],
+     "refs": [
+      {
+       "id": "C1",
+       "label": "Cash at bank: 48,210.00 this year",
+       "evidence_id": "E-14f7f34e78"
+      },
+      {
+       "id": "D1",
+       "label": "Bank reconciliation.csv",
+       "evidence_id": "E-fdf70a4d49"
+      }
+     ]
+    }
+   ],
+   "loans": [],
+   "properties": []
+  },
+  "evidence": {
+   "E-14f7f34e78": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 2",
+    "quote": "row 2: 1000 | Cash at bank | 48210 |  | 51000",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-fdf70a4d49": {
+    "file_name": "Bank reconciliation.csv",
+    "location": "file in the task folder",
+    "quote": "Bank reconciliation.csv",
+    "drive_url": "local://acme-fy25/Bank reconciliation.csv"
+   },
+   "E-b1353ee8c8": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 3",
+    "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-37bf448a1d": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 5",
+    "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-40bf90aa37": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 4",
+    "quote": "row 4: 1200 | Prepayments | 4200 |  | 4000",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-322a62cfc7": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 6",
+    "quote": "row 6: 2100 | Accruals |  | 12000 | -11500",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-a3542ef7bb": {
+    "file_name": "Workpaper - accruals.txt",
+    "location": "file in the task folder",
+    "quote": "Workpaper - accruals.txt",
+    "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
+   },
+   "E-8a309c6847": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 7",
+    "quote": "row 7: 2200 | Directors loan |  | 20000 | -20000",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   },
+   "E-b530cec0f8": {
+    "file_name": "Trial Balance FY25.xlsx",
+    "location": "sheet 'TB', row 9",
+    "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
+    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
+   }
+  }
+ },
+ "periods": {
+  "this_year": 2025,
+  "last_year": 2024,
+  "split": false
+ },
+ "usage": {
+  "calls": [
+   {
+    "node": "analysis",
+    "task_id": "analysis",
+    "model": "fake-analyst",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 784,
+    "output": 405,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T1",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2452,
+    "output": 62,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T2",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2227,
+    "output": 49,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T3",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2232,
+    "output": 58,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "read",
+    "task_id": "T4",
+    "model": "fake-reader",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2196,
+    "output": 54,
+    "cache_write": 0,
+    "cache_read": 0
+   },
+   {
+    "node": "judge",
+    "task_id": "judge",
+    "model": "fake-judge",
+    "calls": 1,
+    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
+    "input": 2206,
+    "output": 747,
+    "cache_write": 0,
+    "cache_read": 0
+   }
+  ],
+  "totals": {
+   "input": 12097,
+   "output": 1375,
+   "cache_write": 0,
+   "cache_read": 0
+  },
+  "model_calls": 6,
+  "reader_calls": 4,
+  "cost_usd": 0.0,
+  "cache_share": 0.0,
+  "reused_answers": 0,
+  "budget": {
+   "reader_calls": 12,
+   "image_calls": 10,
+   "uncached_input_tokens": 108000,
+   "output_tokens": 16000,
+   "reserved_for_judge_and_analysis": 30000
+  }
+ },
+ "models": {
+  "reader": "fake-reader",
+  "judge": "fake-judge",
+  "escalate": "fake-escalate"
+ },
+ "versions": {
+  "prompt": "2026-10-04.1",
+  "parser": "p2",
+  "skills": {
+   "direction-drafting": "1.0+41b0dac8",
+   "finding-format": "1.0+de8f39c5",
+   "gdrive-folder-reader": "1.2+13f6f6b4",
+   "ledger-reading": "1.0+49c1a31a",
+   "residential-rental-precheck": "1.1+b8ec6906",
+   "statements-reading": "1.0+ff9bf76b",
+   "tax-reading": "1.0+b76e1b37",
+   "workpaper-reading": "1.0+fcaaffaa"
+  }
+ },
+ "knowledge_ids": [],
+ "demo": true,
+ "duration_s": 0.4
+}

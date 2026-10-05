@@ -23,6 +23,7 @@ _PERIOD = re.compile(rf"(?:year|period)\s*ended\s*{_DMY}|as\s*at\s*{_DMY}|to\s*{
 _FOLDER_YEAR = re.compile(r"^(?:fy\s*)?(20\d\d)$|^fy\s*(\d\d)$", re.I)
 _RANGE = re.compile(r"(20\d\d)-(\d\d)-(\d\d)\D{1,3}(20\d\d)-(\d\d)-(\d\d)")
 _SINGLE = re.compile(r"(?<![\d-])(20\d\d)(?![\d-])")
+_SPAN = re.compile(r"(?<!\d)(20\d\d)\s*[-/]\s*(\d\d)(?!\d)")
 _FY_NAME = re.compile(r"\bfy\s*(\d\d|20\d\d)\b", re.I)
 
 
@@ -48,45 +49,64 @@ def _fy(two_or_four: str) -> int:
     return n if n > 100 else 2000 + n
 
 
+def plausible(year: int | None) -> bool:
+    """A financial year this service could be looking at: not a camera file number such as
+    IMG_2041.jpg, and not further ahead than next year."""
+    return year is not None and 2000 <= year <= date.today().year + 1
+
+
 def doc_year(file_row: dict, parsed: dict) -> tuple[int | None, str]:
     """(financial year the document belongs to, how that was decided)."""
     for part in reversed([p for p in (file_row.get("path") or "").split("/") if p]):
         m = _FOLDER_YEAR.match(part.strip())
-        if m:
+        if m and plausible(_fy(m.group(1) or m.group(2))):
             return _fy(m.group(1) or m.group(2)), f"folder {part}"
     name = file_row.get("name", "")
     m = _RANGE.search(name)
-    if m:
+    if m and plausible(int(m.group(4))):
         return int(m.group(4)), "dates in the file name"
     head = " ".join(b["text"] for b in parsed.get("blocks", [])[:40])
     end = period_end(head)
-    if end:
+    if end and plausible(end.year):
         return end.year, "period stated in the document"
+    m = _SPAN.search(name)  # "2025-26" or "2025/26": the year ending in 2026
+    if m and (int(m.group(1)) + 1) % 100 == int(m.group(2)) and plausible(int(m.group(1)) + 1):
+        return int(m.group(1)) + 1, "year span in the file name"
     m = _FY_NAME.search(name)
-    if m:
+    if m and plausible(_fy(m.group(1))):
         return _fy(m.group(1)), "FY in the file name"
-    years = _SINGLE.findall(name)
-    if len(set(years)) == 1:
-        return int(years[0]), "year in the file name"
+    years = {int(y) for y in _SINGLE.findall(name) if plausible(int(y))}
+    if len(years) == 1:
+        return years.pop(), "year in the file name"
     return None, ""
+
+
+# Finished accounts and workpapers: they belong to a year that is already closed.
+FINISHED_CLASSES = ("financial_statements", "prior_year_statements", "trial_balance", "general_ledger", "workpaper")
 
 
 def assign_years(docs: list[dict], job: dict | None = None) -> dict:
     """{"current", "prior", "split", "by_file": {file_id: {"year", "role", "basis"}}}.
 
-    The current year is the latest year any document belongs to — or the year in the job's
-    title when it names one. "split" is True when the folder holds both years, which is when
-    last year's documents become the baseline instead of something to check."""
+    The current year is the one in the job's title when it names one. Otherwise it is the latest
+    year of the documents received for the year (bank statements, questionnaire, invoices…) — and
+    never earlier than the year after the latest finished accounts in the folder: last year's
+    signed statements mean this year is the next one, even when nothing received is dated.
+    "split" is True when the folder holds both years, which is when last year's documents become
+    the baseline instead of something to check."""
     by_file = {}
+    received, finished = set(), set()
     for d in docs:
         year, basis = doc_year(d["file"], d["parsed"])
         by_file[d["file"]["file_id"]] = {"year": year, "basis": basis}
-    years = sorted({v["year"] for v in by_file.values() if v["year"]})
+        if year:
+            (finished if d["file"].get("document_class") in FINISHED_CLASSES else received).add(year)
     title_year = None
     m = re.search(r"\bfy\s*(\d\d|20\d\d)\b|(?<!\d)(20\d\d)(?!\d)", (job or {}).get("title", ""), re.I)
     if m:
         title_year = _fy(m.group(1) or m.group(2))
-    current = title_year or (years[-1] if years else None)
+    candidates = received | ({max(finished) + 1} if finished else set())
+    current = title_year or (max(candidates) if candidates else None)
     prior = current - 1 if current else None
     for v in by_file.values():
         y = v["year"]

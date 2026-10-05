@@ -41,7 +41,7 @@ def setup_for(issue) -> dict:
     return {
         "drive_folder_url": folder.folder_url if folder else "",
         "drive_folder_id": folder.folder_id if folder else "",
-        "precheck_type": folder.precheck_type if folder else "general",
+        "precheck_type": folder.precheck_type if folder else "auto",
         "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES],
         "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,
@@ -104,6 +104,40 @@ def history_for(issue) -> dict:
     }
 
 
+MAX_LESSONS = 40
+
+
+def lesson_dict(lesson) -> dict:
+    return {"id": lesson.id, "scope": lesson.scope, "status": lesson.status, "kind": lesson.kind, "precheck_type": lesson.precheck_type,
+            "item": lesson.item, "note": lesson.note, "created_by": lesson.created_by.display_name if lesson.created_by else "",
+            "created_at": lesson.created_at, "task": lesson.issue.key if lesson.issue_id else ""}
+
+
+def lessons_for(issue) -> list[dict]:
+    """The lessons a pre-check of this task applies: this client's own, firm-wide ones a lead or
+    admin approved, and firm-wide ones from this client still waiting (they apply here at once)."""
+    from django.db.models import Q
+
+    from .models import PrecheckLesson
+
+    mine = client_scope(issue)
+    qs = PrecheckLesson.objects.filter(
+        Q(client_scope=mine, status__in=["active", "pending"]) | Q(scope="firm", status="active")
+    ).exclude(status="disabled").select_related("created_by", "issue")[:MAX_LESSONS]
+    return [lesson_dict(lesson) for lesson in qs]
+
+
+def can_approve_lessons(user, issue) -> bool:
+    """A lead or an admin: staff, the project's lead or admin, or a lead of its workspace."""
+    from apps.projects.permissions import can_manage_project
+    from apps.teams.models import TeamMembership
+
+    project = issue.project
+    if user.is_staff or can_manage_project(user, project):
+        return True
+    return bool(project.primary_team_id) and TeamMembership.objects.filter(team_id=project.primary_team_id, user=user, role="lead").exists()
+
+
 def job_payload(issue) -> dict:
     """What the agent's load_job node reads: the job card, its Direction Note items, the Drive
     folder and the client boundary. Approved knowledge is not built yet, so none is in scope."""
@@ -119,6 +153,7 @@ def job_payload(issue) -> dict:
         "client_name": project.client.name if project.client_id else project.name,
         "drive_folder_id": setup["drive_folder_id"],
         "precheck_type": setup["precheck_type"],
+        "lessons": lessons_for(issue),
         "direction_items": setup["direction_items"],
         "history": history_for(issue),
         "knowledge_ids": [],
@@ -289,9 +324,10 @@ def _store_result(run: AIPrecheck, result: dict) -> None:
     run.trail = result["trail"]
     run.skipped = result["skipped"]
     run.analysis = result.get("analysis") or {}
-    run.precheck_type = result.get("precheck_type") or "general"
+    run.precheck_type = result.get("precheck_type") or "auto"
     run.readiness = (result.get("readiness") or "")[:40]
     run.requests = result.get("requests") or []
+    run.precheck = result.get("precheck") or {}
     usage = result["usage"]
     run.usage = {k: usage[k] for k in ("totals", "model_calls", "reader_calls", "cost_usd", "cache_share", "reused_answers", "budget")}
     run.models_used = result["models"]
@@ -369,6 +405,7 @@ def serialize_run(run: AIPrecheck, full: bool = True) -> dict:
         "precheck_type": run.precheck_type,
         "readiness": run.readiness,
         "requests": run.requests,
+        "precheck": run.precheck,
         "failure_reason": run.failure_reason,
         "usage": run.usage,
         "models": run.models_used,

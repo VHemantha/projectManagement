@@ -24,7 +24,7 @@ def _checkpointer():
         from psycopg.rows import dict_row
         from psycopg_pool import ConnectionPool
 
-        # A pool, not one long-lived connection: readers checkpoint in parallel, and a dropped
+        # A pool, not one long-lived connection: steps checkpoint as they finish, and a dropped
         # connection is replaced instead of failing every later run.
         dsn = s.database_url.replace("postgresql+psycopg://", "postgresql://")
         pool = ConnectionPool(dsn, min_size=1, max_size=6, open=True,
@@ -52,7 +52,7 @@ def new_run_id() -> str:
 
 def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
     """Run to the end (blocking). Returns the final result, or {"status": "failed", "reason"}.
-    mode "draft" stops after drafting the Direction Note (no readers, no judge)."""
+    mode "draft" stops after drafting the Direction Note (no pre-check)."""
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
     final = None

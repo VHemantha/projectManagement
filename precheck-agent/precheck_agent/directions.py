@@ -22,7 +22,7 @@ from langchain_core.messages import HumanMessage
 from .archives import display_name
 from .budget import usage_from_message
 from .config import Settings, get_settings
-from .judge import _system_message
+from .prompting import system_message
 from .llm import get_model, model_id, stop_reason, text_of
 from .skills_loader import get_skill
 from .textutil import clip_words, sha
@@ -159,15 +159,15 @@ def draft_input(job: dict, files: dict[str, dict], rule_results: list[dict]) -> 
 
 def draft_cache_key(client_id: str, job_id: str, body: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
-    return sha(client_id, job_id, "draft", model_id("judge", s), s.prompt_version, get_skill("direction-drafting").version, body)
+    return sha(client_id, job_id, "draft", model_id("drafter", s), s.prompt_version, get_skill("direction-drafting").version, body)
 
 
 def call_draft(body: str, settings: Settings | None = None) -> tuple[dict, dict]:
-    """One model call (the judge model). Returns (raw JSON, usage)."""
+    """One model call (the drafting model). Returns (raw JSON, usage)."""
     s = settings or get_settings()
     model = get_model("drafter", s)
     message = model.invoke(
-        [_system_message("judge", draft_system(), s), HumanMessage(content=body)],
+        [system_message("drafter", draft_system(), s), HumanMessage(content=body)],
         output_config={"format": {"type": "json_schema", "schema": DRAFT_SCHEMA}},
     )
     if stop_reason(message) in ("refusal", "max_tokens"):

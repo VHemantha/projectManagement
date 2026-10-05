@@ -1,18 +1,15 @@
-"""This year's documents checked against last year's accounts, on a folder laid out like a real
+"""Which year each document belongs to, and what code works out from last year's accounts and this year's bank, on a folder laid out like a real
 one: a zip holding last year's finished pack (…/2025/) next to what arrived this year (…/2026/)."""
-import json
 import zipfile
 from datetime import datetime, timedelta
 
-from langchain_core.messages import AIMessage
-
 from precheck_agent import analysis as A
 from precheck_agent import llm
-from precheck_agent.config import get_settings
 from precheck_agent.directions import normalize_items
 from precheck_agent.periods import assign_years, doc_year
 
 from .conftest import write_xlsx
+from .test_precheck import scripted
 
 ACCOUNT = "01-0702-0311954-00"
 TB = [
@@ -74,6 +71,7 @@ def two_year_folder(env, name="client-pack", opening=18479.45, last_day=datetime
         "Expenses\nInsurance 1,255 1,255\nAccountancy Fees 4,366 2,079\nTotal Expenses 41,076 46,222\n", encoding="utf-8")
     write_xlsx(src / "2025" / "K2. Example 2025 - Income Reconciliation.xlsx", {"Rec": [["Income reconciliation"], ["Difference", 517.5]]})
     write_xlsx(src / "2026" / f"{ACCOUNT}_Transactions_2025-04-01_2026-03-31.xlsx", {"Transactions": bank_rows(opening, last_day)})
+    (src / "2026" / "Client Questionnaire 2026.txt").write_text("Client questionnaire\nAny changes this year? No.\n", encoding="utf-8")
     (src / "2026" / "Tower Insurance renewal 2026.txt").write_text("Tower Insurance\nRenewal notice\nPremium 1,290.00 for the year to 30 June 2026\n", encoding="utf-8")
     folder = env.drive_root / name
     folder.mkdir()
@@ -113,93 +111,6 @@ def test_a_pasted_direction_note_is_put_back_together():
     assert [i["id"] for i in items][:6] == ["D1", "D2", "D3", "D4", "D5", "D7"]  # an item keeps its first line's id
 
 
-def test_this_year_is_checked_against_last_years_accounts(env):
-    two_year_folder(env)
-    env.pm.add_job("1", "client-pack", "client-pack", direction=[{"id": "D1", "text": "Bank statements for the year and balance evidence"}])
-    result = env.run("1")
-    assert result["status"] == "complete" and result["periods"] == {"this_year": 2026, "last_year": 2025, "split": True}
-    detail = {d["name"].split(" (in ")[0]: d for d in result["trail"]["read"]["detail"]}
-    assert detail["1. Example 2025 - Final TB.xlsx"]["year"] == "last year's pack (FY2025)"
-    assert detail["Tower Insurance renewal 2026.txt"]["year"] == "this year (FY2026)"
-
-    # Last year's finished workpapers are the baseline, not something to check again.
-    assert not any("unreconciled difference" in f["title"] for f in result["findings"])
-
-    a = result["analysis"]
-    assert a["available"] and (a["this_year"], a["last_year"]) == ("FY2026", "FY2025")
-    assert a["period"] == "01 Apr 2025 to 31 Mar 2026" and a["baseline"] == ["1. Example 2025 - Final TB.xlsx"]
-    lines = {ln["label"]: ln for ln in a["lines"]}
-    assert lines["Contract Work"]["last_year"] == 18330 and lines["Contract Work"]["year_before"] == 61250 and lines["Contract Work"]["section"] == "Income"
-    assert lines["Insurance"]["status"] == "covered" and any("Tower Insurance" in r["label"] for r in lines["Insurance"]["refs"])
-    assert lines["Accountancy Fees"]["status"] == "not_yet"
-    assert "Bank Charges" not in lines  # below the amount worth listing
-
-    # Registers expected again this year, from last year's accounts.
-    regs = a["registers"]
-    assert [r["label"] for r in regs["bank_accounts"]] == ["ANZ Business Current Account"]
-    assert regs["loans"] == [] and regs["properties"] == []
-
-    # Bank export of this year, summarised by code.
-    (bank,) = a["bank"]
-    assert bank["account"] == ACCOUNT and bank["from"] == "03 Apr 2025" and bank["to"] == "27 Feb 2026" and bank["opening"] == 18479.45
-    checks = {c["label"]: c for c in a["checks"]}
-    assert checks["This year's opening bank balance equals last year's closing balance"]["passed"] is True
-    assert checks["Bank data covers the whole year"]["passed"] is False and "ends 27 Feb 2026" in checks["Bank data covers the whole year"]["detail"]
-
-    # Findings: the checks and what has not arrived, each tied to the documents.
-    titles = {f["title"]: f for f in result["findings"]}
-    gap = titles["Bank data does not cover the whole year"]
-    assert gap["source"] == "rule" and gap["severity"] == "medium" and gap["evidence_ids"]
-    waiting = titles["Nothing yet for Staff Training this year"]  # the largest such lines become findings
-    ev = {e["id"]: e for e in result["evidence"]}[waiting["evidence_ids"][0]]
-    assert ev["file_name"].startswith("1. Example 2025 - Final TB.xlsx") and "Staff Training" in ev["quote"]
-    assert "Nothing yet for Accountancy Fees this year" not in titles  # smaller: in the analysis table only
-    tb = titles["No trial balance for FY2026 yet"]
-    assert tb["severity"] == "medium" and "Last year's" in tb["why"]
-
-    # The model read the compact lists code made, never the documents themselves.
-    sent = env.analyst.calls[0]["messages"][-1].content
-    payload = json.loads(sent.split("INPUT:")[1])
-    assert set(payload) >= {"prior_year_lines", "bank", "current_documents", "checks_by_code"}
-    assert "Renewal notice" not in sent and "Statement period" not in sent
-    assert [c["node"] for c in result["usage"]["calls"]].count("analysis") == 1
-
-    # Unchanged folder: nothing is asked again.
-    calls = len(env.analyst.calls)
-    again = env.run("1")
-    assert len(env.analyst.calls) == calls and again["analysis"]["how"] == "cache"
-
-
-def test_an_opening_balance_that_does_not_follow_on_is_a_high_finding(env):
-    two_year_folder(env, opening=18000.00, last_day=datetime(2026, 3, 30))
-    env.pm.add_job("1", "client-pack", "client-pack", direction=[])
-    result = env.run("1")
-    f = next(f for f in result["findings"] if f["title"].startswith("Opening bank balance does not match"))
-    assert f["severity"] == "high" and f["status"] == "exception" and "18,000.00" in f["why"] and "18,479.45" in f["why"]
-    names = {e["file_name"].split(" (in ")[0] for e in result["evidence"] if e["id"] in f["evidence_ids"]}
-    assert names == {f"{ACCOUNT}_Transactions_2025-04-01_2026-03-31.xlsx", "A1. Example 2025 - Bank Balance.txt"}
-    assert result["verdict"] == "not_ready"
-    checks = {c["label"]: c["passed"] for c in result["analysis"]["checks"]}
-    assert checks["Bank data covers the whole year"] is True
-
-
-def test_the_models_answer_is_held_to_code_figures():
-    body = json.dumps({"prior_year_lines": [{"id": "P1", "label": "Insurance", "last_year": 1255.0}], "bank": [{"id": "B1", "money_in": 11706.21}]})
-    index = {"P1": {"kind": "prior"}, "B1": {"kind": "bank"}}
-    raw = {
-        "summary": ["Insurance was 1,255 last year.", "Revenue will be about 45,000 this year.", "Money in so far is 11,706.21."],
-        "lines": [{"id": "P1", "status": "covered", "refs": ["X9"], "comment": "Paid 1,290 this year.", "question": "Ask about 1,255."},
-                  {"id": "P7", "status": "covered", "refs": [], "comment": "", "question": ""}],
-        "new_this_year": [{"text": "A new payer.", "refs": ["B1"]}, {"text": "Invented.", "refs": ["Z1"]}],
-    }
-    clean = A.clean_answer(raw, index, body)
-    assert clean["summary"] == ["Insurance was 1,255 last year.", "Money in so far is 11,706.21."]  # 45,000 is not a figure code gave
-    line = clean["lines"]["P1"]
-    assert line["status"] == "unclear" and line["refs"] == []  # "covered" with no real reference is not trusted
-    assert line["comment"] == "" and line["question"] == "Ask about 1,255."
-    assert "P7" not in clean["lines"] and [n["text"] for n in clean["new_this_year"]] == ["A new payer."]
-
-
 def test_statements_read_as_text_give_last_years_lines():
     doc = {"file": {"file_id": "F", "name": "FS.pdf"}, "parsed": {"blocks": [{"text": t, "loc": "page 7"} for t in [
         "Statement of Profit or Loss", "For the year ended 31 March 2025", "2025 2024", "Trading Income", "Contract Work 18,330 61,250",
@@ -212,64 +123,6 @@ def test_statements_read_as_text_give_last_years_lines():
     assert "Total Trading Income" not in lines and not any(k.startswith("Page") for k in lines)
 
 
-def test_a_long_direction_note_is_read_in_full(env):
-    two_year_folder(env)
-    env.pm.add_job("1", "client-pack", "client-pack", direction=direction(DIRECTION_TEXT))
-    result = env.run("1")
-    assert result["status"] == "complete" and not result["skipped"]  # every item read, the judge ran
-    assert len(result["direction_items"]) == 15
-    assert result["usage"]["reader_calls"] >= 15 and result["trail"]["judged"]["how"] == "model"
-    s = get_settings()
-    assert result["usage"]["totals"]["input"] <= s.budget_max_uncached_input_tokens
-
-
-def test_items_the_limit_stopped_are_said_to_be_not_checked(env, monkeypatch):
-    monkeypatch.setenv("PRECHECK_BUDGET_MAX_READER_CALLS", "2")
-    monkeypatch.setenv("PRECHECK_BUDGET_READER_CALLS", "2")
-    get_settings.cache_clear()
-    two_year_folder(env)
-    env.pm.add_job("1", "client-pack", "client-pack", direction=direction(DIRECTION_TEXT))
-    result = env.run("1")
-    assert result["status"] == "partial"
-    not_checked = [f for f in result["findings"] if f["title"].startswith("Not checked in this run")]
-    assert not_checked and all("Run the pre-check again" in f["why"] for f in not_checked)
-    assert not any(f["title"].startswith("No evidence found") for f in result["findings"])
-    assert result["analysis"]["available"]  # the reserve kept room for the analysis
-
-
-def test_a_reader_can_cite_a_file_being_in_the_folder(env):
-    two_year_folder(env)
-
-    def reader(messages, kwargs):
-        docs = [b for b in messages[-1].content if isinstance(b, dict) and b.get("type") == "document"]
-        listing = len(docs) - 1
-        assert docs[listing]["title"].startswith("Files in the task folder")
-        names = [b["text"] for b in docs[listing]["source"]["content"]]
-        at = next(i for i, n in enumerate(names) if "Tower Insurance renewal" in n)
-        cite = {"type": "content_block_location", "cited_text": names[at], "document_index": listing, "document_title": docs[listing]["title"],
-                "start_block_index": at, "end_block_index": at + 1}
-        return AIMessage(content=[{"type": "text", "text": "addressed|low|Insurance renewal received|The renewal notice is in this year's folder.", "citations": [cite]}],
-                         usage_metadata={"input_tokens": 3000, "output_tokens": 40, "total_tokens": 3040})
-
-    env.reader = llm.set_fake("reader", reader)
-    env.pm.add_job("1", "client-pack", "client-pack", direction=[{"id": "D1", "text": "Insurance invoices and renewal for the year"}])
-    result = env.run("1")
-    f = next(f for f in result["findings"] if f["direction_ref"] == "D1")
-    assert f["status"] == "addressed"
-    ev = {e["id"]: e for e in result["evidence"]}[f["evidence_ids"][0]]
-    assert ev["file_name"].startswith("Tower Insurance renewal 2026.txt") and ev["location"] == "file in the task folder"
-
-
-def test_without_last_years_accounts_the_analysis_says_why(env):
-    folder = env.drive_root / "only-this-year"
-    folder.mkdir()
-    (folder / "Notes.txt").write_text("Client notes for the year\n", encoding="utf-8")
-    env.pm.add_job("1", "client-x", "only-this-year", direction=[{"id": "D1", "text": "Read the notes"}])
-    result = env.run("1")
-    assert result["analysis"] == {"available": False, "reason": result["analysis"]["reason"]}
-    assert "No last-year accounts" in result["analysis"]["reason"] and not env.analyst.calls
-
-
 def test_bank_export_summary_by_code():
     rows = bank_rows(100.0, datetime(2026, 3, 31))
     table = {"name": "T", "rows": [[n, r] for n, r in enumerate(rows, start=1)]}
@@ -280,3 +133,33 @@ def test_bank_export_summary_by_code():
     top = A.counterparties(e)[0]
     assert top["name"] == "People 2.0 New Z" and top["count"] == 3
     assert e["to"] - e["from"] > timedelta(days=300)
+
+
+def test_the_checks_code_can_answer_reach_the_precheck(env):
+    """This year's opening bank balance against last year's closing balance, and whether the bank
+    data covers the year: worked out by code and given to the pre-check as C lines."""
+    two_year_folder(env, opening=18000.00, last_day=datetime(2026, 2, 27))
+    env.pm.add_job("1", "client-pack", "client-pack", direction=[])
+    result = env.run("1")
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "| This year's opening bank balance equals last year's closing balance | FAILED | " in body and "18,000.00" in body and "18,479.45" in body
+    assert "| Bank data covers the whole year | FAILED | " in body and "ends 27 Feb 2026" in body
+    assert f"B1 | {ACCOUNT} | 03 Apr 2025 to 27 Feb 2026 | opening 18,000.00" in body
+    assert "T1 | Contract Work | Revenue | -18,330.00 | year before -61,250.00" in body
+    checks = {c["label"]: c["passed"] for c in result["precheck"]["checks"]}
+    assert checks["This year's opening bank balance equals last year's closing balance"] is False
+    # Last year's finished workpaper with a difference is the baseline, not something to check again.
+    assert not any("unreconciled difference" in c["label"] for c in result["trail"]["checked"]["detail"])
+
+
+def test_an_item_citing_a_code_check_links_to_the_bank_line(env):
+    two_year_folder(env, opening=18000.00, last_day=datetime(2026, 2, 27))
+    env.pm.add_job("1", "client-pack", "client-pack", direction=[])
+    env.precheck = llm.set_fake("precheck", scripted({
+        "business_nature": {"type": "general", "summary": "Contracting.", "reasoning": "T1.", "sources": ["T1"], "facts": []},
+        "items": [{"group": "Bank", "item": "March 2026 bank statement", "decision": "request",
+                   "reason": "The bank data ends 27 Feb 2026, a month before year end.", "sources": ["C2"], "documents": []}],
+        "preparer_notes": [], "lessons_applied": []}))
+    p = env.run("1")["precheck"]
+    src = p["requests"][0]["sources"][0]
+    assert src["label"].startswith("Check: ") and p["evidence"][src["evidence_id"]]["file_name"].startswith(ACCOUNT)

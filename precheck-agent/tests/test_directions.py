@@ -24,58 +24,13 @@ def drafted_events(env):
     return [e for e in env.pm.events if e["type"] == "ai_precheck.directions_drafted"]
 
 
-def test_a_job_with_no_direction_note_gets_one_drafted_and_verified(env):
-    make_job_folder(env.drive_root, "acme")
-    env.pm.add_job("1", "client-acme", "acme", direction=[], history=HISTORY)
-    result = env.run("1")
-    assert result["status"] == "complete" and len(env.drafter.calls) == 1
-
-    items = result["direction_items"]
-    assert len(items) >= 3 and all(i["origin"] == "ai" and i["reason"] and i["basis"] in D.BASIS for i in items)
-    assert all(isinstance(i["addressed"], bool) for i in items)  # every drafted item was verified
-    assert [i["id"] for i in items] == [f"D{n}" for n in range(1, len(items) + 1)]
-    assert result["coverage"]["total"] == len(items)
-    assert {f["direction_ref"] for f in result["findings"]} >= {i["id"] for i in items}
-
-    # Past data: the finding a reviewer accepted before is back as an item; current data: what
-    # the checks flagged now.
-    texts = " | ".join(i["text"] for i in items)
-    assert "Debtors schedule does not agree" in texts
-    assert any(i["basis"] == "history" for i in items) and any(i["basis"] == "current" for i in items)
-    assert "Petty cash" not in texts  # marked not applicable before: never raised again
-
-    # The job card is told about the draft before the result, so it can show the items.
-    types = [e["type"] for e in env.pm.events if e["type"] != "ai_precheck.progress"]
-    assert types == ["ai_precheck.directions_drafted", "ai_precheck.completed"]
-    draft = drafted_events(env)[0]
-    assert draft["final"] is False and draft["how"] == "model" and [i["id"] for i in draft["items"]] == [i["id"] for i in items]
-    compared = result["trail"]["compared"]
-    assert compared["drafted"] == len(items) and "drafted by AI" in compared["label"] and compared["history_jobs"] == 2
-    assert [c["node"] for c in result["usage"]["calls"]].count("draft") == 1
-
-    # The drafting model saw names, kinds, checks and history: never document text.
-    sent = env.drafter.calls[0]["messages"][-1].content
-    payload = json.loads(sent.split("INPUT:")[1])
-    assert set(payload) == {"job", "documents", "checks", "history"}
-    assert {"name": "Trial Balance FY25.xlsx", "kind": "trial balance"} in payload["documents"]
-    assert "48210" not in sent and "Prepared by JS" not in sent
-    assert env.drafter.calls[0]["kwargs"]["output_config"]["format"]["schema"] == D.DRAFT_SCHEMA
-
-    # Next run: the job now has its items, so nothing is drafted or re-read.
-    calls = (len(env.drafter.calls), len(env.reader.calls), len(env.judge.calls))
-    again = env.run("1")
-    assert (len(env.drafter.calls), len(env.reader.calls), len(env.judge.calls)) == calls
-    assert again["usage"]["model_calls"] == 0 and again["trail"]["compared"]["drafted"] == 0
-    assert [i["origin"] for i in again["direction_items"]] == ["ai"] * len(items)
-
-
 def test_draft_only_mode_drafts_without_verifying(env):
     make_job_folder(env.drive_root, "acme")
     existing = [{"id": "D1", "text": "Agree the bank reconciliation to cash at bank in the ledger"}]
     env.pm.add_job("1", "client-acme", "acme", direction=existing, history=HISTORY)
     result = env.run("1", mode="draft")
     assert result["status"] == "complete" and result["mode"] == "draft"
-    assert not env.reader.calls and not env.judge.calls and len(env.drafter.calls) == 1
+    assert not env.precheck.calls and len(env.drafter.calls) == 1
     event = drafted_events(env)[0]
     assert event["final"] is True and not [e for e in env.pm.events if e["type"] == "ai_precheck.completed"]
     ids = [i["id"] for i in event["items"]]
@@ -105,22 +60,22 @@ def test_falls_back_to_the_standard_list_when_the_model_cannot_be_used(env, monk
     make_job_folder(env.drive_root, "acme")
     env.pm.add_job("1", "client-acme", "acme", direction=[])
     env.drafter = llm.set_fake("drafter", lambda messages, kwargs: AIMessage(content="not json at all"))
-    result = env.run("1")
+    result = env.run("1", mode="draft")
     assert result["status"] == "complete"
     draft = drafted_events(env)[0]
     assert draft["how"] == "standard list" and all(i["basis"] == "standard" for i in draft["items"])
-    texts = [i["text"] for i in result["direction_items"]]
+    texts = [i["text"] for i in draft["items"]]
     assert "Agree the bank reconciliation to cash at bank in the ledger" in texts
     assert "Agree the draft financial statements to the trial balance" not in texts  # no statements in the folder
 
     # Budget reached before drafting: same fallback, and the run says what it skipped.
     env.pm.events.clear()
     env.pm.add_job("2", "client-acme", "acme", direction=[])
-    monkeypatch.setenv("PRECHECK_BUDGET_RESERVE_TOKENS", "100")  # drafting spends the reserve
+    monkeypatch.setenv("PRECHECK_RUN_INPUT_TOKENS", "100")
     get_settings.cache_clear()
-    result = env.run("2")
+    result = env.run("2", mode="draft")
     assert drafted_events(env)[0]["how"] == "standard list"
-    assert result["status"] == "partial" and any(s["task_id"] == "draft" for s in result["skipped"])
+    assert any(s["task_id"] == "draft" for s in result["skipped"])
 
 
 def test_drafts_are_never_shared_between_clients(env):

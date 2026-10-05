@@ -51,9 +51,9 @@ export interface ProgressEvent {
 export interface DirectionItem {
   id: string
   text: string
-  origin?: 'person' | 'ai' | 'checklist'
+  origin?: 'person' | 'ai'
   reason?: string
-  basis?: 'history' | 'current' | 'standard' | '' | (string & {})
+  basis?: 'history' | 'current' | 'standard' | ''
 }
 
 export interface RunSummary {
@@ -69,57 +69,71 @@ export interface RunSummary {
   demo: boolean
 }
 
-export type YoyStatus = 'covered' | 'partly' | 'not_yet' | 'at_year_end' | 'not_expected' | 'unclear'
-
-export interface YoyRef {
+/** A place a reason rests on: a questionnaire line, last year's line, a file… with its link. */
+export interface SourceRef {
   id: string
   label: string
   evidence_id: string | null
 }
 
-export interface YoyLine {
-  id: string
-  label: string
-  section: string
-  last_year: number
-  year_before: number | null
-  this_year: number | null
-  change: number | null
-  change_pct: number | null
-  status: YoyStatus
-  comment: string
-  question: string
-  refs: YoyRef[]
-  evidence_ids: string[]
+export interface PrecheckItem {
+  group: string
+  item: string
+  decision: 'request' | 'already_provided' | 'not_needed'
+  reason: string
+  sources: SourceRef[]
+  documents: SourceRef[]
+  /** Raised by code: no_source, no_file_named, figure_not_in_documents. */
+  flags: string[]
 }
 
-/** This year's documents against last year's accounts. Every amount was produced by code. */
-export interface YearOnYear {
-  available: true
-  how: 'model' | 'cache' | 'code only'
-  this_year: string
-  last_year: string
-  period: string
-  baseline: string[]
-  documents: { this_year: number; last_year: number }
-  summary: string[]
-  lines: YoyLine[]
-  checks: { label: string; passed: boolean; detail: string; evidence_ids: string[] }[]
-  bank: { account: string; from: string; to: string; opening: number | null; closing: number | null; money_in: number; money_out: number; transactions: number }[]
-  new_this_year: { text: string; refs: YoyRef[] }[]
-  evidence?: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
+/** The pre-check: decision, key documents, business nature, every item with its reason, and
+ * the email to the client (drafted, never sent). */
+export interface PrecheckOutput {
+  decision: { state: 'blocked' | 'requests' | 'nothing'; label: string; reason: string }
+  key_documents: { role: string; label: string; found: boolean; note: string; files: { name: string; evidence_id: string | null }[] }[]
+  business_nature: {
+    type: string
+    label: string
+    summary: string
+    reasoning: string
+    fixed: boolean
+    sources: SourceRef[]
+    facts: { text: string; sources: SourceRef[] }[]
+  } | null
+  requests: PrecheckItem[]
+  provided: PrecheckItem[]
+  not_needed: PrecheckItem[]
+  preparer_notes: { text: string; sources: SourceRef[] }[]
+  lessons_applied: { id: string; text: string }[]
+  email: { subject: string; body: string }
+  evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
+  how?: string
 }
 
-/** A checklist item's status in the firm's words. */
-export type ChecklistStatus = 'complete' | 'partial' | 'missing' | 'clarification'
+export type LessonKind = 'not_needed' | 'wrong_reason' | 'missed' | 'other'
+
+export interface Lesson {
+  id: number
+  scope: 'client' | 'firm'
+  status: 'active' | 'pending' | 'disabled'
+  kind: LessonKind
+  precheck_type: string
+  item: string
+  note: string
+  created_by: string
+  created_at: string
+  task: string
+}
 
 export interface Run extends RunSummary {
-  direction_items: (DirectionItem & { addressed: boolean; status?: ChecklistStatus })[]
-  precheck_type?: PrecheckType
-  /** The verdict in the type's own words, e.g. "Ready to start with gaps". */
+  direction_items: (DirectionItem & { addressed: boolean })[]
+  /** The business nature the pre-check worked to. */
+  precheck_type?: string
+  /** The decision in words: Blocked, Requests to send, Nothing to request. */
   readiness?: string
-  /** Requests for missing information, drafted by code and never sent, grouped by check. */
-  requests?: { group: string; items: string[] }[]
+  /** Absent on runs from before the request-list pre-check (5 Oct 2026). */
+  precheck?: PrecheckOutput
   trail: Partial<Record<TrailStage, TrailStep>>
   progress: ProgressEvent[]
   skipped: { task_id: string; direction_ref: string; what: string; reason: string }[]
@@ -132,14 +146,13 @@ export interface Run extends RunSummary {
     cache_share?: number
     reused_answers?: number
   }
-  models: Partial<Record<'reader' | 'judge' | 'escalate', string>>
+  models: Partial<Record<string, string>>
   duration_s: number | null
+  /** Findings of runs from before 5 Oct 2026; new runs list requests in `precheck` instead. */
   findings: Finding[]
-  /** Absent on runs from before the year-on-year analysis existed. */
-  analysis?: YearOnYear | { available: false; reason: string }
 }
 
-export type PrecheckType = 'general' | 'residential_rental'
+export type PrecheckType = 'auto' | 'residential_rental' | 'general' | 'investment'
 
 export interface PrecheckSetup {
   drive_folder_url: string
@@ -205,6 +218,35 @@ export function useSavePrecheckSetup(jobKey: string) {
     mutationFn: async (payload: { drive_folder_url?: string; direction_items?: string[]; precheck_type?: PrecheckType }) =>
       (await apiClient.put<PrecheckSetup>(`/precheck/jobs/${jobKey}/setup/`, payload)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
+  })
+}
+
+/** Lessons this task's pre-check applies, and (for a lead or admin) firm-wide ones to approve. */
+export function useLessons(jobKey: string) {
+  return useQuery({
+    queryKey: ['precheck', jobKey, 'lessons'],
+    queryFn: async () =>
+      (await apiClient.get<{ lessons: Lesson[]; pending_firm_wide: Lesson[]; can_approve: boolean }>(`/precheck/jobs/${jobKey}/lessons/`)).data,
+  })
+}
+
+/** Teach the pre-check from a correction. */
+export function useTeachLesson(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { kind: LessonKind; item: string; note: string; firm_wide: boolean }) =>
+      (await apiClient.post<Lesson>(`/precheck/jobs/${jobKey}/lessons/`, payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'lessons'] }),
+  })
+}
+
+/** Approve a firm-wide lesson, or switch one off. */
+export function useSetLessonStatus(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: 'active' | 'disabled' }) =>
+      (await apiClient.patch<Lesson>(`/precheck/lessons/${id}/`, { status })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'lessons'] }),
   })
 }
 

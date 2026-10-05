@@ -2,6 +2,7 @@ import hmac
 
 from django.conf import settings
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -12,7 +13,7 @@ from apps.projects.keys import get_issue_or_404
 from trackflow.naming import clean_name
 
 from . import services
-from .models import PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, folder_id_from
+from .models import PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
 
 MAX_DIRECTION_ITEMS = 40
 
@@ -79,10 +80,10 @@ class JobSetupView(APIView):
                         issue=issue, defaults={"folder_id": folder_id, "folder_url": raw[:500], "updated_by": request.user}
                     )
         if "precheck_type" in request.data:
-            wanted = str(request.data.get("precheck_type") or "general")
+            wanted = str(request.data.get("precheck_type") or "auto")
             if wanted not in {v for v, _ in PRECHECK_TYPES}:
                 errors["precheck_type"] = ["Choose one of the pre-check types offered."]
-            elif not JobFolder.objects.filter(issue=issue).update(precheck_type=wanted) and wanted != "general":
+            elif not JobFolder.objects.filter(issue=issue).update(precheck_type=wanted) and wanted != "auto":
                 errors["precheck_type"] = ["Link the task's Drive folder first."]
         if "direction_items" in request.data:
             items = request.data.get("direction_items")
@@ -206,3 +207,67 @@ class InternalEventView(APIView):
     def post(self, request):
         accepted = services.record_event(request.data)
         return Response({"accepted": accepted}, status=status.HTTP_200_OK if accepted else status.HTTP_409_CONFLICT)
+
+
+class JobLessonsView(APIView):
+    """GET /api/precheck/jobs/<key>/lessons/ — the lessons this task's pre-check applies, and
+    (for a lead or admin) firm-wide lessons waiting for approval.
+    POST — teach the pre-check from a correction: {kind, item, note, firm_wide}. It applies to this
+    client at once; firm-wide it waits for a lead or admin, unless one is making it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        can_approve = services.can_approve_lessons(request.user, issue)
+        pending = PrecheckLesson.objects.filter(scope="firm", status="pending").select_related("created_by", "issue")[:50] if can_approve else []
+        return Response({
+            "lessons": services.lessons_for(issue),
+            "pending_firm_wide": [services.lesson_dict(lesson) for lesson in pending],
+            "can_approve": can_approve,
+        })
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        kind = str(request.data.get("kind") or "other")
+        note = " ".join(str(request.data.get("note") or "").split())
+        item = " ".join(str(request.data.get("item") or "").split())[:300]
+        if kind not in PrecheckLesson.Kind.values:
+            return Response({"kind": ["Choose not needed, wrong reason, missed item or other."]}, status=status.HTTP_400_BAD_REQUEST)
+        if len(note) < 5:
+            return Response({"note": ["Say in a few words what the pre-check should do differently."]}, status=status.HTTP_400_BAD_REQUEST)
+        firm_wide = bool(request.data.get("firm_wide"))
+        approver = services.can_approve_lessons(request.user, issue)
+        latest = issue.prechecks.filter(status__in=["complete", "partial"]).order_by("-created_at").first()
+        lesson = PrecheckLesson.objects.create(
+            client_scope=services.client_scope(issue), scope="firm" if firm_wide else "client",
+            status="active" if (not firm_wide or approver) else "pending", kind=kind, item=item, note=note[:1000],
+            precheck_type=(latest.precheck_type if latest else "") or "", issue=issue, run=latest, created_by=request.user,
+            decided_by=request.user if firm_wide and approver else None, decided_at=timezone.now() if firm_wide and approver else None,
+        )
+        return Response(services.lesson_dict(lesson), status=status.HTTP_201_CREATED)
+
+
+class LessonDetailView(APIView):
+    """PATCH /api/precheck/lessons/<id>/ {status: active|disabled} — approve a firm-wide lesson (a
+    lead or admin), or switch a lesson off (its author, or a lead or admin)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        lesson = get_object_or_404(PrecheckLesson.objects.select_related("issue__project", "created_by"), pk=pk)
+        if lesson.issue is None or not services.can_open_job(request.user, lesson.issue):
+            raise PermissionDenied("You can't change this lesson.")
+        wanted = request.data.get("status")
+        approver = services.can_approve_lessons(request.user, lesson.issue)
+        if wanted == "active":
+            if not approver:
+                raise PermissionDenied("Only a lead or an admin can approve a lesson for all clients.")
+        elif wanted == "disabled":
+            if not (approver or lesson.created_by_id == request.user.id):
+                raise PermissionDenied("Only the person who taught it, a lead or an admin can switch a lesson off.")
+        else:
+            return Response({"status": ["Use active or disabled."]}, status=status.HTTP_400_BAD_REQUEST)
+        lesson.status, lesson.decided_by, lesson.decided_at = wanted, request.user, timezone.now()
+        lesson.save(update_fields=["status", "decided_by", "decided_at"])
+        return Response(services.lesson_dict(lesson))

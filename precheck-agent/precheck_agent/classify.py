@@ -1,6 +1,6 @@
 """Decide what kind of document a file is, in code (file name first, then its first lines).
-The class picks which reader looks at it and which rules apply. See skills/gdrive-folder-reader
-for the same table in words — keep the two in step."""
+The class decides which checks apply to a file and which key document it can be (this year's
+questionnaire, last year's statements or workpapers)."""
 import re
 
 DOCUMENT_CLASSES = [
@@ -22,37 +22,10 @@ DOCUMENT_CLASSES = [
     "other",
 ]
 
-READER_FOR_CLASS = {
-    "trial_balance": "ledger_reader",
-    "general_ledger": "ledger_reader",
-    "bank": "ledger_reader",
-    "reconciliation": "ledger_reader",
-    "financial_statements": "statements_reader",
-    "prior_year_statements": "statements_reader",
-    "tax_computation": "tax_reader",
-    "tax_return": "tax_reader",
-    "tax_correspondence": "tax_reader",
-    "schedule": "workpaper_reader",
-    "questionnaire": "workpaper_reader",
-    "job_instructions": "workpaper_reader",
-    "workpaper": "workpaper_reader",
-    "correspondence": "workpaper_reader",
-    "other_evidence": "workpaper_reader",
-    "other": "workpaper_reader",
-}
-
-READER_CLASSES: dict[str, list[str]] = {}
-for _cls, _reader in READER_FOR_CLASS.items():
-    READER_CLASSES.setdefault(_reader, []).append(_cls)
-# An email, a photo or a file code could not place can be about anything: every reader may be
-# shown it when it matches the question.
-for _classes in READER_CLASSES.values():
-    for _any in ("correspondence", "other_evidence", "other"):
-        if _any not in _classes:
-            _classes.append(_any)
-
 # Ordered: the first pattern that matches the file name wins.
 _NAME_RULES = [
+    # First: a questionnaire is named for its purpose, whatever topics it covers (GST, rental…).
+    (r"questionnaire|\bcq\b|checklist|client (information|details)|information (sheet|form)", "questionnaire", None),
     (r"\bgst\b|\bvat\b|\bbas\b", "tax_return", None),
     (r"\bir\s?3\b|\bir\s?4\b|\bir\s?10\b|\binc\b.*tax|income tax|tax summar|\bpir\b|student loan|\blcf\b|loss(es)? carried|provisional tax|terminal tax|\bsoe\b|statement of earnings|\bpayday\b|\bpaye\b|\bfbt\b|\brwt\b|withholding", "tax_computation", None),
     (r"\bfa\b.*\brecon|fixed asset|asset register|depreciation schedule", "schedule", None),
@@ -69,7 +42,6 @@ _NAME_RULES = [
     (r"tax[\s_-]*return|ct600|sa100|form\s*11|\bvat return", "tax_return", None),
     (r"hmrc|revenue|tax.*(letter|correspond|notice)", "tax_correspondence", None),
     (r"financial[\s_-]*statement|statutory accounts|annual accounts|draft accounts|\bfs\b|profit (and|&) loss|balance sheet", "financial_statements", None),
-    (r"questionnaire|checklist", "questionnaire", None),
     (r"instruction|engagement|direction|planning memo|job brief", "job_instructions", None),
     (r"schedule|lead[\s_-]*sheet|fixed asset|debtors|creditors|accrual|prepayment|payroll|stock|inventory", "schedule", None),
     (r"workpaper|working|\bwp\b|lock dates|job[\s_-]*activity", "workpaper", None),
@@ -103,25 +75,7 @@ def classify(name: str, sample_text: str = "") -> str:
     for pattern, cls in _CONTENT_RULES:
         if re.search(pattern, head):
             return cls
+    # A form of questions the client answered: many lines that end in a question mark.
+    if sum(1 for line in sample_text.splitlines() if line.strip().endswith("?")) >= 6:
+        return "questionnaire"
     return "other"
-
-
-# Words in a Direction Note item that point to a reader. Scored, not first-match.
-_READER_WORDS = {
-    "ledger_reader": r"trial balance|\btb\b|ledger|\bgl\b|bank|reconcil|cash|journal|posting|suspense|control account",
-    "statements_reader": r"financial statements?|accounts|disclosure|note \d|comparativ|prior year|balance sheet|profit and loss|p&l|directors'? report|presentation",
-    "tax_reader": r"\btax\b|corporation tax|vat|paye|capital allowance|hmrc|revenue|deferred tax|return|ct600|computation",
-    "workpaper_reader": r"workpaper|working paper|schedule|sign[\s-]?off|questionnaire|checklist|fixed asset|debtor|creditor|accrual|prepayment|payroll|stock|inventory|review point|lead sheet",
-}
-
-
-def reader_for_question(text: str) -> str | None:
-    """The reader whose vocabulary the question uses most, or None when code cannot tell (the
-    plan node then goes by the class of the best-matching document — still no model call)."""
-    lowered = text.lower()
-    scores = {reader: len(re.findall(pattern, lowered)) for reader, pattern in _READER_WORDS.items()}
-    best = max(scores, key=scores.get)
-    ranked = sorted(scores.values(), reverse=True)
-    if ranked[0] == 0 or (len(ranked) > 1 and ranked[0] == ranked[1]):
-        return None
-    return best

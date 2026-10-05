@@ -29,7 +29,7 @@ class RunRequest(BaseModel):
 def healthz():
     s = get_settings()
     return {"status": "ok", "version": __version__, "llm_mode": s.llm_mode, "drive_mode": s.drive_mode,
-            "models": {r: model_id(r, s) for r in ("reader", "judge", "escalate")}}
+            "models": {r: model_id(r, s) for r in ("precheck", "drafter", "vision")}}
 
 
 @app.post("/precheck/runs", status_code=202, dependencies=[Depends(require_token)])

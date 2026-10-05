@@ -53,6 +53,17 @@ def make_job_folder(root: Path, name: str, tb_rows=None, debtors_total=112400):
     return folder
 
 
+def add_key_documents(folder: Path) -> Path:
+    """This year's client questionnaire and last year's financial statements, so a pre-check gets
+    past its key documents (make_job_folder's trial balance is last year's workpaper)."""
+    (folder / "Client Questionnaire.txt").write_text(
+        "Client questionnaire\nDid anything change this year? A new debtor, Beta Ltd.\nDo you hold stock? Yes, counted at year end.\n",
+        encoding="utf-8")
+    (folder / "Financial Statements FY25.txt").write_text(
+        "Financial Statements\nFor the year ended 31 March 2025\nTrade debtors 118,900 60,000\n", encoding="utf-8")
+    return folder
+
+
 DIRECTION = [
     {"id": "D1", "text": "Agree the bank reconciliation to the cash at bank balance in the ledger"},
     {"id": "D2", "text": "Confirm the accruals workpaper is complete and signed off"},
@@ -67,12 +78,13 @@ class FakePM:
         self.jobs: dict[str, dict] = {}
         self.events: list[dict] = []
 
-    def add_job(self, job_id, client_id, folder, direction=None, history=None):
+    def add_job(self, job_id, client_id, folder, direction=None, history=None, precheck_type="auto", lessons=None):
         self.jobs[job_id] = {
             "job_id": job_id, "key": f"JOB-{job_id}", "title": "Year end accounts", "workspace": "Acme FY25", "client_id": client_id,
             "client_name": client_id, "drive_folder_id": folder, "knowledge_ids": [],
             "direction_items": [dict(i) for i in (DIRECTION if direction is None else direction)],
             "history": history or {"past_items": [], "past_findings": [], "jobs_seen": 0},
+            "precheck_type": precheck_type, "lessons": lessons or [],
         }
 
     def get_job(self, job_id):
@@ -121,12 +133,9 @@ def env(tmp_path, monkeypatch):
 
     e = Env()
     e.pm, e.drive_root, e.tmp = pm, drive_root, tmp_path
-    e.reader = llm.set_fake("reader", llm.demo_reader)
-    e.judge = llm.set_fake("judge", llm.demo_judge)
-    e.escalate = llm.set_fake("escalate", llm.demo_escalate)
+    e.precheck = llm.set_fake("precheck", llm.demo_precheck)
     e.drafter = llm.set_fake("drafter", llm.demo_drafter)
     e.vision = llm.set_fake("vision", llm.demo_vision)
-    e.analyst = llm.set_fake("analyst", llm.demo_analyst)
 
     def run(job_id, mode="precheck"):
         return runner.execute(runner.new_run_id(), job_id, mode)

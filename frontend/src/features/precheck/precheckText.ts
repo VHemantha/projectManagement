@@ -45,10 +45,10 @@ export const BASIS_LABELS: Record<string, string> = {
 
 export const TRAIL: { stage: TrailStage; name: string; waiting: string }[] = [
   { stage: 'read', name: 'Read', waiting: 'Documents in the task folder' },
-  { stage: 'checked', name: 'Checked', waiting: 'Automatic checks' },
-  { stage: 'compared', name: 'Compared', waiting: 'Direction Note items' },
-  { stage: 'judged', name: 'Judged', waiting: 'Findings weighed' },
-  { stage: 'verified', name: 'Verified', waiting: 'Sources linked' },
+  { stage: 'checked', name: 'Checked by code', waiting: 'Checks with a right answer' },
+  { stage: 'compared', name: 'Key documents', waiting: 'Questionnaire, last year\'s statements and workpapers' },
+  { stage: 'judged', name: 'Pre-checked', waiting: 'What is still needed, and why' },
+  { stage: 'verified', name: 'Sources linked', waiting: 'Every reason tied to a document' },
 ]
 
 export type StepState = 'waiting' | 'running' | 'done'

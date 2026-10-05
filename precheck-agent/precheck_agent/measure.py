@@ -5,8 +5,8 @@
 
 `items.txt` holds the Direction Note items, one per line. The same job is run `--runs` times:
 the first run pays for everything, the later ones show what an unchanged re-run costs (it
-should be zero model calls). Prints a Markdown table for the README, and says whether the
-model features the service relies on actually worked (citations, structured output).
+should be zero model calls). Prints a Markdown table for the README, and how many items the
+checks flagged (no source, no file named, or a figure not in the documents).
 """
 import argparse
 import sys
@@ -45,7 +45,7 @@ def main(argv=None) -> int:
                  "drive_folder_id": args.folder, "direction_items": items, "knowledge_ids": []})
     pm_client.set_pm(pm)
 
-    print(f"llm_mode={s.llm_mode} drive_mode={s.drive_mode} reader={s.reader_model} judge={s.judge_model}", file=sys.stderr)
+    print(f"llm_mode={s.llm_mode} drive_mode={s.drive_mode} precheck={s.precheck_model}", file=sys.stderr)
     rows, ok = [], True
     for n in range(1, args.runs + 1):
         print(f"run {n}:", file=sys.stderr)
@@ -55,20 +55,18 @@ def main(argv=None) -> int:
             print(f"FAILED: {r['reason']}", file=sys.stderr)
             return 1
         u, t = r["usage"], r["usage"]["totals"]
+        p = r["precheck"]
         rows.append(
-            f"| {n} | {r['trail']['read']['documents']} | {len(items)} | {u['reader_calls']} | {u['model_calls']} | {t['input']:,} | "
-            f"{t['cache_write']:,} | {t['cache_read']:,} | {t['output']:,} | ${u['cost_usd']:.4f} | {time.time() - started:.0f} s | {r['status']}, {r['verdict']} |"
+            f"| {n} | {r['trail']['read']['documents']} | {p['decision']['label']} | {len(p['requests'])} / {len(p['provided'])} / {len(p['not_needed'])} | "
+            f"{u['model_calls']} | {t['input']:,} | {t['cache_read']:,} | {t['output']:,} | ${u['cost_usd']:.4f} | {time.time() - started:.0f} s |"
         )
         if n == 1:
-            ai = [f for f in r["findings"] if f["source"] == "ai" and f["status"] in ("addressed", "exception")]
-            cited = [f for f in ai if f["evidence_ids"]]
-            print(f"  citations: {len(cited)}/{len(ai)} AI findings came back tied to a passage", file=sys.stderr)
-            print(f"  judge: {r['trail']['judged']['how']} (\"model\" means the structured output validated)", file=sys.stderr)
-            ok = r["trail"]["judged"]["how"] in ("model", "code") and (not ai or bool(cited))
+            flagged = [i for i in p["requests"] + p["provided"] if i.get("flags")]
+            print(f"  {len(flagged)} items flagged (no source, no file named, or a figure not in the documents)", file=sys.stderr)
             for sk in r["skipped"]:
                 print(f"  skipped: {sk['what']} ({sk['reason']})", file=sys.stderr)
-    print("| Run | Documents | Items | Reader calls | Model calls | Input (uncached) | Cache write | Cache read | Output | Cost | Time | Result |")
-    print("|---|---|---|---|---|---|---|---|---|---|---|---|")
+    print("| Run | Documents | Decision | Requests / provided / not needed | Model calls | Input (uncached) | Cache read | Output | Cost | Time |")
+    print("|---|---|---|---|---|---|---|---|---|---|")
     print("\n".join(rows))
     return 0 if ok else 2
 

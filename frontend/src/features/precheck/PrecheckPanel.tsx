@@ -22,7 +22,7 @@ import {
 import { type FormEvent, useState } from 'react'
 
 import styles from './PrecheckPanel.module.css'
-import { YearOnYear } from './YearOnYear'
+import { PrecheckResult } from './PrecheckResult'
 import {
   BASIS_LABELS,
   costChip,
@@ -39,7 +39,6 @@ import {
 } from './precheckText'
 import { extractErrorMessage } from '@/api/errors'
 import {
-  type ChecklistStatus,
   type DirectionItem,
   type Finding,
   type JobPrecheck,
@@ -55,7 +54,14 @@ import {
   useSavePrecheckSetup,
   useSetDisposition,
 } from '@/api/precheck'
-import { Button, CopyButton, Skeleton } from '@/design-system'
+import { Button, Skeleton } from '@/design-system'
+
+const TYPE_HINTS: Record<PrecheckType, string> = {
+  auto: 'The pre-check decides from the questionnaire and last year\'s accounts whether this is a rental, a business or an investment entity.',
+  residential_rental: 'Residential rental: properties, managers, loans, bonds, rates, body corporate and repairs, under NZ rules.',
+  general: 'General business: bank, GST, payroll, assets, stock, debtors and creditors, shareholders and tax, under NZ rules.',
+  investment: 'Investment entity: dividends, interest, PIE and foreign investments, crypto and trust distributions, under NZ rules.',
+}
 
 const STAGE_ICONS: Record<TrailStage, typeof FileSearch> = {
   read: FileSearch,
@@ -94,7 +100,6 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
   const run = older.data ?? data.latest
   const drafting = data.draft?.status === 'running'
   const running = data.latest?.status === 'running' || drafting
-  const noItems = data.setup.direction_items.length === 0
   const runButton = (label: string, primary = true) => (
     <Button
       variant={primary ? 'primary' : 'secondary'}
@@ -148,7 +153,7 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
       ) : !run ? (
         <NeverRun
           setup={data.setup}
-          button={runButton(noItems ? 'Draft the Direction Note and run' : 'Run pre-check')}
+          button={runButton('Run pre-check')}
           onEdit={() => setEditingSetup(true)}
         />
       ) : (
@@ -208,9 +213,10 @@ function SetupForm({
     <form className={styles.setup} onSubmit={submit}>
       {!setup.ready && (
         <p className={styles.lead}>
-          Before the pre-check can run, this task needs its Google Drive folder. The pre-check reads the folder and
-          checks each Direction Note item against it. You can write the Direction Note yourself, or leave it empty and
-          the AI will draft one from this sub-workspace&apos;s past tasks and the folder.
+          Before the pre-check can run, this task needs its Google Drive folder. The pre-check reads this year&apos;s
+          client questionnaire with last year&apos;s financial statements and workpapers, and lists what is still needed
+          to prepare this year&apos;s accounts, with the reason for each. The Direction Note is optional: instructions the
+          pre-check follows.
         </p>
       )}
       <label className={styles.field}>
@@ -236,15 +242,11 @@ function SetupForm({
             </option>
           ))}
         </select>
-        <small>
-          {precheckType === 'residential_rental'
-            ? "Adds AFIT's residential rental checklist (23 checks: bank, loans, properties, property managers, expenses, capital items). The Direction Note below is checked as well."
-            : 'Checks the Direction Note below.'}
-        </small>
+        <small>{TYPE_HINTS[precheckType]}</small>
       </label>
       <label className={styles.field}>
         <span>
-          <ListChecks size={14} aria-hidden="true" /> Direction Note items, one per line
+          <ListChecks size={14} aria-hidden="true" /> Direction Note items, one per line (optional)
         </span>
         <textarea
           rows={Math.min(Math.max(lines.length + 1, 4), 12)}
@@ -317,23 +319,14 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
 }
 
 function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void }) {
-  if (setup.direction_items.length === 0) {
-    return (
-      <p className={styles.setupLine}>
-        No Direction Note yet: the AI will draft one from this sub-workspace&apos;s past tasks and the folder, then check each
-        item.{' '}
-        <button type="button" className={styles.link} onClick={onEdit}>
-          Write it yourself or edit the folder
-        </button>
-      </p>
-    )
-  }
+  const type = setup.precheck_types?.find((x) => x.value === setup.precheck_type)?.label ?? 'Decide from the questionnaire'
   return (
     <p className={styles.setupLine}>
-      Checks {setup.direction_items.length} Direction Note item{setup.direction_items.length === 1 ? '' : 's'} against the
-      task&apos;s Drive folder.{' '}
+      Reads the task&apos;s Drive folder. Business nature: {type.toLowerCase()}.
+      {setup.direction_items.length > 0 &&
+        ` Follows ${setup.direction_items.length} Direction Note instruction${setup.direction_items.length === 1 ? '' : 's'}.`}{' '}
       <button type="button" className={styles.link} onClick={onEdit}>
-        Edit folder and items
+        Edit folder, type and instructions
       </button>
     </p>
   )
@@ -343,10 +336,9 @@ function NeverRun({ setup, button, onEdit }: { setup: PrecheckSetup; button: Rea
   return (
     <div className={styles.empty}>
       <p className={styles.lead}>
-        Not run yet. The pre-check reads the task folder, runs the automatic checks and compares each Direction Note
-        item with the evidence, so a reviewer starts with the open points in front of them.
-        {setup.direction_items.length === 0 &&
-          ' This task has no Direction Note, so the AI will draft one first and then verify it.'}
+        Not run yet. The pre-check first looks for this year&apos;s client questionnaire and last year&apos;s financial
+        statements and workpapers — without them it drafts a request for them. Then it lists everything still needed for
+        this year&apos;s accounts, with the reason for each, and drafts the email to the client.
       </p>
       <div className={styles.actionsRow}>{button}</div>
       <SetupLine setup={setup} onEdit={onEdit} />
@@ -403,8 +395,7 @@ function RunView({
 
       {run.status === 'partial' && (
         <div className={styles.notice} data-tone="warning" role="status">
-          <strong>Stopped at the budget for one run.</strong> {run.skipped.length} step{run.skipped.length === 1 ? ' was' : 's were'} not
-          checked and {run.skipped.length === 1 ? 'is' : 'are'} shown as not addressed:
+          <strong>Not everything was done in this run.</strong> Run the pre-check again to finish:
           <ul>
             {run.skipped.map((s) => (
               <li key={s.task_id}>
@@ -417,14 +408,10 @@ function RunView({
 
       {run.status !== 'failed' && <Trail run={run} />}
 
-      {finished && <StandardChecklist run={run} />}
-      {finished && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
-      {finished && <Requests run={run} />}
+      {finished && run.precheck && <PrecheckResult output={run.precheck} jobKey={jobKey} />}
+      {finished && !run.precheck && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
 
-      {finished && run.analysis?.available && <YearOnYear analysis={run.analysis} />}
-      {finished && run.analysis && !run.analysis.available && <p className={styles.muted}>{run.analysis.reason}</p>}
-
-      {finished && (
+      {finished && !run.precheck && (
         <>
           {open.length === 0 ? (
             <div className={styles.allClear}>
@@ -473,80 +460,11 @@ function RunView({
   )
 }
 
-const CHECKLIST_STATUS: Record<ChecklistStatus, string> = {
-  complete: 'Complete',
-  partial: 'Partial',
-  missing: 'Missing',
-  clarification: 'Clarification required',
-}
-
-/** The type's standard checklist (e.g. AFIT's rental checks), each with its status in the
- * firm's words; hover a check for what it looks for. */
-function StandardChecklist({ run }: { run: Run }) {
-  const checks = run.direction_items.filter((i) => i.origin === 'checklist')
-  if (!checks.length) return null
-  return (
-    <div>
-      <h3 className={styles.sectionTitle}>
-        {checks[0].basis || 'Standard'} checklist ({checks.filter((c) => c.addressed).length} of {checks.length} complete)
-      </h3>
-      <ul className={styles.checklist}>
-        {checks.map((i) => (
-          <li key={i.id} data-addressed={i.addressed}>
-            {i.addressed ? (
-              <Check size={14} className={styles.pass} aria-label="Complete" />
-            ) : (
-              <X size={14} className={styles.fail} aria-label="Not complete" />
-            )}
-            <span className={styles.ref}>{i.id}</span>
-            <span className={styles.detailMain} title={i.reason}>
-              {i.text}
-            </span>
-            {i.status && (
-              <span className={styles.tag} data-tone={i.status === 'complete' ? undefined : 'warning'}>
-                {CHECKLIST_STATUS[i.status]}
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
-/** Requests for what is missing, grouped by check and drafted for a person to send. */
-function Requests({ run }: { run: Run }) {
-  const groups = run.requests ?? []
-  if (!groups.length) return null
-  const text = groups.map((g) => `${g.group}\n${g.items.map((i) => `- ${i}`).join('\n')}`).join('\n\n')
-  return (
-    <details className={styles.addressed}>
-      <summary>
-        <ChevronDown size={14} aria-hidden="true" /> Requests to send (drafted, not sent) <span>{groups.length}</span>
-      </summary>
-      <div className={styles.requests}>
-        <CopyButton value={text} label="requests" />
-        {groups.map((g) => (
-          <div key={g.group}>
-            <strong>{g.group}</strong>
-            <ul>
-              {g.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </details>
-  )
-}
-
 /** The Direction Note as verified in this run: each item addressed or not, and which ones the
  * AI drafted (with its reason). */
 function DirectionChecklist({ run }: { run: Run }) {
   const drafted = run.direction_items.filter((i) => i.origin === 'ai').length
-  const items = run.direction_items.filter((i) => i.origin !== 'checklist')
-  if (!items.length) return null
+  const items = run.direction_items
   return (
     <div>
       <h3 className={styles.sectionTitle}>
@@ -585,8 +503,8 @@ function VerdictHeader({ run, action }: { run: Run; action: React.ReactNode }) {
       <div
         className={styles.ring}
         role="img"
-        aria-label={`${addressed} of ${total} Direction Note items addressed`}
-        title="Direction Note coverage"
+        aria-label={run.precheck ? `${addressed} of ${total} needed items received` : `${addressed} of ${total} Direction Note items addressed`}
+        title={run.precheck ? 'Needed items already received' : 'Direction Note coverage'}
       >
         <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
           <circle cx="32" cy="32" r="26" className={styles.ringTrack} />
@@ -606,13 +524,27 @@ function VerdictHeader({ run, action }: { run: Run; action: React.ReactNode }) {
       <div className={styles.verdictText}>
         <div className={styles.verdictWords}>{run.readiness || VERDICT_WORDS[verdict]}</div>
         <p className={styles.summary}>{run.summary}</p>
-        <div className={styles.counts} aria-label="Open findings by severity">
-          {(['high', 'medium', 'low'] as Severity[]).map((s) => (
-            <span key={s} className={styles.count} data-severity={s} data-zero={!run.counts[s]}>
-              <strong>{run.counts[s] ?? 0}</strong> {SEVERITY_LABELS[s].toLowerCase()}
+        {run.precheck ? (
+          <div className={styles.counts} aria-label="Items">
+            <span className={styles.count} data-severity="high" data-zero={!run.precheck.requests.length}>
+              <strong>{run.precheck.requests.length}</strong> to request
             </span>
-          ))}
-        </div>
+            <span className={styles.count} data-severity="low" data-zero={!run.precheck.provided.length}>
+              <strong>{run.precheck.provided.length}</strong> already provided
+            </span>
+            <span className={styles.count} data-severity="low" data-zero={!run.precheck.not_needed.length}>
+              <strong>{run.precheck.not_needed.length}</strong> not needed
+            </span>
+          </div>
+        ) : (
+          <div className={styles.counts} aria-label="Open findings by severity">
+            {(['high', 'medium', 'low'] as Severity[]).map((s) => (
+              <span key={s} className={styles.count} data-severity={s} data-zero={!run.counts[s]}>
+                <strong>{run.counts[s] ?? 0}</strong> {SEVERITY_LABELS[s].toLowerCase()}
+              </span>
+            ))}
+          </div>
+        )}
       </div>
       {action && <div className={styles.verdictAction}>{action}</div>}
     </div>
@@ -686,20 +618,20 @@ function TrailDetail({ stage, run }: { stage: TrailStage; run: Run }) {
       </ul>
     )
   }
-  if (stage === 'checked') {
+  if (stage === 'checked' || (stage === 'compared' && run.precheck)) {
     return (
       <ul className={styles.detailList}>
         {(step.detail as unknown as { label: string; passed: boolean; flagged?: boolean; note: string }[]).map((d, i) => (
           <li key={i}>
             {d.passed ? (
-              <Check size={13} className={styles.pass} aria-label="Passed" />
+              <Check size={13} className={styles.pass} aria-label={stage === 'compared' ? 'Found' : 'Passed'} />
             ) : d.flagged ? (
               <AlertTriangle size={13} className={styles.flag} aria-label="Flagged for a closer look" />
             ) : (
-              <X size={13} className={styles.fail} aria-label="Failed" />
+              <X size={13} className={styles.fail} aria-label={stage === 'compared' ? 'Missing' : 'Failed'} />
             )}
             <span className={styles.detailMain}>{d.label}</span>
-            {!d.passed && <span className={styles.muted}>{d.note}</span>}
+            {(!d.passed || stage === 'compared') && <span className={styles.muted}>{d.note}</span>}
           </li>
         ))}
       </ul>
@@ -721,6 +653,26 @@ function TrailDetail({ stage, run }: { stage: TrailStage; run: Run }) {
           </li>
         ))}
       </ul>
+    )
+  }
+  if (stage === 'judged' && run.precheck) {
+    return (
+      <p className={styles.detailText}>
+        {run.precheck.business_nature
+          ? `The pre-check model read this year's questionnaire, last year's financial statements, trial balance and workpapers, every document received this year and the checks done by code, then decided the business nature and what is still needed${
+              step.how === 'cache' ? ' (reused: nothing had changed since the last run)' : ''
+            }.`
+          : 'Not run: a key document is missing, so only the request for it was drafted.'}
+      </p>
+    )
+  }
+  if (stage === 'verified' && run.precheck) {
+    return (
+      <p className={styles.detailText}>
+        {String(step.evidence)} sources are linked. Code checked every item: each source and file it names must exist in the
+        folder; an item said to be already provided without naming a file is requested instead; a reason with a figure not
+        found in the documents is flagged. The decision and the email are made by code from the checked list.
+      </p>
     )
   }
   if (stage === 'judged') {

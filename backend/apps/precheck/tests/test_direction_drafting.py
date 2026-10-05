@@ -18,7 +18,7 @@ from apps.workflow.services import provision_project_defaults
 
 pytestmark = pytest.mark.django_db
 
-SAMPLE = json.loads((Path(__file__).parent / "sample_result.json").read_text(encoding="utf-8"))
+SAMPLE = json.loads((Path(__file__).parent / "legacy_result.json").read_text(encoding="utf-8"))
 TOKEN = {"HTTP_X_PRECHECK_TOKEN": "test-token"}
 
 
@@ -208,7 +208,7 @@ def test_a_task_can_be_set_as_a_residential_rental_pre_check(client_, user):
     resp = client_.put(f"/api/precheck/jobs/{issue.key}/setup/",
                        {"drive_folder_url": "https://drive.google.com/drive/folders/1UT2p7sK3Ib5_6YzUjMwhNzIPwNRQJEFS", "precheck_type": "residential_rental"}, format="json")
     assert resp.status_code == 200 and resp.data["precheck_type"] == "residential_rental"
-    assert {t["value"] for t in resp.data["precheck_types"]} == {"general", "residential_rental"}
+    assert {t["value"] for t in resp.data["precheck_types"]} == {"auto", "general", "residential_rental", "investment"}
     assert client_.put(f"/api/precheck/jobs/{issue.key}/setup/", {"precheck_type": "commercial"}, format="json").status_code == 400
     payload = APIClient().get(f"/api/precheck/internal/jobs/{issue.id}/", **TOKEN).json()
     assert payload["precheck_type"] == "residential_rental"

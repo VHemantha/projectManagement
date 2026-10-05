@@ -8,12 +8,12 @@ from PIL import Image
 
 from precheck_agent import llm, vision
 from precheck_agent.archives import attachments, display_name
-from precheck_agent.classify import READER_CLASSES, classify_email
+from precheck_agent.classify import classify_email
 from precheck_agent.config import get_settings
 from precheck_agent.emails import html_to_text, read_email
 from precheck_agent.parsing import parse_file
 
-from .conftest import make_job_folder
+from .conftest import add_key_documents, make_job_folder
 
 STOCK = "Stock count sheet\nItem | Quantity | Value\nWidgets | 400 | 12,000\nCounted and signed by the warehouse manager on 31 March 2025"
 
@@ -54,10 +54,9 @@ def detail(result):
 
 
 def test_an_email_and_its_attachments_are_read_as_documents(env):
-    folder = make_job_folder(env.drive_root, "acme")
+    folder = add_key_documents(make_job_folder(env.drive_root, "acme"))
     (folder / "RE Debtors query.eml").write_bytes(make_email(inline=picture(size=(40, 40)), forwarded=True))
-    items = [{"id": "D1", "text": "Confirm the Beta Ltd debtor balance is recoverable"}]
-    env.pm.add_job("1", "client-acme", "acme", direction=items)
+    env.pm.add_job("1", "client-acme", "acme", direction=[])
     result = env.run("1")
     assert result["status"] == "complete"
     docs = detail(result)
@@ -65,19 +64,16 @@ def test_an_email_and_its_attachments_are_read_as_documents(env):
     assert docs["Debtors listing.csv (attached to RE Debtors query.eml)"]["kind"] == "schedule"
     assert docs["Balance confirmation.eml (attached to RE Debtors query.eml)"]["kind"] == "correspondence"
     assert not any("logo" in name for name in docs)  # a small picture in the body is a logo, not evidence
-    assert not env.vision.calls and result["usage"]["totals"] == result["usage"]["totals"]  # emails cost no model call to read
+    assert not env.vision.calls  # emails cost no model call to read
 
-    # The reader was shown the email, and the finding quotes the line it relied on.
-    titles = [b["title"] for b in env.reader.calls[0]["messages"][-1].content if b.get("type") == "document"]
-    assert any(t.startswith("RE Debtors query.eml") for t in titles)
-    finding = next(f for f in result["findings"] if f["direction_ref"] == "D1")
-    ev = {e["id"]: e for e in result["evidence"]}[finding["evidence_ids"][0]]
-    assert ev["file_name"] == "RE Debtors query.eml" and ev["location"].startswith("email line") and "Beta Ltd paid 42,000" in ev["quote"]
+    # The pre-check was shown what the email and its attachment say, each line citable.
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "Beta Ltd paid 42,000 on 2 April 2025 so that balance is recoverable.  [RE Debtors query.eml, email line" in body
+    assert "[Debtors listing.csv (attached to RE Debtors query.eml)," in body
 
     # Nothing changed: the email and its attachments are not opened or read again.
-    calls = len(env.reader.calls)
     again = env.run("1")
-    assert len(env.reader.calls) == calls and again["trail"]["read"]["changed"] == 0 and len(detail(again)) == len(docs)
+    assert len(env.precheck.calls) == 1 and again["trail"]["read"]["changed"] == 0 and len(detail(again)) == len(docs)
 
 
 def test_email_parts_and_classes():
@@ -88,9 +84,8 @@ def test_email_parts_and_classes():
     lines = [b["text"] for b in parse_file(make_email(), "x.eml")["blocks"]]
     assert lines[0] == "From: Sam Client <sam@acme.example>" and "Attachments: Debtors listing.csv" in lines
     assert parse_file(b"\x00\x01 not an email", "x.msg")["error"].startswith("Could not read")
-    # An email about the trial balance is not a trial balance, and every reader may be shown emails.
+    # An email about the trial balance is not a trial balance.
     assert classify_email("RE Trial balance FY25.eml") == "correspondence" and classify_email("HMRC notice.eml") == "tax_correspondence"
-    assert all("correspondence" in classes for classes in READER_CLASSES.values())
     assert html_to_text("<style>p{}</style><table><tr><td>Sales</td><td>1,200</td></tr></table><p>Thanks&nbsp;Sam</p>") == "Sales | 1,200\nThanks Sam"
     s = get_settings()
     email_file = {"id": "E", "name": "Mail.eml", "web_url": "u", "path": "Docs.zip/"}
@@ -101,7 +96,7 @@ def test_email_parts_and_classes():
 
 
 def test_an_image_is_read_once_by_the_model_and_then_quoted(env):
-    folder = make_job_folder(env.drive_root, "acme")
+    folder = add_key_documents(make_job_folder(env.drive_root, "acme"))
     (folder / "IMG_2041.jpg").write_bytes(picture("JPEG"))
     env.vision = says(STOCK)
     items = [{"id": "D1", "text": "Confirm the stock count sheet was counted and signed by the warehouse manager"}]
@@ -113,7 +108,6 @@ def test_an_image_is_read_once_by_the_model_and_then_quoted(env):
     assert result["trail"]["read"]["images_read"] == 1 and result["trail"]["read"]["label"].endswith("1 image read by AI")
     call = next(c for c in result["usage"]["calls"] if c["node"] == "read_image")
     assert (call["input"], call["output"], call["calls"]) == (1500, 60, 1)
-    assert result["usage"]["reader_calls"] == len(env.reader.calls)  # an image is not a reader call
 
     # The model was sent the picture itself (as JPEG, whatever it was), told it is data.
     sent = env.vision.calls[0]["messages"]
@@ -121,13 +115,13 @@ def test_an_image_is_read_once_by_the_model_and_then_quoted(env):
     image = sent[1].content[0]
     assert image["type"] == "image" and image["source"]["media_type"] == "image/jpeg"
 
-    finding = next(f for f in result["findings"] if f["direction_ref"] == "D1")
-    ev = {e["id"]: e for e in result["evidence"]}[finding["evidence_ids"][0]]
-    assert ev["file_name"] == "IMG_2041.jpg" and ev["location"].startswith("image read by AI, line") and "warehouse manager" in ev["quote"]
+    # What the image says reaches the pre-check like any other document, located as read by AI.
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "Counted and signed by the warehouse manager on 31 March 2025  [IMG_2041.jpg, image read by AI, line 4]" in body
 
     # Unchanged: never paid for again. Replaced: read again.
     again = env.run("1")
-    assert len(env.vision.calls) == 1 and again["usage"]["model_calls"] == 0
+    assert len(env.vision.calls) == 1 and again["usage"]["model_calls"] == 0  # nor the pre-check: nothing changed
     assert detail(again)["IMG_2041.jpg"]["note"] and again["trail"]["read"]["images_read"] == 0
     (folder / "IMG_2041.jpg").write_bytes(picture("JPEG", size=(640, 400)))
     env.run("1")
@@ -218,7 +212,8 @@ def test_an_image_that_fails_to_read_does_not_stop_the_run(env):
     docs = detail(result)
     assert docs["scan.png"]["problem"] == "This image could not be read this time. Run the pre-check again."
     assert docs["broken.png"]["problem"].startswith("This image could not be opened")
-    assert any("scan.png could not be read" in f["title"] and f["status"] == "unclear" for f in result["findings"])
+    checks = {c["label"]: c for c in result["trail"]["checked"]["detail"]}
+    assert any("scan.png could not be read" in label and not c["passed"] for label, c in checks.items())
     env.vision = says(STOCK)
     result = env.run("1")  # tried again without the file having changed; the broken one is not
     assert len(env.vision.calls) == 1 and not detail(result)["scan.png"]["problem"]

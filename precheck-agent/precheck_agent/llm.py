@@ -1,5 +1,5 @@
-"""Model access. Claude only, model ids from config (token rule 9: Haiku reads, Sonnet judges,
-Opus only on escalation).
+"""Model access. Claude only, model ids from config: Opus does the professional pre-check,
+Sonnet drafts a Direction Note, Haiku writes out images.
 
 `llm_mode = "fake"` swaps in scripted models with the same interface. Tests use them to drive
 the real graph and agents without a key, and the demo mode uses them so the screen can be shown
@@ -59,61 +59,6 @@ def _flatten(content) -> str:
     return "\n".join(parts)
 
 
-def demo_reader(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
-    """Keyword-overlap stand-in for a reader: cites the block that best matches the question,
-    or says it is unclear. Deliberately simple — it exists to exercise the pipeline."""
-    human = messages[-1]
-    docs = [b for b in human.content if isinstance(b, dict) and b.get("type") == "document"]
-    question = " ".join(b["text"] for b in human.content if isinstance(b, dict) and b.get("type") == "text")
-    item = re.search(r"Direction Note item [^:]+: (.*)", question)
-    asked = item.group(1) if item else question.split("Question:", 1)[-1].split("Answer in the finding format")[0]
-    stop = {"this", "that", "with", "from", "have", "been", "were", "does", "agree", "check", "confirm", "review", "anywhere", "explained"}
-    words = {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", asked.lower())} - stop
-    best = (0, None, None, "")
-    for d_index, doc in enumerate(docs):
-        for b_index, block in enumerate(doc["source"]["content"]):
-            score = len(words & {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", block["text"].lower())})
-            if score > best[0]:
-                best = (score, d_index, b_index, block["text"])
-    prompt_text = "\n".join(_flatten(m.content) for m in messages)
-    score, d_index, b_index, text = best
-    if not score:
-        line = "unclear|medium|No evidence found for this item|Where is this covered in the job folder?"
-        return AIMessage(content=[{"type": "text", "text": line}], usage_metadata=_usage(prompt_text, line))
-    open_point = re.search(r"\btbc\b|to follow|awaiting|query|\?\s*$|not yet|outstanding", text.lower())
-    title = asked.strip().split("\n")[0][:70].rstrip(" ?.")
-    if open_point:
-        line = f"exception|medium|Open point: {title}|The document still shows this as open: {text[:80]}"
-    else:
-        line = f"addressed|low|{title}|The job folder shows this: {text[:90]}"
-    cite = {"type": "content_block_location", "cited_text": text, "document_index": d_index,
-            "document_title": docs[d_index].get("title", ""), "start_block_index": b_index, "end_block_index": b_index + 1}
-    return AIMessage(content=[{"type": "text", "text": line, "citations": [cite]}], usage_metadata=_usage(prompt_text, line))
-
-
-def demo_judge(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
-    payload = json.loads(_flatten(messages[-1].content).split("INPUT:", 1)[1])
-    findings = []
-    for f in payload["findings"]:
-        findings.append({
-            "id": f["id"], "direction_ref": f["direction_ref"], "area": f["area"], "status": f["status"],
-            "severity": f["severity"], "kind": "rule" if f["source"] == "rule" else "fact",
-            "title": f["title"], "why": f["why"], "evidence_ids": f["evidence_ids"], "source": f["source"],
-            "confidence": "high" if f["source"] == "rule" else "medium",
-        })
-    open_items = sum(1 for f in findings if f["status"] != "addressed")
-    text = json.dumps({"summary": f"{len(findings)} points checked; {open_items} need attention before review.", "findings": findings})
-    prompt_text = "\n".join(_flatten(m.content) for m in messages)
-    return AIMessage(content=text, usage_metadata=_usage(prompt_text, text))
-
-
-def demo_escalate(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
-    payload = json.loads(_flatten(messages[-1].content).split("INPUT:", 1)[1])
-    f = payload["finding"]
-    text = json.dumps({"status": f["status"], "severity": f["severity"], "confidence": "medium", "why": f["why"]})
-    return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
-
-
 def demo_drafter(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     """Stand-in for the drafting model: accepted past findings and current flags become items,
     then the standard list for the kinds of document present."""
@@ -138,30 +83,38 @@ def demo_vision(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     return AIMessage(content=text, usage_metadata={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
 
 
-def demo_analyst(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
-    """Stand-in for the year-on-year analysis: a line is covered when a bank payer/payee or a
-    file of this year shares a word with it, otherwise nothing has arrived for it yet."""
-    payload = json.loads(_flatten(messages[-1].content).split("INPUT:", 1)[1])
-    refs = [(p["id"], p["name"]) for b in payload["bank"] for p in b["by_payer_or_payee"]]
-    refs += [(c["id"], c["label"]) for c in payload["current_year_figures"]]
-    refs += [(d["id"], d["name"]) for d in payload["current_documents"]]
-    words = lambda text: {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", text.lower())}  # noqa: E731
-    lines = []
-    for line in payload["prior_year_lines"]:
-        hit = [rid for rid, text in refs if words(line["label"]) & words(text)][:2]
-        lines.append({"id": line["id"], "status": "covered" if hit else "not_yet", "refs": hit,
-                      "comment": "Matching material is in this year's documents." if hit else "Nothing in this year's documents matches it yet.",
-                      "question": "" if hit else f"Has {line['label']} continued this year?"})
-    text = json.dumps({"summary": [f"{sum(1 for x in lines if x['status'] == 'covered')} of last year's lines are covered so far."],
-                       "lines": lines, "new_this_year": []})
-    return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
+def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """Stand-in for the pre-check model (demo mode and tests): the type from keywords in the
+    questionnaire, each bank account already provided by its export, and last year's larger
+    trial balance lines requested — enough to exercise the whole pipeline."""
+    body = _flatten(messages[-1].content)
+    lines = [ln for ln in body.splitlines() if re.match(r"^[A-Z]\d+(\.\d+)? \| ", ln)]
+    by = lambda p: [ln.split(" | ") for ln in lines if re.match(rf"^{p}\d+ \| ", ln)]  # noqa: E731
+    q_text = " ".join(" | ".join(parts[1:]) for parts in by("Q")).lower()
+    btype = "residential_rental" if re.search(r"rent|tenant|property manager", q_text) else ("investment" if re.search(r"dividend|shares|fund", q_text) else "general")
+    q_ids = [parts[0] for parts in by("Q")][:2]
+    items = []
+    for parts in by("B"):
+        items.append({"group": parts[1], "item": f"Bank statements for {parts[1]}", "decision": "already_provided",
+                      "reason": "This year's bank export has been received.", "sources": [parts[0]],
+                      "documents": [p[0] for p in by("D") if parts[1].split()[0] in p[1]][:1]})
+    for parts in by("T")[:4]:
+        items.append({"group": "Last year's accounts", "item": f"Evidence for {parts[1]} this year", "decision": "request",
+                      "reason": f"{parts[1]} was in last year's accounts and will be needed again.", "sources": [parts[0]], "documents": []})
+    lessons = [parts[0] for parts in by("L")]
+    text = json.dumps({
+        "business_nature": {"type": btype, "summary": f"Demo: treated as {btype.replace('_', ' ')}.", "reasoning": "Keywords in the questionnaire.",
+                            "sources": q_ids, "facts": [{"text": "Demo fact from the questionnaire.", "sources": q_ids[:1]}]},
+        "items": items, "preparer_notes": [], "lessons_applied": lessons,
+    })
+    return AIMessage(content=text, usage_metadata=_usage(body, text))
 
 
 _fake: dict[str, ScriptedChatModel] = {}
 
 
 def set_fake(role: str, responder: Responder) -> ScriptedChatModel:
-    """Tests: script what the reader, judge or escalation model says."""
+    """Tests: script what a model says."""
     _fake[role] = ScriptedChatModel(responder=responder, name_=f"fake-{role}", calls=[])
     return _fake[role]
 
@@ -172,8 +125,7 @@ def reset_fakes() -> None:
 
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"reader": demo_reader, "judge": demo_judge, "escalate": demo_escalate, "drafter": demo_drafter, "vision": demo_vision,
-                       "analyst": demo_analyst}[role])
+        set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck}[role])
     return _fake[role]
 
 
@@ -183,46 +135,37 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return f"fake-{role}"
-    return {"reader": s.reader_model, "judge": s.judge_model, "escalate": s.escalate_model, "vision": s.vision_model or s.reader_model,
-            "analyst": s.judge_model}[role]
+    return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "precheck": s.precheck_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
-    """role: "reader" | "judge" | "escalate" | "drafter" (the judge model, drafting a Direction
-    Note) | "vision" (the reader model, writing out an image). max_tokens is set on every call
-    (token rule 8)."""
+    """role: "precheck" (Opus: the professional pre-check) | "drafter" (Sonnet: drafting a
+    Direction Note) | "vision" (Haiku: writing out an image). max_tokens is set on every call."""
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return _fake_model(role)
-    if role in ("drafter", "analyst"):
-        role = "judge"
     from langchain_anthropic import ChatAnthropic
 
     common: dict[str, Any] = {"max_retries": 2, "timeout": 120}
     if s.anthropic_api_key:
         common["api_key"] = s.anthropic_api_key
-    if s.refusal_fallbacks and role != "reader":
-        common["betas"] = ["server-side-fallback-2026-07-01"]
-        common["model_kwargs"] = {"fallbacks": "default"}
     if role == "vision":
         return ChatAnthropic(model=s.vision_model or s.reader_model, max_tokens=s.image_max_tokens, **common)
-    if role == "reader":
-        # Haiku 4.5: no thinking unless asked for, and it rejects the effort parameter.
-        return ChatAnthropic(model=s.reader_model, max_tokens=s.reader_max_tokens, **common)
-    if role == "judge":
+    if role == "drafter":
         extra: dict[str, Any] = {}
         if s.judge_thinking:
             extra["thinking"] = {"type": s.judge_thinking}
         if s.judge_effort:
             extra["effort"] = s.judge_effort
         return ChatAnthropic(model=s.judge_model, max_tokens=s.judge_max_tokens, **extra, **common)
-    # Escalation (Opus 5.5): thinking cannot be disabled; effort is the only control.
-    return ChatAnthropic(model=s.escalate_model, max_tokens=s.escalate_max_tokens, effort=s.escalate_effort, **common)
+    # The pre-check (Opus): thinking cannot be disabled; effort is the control. A long answer
+    # takes minutes, so it gets a longer timeout.
+    return ChatAnthropic(model=s.precheck_model, max_tokens=s.precheck_max_tokens, effort=s.precheck_effort,
+                         **{**common, "timeout": s.precheck_timeout})
 
 
 def prefix_is_cacheable(role: str, prefix_text: str, settings: Settings | None = None) -> bool:
-    """Token rule 5: a prefix shorter than the model's cache minimum (4,096 tokens on Haiku 4.5)
-    is cheaper sent uncached, and we never pad a prompt to reach the minimum."""
+    """A prefix shorter than the model's cache minimum is cheaper sent uncached; we never pad."""
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return False

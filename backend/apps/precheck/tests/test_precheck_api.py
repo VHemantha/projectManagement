@@ -19,7 +19,7 @@ from apps.workflow.services import provision_project_defaults
 
 pytestmark = pytest.mark.django_db
 
-SAMPLE = json.loads((Path(__file__).parent / "sample_result.json").read_text(encoding="utf-8"))
+SAMPLE = json.loads((Path(__file__).parent / "legacy_result.json").read_text(encoding="utf-8"))
 TOKEN = {"HTTP_X_PRECHECK_TOKEN": "test-token"}
 FOLDER = "https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUv?usp=sharing"
 

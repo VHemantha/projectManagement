@@ -24,18 +24,24 @@ def folder_id_from(value: str) -> str:
     return value if _BARE_ID.match(value) and "/" not in value else ""
 
 
-PRECHECK_TYPES = [("general", "General"), ("residential_rental", "Residential rental")]
+# The business nature the pre-check works to. "auto": decided by the AI from the questionnaire
+# and last year's accounts; the others fix it for the task.
+PRECHECK_TYPES = [
+    ("auto", "Decide from the questionnaire"),
+    ("residential_rental", "Residential rental"),
+    ("general", "General business"),
+    ("investment", "Investment"),
+]
 
 
 class JobFolder(models.Model):
-    """The Google Drive folder that holds a job's documents, and which kind of pre-check the
-    task needs. A type other than general adds that type's standard checklist (kept in the
-    agent's skills, e.g. AFIT's residential rental checks)."""
+    """The Google Drive folder that holds a task's documents, and the business nature the
+    pre-check works to (decided from the questionnaire unless a person fixes it)."""
 
     issue = models.OneToOneField("issues.Issue", on_delete=models.CASCADE, related_name="drive_folder")
     folder_id = models.CharField(max_length=200)
     folder_url = models.CharField(max_length=500, blank=True)
-    precheck_type = models.CharField(max_length=30, choices=PRECHECK_TYPES, default="general")
+    precheck_type = models.CharField(max_length=30, choices=PRECHECK_TYPES, default="auto")
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -106,6 +112,9 @@ class AIPrecheck(models.Model):
     precheck_type = models.CharField(max_length=30, default="general")
     readiness = models.CharField(max_length=40, blank=True)  # the verdict in the type's own words
     requests = models.JSONField(default=list)  # drafted requests for missing information; never sent
+    # The pre-check itself: decision, key documents, business nature with its reasoning, each item
+    # requested / already provided / not needed with its reason and sources, and the drafted email.
+    precheck = models.JSONField(default=dict)
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)
@@ -196,3 +205,44 @@ class AIFeedback(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class PrecheckLesson(models.Model):
+    """A correction by AFIT staff that the pre-check applies from then on: "this was not needed
+    because …", "the reason was wrong", "you missed …". Not training: lessons are given to the
+    model with each pre-check they apply to, and every run lists the ones it applied.
+
+    A lesson applies at once to the client it came from. Applying it to every client of that
+    business nature needs a lead or an admin to approve it (AFIT, 5 Oct 2026)."""
+
+    class Scope(models.TextChoices):
+        CLIENT = "client", "This client"
+        FIRM = "firm", "All clients of this business nature"
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        PENDING = "pending", "Waiting for approval"
+        DISABLED = "disabled", "Switched off"
+
+    class Kind(models.TextChoices):
+        NOT_NEEDED = "not_needed", "Not needed"
+        WRONG_REASON = "wrong_reason", "Wrong reason"
+        MISSED = "missed", "Missed item"
+        OTHER = "other", "Other"
+
+    client_scope = models.CharField(max_length=100)  # the client (or workspace) it came from
+    scope = models.CharField(max_length=10, choices=Scope.choices, default=Scope.CLIENT)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
+    kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)
+    precheck_type = models.CharField(max_length=30, blank=True)  # business nature of the run it came from
+    item = models.CharField(max_length=300, blank=True)
+    note = models.TextField(max_length=1000)
+    issue = models.ForeignKey("issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="precheck_lessons")
+    run = models.ForeignKey(AIPrecheck, null=True, blank=True, on_delete=models.SET_NULL, related_name="lessons")
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

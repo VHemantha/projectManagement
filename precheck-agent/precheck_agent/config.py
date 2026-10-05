@@ -22,17 +22,21 @@ class Settings(BaseSettings):
 
     # --- models (Claude only; never hard-coded elsewhere) ----------------------------------
     llm_mode: str = "anthropic"  # "anthropic" | "fake" (tests and the labelled demo mode)
-    reader_model: str = "claude-haiku-4-5-20251001"
-    judge_model: str = "claude-sonnet-5-5"
-    escalate_model: str = "claude-opus-5-5"
+    reader_model: str = "claude-haiku-4-5-20251001"  # writes out images and scans
+    judge_model: str = "claude-sonnet-5-5"  # drafts a Direction Note on request
+    precheck_model: str = "claude-opus-5-5"  # the professional pre-check (AFIT's choice, 5 Oct 2026)
     anthropic_api_key: str = ""  # from the secret manager; falls back to ANTHROPIC_API_KEY
     # Sonnet 5.5 thinks by default and thinking is billed as output. "between_tools" turns it
-    # off for the judge (allowed at effort high or below); "" leaves the model default.
+    # off for drafting (allowed at effort high or below); "" leaves the model default.
     judge_thinking: str = "between_tools"
     judge_effort: str = "low"
-    escalate_effort: str = "low"  # Opus 5.5 cannot disable thinking; low effort keeps it small
-    # Off by default so cost per run stays predictable: a refusal becomes an "unclear" finding.
-    refusal_fallbacks: bool = False
+    judge_max_tokens: int = 2500
+    # Opus 5.5 cannot disable thinking; effort is the control. Thinking counts toward max_tokens
+    # (kept under the limit above which the SDK requires streaming).
+    precheck_effort: str = "medium"
+    precheck_max_tokens: int = 16_000
+    precheck_timeout: int = 600
+    precheck_max_input_tokens: int = 90_000  # the input is shortened by code to fit
 
     # --- Drive -----------------------------------------------------------------------------
     drive_mode: str = "google"  # "google" | "local" (a directory per folder id; tests, demo)
@@ -61,15 +65,6 @@ class Settings(BaseSettings):
     parser_version: str = "p2"  # p2: emails, images and scans are read
     chunk_tokens: int = 450
 
-    # --- retrieval / readers ------------------------------------------------------------------
-    top_k: int = 6
-    listing_files: int = 12  # file names shown to a reader next to its passages
-    reader_context_tokens: int = 3000
-    reader_max_tokens: int = 400
-    reader_max_steps: int = 3  # model calls inside one reader (answer, or one tool then answer)
-    judge_max_tokens: int = 2500  # grows with the number of findings to weigh, up to the cap
-    judge_max_tokens_cap: int = 8000
-    escalate_max_tokens: int = 700
     # Smallest prefix each model will cache. Below it a cache marker does nothing, so we do not
     # add one and we never pad a prompt to reach it.
     cache_min_tokens: dict[str, int] = Field(
@@ -77,29 +72,13 @@ class Settings(BaseSettings):
     )
 
     # --- budget per run ------------------------------------------------------------------------
-    # The minimums below suit a small task. A run grows its budget with the work it finds (per
-    # Direction Note item and flagged rule) up to the hard caps, so a task with 17 items is
-    # read in full instead of stopping half way. Measured on a real 57-document task: a reader
-    # call is 4,800-5,800 input tokens.
-    budget_reader_calls: int = 12
-    budget_uncached_input_tokens: int = 40_000
-    budget_output_tokens: int = 4_000
-    budget_input_per_task: int = 6_500
-    budget_output_per_task: int = 300
-    # A rental task has 23 standard checks besides its Direction Note.
-    budget_max_reader_calls: int = 60
-    budget_max_uncached_input_tokens: int = 400_000
-    budget_max_output_tokens: int = 30_000
-    # A pool of its own for the steps that pull everything together (the year-on-year analysis,
-    # a drafted Direction Note, the judge, second looks): readers can never starve them.
-    budget_reserve_tokens: int = 30_000
-    budget_reserve_output_tokens: int = 12_000
-    budget_wider_slices: int = 4  # reader calls that may ask for one wider slice (a second call)
+    # Model calls in one run (the pre-check and a drafted Direction Note): hard caps, so the cost
+    # of a run is bounded. The pre-check's input is shortened by code to fit beforehand.
+    run_input_tokens: int = 120_000  # renamed from budget_uncached_input_tokens: old values were too low
+    run_output_tokens: int = 24_000
 
-    # --- year-on-year analysis ----------------------------------------------------------------------
-    analysis_min_amount: float = 250.0  # last year's lines smaller than this are not listed
-    analysis_max_tokens: int = 6_000
-    analysis_max_findings: int = 6  # "nothing yet for …" findings; the full list is in the analysis
+    # --- last year's lines ---------------------------------------------------------------------
+    analysis_min_amount: float = 250.0  # material lines (used for the bank account check)
 
     # --- rules -------------------------------------------------------------------------------
     variance_pct: float = 25.0
@@ -117,7 +96,7 @@ class Settings(BaseSettings):
     )
 
     skills_dir: str = str(REPO_SKILLS_DIR)
-    prompt_version: str = "2026-10-04.1"
+    prompt_version: str = "2026-10-05.1"
 
 
 def family(model_id: str) -> str:

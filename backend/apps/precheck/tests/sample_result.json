@@ -3,226 +3,285 @@
  "job_id": "SAMPLE",
  "status": "complete",
  "verdict": "ready_with_exceptions",
+ "readiness": "Requests to send",
+ "summary": "4 items are still needed before this year's accounts can be prepared.",
  "coverage": {
-  "addressed": 3,
-  "total": 3
+  "addressed": 1,
+  "total": 5
+ },
+ "counts": {
+  "high": 0,
+  "medium": 4,
+  "low": 0
  },
  "direction_items": [
   {
    "id": "D1",
-   "text": "Agree the bank reconciliation to the cash at bank balance in the ledger",
-   "addressed": true,
-   "origin": "person",
-   "reason": "",
-   "basis": "",
-   "status": "complete"
-  },
-  {
-   "id": "D2",
-   "text": "Confirm the accruals workpaper is complete and signed off",
-   "addressed": true,
-   "origin": "person",
-   "reason": "",
-   "basis": "",
-   "status": "complete"
-  },
-  {
-   "id": "D3",
-   "text": "Check the corporation tax computation starts from the profit per accounts",
-   "addressed": true,
-   "origin": "person",
-   "reason": "",
-   "basis": "",
-   "status": "complete"
+   "text": "Check the refinance documents",
+   "addressed": false
   }
  ],
- "counts": {
-  "high": 0,
-  "medium": 3,
-  "low": 0
+ "findings": [],
+ "evidence": [],
+ "precheck_type": "residential_rental",
+ "precheck": {
+  "key_documents": [
+   {
+    "role": "questionnaire",
+    "label": "Client questionnaire",
+    "found": true,
+    "note": "",
+    "files": [
+     {
+      "name": "Client Questionnaire 2026.txt (in Smith.zip)",
+      "evidence_id": "E-3e603aee6f"
+     }
+    ]
+   },
+   {
+    "role": "last_year_fs",
+    "label": "Last year's financial statements",
+    "found": true,
+    "note": "",
+    "files": [
+     {
+      "name": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
+      "evidence_id": "E-500b253162"
+     }
+    ]
+   },
+   {
+    "role": "last_year_workpapers",
+    "label": "Last year's workpapers",
+    "found": true,
+    "note": "",
+    "files": [
+     {
+      "name": "Final TB 2025.xlsx (in Smith.zip)",
+      "evidence_id": "E-faca205f2e"
+     }
+    ]
+   }
+  ],
+  "business_nature": {
+   "type": "residential_rental",
+   "fixed": false,
+   "summary": "Demo: treated as residential rental.",
+   "reasoning": "Keywords in the questionnaire.",
+   "sources": [
+    {
+     "id": "Q1",
+     "label": "Questionnaire: Client Questionnaire 2026",
+     "evidence_id": "E-d357333754"
+    },
+    {
+     "id": "Q2",
+     "label": "Questionnaire: Name: John and Kate Smith",
+     "evidence_id": "E-98d3f83657"
+    }
+   ],
+   "facts": [
+    {
+     "text": "Demo fact from the questionnaire.",
+     "sources": [
+      {
+       "id": "Q1",
+       "label": "Questionnaire: Client Questionnaire 2026",
+       "evidence_id": "E-d357333754"
+      }
+     ]
+    }
+   ],
+   "label": "Residential rental"
+  },
+  "requests": [
+   {
+    "group": "Last year's accounts",
+    "item": "Evidence for Rental income this year",
+    "decision": "request",
+    "reason": "Rental income was in last year's accounts and will be needed again.",
+    "sources": [
+     {
+      "id": "T1",
+      "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
+      "evidence_id": "E-6ca1c11bde"
+     }
+    ],
+    "documents": [],
+    "flags": []
+   },
+   {
+    "group": "Last year's accounts",
+    "item": "Evidence for Body corporate levies this year",
+    "decision": "request",
+    "reason": "Body corporate levies was in last year's accounts and will be needed again.",
+    "sources": [
+     {
+      "id": "T2",
+      "label": "Last year's trial balance: row 7: 410 | Body corporate levies | Expense | 2400 | | 2300",
+      "evidence_id": "E-653cbe92a9"
+     }
+    ],
+    "documents": [],
+    "flags": []
+   },
+   {
+    "group": "Last year's accounts",
+    "item": "Evidence for Rates this year",
+    "decision": "request",
+    "reason": "Rates was in last year's accounts and will be needed again.",
+    "sources": [
+     {
+      "id": "T3",
+      "label": "Last year's trial balance: row 8: 420 | Rates | Expense | 3412 | | 3300",
+      "evidence_id": "E-03be6c06cb"
+     }
+    ],
+    "documents": [],
+    "flags": []
+   },
+   {
+    "group": "Last year's accounts",
+    "item": "Evidence for Interest this year",
+    "decision": "request",
+    "reason": "Interest was in last year's accounts and will be needed again.",
+    "sources": [
+     {
+      "id": "T4",
+      "label": "Last year's trial balance: row 9: 430 | Interest | Expense | 14322.18 | | 15010",
+      "evidence_id": "E-d7b93b6716"
+     }
+    ],
+    "documents": [],
+    "flags": []
+   }
+  ],
+  "provided": [
+   {
+    "group": "01-0123-0456789-00",
+    "item": "Bank statements for 01-0123-0456789-00",
+    "decision": "already_provided",
+    "reason": "This year's bank export has been received.",
+    "sources": [
+     {
+      "id": "B1",
+      "label": "Bank 01-0123-0456789-00, 02 Apr 2025 to 30 Mar 2026",
+      "evidence_id": "E-100e969d47"
+     }
+    ],
+    "documents": [
+     {
+      "id": "D2",
+      "label": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
+      "evidence_id": "E-11c6f873bb"
+     }
+    ],
+    "flags": []
+   }
+  ],
+  "not_needed": [],
+  "preparer_notes": [],
+  "lessons_applied": [],
+  "bank": [
+   {
+    "account": "01-0123-0456789-00",
+    "from": "02 Apr 2025",
+    "to": "30 Mar 2026",
+    "opening": 4210.0,
+    "closing": 7537.0
+   }
+  ],
+  "checks": [
+   {
+    "label": "This year's opening bank balance equals last year's closing balance",
+    "passed": true,
+    "detail": "01-0123-0456789-00: opening 4,210.00 this year, closing 4,210.00 last year."
+   },
+   {
+    "label": "Bank data covers the whole year",
+    "passed": true,
+    "detail": "01-0123-0456789-00: transactions 02 Apr 2025 to 30 Mar 2026."
+   }
+  ],
+  "decision": {
+   "state": "requests",
+   "label": "Requests to send",
+   "reason": "4 items are still needed before this year's accounts can be prepared."
+  },
+  "email": {
+   "subject": "Information still needed for your accounts for the year to 31 March 2026",
+   "body": "Hi client-s,\n\nThank you for your documents. To prepare your accounts for the year to 31 March 2026, we still need the following. We have said why each item is needed.\n\nLast year's accounts\n- Evidence for Rental income this year: Rental income was in last year's accounts and will be needed again.\n- Evidence for Body corporate levies this year: Body corporate levies was in last year's accounts and will be needed again.\n- Evidence for Rates this year: Rates was in last year's accounts and will be needed again.\n- Evidence for Interest this year: Interest was in last year's accounts and will be needed again.\nIf something does not apply to you, just let us know and we will note it.\n\nThank you,\nAFIT"
+  },
+  "evidence": {
+   "E-100e969d47": {
+    "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
+    "location": "sheet 'Transactions', row 2",
+    "quote": "row 2: 2026-03-30 00:00:00 | Credit | Barfoot & Thompson | 2390 | 7537",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-11c6f873bb": {
+    "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
+    "location": "file in the task folder",
+    "quote": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-6ca1c11bde": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 6",
+    "quote": "row 6: 200 | Rental income | Revenue |  | 31200 | -29900",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-653cbe92a9": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 7",
+    "quote": "row 7: 410 | Body corporate levies | Expense | 2400 |  | 2300",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-03be6c06cb": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 8",
+    "quote": "row 8: 420 | Rates | Expense | 3412 |  | 3300",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-d7b93b6716": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 9",
+    "quote": "row 9: 430 | Interest | Expense | 14322.18 |  | 15010",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-3e603aee6f": {
+    "file_name": "Client Questionnaire 2026.txt (in Smith.zip)",
+    "location": "file in the task folder",
+    "quote": "Client Questionnaire 2026.txt (in Smith.zip)",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-500b253162": {
+    "file_name": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
+    "location": "file in the task folder",
+    "quote": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-faca205f2e": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "file in the task folder",
+    "quote": "Final TB 2025.xlsx (in Smith.zip)",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-d357333754": {
+    "file_name": "Client Questionnaire 2026.txt (in Smith.zip)",
+    "location": "line 1",
+    "quote": "Client Questionnaire 2026",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-98d3f83657": {
+    "file_name": "Client Questionnaire 2026.txt (in Smith.zip)",
+    "location": "line 2",
+    "quote": "Name: John and Kate Smith",
+    "drive_url": "local://smith/Smith.zip"
+   }
+  },
+  "how": "model"
  },
- "precheck_type": "general",
- "readiness": "Ready with exceptions",
- "requests": [
-  {
-   "group": "Year-on-year",
-   "items": [
-    "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
-    "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?"
-   ]
-  }
- ],
- "summary": "5 points checked; 1 need attention before review.",
- "findings": [
-  {
-   "id": "R-c9732f64",
-   "direction_ref": "none",
-   "area": "Trade debtors",
-   "status": "exception",
-   "severity": "medium",
-   "kind": "rule",
-   "title": "Debtors schedule.xlsx does not agree to the trial balance",
-   "why": "The schedule totals 112,400 but Trade debtors in the trial balance is 118,900.",
-   "evidence_ids": [
-    "E-a32af2f38a",
-    "E-b1353ee8c8"
-   ],
-   "source": "rule",
-   "confidence": "high"
-  },
-  {
-   "id": "Y-45c6a37e",
-   "direction_ref": "none",
-   "area": "Year-on-year",
-   "status": "unclear",
-   "severity": "medium",
-   "kind": "rule",
-   "source": "rule",
-   "confidence": "high",
-   "title": "Retained earnings moved 136% against last year",
-   "why": "Retained earnings is 99,900.00 this year and was 42,400.00 last year. Is the movement explained?",
-   "evidence_ids": [
-    "E-b530cec0f8",
-    "E-b530cec0f8"
-   ]
-  },
-  {
-   "id": "Y-a4eb5195",
-   "direction_ref": "none",
-   "area": "Year-on-year",
-   "status": "unclear",
-   "severity": "medium",
-   "kind": "rule",
-   "source": "rule",
-   "confidence": "high",
-   "title": "Trade debtors moved 98% against last year",
-   "why": "Trade debtors is 118,900.00 this year and was 60,000.00 last year. Is the movement explained?",
-   "evidence_ids": [
-    "E-b1353ee8c8",
-    "E-b1353ee8c8",
-    "E-37bf448a1d"
-   ]
-  },
-  {
-   "id": "A-1efb0ee5-1",
-   "direction_ref": "D2",
-   "area": "workpapers",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Confirm the accruals workpaper is complete and signed off",
-   "why": "The job folder shows this: Accruals workpaper FY25",
-   "evidence_ids": [
-    "E-779d61edf3"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  },
-  {
-   "id": "A-7b3a9aee-1",
-   "direction_ref": "none",
-   "area": "Trade debtors",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Trade debtors moved from 60,000 to 118,900. Is this movement explained",
-   "why": "The job folder shows this: Accruals workpaper FY25",
-   "evidence_ids": [
-    "E-779d61edf3",
-    "E-b1353ee8c8"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  },
-  {
-   "id": "A-91fddad8-1",
-   "direction_ref": "D3",
-   "area": "tax",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Check the corporation tax computation starts from the profit per accou",
-   "why": "The job folder shows this: Corporation tax computation FY25",
-   "evidence_ids": [
-    "E-a2461d8da5"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  },
-  {
-   "id": "A-e6a9517b-1",
-   "direction_ref": "D1",
-   "area": "ledger",
-   "status": "addressed",
-   "severity": "low",
-   "kind": "fact",
-   "title": "Agree the bank reconciliation to the cash at bank balance in the\u2026",
-   "why": "The job folder shows this: row 1: Bank reconciliation at 31 March 2025",
-   "evidence_ids": [
-    "E-f04696ae0d"
-   ],
-   "source": "ai",
-   "confidence": "medium"
-  }
- ],
- "evidence": [
-  {
-   "id": "E-37bf448a1d",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 5",
-   "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
-   "id": "E-779d61edf3",
-   "file_id": "acme-fy25:Workpaper - accruals.txt",
-   "file_name": "Workpaper - accruals.txt",
-   "location": "line 1",
-   "quote": "Accruals workpaper FY25",
-   "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
-  },
-  {
-   "id": "E-a2461d8da5",
-   "file_id": "acme-fy25:Tax computation.txt",
-   "file_name": "Tax computation.txt",
-   "location": "line 1",
-   "quote": "Corporation tax computation FY25",
-   "drive_url": "local://acme-fy25/Tax computation.txt"
-  },
-  {
-   "id": "E-a32af2f38a",
-   "file_id": "acme-fy25:Debtors schedule.xlsx",
-   "file_name": "Debtors schedule.xlsx",
-   "location": "sheet 'Debtors', row 4",
-   "quote": "row 4: Total |  | 112400",
-   "drive_url": "local://acme-fy25/Debtors schedule.xlsx"
-  },
-  {
-   "id": "E-b1353ee8c8",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 3",
-   "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
-   "id": "E-b530cec0f8",
-   "file_id": "acme-fy25:Trial Balance FY25.xlsx",
-   "file_name": "Trial Balance FY25.xlsx",
-   "location": "sheet 'TB', row 9",
-   "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
-   "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-  },
-  {
-   "id": "E-f04696ae0d",
-   "file_id": "acme-fy25:Bank reconciliation.csv",
-   "file_name": "Bank reconciliation.csv",
-   "location": "sheet 'Bank reconciliation', row 1",
-   "quote": "row 1: Bank reconciliation at 31 March 2025",
-   "drive_url": "local://acme-fy25/Bank reconciliation.csv"
-  }
- ],
  "trail": {
   "read": {
    "label": "5 documents, all new",
@@ -232,592 +291,141 @@
    "images_read": 0,
    "detail": [
     {
-     "name": "Bank reconciliation.csv",
-     "kind": "reconciliation",
+     "name": "ANZ Balance 2025.txt (in Smith.zip)",
+     "kind": "other",
      "changed": true,
      "problem": "",
      "note": "",
-     "year": "year not stated"
+     "year": "last year's pack (FY2025)"
     },
     {
-     "name": "Debtors schedule.xlsx",
-     "kind": "schedule",
-     "changed": true,
-     "problem": "",
-     "note": "",
-     "year": "year not stated"
-    },
-    {
-     "name": "Tax computation.txt",
-     "kind": "tax computation",
-     "changed": true,
-     "problem": "",
-     "note": "",
-     "year": "year not stated"
-    },
-    {
-     "name": "Workpaper - accruals.txt",
-     "kind": "schedule",
-     "changed": true,
-     "problem": "",
-     "note": "",
-     "year": "year not stated"
-    },
-    {
-     "name": "Trial Balance FY25.xlsx",
+     "name": "Final TB 2025.xlsx (in Smith.zip)",
      "kind": "trial balance",
      "changed": true,
      "problem": "",
      "note": "",
-     "year": "this year (FY2025)"
+     "year": "last year's pack (FY2025)"
+    },
+    {
+     "name": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
+     "kind": "financial statements",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "last year's pack (FY2025)"
+    },
+    {
+     "name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
+     "kind": "bank",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "this year (FY2026)"
+    },
+    {
+     "name": "Client Questionnaire 2026.txt (in Smith.zip)",
+     "kind": "questionnaire",
+     "changed": true,
+     "problem": "",
+     "note": "",
+     "year": "this year (FY2026)"
     }
    ]
   },
   "checked": {
-   "label": "6 rules run, 1 failed, 1 flagged for a closer look",
-   "rules": 6,
-   "failed": 1,
-   "flagged": 1,
+   "label": "2 checks by code, 0 failed",
    "detail": [
     {
-     "label": "A trial balance is in the folder",
+     "label": "This year's opening bank balance equals last year's closing balance",
      "passed": true,
-     "flagged": false,
      "note": ""
     },
     {
-     "label": "Every file can be read",
+     "label": "Bank data covers the whole year",
      "passed": true,
-     "flagged": false,
      "note": ""
-    },
-    {
-     "label": "Trial balance debits equal credits",
-     "passed": true,
-     "flagged": false,
-     "note": ""
-    },
-    {
-     "label": "Reconciliations show no difference",
-     "passed": true,
-     "flagged": false,
-     "note": ""
-    },
-    {
-     "label": "Schedules agree to the trial balance",
-     "passed": false,
-     "flagged": false,
-     "note": "Debtors schedule.xlsx does not agree to the trial balance"
-    },
-    {
-     "label": "Large movements against last year",
-     "passed": false,
-     "flagged": true,
-     "note": "Trade debtors moved 98% against last year"
     }
    ]
   },
   "compared": {
-   "label": "3 Direction Note items compared; compared with FY2024 accounts",
-   "items": 3,
-   "drafted": 0,
-   "drafted_how": "",
-   "history_jobs": 0,
-   "reader_calls": 4,
-   "reused": 0,
-   "skipped": 0,
+   "label": "Key documents: client questionnaire found, last year's financial statements found, last year's workpapers found",
    "detail": [
     {
-     "ref": "D1",
-     "what": "Agree the bank reconciliation to the cash at bank balance in the ledger",
-     "reader": "ledger reader",
-     "passages": [
-      {
-       "file": "Bank reconciliation.csv",
-       "location": "sheet 'Bank reconciliation', rows 1\u20135"
-      },
-      {
-       "file": "Trial Balance FY25.xlsx",
-       "location": "sheet 'TB', rows 1\u201310"
-      }
-     ],
-     "outcome": "read"
+     "label": "Client questionnaire",
+     "passed": true,
+     "note": "Client Questionnaire 2026.txt (in Smith.zip)"
     },
     {
-     "ref": "D2",
-     "what": "Confirm the accruals workpaper is complete and signed off",
-     "reader": "workpaper reader",
-     "passages": [
-      {
-       "file": "Workpaper - accruals.txt",
-       "location": "line 1\u20135"
-      },
-      {
-       "file": "Debtors schedule.xlsx",
-       "location": "sheet 'Debtors', rows 1\u20134"
-      }
-     ],
-     "outcome": "read"
+     "label": "Last year's financial statements",
+     "passed": true,
+     "note": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)"
     },
     {
-     "ref": "D3",
-     "what": "Check the corporation tax computation starts from the profit per accounts",
-     "reader": "tax reader",
-     "passages": [
-      {
-       "file": "Tax computation.txt",
-       "location": "line 1\u20136"
-      }
-     ],
-     "outcome": "read"
-    },
-    {
-     "ref": "none",
-     "what": "Trade debtors moved from 60,000 to 118,900. Is this movement explained anywhere in the workpapers?",
-     "reader": "workpaper reader",
-     "passages": [
-      {
-       "file": "Workpaper - accruals.txt",
-       "location": "line 1\u20135"
-      },
-      {
-       "file": "Debtors schedule.xlsx",
-       "location": "sheet 'Debtors', rows 1\u20134"
-      }
-     ],
-     "outcome": "read"
+     "label": "Last year's workpapers",
+     "passed": true,
+     "note": "Final TB 2025.xlsx (in Smith.zip)"
     }
    ]
   },
   "judged": {
-   "label": "5 findings weighed, 5 kept",
-   "findings_in": 5,
-   "findings_out": 7,
-   "escalated": 0,
+   "label": "Residential rental: 4 to request, 1 already provided, 0 not needed",
    "how": "model",
    "detail": []
   },
   "verified": {
-   "label": "7 source passages linked",
-   "evidence": 7,
-   "rejected_no_evidence": 0,
-   "rules_restored": 0,
-   "items_filled": 0,
+   "label": "11 sources linked; 0 items flagged for a closer look",
+   "evidence": 11,
    "detail": []
   }
  },
  "skipped": [],
- "analysis": {
-  "available": true,
-  "how": "model",
-  "this_year": "FY2025",
-  "last_year": "FY2024",
-  "period": "01 Apr 2024 to 31 Mar 2025",
-  "baseline": [
-   "Trial Balance FY25.xlsx"
-  ],
-  "documents": {
-   "this_year": 5,
-   "last_year": 0
-  },
-  "summary": [
-   "7 of last year's lines are covered so far."
-  ],
-  "lines": [
-   {
-    "id": "P1",
-    "label": "Cash at bank",
-    "section": "Assets",
-    "last_year": 51000.0,
-    "year_before": null,
-    "this_year": 48210.0,
-    "change": -2790.0,
-    "change_pct": -5.5,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C1",
-      "label": "Cash at bank: 48,210.00 this year",
-      "evidence_id": "E-14f7f34e78"
-     },
-     {
-      "id": "D1",
-      "label": "Bank reconciliation.csv",
-      "evidence_id": "E-fdf70a4d49"
-     }
-    ],
-    "evidence_ids": [
-     "E-14f7f34e78",
-     "E-14f7f34e78",
-     "E-fdf70a4d49"
-    ]
-   },
-   {
-    "id": "P2",
-    "label": "Trade debtors",
-    "section": "Other",
-    "last_year": 60000.0,
-    "year_before": null,
-    "this_year": 118900.0,
-    "change": 58900.0,
-    "change_pct": 98.2,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C2",
-      "label": "Trade debtors: 118,900.00 this year",
-      "evidence_id": "E-b1353ee8c8"
-     },
-     {
-      "id": "C4",
-      "label": "Trade creditors: 39,310.00 this year",
-      "evidence_id": "E-37bf448a1d"
-     }
-    ],
-    "evidence_ids": [
-     "E-b1353ee8c8",
-     "E-b1353ee8c8",
-     "E-37bf448a1d"
-    ]
-   },
-   {
-    "id": "P3",
-    "label": "Prepayments",
-    "section": "Assets",
-    "last_year": 4000.0,
-    "year_before": null,
-    "this_year": 4200.0,
-    "change": 200.0,
-    "change_pct": 5.0,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C3",
-      "label": "Prepayments: 4,200.00 this year",
-      "evidence_id": "E-40bf90aa37"
-     }
-    ],
-    "evidence_ids": [
-     "E-40bf90aa37",
-     "E-40bf90aa37"
-    ]
-   },
-   {
-    "id": "P4",
-    "label": "Trade creditors",
-    "section": "Other",
-    "last_year": 41000.0,
-    "year_before": null,
-    "this_year": 39310.0,
-    "change": -1690.0,
-    "change_pct": -4.1,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C2",
-      "label": "Trade debtors: 118,900.00 this year",
-      "evidence_id": "E-b1353ee8c8"
-     },
-     {
-      "id": "C4",
-      "label": "Trade creditors: 39,310.00 this year",
-      "evidence_id": "E-37bf448a1d"
-     }
-    ],
-    "evidence_ids": [
-     "E-37bf448a1d",
-     "E-b1353ee8c8",
-     "E-37bf448a1d"
-    ]
-   },
-   {
-    "id": "P5",
-    "label": "Accruals",
-    "section": "Other",
-    "last_year": 11500.0,
-    "year_before": null,
-    "this_year": 12000.0,
-    "change": 500.0,
-    "change_pct": 4.3,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C5",
-      "label": "Accruals: 12,000.00 this year",
-      "evidence_id": "E-322a62cfc7"
-     },
-     {
-      "id": "D5",
-      "label": "Workpaper - accruals.txt",
-      "evidence_id": "E-a3542ef7bb"
-     }
-    ],
-    "evidence_ids": [
-     "E-322a62cfc7",
-     "E-322a62cfc7",
-     "E-a3542ef7bb"
-    ]
-   },
-   {
-    "id": "P6",
-    "label": "Directors loan",
-    "section": "Liabilities",
-    "last_year": 20000.0,
-    "year_before": null,
-    "this_year": 20000.0,
-    "change": 0.0,
-    "change_pct": 0.0,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C6",
-      "label": "Directors loan: 20,000.00 this year",
-      "evidence_id": "E-8a309c6847"
-     }
-    ],
-    "evidence_ids": [
-     "E-8a309c6847",
-     "E-8a309c6847"
-    ]
-   },
-   {
-    "id": "P7",
-    "label": "Retained earnings",
-    "section": "Equity",
-    "last_year": 42400.0,
-    "year_before": null,
-    "this_year": 99900.0,
-    "change": 57500.0,
-    "change_pct": 135.6,
-    "status": "covered",
-    "comment": "Matching material is in this year's documents.",
-    "question": "",
-    "refs": [
-     {
-      "id": "C8",
-      "label": "Retained earnings: 99,900.00 this year",
-      "evidence_id": "E-b530cec0f8"
-     }
-    ],
-    "evidence_ids": [
-     "E-b530cec0f8",
-     "E-b530cec0f8"
-    ]
-   }
-  ],
-  "checks": [],
-  "bank": [],
-  "new_this_year": [],
-  "registers": {
-   "bank_accounts": [
-    {
-     "label": "Cash at bank",
-     "last_year": 51000.0,
-     "status": "covered",
-     "evidence_ids": [
-      "E-14f7f34e78",
-      "E-14f7f34e78",
-      "E-fdf70a4d49"
-     ],
-     "refs": [
-      {
-       "id": "C1",
-       "label": "Cash at bank: 48,210.00 this year",
-       "evidence_id": "E-14f7f34e78"
-      },
-      {
-       "id": "D1",
-       "label": "Bank reconciliation.csv",
-       "evidence_id": "E-fdf70a4d49"
-      }
-     ]
-    }
-   ],
-   "loans": [],
-   "properties": []
-  },
-  "evidence": {
-   "E-14f7f34e78": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 2",
-    "quote": "row 2: 1000 | Cash at bank | 48210 |  | 51000",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-fdf70a4d49": {
-    "file_name": "Bank reconciliation.csv",
-    "location": "file in the task folder",
-    "quote": "Bank reconciliation.csv",
-    "drive_url": "local://acme-fy25/Bank reconciliation.csv"
-   },
-   "E-b1353ee8c8": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 3",
-    "quote": "row 3: 1100 | Trade debtors | 118900 |  | 60000",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-37bf448a1d": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 5",
-    "quote": "row 5: 2000 | Trade creditors |  | 39310 | -41000",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-40bf90aa37": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 4",
-    "quote": "row 4: 1200 | Prepayments | 4200 |  | 4000",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-322a62cfc7": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 6",
-    "quote": "row 6: 2100 | Accruals |  | 12000 | -11500",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-a3542ef7bb": {
-    "file_name": "Workpaper - accruals.txt",
-    "location": "file in the task folder",
-    "quote": "Workpaper - accruals.txt",
-    "drive_url": "local://acme-fy25/Workpaper - accruals.txt"
-   },
-   "E-8a309c6847": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 7",
-    "quote": "row 7: 2200 | Directors loan |  | 20000 | -20000",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   },
-   "E-b530cec0f8": {
-    "file_name": "Trial Balance FY25.xlsx",
-    "location": "sheet 'TB', row 9",
-    "quote": "row 9: 3100 | Retained earnings |  | 99900 | -42400",
-    "drive_url": "local://acme-fy25/Trial Balance FY25.xlsx"
-   }
-  }
- },
- "periods": {
-  "this_year": 2025,
-  "last_year": 2024,
-  "split": false
- },
  "usage": {
   "calls": [
    {
-    "node": "analysis",
-    "task_id": "analysis",
-    "model": "fake-analyst",
+    "node": "precheck",
+    "task_id": "precheck",
+    "model": "fake-precheck",
     "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 784,
-    "output": 405,
-    "cache_write": 0,
-    "cache_read": 0
-   },
-   {
-    "node": "read",
-    "task_id": "T1",
-    "model": "fake-reader",
-    "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 2452,
-    "output": 62,
-    "cache_write": 0,
-    "cache_read": 0
-   },
-   {
-    "node": "read",
-    "task_id": "T2",
-    "model": "fake-reader",
-    "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 2227,
-    "output": 49,
-    "cache_write": 0,
-    "cache_read": 0
-   },
-   {
-    "node": "read",
-    "task_id": "T3",
-    "model": "fake-reader",
-    "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 2232,
-    "output": 58,
-    "cache_write": 0,
-    "cache_read": 0
-   },
-   {
-    "node": "read",
-    "task_id": "T4",
-    "model": "fake-reader",
-    "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 2196,
-    "output": 54,
-    "cache_write": 0,
-    "cache_read": 0
-   },
-   {
-    "node": "judge",
-    "task_id": "judge",
-    "model": "fake-judge",
-    "calls": 1,
-    "run_id": "cc293e4507d14b1a812c0cd69a01cd31",
-    "input": 2206,
-    "output": 747,
+    "run_id": "d919bec12b474d4598d35f5bbd5bfccc",
+    "input": 2098,
+    "output": 560,
     "cache_write": 0,
     "cache_read": 0
    }
   ],
   "totals": {
-   "input": 12097,
-   "output": 1375,
+   "input": 2098,
+   "output": 560,
    "cache_write": 0,
    "cache_read": 0
   },
-  "model_calls": 6,
-  "reader_calls": 4,
+  "model_calls": 1,
+  "reader_calls": 0,
   "cost_usd": 0.0,
   "cache_share": 0.0,
   "reused_answers": 0,
   "budget": {
-   "reader_calls": 12,
    "image_calls": 10,
-   "uncached_input_tokens": 108000,
-   "output_tokens": 16000,
-   "reserved_for_judge_and_analysis": 30000
+   "uncached_input_tokens": 40000,
+   "output_tokens": 4000
   }
  },
  "models": {
-  "reader": "fake-reader",
-  "judge": "fake-judge",
-  "escalate": "fake-escalate"
+  "precheck": "fake-precheck",
+  "vision": "fake-vision"
  },
  "versions": {
-  "prompt": "2026-10-04.1",
+  "prompt": "2026-10-05.1",
   "parser": "p2",
   "skills": {
    "direction-drafting": "1.0+41b0dac8",
-   "finding-format": "1.0+de8f39c5",
-   "gdrive-folder-reader": "1.2+13f6f6b4",
-   "ledger-reading": "1.0+49c1a31a",
-   "residential-rental-precheck": "1.1+b8ec6906",
-   "statements-reading": "1.0+ff9bf76b",
-   "tax-reading": "1.0+b76e1b37",
-   "workpaper-reading": "1.0+fcaaffaa"
+   "nz-general-business": "1.0+ce2832de",
+   "nz-investment": "1.0+20782e2f",
+   "nz-residential-rental": "1.0+4ab877d2",
+   "precheck-method": "2.0+4a0433ce"
   }
  },
  "knowledge_ids": [],
  "demo": true,
- "duration_s": 0.4
+ "duration_s": 0.2
 }

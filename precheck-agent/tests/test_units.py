@@ -2,23 +2,21 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from precheck_agent.classify import classify, reader_for_question
+from precheck_agent.classify import classify
 from precheck_agent.config import get_settings
 from precheck_agent.drive import LocalDrive
 from precheck_agent.parsing import chunk_blocks, parse_file
-from precheck_agent.readers import READERS, make_get_text, system_prompt
 from precheck_agent.rules import run_rules
 from precheck_agent.skills_loader import all_skills, load_skill
 from precheck_agent.store import get_store
-from precheck_agent.textutil import est_tokens, to_number
+from precheck_agent.textutil import to_number
 
 from .conftest import make_job_folder
 
 
 def test_skills_in_agent_skills_format(env):
     skills = all_skills()
-    assert set(skills) == {"gdrive-folder-reader", "ledger-reading", "statements-reading", "tax-reading", "workpaper-reading",
-                           "finding-format", "direction-drafting", "residential-rental-precheck"}
+    assert set(skills) == {"precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "direction-drafting"}
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
@@ -26,20 +24,8 @@ def test_skills_in_agent_skills_format(env):
         assert skill.description and len(skill.description) < 400
         assert len(text.splitlines()) < 500
         assert "+" in skill.version
-    assert load_skill.invoke({"skill_name": "tax-reading"}).startswith("# Reading tax documents")
+    assert load_skill.invoke({"skill_name": "nz-investment"}).startswith("# Investment entity (NZ)")
     assert "No skill named" in load_skill.invoke({"skill_name": "nope"})
-
-
-def test_reader_prompt_is_a_stable_prefix_with_only_its_own_skill(env):
-    for reader, (skill, _) in READERS.items():
-        prompt = system_prompt(reader)
-        assert prompt == system_prompt(reader)  # byte-stable: nothing job-specific, no timestamps
-        assert f"# Skill: {skill}" in prompt and "# Skill: finding-format" in prompt
-        others = [s for s, _ in READERS.values() if s != skill]
-        for other in others:
-            assert f"# Skill: {other}" not in prompt  # other skills: name and description only
-            assert f"- {other}:" in prompt
-        assert est_tokens(prompt) < 2500
 
 
 def test_parsing_gives_citable_rows(env):
@@ -57,16 +43,15 @@ def test_parsing_gives_citable_rows(env):
     assert [b["loc"] for b in text["blocks"]] == ["line 1", "line 3"]
 
 
-def test_classify_and_route(env):
+def test_classify(env):
     assert classify("Trial Balance FY25.xlsx") == "trial_balance"
     assert classify("ACME bank rec March.xlsx") == "reconciliation"
     assert classify("Prior year financial statements.pdf") == "prior_year_statements"
     assert classify("CT600 return.pdf") == "tax_return"
     assert classify("misc.xlsx", "Account | Debit | Credit") == "trial_balance"
     assert classify("holiday photo.txt") == "other"
-    assert reader_for_question("Agree the bank reconciliation to the ledger") == "ledger_reader"
-    assert reader_for_question("Check the corporation tax computation") == "tax_reader"
-    assert reader_for_question("Make sure everything is fine") is None
+    assert classify("Client Questionnaire 2026.pdf") == "questionnaire" and classify("CQ rental.docx") == "questionnaire"
+    assert classify("form.pdf", "\n".join(["Did you buy a property this year?"] * 6)) == "questionnaire"
     assert to_number("(1,234.50)") == -1234.5 and to_number("£2,000") == 2000 and to_number("n/a") is None
 
 
@@ -91,18 +76,6 @@ def test_local_drive_versions_change_with_content(env):
     (folder / "Tax computation.txt").write_text("changed", encoding="utf-8")
     after = {f.name: f.version for f in drive.list_folder("d")}
     assert [n for n in before if before[n] != after[n]] == ["Tax computation.txt"]
-
-
-def test_one_extra_slice_per_task(env, job):
-    env.run(job)
-    store = get_store()
-    files = store.get_manifest("client-acme", "101")
-    tb = next(fid for fid, f in files.items() if f["document_class"] == "trial_balance")
-    state = {"used": False}
-    tool = make_get_text(store, "client-acme", "101", files, state)
-    first = tool.invoke({"file_id": tb, "range": "sheet 'TB' rows 2-3"})
-    assert "Cash at bank" in first and "Trade debtors" in first and "Accruals" not in first
-    assert "already used" in tool.invoke({"file_id": tb, "range": "rows 1-99"})
 
 
 def test_api_needs_the_service_token_and_returns_a_run_id_at_once(env, job):
