@@ -37,7 +37,7 @@ from .drive import DriveError, get_drive, is_zip
 from .emails import is_email
 from .embeddings import get_embedder
 from .llm import model_id, prefix_is_cacheable
-from .parsing import chunk_blocks, parse_file
+from .parsing import chunk_blocks, parse_file, scrub
 from .periods import assign_years, year_label
 from .pm_client import get_pm
 from .readers import cache_key as reader_cache_key
@@ -190,7 +190,11 @@ def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
             if parsed.get("vision"):
                 parsed, pending = _read_image(f, data, parse_name, parsed["vision"], ctx)
         if not pending:  # an image still to be read is not stored, so the next run reads it
-            store.set_parsed(parsed_key, parsed)
+            store.set_parsed(parsed_key, scrub(parsed))
+    # Some files carry NUL and other control characters in their text; Postgres will not store
+    # them, and a single such file used to stop the whole run. Cleaned on the way in, and again
+    # here for anything cached before this existed.
+    parsed = scrub(parsed)
     StoreCache(store).set_value(PENDING_NS, _pending_key(client_id, job_id, f["id"]), pending)
     shown = display_name(f)
     sample = "\n".join(b["text"] for b in parsed["blocks"][:40])

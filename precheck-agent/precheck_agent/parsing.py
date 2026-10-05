@@ -34,6 +34,21 @@ GOOGLE_EXPORTS = {
 }
 
 
+_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def scrub(value):
+    """Drop NUL and other control characters (keeping tab and new line) from every string in a
+    parsed document. Postgres cannot store NUL in text, and none of them carry meaning."""
+    if isinstance(value, str):
+        return _CONTROL.sub("", value)
+    if isinstance(value, list):
+        return [scrub(v) for v in value]
+    if isinstance(value, dict):
+        return {k: scrub(v) for k, v in value.items()}
+    return value
+
+
 def _cell(value) -> str:
     if value is None:
         return ""
