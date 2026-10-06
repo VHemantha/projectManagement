@@ -154,12 +154,21 @@ export interface Run extends RunSummary {
 
 export type PrecheckType = 'auto' | 'residential_rental' | 'general' | 'investment'
 
+/** Where a person says each key document is: a path inside the task folder or a Drive link,
+ * several separated by ";". Empty: the pre-check searches the folder. */
+export interface KeyPaths {
+  questionnaire: string
+  last_year_fs: string
+  last_year_workpapers: string
+}
+
 export interface PrecheckSetup {
   drive_folder_url: string
   drive_folder_id: string
   /** Which kind of pre-check: a type other than general adds the firm's standard checklist. */
   precheck_type: PrecheckType
   precheck_types: { value: PrecheckType; label: string }[]
+  key_paths?: KeyPaths
   direction_items: DirectionItem[]
   missing: ('drive_folder' | 'direction_note')[]
   /** True once the Drive folder is linked. With no Direction Note the AI drafts one first. */
@@ -215,7 +224,12 @@ export function useDraftDirections(jobKey: string) {
 export function useSavePrecheckSetup(jobKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { drive_folder_url?: string; direction_items?: string[]; precheck_type?: PrecheckType }) =>
+    mutationFn: async (payload: {
+      drive_folder_url?: string
+      direction_items?: string[]
+      precheck_type?: PrecheckType
+      key_paths?: KeyPaths
+    }) =>
       (await apiClient.put<PrecheckSetup>(`/precheck/jobs/${jobKey}/setup/`, payload)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })

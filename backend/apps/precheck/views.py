@@ -13,7 +13,7 @@ from apps.projects.keys import get_issue_or_404
 from trackflow.naming import clean_name
 
 from . import services
-from .models import PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
+from .models import KEY_DOCUMENT_ROLES, PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
 
 MAX_DIRECTION_ITEMS = 40
 
@@ -58,6 +58,9 @@ class JobPrecheckView(APIView):
         })
 
 
+MAX_KEY_PATH = 1000  # a few paths or Drive links
+
+
 class JobSetupView(APIView):
     """PUT /api/precheck/jobs/<key>/setup/ — link the job's Drive folder and set its Direction
     Note items."""
@@ -85,6 +88,15 @@ class JobSetupView(APIView):
                 errors["precheck_type"] = ["Choose one of the pre-check types offered."]
             elif not JobFolder.objects.filter(issue=issue).update(precheck_type=wanted) and wanted != "auto":
                 errors["precheck_type"] = ["Link the task's Drive folder first."]
+        if "key_paths" in request.data:
+            raw = request.data.get("key_paths")
+            if not isinstance(raw, dict) or set(raw) - set(KEY_DOCUMENT_ROLES):
+                errors["key_paths"] = ["Give the questionnaire, last year's financial statements and last year's workpapers."]
+            else:
+                paths = {role: " ".join(str(raw.get(role) or "").split())[:MAX_KEY_PATH] for role in KEY_DOCUMENT_ROLES}
+                paths = {role: p for role, p in paths.items() if p}
+                if not JobFolder.objects.filter(issue=issue).update(key_paths=paths) and paths:
+                    errors["key_paths"] = ["Link the task's Drive folder first."]
         if "direction_items" in request.data:
             items = request.data.get("direction_items")
             if not isinstance(items, list) or len(items) > MAX_DIRECTION_ITEMS:

@@ -119,15 +119,26 @@ describe('PrecheckPanel states', () => {
     await userEvent.type(screen.getByLabelText(/Direction Note items/), 'Agree bank{Enter}Check accruals')
     await userEvent.selectOptions(screen.getByLabelText(/Pre-check type/), 'residential_rental')
     expect(screen.getByText(/Residential rental: properties, managers, loans/)).toBeInTheDocument()
+    // Where the key documents are: optional; left empty, the pre-check finds them.
+    await userEvent.type(screen.getByLabelText("Last year's workpapers"), ' Smith.zip/2025/Workpapers ')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(mocks.save).toHaveBeenCalledWith(
       {
         drive_folder_url: 'https://drive.google.com/drive/folders/xyz',
         direction_items: ['Agree bank', 'Check accruals'],
         precheck_type: 'residential_rental',
+        key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers' },
       },
       expect.anything(),
     )
+  })
+
+  it('the setup line says which key documents were placed on the card, and the form shows them', async () => {
+    mocks.data = panel(null, { ...setup, key_paths: { questionnaire: 'https://drive.google.com/file/d/abc/view', last_year_fs: '', last_year_workpapers: '' } })
+    render(<PrecheckPanel jobKey="ACME-1" />)
+    expect(screen.getByText(/Set on the card: where this year's client questionnaire is\./)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
+    expect(screen.getByLabelText("This year's client questionnaire")).toHaveValue('https://drive.google.com/file/d/abc/view')
   })
 
   it('never run: one button starts it', async () => {
@@ -219,7 +230,7 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByText(/first looks for this year.s client questionnaire/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Run pre-check' }))
     expect(mocks.start).toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, type and instructions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     await userEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
     expect(mocks.draft).toHaveBeenCalled()
     unmount()
@@ -227,7 +238,7 @@ describe('PrecheckPanel states', () => {
     // While the draft is being written the button shows it; when it arrives, each item says why it is there.
     mocks.data = { ...panel(null, { ...setup, direction_items: [], missing: ['direction_note'] }), draft: { status: 'running', failure_reason: '', created_at: '' } }
     const second = render(<PrecheckPanel jobKey="ACME-1" />)
-    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, type and instructions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     expect(screen.getByRole('button', { name: 'Drafting…' })).toBeDisabled()
     second.unmount()
 
@@ -239,7 +250,7 @@ describe('PrecheckPanel states', () => {
       ],
     })
     render(<PrecheckPanel jobKey="ACME-1" />)
-    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, type and instructions' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     expect(screen.getByLabelText(/Direction Note items/)).toHaveValue('Agree the debtors schedule to the trial balance\nCheck the tax computation')
     const why = screen.getByText('Drafted by AI: why each item is here').parentElement!
     expect(why).toHaveTextContent('D1')

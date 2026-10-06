@@ -141,6 +141,33 @@
   color: var(--tf-text-subtle);
 }
 
+.keyPaths {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--tf-border);
+  border-radius: 8px;
+  min-width: 0;
+}
+.keyPaths > legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+  font-size: var(--tf-font-size-sm);
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.keyPaths > small {
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+}
+.keyPaths .field {
+  font-weight: 500;
+}
+
 .setupLine {
   margin: 0;
   font-size: var(--tf-font-size-sm);

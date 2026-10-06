@@ -18,6 +18,11 @@ gets a run id at once; progress and the result come back as events.
    statements and last year's workpapers (`keydocs.py`). If any is missing the run stops there:
    the result is Blocked, and code drafts the email asking for what is missing, with the reason.
    No model is called. Last year's questionnaire does not count as this year's.
+   A person can say on the task card where each one is: a path inside the task folder (a file
+   or a folder, zips included; folders above the task folder are ignored) or a Drive file or
+   folder link, several separated by ";". That decides the document whatever its name or year.
+   A place that holds nothing blocks the run as a mistake to correct on the card, and the
+   client is not asked for it.
 2. **The pre-check, one Opus call** (`precheck.py`, `PRECHECK_PRECHECK_MODEL`, structured
    output). Its input is built by code, every line with an id: the questionnaire (Q), last
    year's statements (F) and trial balance (T), the workpapers (W), the files received (D),

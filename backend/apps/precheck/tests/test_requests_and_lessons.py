@@ -8,6 +8,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
+from apps.issues.models import Issue
 from apps.precheck import services
 from apps.precheck.models import AIPrecheck, PrecheckLesson
 from apps.teams.models import Team, TeamMembership
@@ -107,3 +108,21 @@ def test_a_lead_teaching_firm_wide_needs_no_second_approval_and_bad_input_is_ref
     assert resp.data["status"] == "active"
     assert api(admin).post(f"/api/precheck/jobs/{issue.key}/lessons/", {"kind": "nonsense", "note": "something useful"}, format="json").status_code == 400
     assert api(admin).post(f"/api/precheck/jobs/{issue.key}/lessons/", {"kind": "other", "note": "no"}, format="json").status_code == 400
+
+
+def test_a_person_says_where_the_key_documents_are_and_the_agent_is_told():
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    url = f"/api/precheck/jobs/{issue.key}/setup/"
+    r = api(pat).put(url, {"key_paths": {"questionnaire": " 2026/Client  Questionnaire.pdf ", "last_year_fs": "",
+                                          "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}}, format="json")
+    assert r.status_code == 200
+    assert r.data["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf", "last_year_fs": "",
+                                   "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}
+    payload = services.job_payload(Issue.objects.get(pk=issue.pk))
+    assert payload["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf",
+                                    "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}
+    assert api(pat).put(url, {"key_paths": {"tax_return": "x"}}, format="json").status_code == 400
+    # Cleared: the pre-check searches the folder again.
+    api(pat).put(url, {"key_paths": {"questionnaire": ""}}, format="json")
+    assert services.job_payload(Issue.objects.get(pk=issue.pk))["key_paths"] == {}

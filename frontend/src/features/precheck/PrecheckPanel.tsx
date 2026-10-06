@@ -9,6 +9,7 @@ import {
   FileSearch,
   FileText,
   FolderOpen,
+  FolderSearch,
   Gauge,
   ListChecks,
   Loader2,
@@ -42,6 +43,7 @@ import {
   type DirectionItem,
   type Finding,
   type JobPrecheck,
+  type KeyPaths,
   type PrecheckSetup,
   type PrecheckType,
   type Run,
@@ -202,11 +204,16 @@ function SetupForm({
   const [folder, setFolder] = useState(setup.drive_folder_url)
   const [precheckType, setPrecheckType] = useState<PrecheckType>(setup.precheck_type ?? 'general')
   const [items, setItems] = useState(setup.direction_items.map((i) => i.text).join('\n'))
+  const [paths, setPaths] = useState<KeyPaths>({ ...NO_PATHS, ...setup.key_paths })
   const lines = items.split('\n').map((l) => l.trim()).filter(Boolean)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    save.mutate({ drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType }, { onSuccess: () => onDone?.() })
+    const keyPaths = Object.fromEntries(Object.entries(paths).map(([role, p]) => [role, p.trim()])) as unknown as KeyPaths
+    save.mutate(
+      { drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType, key_paths: keyPaths },
+      { onSuccess: () => onDone?.() },
+    )
   }
 
   return (
@@ -244,6 +251,26 @@ function SetupForm({
         </select>
         <small>{TYPE_HINTS[precheckType]}</small>
       </label>
+      <fieldset className={styles.keyPaths}>
+        <legend>
+          <FolderSearch size={14} aria-hidden="true" /> Where the key documents are (optional)
+        </legend>
+        <small>
+          A path inside the task folder (a file or a folder, zips included, e.g. 2025/Workpapers) or a Google Drive link.
+          Separate several with &quot;;&quot;. Leave empty to let the pre-check find them.
+        </small>
+        {KEY_PATH_FIELDS.map(({ role, label, placeholder }) => (
+          <label key={role} className={styles.field}>
+            <span>{label}</span>
+            <input
+              type="text"
+              value={paths[role]}
+              onChange={(e) => setPaths((p) => ({ ...p, [role]: e.target.value }))}
+              placeholder={placeholder}
+            />
+          </label>
+        ))}
+      </fieldset>
       <label className={styles.field}>
         <span>
           <ListChecks size={14} aria-hidden="true" /> Direction Note items, one per line (optional)
@@ -318,15 +345,25 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
   )
 }
 
+const NO_PATHS: KeyPaths = { questionnaire: '', last_year_fs: '', last_year_workpapers: '' }
+
+const KEY_PATH_FIELDS: { role: keyof KeyPaths; label: string; placeholder: string }[] = [
+  { role: 'questionnaire', label: "This year's client questionnaire", placeholder: '2026/Client Questionnaire 2026.pdf' },
+  { role: 'last_year_fs', label: "Last year's financial statements", placeholder: '2025/Financial Statements 2025 - Signed.pdf' },
+  { role: 'last_year_workpapers', label: "Last year's workpapers", placeholder: '2025/Workpapers' },
+]
+
 function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void }) {
   const type = setup.precheck_types?.find((x) => x.value === setup.precheck_type)?.label ?? 'Decide from the questionnaire'
+  const placed = KEY_PATH_FIELDS.filter((f) => setup.key_paths?.[f.role])
   return (
     <p className={styles.setupLine}>
       Reads the task&apos;s Drive folder. Business nature: {type.toLowerCase()}.
+      {placed.length > 0 && ` Set on the card: where ${placed.map((f) => f.label.toLowerCase()).join(', ')} ${placed.length === 1 ? 'is' : 'are'}.`}
       {setup.direction_items.length > 0 &&
         ` Follows ${setup.direction_items.length} Direction Note instruction${setup.direction_items.length === 1 ? '' : 's'}.`}{' '}
       <button type="button" className={styles.link} onClick={onEdit}>
-        Edit folder, type and instructions
+        Edit folder, documents, type and instructions
       </button>
     </p>
   )

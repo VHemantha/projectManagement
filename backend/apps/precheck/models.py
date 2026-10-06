@@ -33,6 +33,10 @@ PRECHECK_TYPES = [
     ("investment", "Investment"),
 ]
 
+# The three documents a pre-check cannot start without. A person may say where each one is: a
+# path inside the task folder or a Drive link, several separated by ";".
+KEY_DOCUMENT_ROLES = ("questionnaire", "last_year_fs", "last_year_workpapers")
+
 
 class JobFolder(models.Model):
     """The Google Drive folder that holds a task's documents, and the business nature the
@@ -42,6 +46,8 @@ class JobFolder(models.Model):
     folder_id = models.CharField(max_length=200)
     folder_url = models.CharField(max_length=500, blank=True)
     precheck_type = models.CharField(max_length=30, choices=PRECHECK_TYPES, default="auto")
+    # {"questionnaire": "2026/Client Questionnaire.pdf", ...}: where each key document is. Empty: search the folder.
+    key_paths = models.JSONField(default=dict, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 

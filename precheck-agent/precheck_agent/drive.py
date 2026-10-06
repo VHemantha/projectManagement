@@ -72,6 +72,7 @@ class GoogleDrive:
 
         files: list[DriveFile] = []
         queue = [(folder_id, "")]
+        self.folders = {folder_id: ""}  # folder id -> its path inside the task folder
         try:
             while queue and len(files) < self._max_files:
                 parent, path = queue.pop(0)
@@ -92,6 +93,7 @@ class GoogleDrive:
                     for f in resp.get("files", []):
                         if f["mimeType"] == FOLDER_MIME:
                             queue.append((f["id"], f"{path}{f['name']}/"))
+                            self.folders[f["id"]] = f"{path}{f['name']}/"
                             continue
                         files.append(
                             DriveFile(

@@ -223,3 +223,50 @@ def test_figures_check():
     assert P.figures_ok("Rent was 31,200 last year, down from 29,900.", known)
     assert P.figures_ok("Refinanced in October 2025; 12 months; 15% of rent.", known)  # years, counts, percentages
     assert not P.figures_ok("Rent was 45,000.", known)
+
+
+def test_the_task_card_says_where_a_key_document_is(env):
+    """A questionnaire under a name code would not recognise, placed by a person on the task card;
+    a path copied from Drive with the folders above the task folder still matches."""
+    folder = ready_folder(env, questionnaire=False)
+    with zipfile.ZipFile(folder / "Smith.zip", "a") as z:
+        z.writestr("Smith/2026/Info from John.txt", CQ)
+    env.pm.add_job("1", "client-s", "smith", direction=[])
+    env.pm.jobs["1"]["key_paths"] = {"questionnaire": r"My Drive\Clients\Smith\Smith.zip\Smith\2026\Info from John.txt",
+                                     "last_year_workpapers": "Smith.zip/Smith/2025"}
+    result = env.run("1")
+    p = result["precheck"]
+    q = {k["role"]: k for k in p["key_documents"]}
+    assert q["questionnaire"]["found"] and q["questionnaire"]["files"][0]["name"].startswith("Info from John.txt")
+    assert q["questionnaire"]["note"] == "Where the task card says."
+    assert result["readiness"] == "Requests to send" and len(env.precheck.calls) == 1
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "Q1 | Client Questionnaire 2026  [Info from John.txt" in body
+    # Everything in the 2025 folder is a workpaper because the card says so, the balance note included.
+    workpapers = [ln for ln in body.splitlines() if ln.startswith("W")]
+    assert any("ANZ Balance 2025.txt" in ln for ln in workpapers) and any("Final TB 2025.xlsx" in ln for ln in workpapers)
+
+
+def test_a_place_on_the_card_that_holds_nothing_is_corrected_not_asked_for(env):
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[])
+    env.pm.jobs["1"]["key_paths"] = {"last_year_fs": "Smith.zip/Smith/2024/Financial Statements.pdf"}
+    p = env.run("1")["precheck"]
+    assert p["decision"]["state"] == "blocked" and not env.precheck.calls
+    assert "correct it on the task card" in p["decision"]["reason"] and "requested" not in p["decision"]["reason"]
+    fs = next(k for k in p["key_documents"] if k["role"] == "last_year_fs")
+    assert not fs["found"] and "2024/Financial Statements.pdf" in fs["note"]
+    assert p["requests"] == [] and p["email"]["body"] == ""  # nothing to ask the client
+
+
+def test_drive_links_on_the_card():
+    from precheck_agent import keydocs as K
+    docs = [{"file": {"file_id": fid, "name": name, "path": path, "document_class": "workpaper"}} for fid, name, path in [
+        ("1AbCdEfGhIjK", "TB.xlsx", "2025/"), ("1ZipZipZipZip", "Pack.zip", ""), ("1ZipZipZipZip!2025/GL.xlsx", "GL.xlsx", "Pack.zip/2025/"),
+        ("1OtherOtherOt", "Notes.docx", "2026/")]]
+    docs[1]["file"]["document_class"] = "archive"
+    folders = {"1Folder2025xx": "2025/"}
+    files, unmatched = K.placed(docs, "https://drive.google.com/file/d/1ZipZipZipZip/view; "
+                                      "https://drive.google.com/drive/folders/1Folder2025xx?usp=sharing\n"
+                                      "https://drive.google.com/drive/folders/1NotInTheTask", folders)
+    assert [f["name"] for f in files] == ["GL.xlsx", "TB.xlsx"] and unmatched == ["https://drive.google.com/drive/folders/1NotInTheTask"]

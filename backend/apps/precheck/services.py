@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.live.broadcast import notify
 
-from .models import PRECHECK_TYPES, AIEvidence, AIFeedback, AIFinding, AIPrecheck, DirectionItem, ModelRun
+from .models import KEY_DOCUMENT_ROLES, PRECHECK_TYPES, AIEvidence, AIFeedback, AIFinding, AIPrecheck, DirectionItem, ModelRun
 
 MAX_PROGRESS_EVENTS = 60
 
@@ -42,6 +42,7 @@ def setup_for(issue) -> dict:
         "drive_folder_url": folder.folder_url if folder else "",
         "drive_folder_id": folder.folder_id if folder else "",
         "precheck_type": folder.precheck_type if folder else "auto",
+        "key_paths": {role: (folder.key_paths or {}).get(role, "") if folder else "" for role in KEY_DOCUMENT_ROLES},
         "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES],
         "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,
@@ -153,6 +154,7 @@ def job_payload(issue) -> dict:
         "client_name": project.client.name if project.client_id else project.name,
         "drive_folder_id": setup["drive_folder_id"],
         "precheck_type": setup["precheck_type"],
+        "key_paths": {role: path for role, path in setup["key_paths"].items() if path},
         "lessons": lessons_for(issue),
         "direction_items": setup["direction_items"],
         "history": history_for(issue),

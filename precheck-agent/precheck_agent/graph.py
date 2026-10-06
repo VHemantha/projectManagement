@@ -77,6 +77,7 @@ class State(TypedDict, total=False):
     rule_results: list[dict]
     periods: dict
     key: dict
+    folders: dict  # Drive folder id -> path inside the task folder
     precheck: dict
     evidence: Annotated[dict, _merge]
     usage: Annotated[list, _concat]
@@ -119,7 +120,8 @@ def sync_drive(state: State) -> dict:
     changed files continue; an unchanged file costs nothing (token rule 6)."""
     s, store, job = get_settings(), get_store(), state["job"]
     try:
-        listing = [f.as_dict() for f in get_drive(s).list_folder(job["drive_folder_id"])]
+        drive = get_drive(s)
+        listing = [f.as_dict() for f in drive.list_folder(job["drive_folder_id"])]
     except DriveError as exc:
         raise PrecheckStop(str(exc)) from exc
     manifest = store.get_manifest(job["client_id"], state["job_id"])
@@ -139,7 +141,7 @@ def sync_drive(state: State) -> dict:
     sync = {"total": len(listing), "changed": changed, "removed": len(removed), "first_run": not manifest}
     since = "all new" if not manifest else f"{len(changed)} changed since last run"
     emit("read", f"{len(listing)} files in the folder, {since}", "running", documents=len(listing), changed=len(changed))
-    return {"listing": listing, "sync": sync}
+    return {"listing": listing, "sync": sync, "folders": getattr(drive, "folders", {})}
 
 
 # --- 3. index (code) --------------------------------------------------------------------------
@@ -328,11 +330,10 @@ def key_documents(state: State) -> dict:
     """This year's questionnaire, last year's financial statements, last year's workpapers. A
     pre-check does not start without all three (AFIT, 5 Oct 2026)."""
     docs = [{"file": state["files"][d["file"]["file_id"]], "parsed": d["parsed"]} for d in _docs(state["files"])]
-    key = K.find(docs, state["periods"])
+    key = K.find(docs, state["periods"], state["job"].get("key_paths") or {}, state.get("folders") or {})
     # Every workpaper for the pre-check's input; the card shows a few per role.
-    key["documents"] = [{**k, "files_all": k["files"]} for k in key["documents"]]
     wp = next(k for k in key["documents"] if k["role"] == "last_year_workpapers")
-    if wp["found"]:
+    if wp["found"] and not wp["set_on_card"]:
         wp["files_all"] = [d["file"] for d in docs if d["file"].get("year_role") in ("prior",) or (not state["periods"].get("current") and d["file"].get("year_role") == "unknown")]
         wp["files_all"] = [f for f in wp["files_all"] if f["document_class"] in K.WP_CLASSES]
     marks = ", ".join(f"{k['label'].lower()} {'found' if k['found'] else 'missing'}" for k in key["documents"])
@@ -444,18 +445,25 @@ def blocked_output(state: State) -> tuple[dict, dict]:
         evidence[e["id"]] = e
         return e["id"]
 
-    names = [k["label"].lower() for k in key["documents"] if not k["found"]]
-    names = [n if n.startswith("last year") else f"this year's {n}" for n in names]
-    missing = " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
-    it = "They have" if len(names) > 1 else "It has"
+    def listed(roles):
+        names = [K.KEY[r]["label"].lower() for r in roles]
+        names = [n if n.startswith("last year") else f"this year's {n}" for n in names]
+        return " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
+
+    wrong = [r for r in key["missing"] if r in key.get("wrong_place", [])]
+    ask = [r for r in key["missing"] if r not in wrong]
+    reason = f"The pre-check cannot start without {listed(key['missing'])}."
+    if ask:
+        reason += (f" {'They have' if len(ask) > 1 else 'It has'} been requested{f' ({listed(ask)})' if wrong else ''}; run the "
+                   f"pre-check again once {'they arrive' if len(ask) > 1 else 'it arrives'}.")
+    if wrong:
+        reason += f" Nothing was found where the task card says {listed(wrong)} {'are' if len(wrong) > 1 else 'is'}: correct it on the task card."
     out = {
-        "decision": {"state": "blocked", "label": "Blocked",
-                     "reason": f"The pre-check cannot start without {missing}. {it} been requested; run the pre-check again once "
-                               f"{'they arrive' if len(names) > 1 else 'it arrives'}."},
+        "decision": {"state": "blocked", "label": "Blocked", "reason": reason},
         "key_documents": P.key_views(key, ev),
         "business_nature": None,
         "requests": [{"group": "To start the pre-check", "item": K.KEY[r]["ask"].format(this_year=key["this_year"], last_year=key["last_year"]),
-                      "decision": "request", "reason": K.KEY[r]["why"], "sources": [], "documents": [], "flags": []} for r in key["missing"]],
+                      "decision": "request", "reason": K.KEY[r]["why"], "sources": [], "documents": [], "flags": []} for r in ask],
         "provided": [], "not_needed": [], "preparer_notes": [], "lessons_applied": [], "bank": [], "checks": [],
         "email": K.request_email(state["job"].get("client_name", ""), key),
         "how": "code",
