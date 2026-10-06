@@ -154,17 +154,25 @@ def test_images_have_their_own_limit_and_the_rest_are_read_next_run(env, monkeyp
 
 def test_scans_other_image_types_and_files_that_cannot_be_read(env):
     s = get_settings()
-    # A scanned PDF has pages but no text: it is sent as a document, first pages only.
+    # A scanned PDF has pages but no text: its first pages are read, one call per page, so each
+    # line's page is known by code (a page marker the model writes is ignored).
     scan = io.BytesIO()
     pages = [Image.new("RGB", (400, 560), "white") for _ in range(s.max_scan_pages + 2)]
     pages[0].save(scan, "PDF", save_all=True, append_images=pages[1:])
     assert parse_file(scan.getvalue(), "Bank statement scan.pdf") == {"blocks": [], "tables": [], "vision": "pdf"}
-    env.vision = says("=== page 1 ===\nBalance brought forward 51,000.00\n=== page 2 ===\nClosing balance 49,010.00")
+    env.vision = says("=== page 9 ===\nBalance brought forward 51,000.00")
     parsed, usage = vision.transcribe(scan.getvalue(), "Bank statement scan.pdf", "pdf", s)
+    assert len(env.vision.calls) == s.max_scan_pages
     block = env.vision.calls[0]["messages"][1].content[0]
     assert block["type"] == "document" and block["source"]["media_type"] == "application/pdf"
-    assert [(b["page"], b["loc"]) for b in parsed["blocks"]] == [(1, "scan read by AI, page 1, line 1"), (2, "scan read by AI, page 2, line 1")]
-    assert parsed["error"] == f"Only the first {s.max_scan_pages} of {s.max_scan_pages + 2} pages were read." and usage["output"] == 60
+    assert sorted(b["page"] for b in parsed["blocks"]) == list(range(1, s.max_scan_pages + 1))
+    assert parsed["error"] == f"Only the first {s.max_scan_pages} of {s.max_scan_pages + 2} pages were read."
+    assert usage["output"] == 60 * s.max_scan_pages
+    # A questionnaire is read to the end: the pages after the first ones, in a second step.
+    env.vision.calls.clear()
+    rest, _ = vision.transcribe(scan.getvalue(), "Bank statement scan.pdf", "pdf", s, first=s.max_scan_pages, max_pages=30)
+    assert len(env.vision.calls) == 2 and "error" not in rest and rest["pages_read"] == rest["pages_total"] == s.max_scan_pages + 2
+    assert [b["loc"] for b in rest["blocks"]] == [f"scan read by AI, page {n}, line 1" for n in (s.max_scan_pages + 1, s.max_scan_pages + 2)]
 
     # Any image type is turned into JPEG; each page of a multi-page TIFF is its own image.
     for fmt, name in (("BMP", "a.bmp"), ("GIF", "a.gif"), ("WEBP", "a.webp"), ("TIFF", "a.tif"), ("PNG", "a.jfif")):
@@ -217,3 +225,40 @@ def test_an_image_that_fails_to_read_does_not_stop_the_run(env):
     env.vision = says(STOCK)
     result = env.run("1")  # tried again without the file having changed; the broken one is not
     assert len(env.vision.calls) == 1 and not detail(result)["scan.png"]["problem"]
+
+
+def scanned_pdf(pages: int) -> bytes:
+    out = io.BytesIO()
+    images = [Image.new("RGB", (400, 560), "white") for _ in range(pages)]
+    images[0].save(out, "PDF", save_all=True, append_images=images[1:])
+    return out.getvalue()
+
+
+SCANNED_FORM = "PART 1: IDENTIFICATION\n[X] Annual Tax Questionnaire\n[ ] +/- Q Form\nWas any rental property sold?\n[X] Sold"
+
+
+def test_a_scanned_questionnaire_is_read_to_the_end(env):
+    """A questionnaire printed from a web form is often an image-only PDF of many pages. Named like
+    one ("QD--FY2026--…"), every page is read; named like anything else, the first pages show it
+    is a questionnaire and the rest are read too. Either way it is this year's questionnaire."""
+    from precheck_agent.graph import _cut_short_questionnaire
+
+    s = get_settings()
+    for name, folder_name in (("QD--FY2026--Acme Ltd-Sam Client.pdf", "named"), ("Scan 0412.pdf", "unnamed")):
+        folder = make_job_folder(env.drive_root, folder_name)
+        (folder / "Financial Statements FY25.txt").write_text("Financial Statements\nFor the year ended 31 March 2025\n", encoding="utf-8")
+        (folder / name).write_bytes(scanned_pdf(s.max_scan_pages + 3))
+        env.vision = says(SCANNED_FORM)
+        env.pm.add_job(folder_name, f"client-{folder_name}", folder_name, direction=[])
+        result = env.run(folder_name)
+        assert len(env.vision.calls) == s.max_scan_pages + 3, name  # one call per page, every page
+        q = next(k for k in result["precheck"]["key_documents"] if k["role"] == "questionnaire")
+        assert q["found"] and q["files"][0]["name"] == name
+        body = env.precheck.calls[-1]["messages"][-1].content
+        assert f"[X] Sold  [{name}, scan read by AI, page {s.max_scan_pages + 3}, line 5]" in body
+
+    # Read before whole questionnaires were read: only its first pages are stored, so it is read again.
+    old = {"blocks": [{"text": "[X] Annual Tax Questionnaire"}], "read_by": vision.AI_READ, "error": "Only the first 5 of 14 pages were read."}
+    assert _cut_short_questionnaire({"name": "Scan 0412.pdf"}, old)
+    assert not _cut_short_questionnaire({"name": "Scan 0412.pdf"}, {**old, "pages_read": 5})
+    assert not _cut_short_questionnaire({"name": "Bank statement.pdf"}, {**old, "blocks": [{"text": "Closing balance 4,210.00"}]})

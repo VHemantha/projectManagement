@@ -88,25 +88,31 @@ FINISHED_CLASSES = ("financial_statements", "prior_year_statements", "trial_bala
 def assign_years(docs: list[dict], job: dict | None = None) -> dict:
     """{"current", "prior", "split", "by_file": {file_id: {"year", "role", "basis"}}}.
 
-    The current year is the one in the job's title when it names one. Otherwise it is the latest
+    The current year is the one in the job's title when it names one. Otherwise it is the year a
+    questionnaire is for, when that is the latest year anything was received for (a questionnaire
+    says which year it covers; an old one left in the folder does not move the year back).
+    Otherwise it is the latest
     year of the documents received for the year (bank statements, questionnaire, invoices…) — and
     never earlier than the year after the latest finished accounts in the folder: last year's
     signed statements mean this year is the next one, even when nothing received is dated.
     "split" is True when the folder holds both years, which is when last year's documents become
     the baseline instead of something to check."""
     by_file = {}
-    received, finished = set(), set()
+    received, finished, questionnaires = set(), set(), set()
     for d in docs:
         year, basis = doc_year(d["file"], d["parsed"])
         by_file[d["file"]["file_id"]] = {"year": year, "basis": basis}
         if year:
             (finished if d["file"].get("document_class") in FINISHED_CLASSES else received).add(year)
+            if d["file"].get("document_class") == "questionnaire":
+                questionnaires.add(year)
     title_year = None
     m = re.search(r"\bfy\s*(\d\d|20\d\d)\b|(?<!\d)(20\d\d)(?!\d)", (job or {}).get("title", ""), re.I)
     if m:
         title_year = _fy(m.group(1) or m.group(2))
     candidates = received | ({max(finished) + 1} if finished else set())
-    current = title_year or (max(candidates) if candidates else None)
+    stated = max(questionnaires) if questionnaires and max(questionnaires) >= max(received) else None
+    current = title_year or stated or (max(candidates) if candidates else None)
     prior = current - 1 if current else None
     for v in by_file.values():
         y = v["year"]

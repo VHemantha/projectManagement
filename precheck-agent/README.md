@@ -82,7 +82,15 @@ then chunked, searched and quoted like any other document, located as "image rea
 line N". Code does the rest: any
 type Pillow opens (PNG, JPEG, GIF, WebP, BMP, TIFF, HEIC, ICO, AVIF) is turned upright, shrunk
 to 1,568 px and sent as JPEG; a scanned PDF or multi-page TIFF is cut to its first 5 pages
-(and says so). The transcript is stored against the file's id and version, so an image is paid
+(and says so). Each page is read in its own call, four at a time, so every quote's page is
+exact. **A scanned questionnaire is read to the end** (up to 30 pages): one named like a
+questionnaire ("Client Questionnaire…", or "QD--FY2026--…" as the client form sends it) is read
+whole at once; any other scan whose first pages turn out to be a questionnaire has the rest
+read too. On a form every tick box is written as `[X] label` or `[ ] label`, so the pre-check
+sees which answer was chosen. A questionnaire states its year, and that year is this year
+unless the task title says otherwise. Measured on a real 14-page image-only questionnaire (6 Oct
+2026, Haiku 4.5): all 39 ticked answers right and on the right page, 26,000 tokens in, 6,200
+out, $0.057, 36 s. The transcript is stored against the file's id and version, so an image is paid
 for once. A run reads at most 10 images (`PRECHECK_BUDGET_IMAGE_CALLS`); the rest are reported as not read yet, the result is marked partial, and
 the next run reads them. SVG and HTML files are text already and are read by code. Measured
 (2 Oct 2026, Haiku 4.5): a one-page voucher photo was 1,755 tokens in, 155 out ($0.0025); a

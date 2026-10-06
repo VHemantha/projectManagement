@@ -159,15 +159,40 @@ def _read_image(f: dict, data: bytes, name: str, kind: str, ctx: dict) -> tuple[
         ctx["skipped"].append({"task_id": "image", "direction_ref": "none", "what": f"Reading the image {shown}", "reason": reason})
         return {**empty, "error": "Not read yet: this run reached its limit of images. Run the pre-check again to read it."}, True
     emit("read", f"Reading the image {shown}", "running")
+    # A questionnaire is read to the end. One named like one is read whole at once; a scan whose
+    # first pages turn out to be a questionnaire has the rest read in a second call.
+    named_q = classify(f["name"]) == "questionnaire"
     try:
-        parsed, usage = vision.transcribe(data, name, kind, s)
+        parsed, usage = vision.transcribe(data, name, kind, s, max_pages=s.max_questionnaire_pages if named_q else s.max_scan_pages)
+        usages = [usage]
+        if (not named_q and parsed["blocks"] and parsed.get("pages_read", 1) < min(parsed.get("pages_total", 1), s.max_questionnaire_pages)
+                and classify(f["name"], "\n".join(b["text"] for b in parsed["blocks"][:40])) == "questionnaire"):
+            emit("read", f"Reading the rest of the questionnaire {shown}", "running")
+            rest, usage = vision.transcribe(data, name, kind, s, first=parsed["pages_read"],
+                                            max_pages=s.max_questionnaire_pages - parsed["pages_read"])
+            usages.append(usage)
+            problems = [p for p in (parsed.get("error", ""), rest.get("error", "")) if p and "pages were read" not in p]
+            if "pages were read" in rest.get("error", ""):
+                problems.append(rest["error"].split(". ")[0] + ".")
+            parsed = {**parsed, "blocks": parsed["blocks"] + rest["blocks"], "pages_read": rest["pages_read"]}
+            parsed.pop("error", None)
+            if problems:
+                parsed["error"] = " ".join(problems)
     except vision.Unreadable as exc:
         return {**empty, "error": str(exc)}, False
     except Exception:  # the model could not be reached, or would not take the file
         logger.exception("Reading image %s failed", f["id"])
         return {**empty, "error": "This image could not be read this time. Run the pre-check again."}, True
-    ctx["usage"].append({"node": "read_image", "task_id": "image-" + sha(f["id"])[:10], "model": model_id("vision", s), "calls": 1, "run_id": ctx["run_id"], **usage})
+    for usage in usages:
+        ctx["usage"].append({"node": "read_image", "task_id": "image-" + sha(f["id"])[:10], "model": model_id("vision", s), "calls": 1, "run_id": ctx["run_id"], **usage})
     return parsed, False
+
+
+def _cut_short_questionnaire(f: dict, parsed: dict) -> bool:
+    """A questionnaire scan read before whole questionnaires were read (5 Oct 2026): only its
+    first pages are stored, so it is read again."""
+    return (parsed.get("read_by") == vision.AI_READ and "pages_read" not in parsed and "pages were read" in parsed.get("error", "")
+            and classify(f["name"], "\n".join(b["text"] for b in parsed["blocks"][:40])) == "questionnaire")
 
 
 def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
@@ -180,6 +205,8 @@ def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
     parsed_key = sha(f["id"], f["version"], s.parser_version)  # file id + version + parser version
     parsed = store.get_parsed(parsed_key)
     pending = False
+    if parsed is not None and _cut_short_questionnaire(f, parsed) and not isinstance(data_or_error, str):
+        parsed = None
     if parsed is None:
         if isinstance(data_or_error, str):
             parsed = {"blocks": [], "tables": [], "error": data_or_error}

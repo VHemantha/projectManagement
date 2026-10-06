@@ -163,3 +163,24 @@ def test_an_item_citing_a_code_check_links_to_the_bank_line(env):
     p = env.run("1")["precheck"]
     src = p["requests"][0]["sources"][0]
     assert src["label"].startswith("Check: ") and p["evidence"][src["evidence_id"]]["file_name"].startswith(ACCOUNT)
+
+
+def test_this_years_questionnaire_names_the_year():
+    """Landm, 6 Oct 2026: only this year's documents, a questionnaire "QD--FY2026--…", and a loan
+    statement with debit and credit columns. The statement is a bank document, not a trial
+    balance (which would read as finished accounts and push this year to FY2027)."""
+    from precheck_agent.classify import classify
+
+    statement = "ORBIT Home Loan\nAccount Number: 12-3026-0117614-00\nFrom Date: 01 Apr 2025\nTo Date: 02 Oct 2025\nDate Description Debit Credit Balance"
+    assert classify("ITA statement to 2 Oct.pdf", statement) == "bank"
+
+    def doc(name, path, cls):
+        return {"file": {"file_id": name, "name": name, "path": path, "document_class": cls}, "parsed": {"blocks": []}}
+
+    docs = [doc("QD--FY2026--Landm Ltd-Meredith Bates.pdf", "2026/Documents/", "questionnaire"),
+            doc("Rates.pdf", "2026/Rates/", "other_evidence"), doc("Final TB.xlsx", "2026/", "trial_balance")]
+    periods = assign_years(docs, {"title": "Landm Ltd year end"})
+    assert periods["current"] == 2026 and periods["by_file"]["QD--FY2026--Landm Ltd-Meredith Bates.pdf"]["role"] == "current"
+    # Last year's questionnaire left beside this year's bank data does not move the year back.
+    old = [doc("Client Questionnaire 2025.pdf", "2025/", "questionnaire"), doc("Bank 2026.csv", "2026/", "bank")]
+    assert assign_years(old, {"title": "x"})["current"] == 2026

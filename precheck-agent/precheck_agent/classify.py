@@ -25,7 +25,8 @@ DOCUMENT_CLASSES = [
 # Ordered: the first pattern that matches the file name wins.
 _NAME_RULES = [
     # First: a questionnaire is named for its purpose, whatever topics it covers (GST, rental…).
-    (r"questionnaire|\bcq\b|checklist|client (information|details)|information (sheet|form)", "questionnaire", None),
+    # "QD--FY2026--Landm Ltd-Meredith Bates.pdf": the questionnaire data a client's form sends.
+    (r"questionnaire|\bcq\b|checklist|client (information|details)|information (sheet|form)|^qd\s+fy\s?\d", "questionnaire", None),
     (r"\bgst\b|\bvat\b|\bbas\b", "tax_return", None),
     (r"\bir\s?3\b|\bir\s?4\b|\bir\s?10\b|\binc\b.*tax|income tax|tax summar|\bpir\b|student loan|\blcf\b|loss(es)? carried|provisional tax|terminal tax|\bsoe\b|statement of earnings|\bpayday\b|\bpaye\b|\bfbt\b|\brwt\b|withholding", "tax_computation", None),
     (r"\bfa\b.*\brecon|fixed asset|asset register|depreciation schedule", "schedule", None),
@@ -49,9 +50,12 @@ _NAME_RULES = [
 ]
 
 _CONTENT_RULES = [
+    (r"(annual|tax|client|year[\s-]*end) (tax )?questionnaire", "questionnaire"),
     (r"trial balance", "trial_balance"),
     (r"general ledger", "general_ledger"),
     (r"statement of (profit|financial position)|profit and loss|balance sheet", "financial_statements"),
+    # A bank or loan statement has debit and credit columns too: it is not a trial balance.
+    (r"account (number|no)\.?:?\s*\d{2}-\d{4}-\d{7}-\d{2,3}|transaction details|from date\b.*\bto date|statement period", "bank"),
     (r"\bdebit\b.*\bcredit\b", "trial_balance"),
     (r"balance per bank|reconciling items|unpresented|outstanding lodg", "reconciliation"),
     (r"profit and loss|statement of financial position|balance sheet|notes to the (financial )?statements", "financial_statements"),

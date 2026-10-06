@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     image_max_tokens: int = 2000  # output cap for one transcript
     image_max_edge: int = 1568  # longest side sent to the model, in pixels
     max_scan_pages: int = 5  # pages read from one scanned PDF or multi-page TIFF
+    # A questionnaire is the document the pre-check rests on, and printed web forms run long:
+    # a scanned one is read to the end, up to this many pages.
+    max_questionnaire_pages: int = 30
+    scan_tokens_per_page: int = 900  # output allowed per page read (a dense form page is about 600)
 
     # --- indexing --------------------------------------------------------------------------
     embedder: str = "hash"  # "hash" (built in, no download) | "fastembed" (local ONNX model)
