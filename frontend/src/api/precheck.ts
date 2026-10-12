@@ -113,11 +113,19 @@ export interface PrecheckOutput {
 
 export type LessonKind = 'not_needed' | 'wrong_reason' | 'missed' | 'other'
 
+export type LessonScope = 'client' | 'project' | 'team' | 'firm'
+
 export interface Lesson {
   id: number
-  scope: 'client' | 'firm'
+  scope: LessonScope
+  scope_label?: string
   status: 'active' | 'pending' | 'disabled'
   kind: LessonKind
+  /** Where the correction came from. */
+  source?: 'precheck' | 'review' | 'ask'
+  /** The rule the AI drafted from the correction (null until drafted). */
+  rule?: { title: string; when: string; do: string; why: string } | null
+  drafting?: '' | 'drafting' | 'drafted' | 'failed'
   precheck_type: string
   item: string
   note: string

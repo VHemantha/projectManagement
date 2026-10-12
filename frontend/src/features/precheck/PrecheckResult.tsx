@@ -197,7 +197,15 @@ function ItemList(props: { items: PrecheckItem[]; output: PrecheckOutput; jobKey
 }
 
 /** Lessons waiting for a lead or admin to apply them to every client. */
-function PendingLessons({ jobKey }: { jobKey: string }) {
+const APPROVE_LABEL: Record<string, string> = {
+  firm: 'Apply to all clients',
+  team: 'Approve for this workspace',
+  project: 'Approve for this project',
+  client: 'Approve',
+}
+
+/** Lessons a lead or admin must approve before they apply beyond the client they came from. */
+export function PendingLessons({ jobKey }: { jobKey: string }) {
   const { data } = useLessons(jobKey)
   const setStatus = useSetLessonStatus(jobKey)
   if (!data?.can_approve || !data.pending_firm_wide.length) return null
@@ -215,10 +223,15 @@ function PendingLessons({ jobKey }: { jobKey: string }) {
                 {l.created_by}, {l.task}
               </span>
             </div>
-            <p className={styles.reason}>{l.note}</p>
+            {l.rule ? (
+              <p className={styles.reason}>
+                <strong>When:</strong> {l.rule.when} <strong>Do:</strong> {l.rule.do} <strong>Why:</strong> {l.rule.why}
+              </p>
+            ) : null}
+            <p className={styles.reason}>{l.rule ? `Note: ${l.note}` : l.note}</p>
             <div className={styles.teachActions}>
               <Button size="sm" variant="primary" onClick={() => setStatus.mutate({ id: l.id, status: 'active' })}>
-                Apply to all clients
+                {APPROVE_LABEL[l.scope] ?? 'Approve'}
               </Button>
               <Button size="sm" variant="subtle" onClick={() => setStatus.mutate({ id: l.id, status: 'disabled' })}>
                 Reject

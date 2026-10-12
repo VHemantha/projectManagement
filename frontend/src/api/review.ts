@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from './client'
-import type { Run, Severity, SourceRef } from './precheck'
+import type { LessonScope, Run, Severity, SourceRef } from './precheck'
 
 export type ReviewResponseKind = 'agree' | 'fixed' | 'not_an_issue' | 'wrong_reason'
 export type AssumptionVerdict = 'supported' | 'challenged' | 'needs_evidence'
@@ -108,13 +108,13 @@ export function useSaveAssumption(jobKey: string) {
 }
 
 export function useRespondToFinding(jobKey: string) {
-  return useReviewMutation<{ id: number; response: ReviewResponseKind; note: string }>(jobKey, async ({ id, ...body }) =>
+  return useReviewMutation<{ id: number; response: ReviewResponseKind; note: string; scope?: LessonScope }>(jobKey, async ({ id, ...body }) =>
     (await apiClient.post(`/precheck/review-findings/${id}/respond/`, body)).data,
   )
 }
 
 export function useAddMissed(jobKey: string) {
-  return useReviewMutation<{ area: string; fs_line: string; issue: string; note: string }>(jobKey, async (body) =>
+  return useReviewMutation<{ area: string; fs_line: string; issue: string; note: string; scope?: LessonScope }>(jobKey, async (body) =>
     (await apiClient.post(`/precheck/jobs/${jobKey}/review/missed/`, body)).data,
   )
 }

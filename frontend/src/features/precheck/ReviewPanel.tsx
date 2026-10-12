@@ -3,7 +3,7 @@ import { type FormEvent, useState } from 'react'
 
 import styles from './ReviewPanel.module.css'
 import { extractErrorMessage } from '@/api/errors'
-import type { SourceRef } from '@/api/precheck'
+import { type LessonScope, type SourceRef, useLessons, useSetLessonStatus } from '@/api/precheck'
 import {
   type Assumption,
   type AssumptionInput,
@@ -19,6 +19,7 @@ import {
   useRunReview,
   useSaveAssumption,
 } from '@/api/review'
+import { PendingLessons } from './PrecheckResult'
 import { Button, Skeleton } from '@/design-system'
 
 const RESPONSE_LABEL: Record<ReviewResponseKind, string> = {
@@ -135,6 +136,8 @@ function ReviewBody({ jobKey, data }: { jobKey: string; data: ReviewState }) {
 
       <Assumptions jobKey={jobKey} data={data} verdicts={verdicts} output={output} locked={complete} />
 
+      <LearnedRules jobKey={jobKey} />
+
       {output && output.checks.length > 0 && (
         <details className={styles.details}>
           <summary>
@@ -214,9 +217,13 @@ function FindingCard({
   const respond = useRespondToFinding(jobKey)
   const [choosing, setChoosing] = useState<ReviewResponseKind | null>(null)
   const [note, setNote] = useState('')
+  const [scope, setScope] = useState<LessonScope>('client')
   const needsNote = choosing !== null && NEEDS_NOTE.includes(choosing)
   const send = (response: ReviewResponseKind, text = '') =>
-    respond.mutate({ id: f.id, response, note: text }, { onSuccess: () => (setChoosing(null), setNote('')) })
+    respond.mutate(
+      { id: f.id, response, note: text, ...(NEEDS_NOTE.includes(response) ? { scope } : {}) },
+      { onSuccess: () => (setChoosing(null), setNote('')) },
+    )
 
   return (
     <li className={styles.finding} data-severity={f.severity}>
@@ -280,6 +287,7 @@ function FindingCard({
             <span>{choosing === 'not_an_issue' ? 'Why is it not an issue?' : 'What is the right reason?'} The AI learns from this.</span>
             <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </label>
+          <ScopeChoice value={scope} onChange={setScope} />
           <div className={styles.row}>
             <Button type="submit" variant="primary" size="sm" disabled={note.trim().length < 5 || respond.isPending}>
               Save
@@ -316,6 +324,7 @@ function MissedForm({ jobKey }: { jobKey: string }) {
   const add = useAddMissed(jobKey)
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState({ area: '', fs_line: '', issue: '', note: '' })
+  const [scope, setScope] = useState<LessonScope>('client')
   if (!open) {
     return (
       <button type="button" className={styles.link} onClick={() => setOpen(true)}>
@@ -325,7 +334,7 @@ function MissedForm({ jobKey }: { jobKey: string }) {
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    add.mutate(form, { onSuccess: () => (setOpen(false), setForm({ area: '', fs_line: '', issue: '', note: '' })) })
+    add.mutate({ ...form, scope }, { onSuccess: () => (setOpen(false), setForm({ area: '', fs_line: '', issue: '', note: '' })) })
   }
   return (
     <form className={styles.card} onSubmit={submit} aria-label="Something the AI missed">
@@ -347,6 +356,7 @@ function MissedForm({ jobKey }: { jobKey: string }) {
         <span>Why it matters (optional)</span>
         <textarea rows={2} value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} />
       </label>
+      <ScopeChoice value={scope} onChange={setScope} />
       {add.isError && (
         <p role="alert" className={styles.error}>
           {extractErrorMessage(add.error)}
@@ -580,6 +590,81 @@ function CompleteReview({ jobKey, data }: { jobKey: string; data: ReviewState })
         </Button>
       </div>
     </form>
+  )
+}
+
+
+const SCOPE_LABEL: Record<LessonScope, string> = {
+  client: 'This client (applies at once)',
+  project: 'This project (a lead approves)',
+  team: 'This workspace (a lead approves)',
+  firm: 'All clients of this type (a lead approves)',
+}
+
+/** How widely a correction should teach the AI. */
+function ScopeChoice({ value, onChange }: { value: LessonScope; onChange: (s: LessonScope) => void }) {
+  return (
+    <label className={styles.field}>
+      <span>Teach this to</span>
+      <select value={value} onChange={(e) => onChange(e.target.value as LessonScope)}>
+        {(Object.keys(SCOPE_LABEL) as LessonScope[]).map((s) => (
+          <option key={s} value={s}>
+            {SCOPE_LABEL[s]}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
+/** What the AI has learned that applies to this task: each correction as the rule the AI drafted
+ * from it (when / do / why), how widely it applies, and whether it is waiting for approval. */
+function LearnedRules({ jobKey }: { jobKey: string }) {
+  const { data } = useLessons(jobKey)
+  const setStatus = useSetLessonStatus(jobKey)
+  const rules = data?.lessons ?? []
+  return (
+    <section aria-labelledby="rv-learned">
+      <div className={styles.sectionHead}>
+        <h3 id="rv-learned" className={styles.sectionTitle}>
+          Learned rules ({rules.length})
+        </h3>
+      </div>
+      <p className={styles.muted}>
+        Corrections from the team, drafted by the AI as rules it applies to this task from now on.
+      </p>
+      {rules.length > 0 && (
+        <ul className={styles.assumptions}>
+          {rules.map((l) => (
+            <li key={l.id} className={styles.assumption}>
+              <div className={styles.findingHead}>
+                <span className={styles.where}>{l.rule?.title || l.item || 'Correction'}</span>
+                <span className={styles.chip}>{l.scope_label ?? l.scope}</span>
+                {l.status === 'pending' && <span className={styles.verdict} data-verdict="needs_evidence">Waiting for approval</span>}
+              </div>
+              {l.rule ? (
+                <p className={styles.why}>
+                  <strong>When:</strong> {l.rule.when} <strong>Do:</strong> {l.rule.do} <strong>Why:</strong> {l.rule.why}
+                </p>
+              ) : (
+                <p className={styles.why}>{l.note}</p>
+              )}
+              {l.drafting === 'drafting' && <p className={styles.muted}>The AI is drafting this as a rule; the note applies meanwhile.</p>}
+              <div className={styles.row}>
+                <span className={styles.muted}>
+                  {l.rule ? `Note from ${l.created_by}: ${l.note}` : `From ${l.created_by}`}
+                  {l.task && ` · ${l.task}`}
+                </span>
+                <button type="button" className={styles.link} onClick={() => setStatus.mutate({ id: l.id, status: 'disabled' })}>
+                  Switch off
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <PendingLessons jobKey={jobKey} />
+    </section>
   )
 }
 

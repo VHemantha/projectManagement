@@ -12,6 +12,14 @@ const mocks = vi.hoisted(() => ({
   respond: vi.fn((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
   missed: vi.fn((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
   complete: vi.fn((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
+  setStatus: vi.fn(),
+  lessons: { lessons: [] as unknown[], pending_firm_wide: [] as unknown[], can_approve: false },
+}))
+
+vi.mock('@/api/precheck', () => ({
+  useLessons: () => ({ data: mocks.lessons }),
+  useSetLessonStatus: () => ({ mutate: mocks.setStatus }),
+  useTeachLesson: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }))
 
 const mutation = (fn: unknown) => ({ mutate: fn, isPending: false, isError: false })
@@ -61,8 +69,9 @@ function state(over: Partial<ReviewState> = {}): ReviewState {
 
 describe('ReviewPanel', () => {
   beforeEach(() => {
-    for (const fn of [mocks.run, mocks.save, mocks.respond, mocks.missed, mocks.complete]) fn.mockClear()
+    for (const fn of [mocks.run, mocks.save, mocks.respond, mocks.missed, mocks.complete, mocks.setStatus]) fn.mockClear()
     mocks.data = state()
+    mocks.lessons = { lessons: [], pending_firm_wide: [], can_approve: false }
   })
 
   it('shows the round, the open findings with their evidence, and the AI verdict on each assumption', async () => {
@@ -90,8 +99,9 @@ describe('ReviewPanel', () => {
     await userEvent.click(within(group).getByRole('button', { name: 'Not an issue' }))
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
     await userEvent.type(screen.getByLabelText(/Why is it not an issue/), 'The partner accepted it.')
+    await userEvent.selectOptions(screen.getByLabelText('Teach this to'), 'project')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(mocks.respond).toHaveBeenLastCalledWith({ id: 1, response: 'not_an_issue', note: 'The partner accepted it.' }, expect.anything())
+    expect(mocks.respond).toHaveBeenLastCalledWith({ id: 1, response: 'not_an_issue', note: 'The partner accepted it.', scope: 'project' }, expect.anything())
   })
 
   it('records an assumption and something the AI missed', async () => {
@@ -113,7 +123,7 @@ describe('ReviewPanel', () => {
     const missed = screen.getByRole('form', { name: 'Something the AI missed' })
     await userEvent.type(within(missed).getByLabelText('What was missed'), 'GST on the sale is not accounted for.')
     await userEvent.click(within(missed).getByRole('button', { name: 'Add finding' }))
-    expect(mocks.missed).toHaveBeenCalledWith({ area: '', fs_line: '', issue: 'GST on the sale is not accounted for.', note: '' }, expect.anything())
+    expect(mocks.missed).toHaveBeenCalledWith({ area: '', fs_line: '', issue: 'GST on the sale is not accounted for.', note: '', scope: 'client' }, expect.anything())
   })
 
   it('completing with a high finding open needs a note; a completed review is locked until reopened', async () => {
@@ -142,5 +152,27 @@ describe('ReviewPanel', () => {
     expect(screen.getByRole('button', { name: 'Run AI review' })).toBeEnabled()
     expect(screen.getByText('Run the AI review to see findings.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Complete review' })).toBeDisabled()
+  })
+
+  it('shows the rules learned from corrections, and a lead approves wider ones', async () => {
+    mocks.lessons = {
+      can_approve: true,
+      lessons: [{ id: 4, scope: 'client', scope_label: 'This client', status: 'active', kind: 'not_needed', item: 'Rent by property', note: 'One property only.',
+                  rule: { title: 'One property: rent in one line', when: 'The client owns one rental.', do: 'Do not split rent by property.', why: 'Nothing to split.' },
+                  drafting: 'drafted', created_by: 'Rita', task: 'SMITH-1', precheck_type: '', created_at: '' },
+                { id: 5, scope: 'client', scope_label: 'This client', status: 'active', kind: 'missed', item: 'GST on sale', note: 'Check GST on a sale.',
+                  rule: null, drafting: 'drafting', created_by: 'Rita', task: 'SMITH-1', precheck_type: '', created_at: '' }],
+      pending_firm_wide: [{ id: 6, scope: 'team', status: 'pending', kind: 'other', item: 'Bond', note: 'Ask for the bond receipt.', rule: null,
+                            created_by: 'Sam', task: 'JONES-2', precheck_type: '', created_at: '' }],
+    }
+    render(<ReviewPanel jobKey="SMITH-1" />)
+    expect(screen.getByRole('heading', { name: 'Learned rules (2)' })).toBeInTheDocument()
+    expect(screen.getByText('One property: rent in one line')).toBeInTheDocument()
+    expect(screen.getByText(/Do not split rent by property\./)).toBeInTheDocument()
+    expect(screen.getByText(/drafting this as a rule; the note applies meanwhile/)).toBeInTheDocument()
+    await userEvent.click(screen.getAllByRole('button', { name: 'Switch off' })[0])
+    expect(mocks.setStatus).toHaveBeenCalledWith({ id: 4, status: 'disabled' })
+    await userEvent.click(screen.getByRole('button', { name: 'Approve for this workspace' }))
+    expect(mocks.setStatus).toHaveBeenLastCalledWith({ id: 6, status: 'active' })
   })
 })
