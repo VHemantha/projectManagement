@@ -445,7 +445,7 @@ def precheck(state: State) -> dict:
             raise PrecheckStop(f"{exc} Nothing was changed. Please try again.") from exc
         budget_for(run_id).add(u)
         usage.append({"node": "precheck", "task_id": "precheck", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
-        cleaned = P.clean(raw, index, body, fixed)
+        cleaned = P.clean(raw, index, body + "\n" + P.system_text(), fixed)
         cache.set_value("precheck", key, cleaned)
     output, evidence = P.assemble(cleaned, index, state["key"], facts, job.get("client_name", ""))
     output["how"] = how
@@ -499,7 +499,7 @@ def review(state: State) -> dict:
             raise PrecheckStop(f"{exc} Nothing was changed. Please try again.") from exc
         budget_for(run_id).add(u)
         usage.append({"node": "review", "task_id": "review", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
-        cleaned = RV.clean(raw, index, body, rv.get("findings") or [])
+        cleaned = RV.clean(raw, index, body + "\n" + RV.system_text(nature), rv.get("findings") or [])
         cache.set_value("review", key, cleaned)
     output, evidence = RV.assemble(cleaned, index, draft, how_found, checks)
     output["how"] = how

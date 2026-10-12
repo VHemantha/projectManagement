@@ -233,7 +233,7 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
         return {"answer": "The AI could not answer that this time. Try asking it differently.", "status": "not_found", "sources": [],
                 "flags": [], "usage": usage, "cost_usd": round(cost, 6)}
     try:
-        cleaned = clean(json.loads(text_of(message)), index, body)
+        cleaned = clean(json.loads(text_of(message)), index, body + "\n" + system_text(nature))
     except json.JSONDecodeError:
         return {"answer": "The AI's answer could not be read. Please ask again.", "status": "not_found", "sources": [], "flags": [],
                 "usage": usage, "cost_usd": round(cost, 6)}

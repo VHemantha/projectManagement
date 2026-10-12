@@ -153,3 +153,23 @@ def test_the_task_card_can_say_where_the_draft_is_and_an_unchanged_round_is_not_
     assert review["draft_found_by"] == "task card" and review["draft_fs"][0]["name"] == "Working version.txt"
     again = env.run("1", mode="review")
     assert len(env.precheck.calls) == 1 and again["review"]["how"] == "cache"
+
+
+def test_found_in_the_real_opus_round_on_12_oct_2026():
+    """A balance sheet line is never income or an expense whatever its label says ("Chattels at
+    cost less depreciation" was shown as an expense, and the model reported it as the preparer's
+    mistake); and an amount from the firm's skills (the $1,000 low-value threshold) is not invented."""
+    from precheck_agent import review as RV
+    from precheck_agent.analysis import statement_lines
+
+    blocks = [{"text": t, "loc": "x"} for t in ("Statement of Financial Performance", "Depreciation - chattels 950 1,120",
+                                                 "Statement of Financial Position", "Chattels at cost less depreciation 4,650 5,600")]
+    sections = {ln["label"]: ln["section"] for ln in statement_lines({"file": {}, "parsed": {"blocks": blocks}})}
+    assert sections == {"Depreciation - chattels": "Expenses", "Chattels at cost less depreciation": ""}
+
+    raw = {"summary": "", "resolved": [], "assumption_reviews": [], "lessons_applied": [], "findings": [
+        {"ref": "", "area": "Repairs", "fs_line": "Repairs", "issue": "A payment over $1,000 needs an invoice.", "why": "Low-value threshold.",
+         "severity": "low", "action": "Get the invoice.", "sources": ["S1"], "assumptions": []}]}
+    index = {"S1": {"kind": "draft"}}
+    assert RV.clean(raw, index, "S1 | Repairs 2,000", [])["findings"][0]["flags"] == ["figure_not_in_documents"]
+    assert RV.clean(raw, index, "S1 | Repairs 2,000\n" + RV.system_text("residential_rental"), [])["findings"][0]["flags"] == []

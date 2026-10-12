@@ -30,6 +30,8 @@ SECTION_OF_TYPE = [
 _HEADING = re.compile(r"^(trading income|income|revenue|other income|expenses?|administrative expenses|standing charges|"
                       r"current assets|non-current assets|fixed assets|assets|current liabilities|non-current liabilities|"
                       r"liabilities|equity|shareholders'? equity)$", re.I)
+_BALANCE_SHEET = re.compile(r"^(statement of financial position|balance sheet)\b", re.I)
+_PROFIT_AND_LOSS = re.compile(r"^(statement of (financial performance|profit or loss|comprehensive income)|profit and loss( statement| account)?|income statement)\b", re.I)
 _NUM = r"(?:[-–]|\(?-?\$?[\d,]+(?:\.\d+)?\)?)"
 _FS_LINE = re.compile(rf"^(?P<label>[A-Za-z][A-Za-z0-9&'’/(),. -]*?[A-Za-z)])\s+(?P<nums>{_NUM}(?:\s+{_NUM}){{0,5}})$")
 _ACCOUNT_NO = re.compile(r"(?<!\d)\d{2}-\d{4}-\d{7}-\d{2,3}(?!\d)")  # NZ bank account; "_" may follow it in a file name
@@ -89,9 +91,17 @@ def _fs_number(token: str) -> float:
 def statement_lines(doc: dict) -> list[dict]:
     """Lines of financial statements read as text: "Insurance 1,255 1,255" -> this year 1,255,
     comparative 1,255. Section from the headings seen above the line."""
-    out, seen, section = [], set(), ""
+    out, seen, section, statement = [], set(), "", ""
     for block in doc["parsed"]["blocks"]:
         text = block["text"].strip()
+        # Which statement this is: on the balance sheet a line is never income or an expense, whatever
+        # its label says ("Chattels at cost less depreciation" is an asset).
+        if _BALANCE_SHEET.match(text):
+            section, statement = "", "balance_sheet"
+            continue
+        if _PROFIT_AND_LOSS.match(text):
+            section, statement = "", "profit_and_loss"
+            continue
         if _HEADING.match(text):
             section = _section(text) or section
             continue
@@ -105,7 +115,10 @@ def statement_lines(doc: dict) -> list[dict]:
         if period or _is_total(label) or label.lower() in seen or re.fullmatch(r"(page|note|notes)\b.*", label.lower()) or len(label) < 3:
             continue
         seen.add(label.lower())
-        out.append({"label": label, "section": section or _section(label), "type": "", "amount": nums[0],
+        guess = _section(label)
+        if statement == "balance_sheet" and guess in ("Income", "Expenses"):
+            guess = ""
+        out.append({"label": label, "section": section or guess, "type": "", "amount": nums[0],
                     "comparative": nums[1] if len(nums) > 1 else None, "file": doc["file"], "block": block})
     return out
 
