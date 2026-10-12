@@ -162,3 +162,60 @@ def test_a_question_is_answered_in_the_background_and_kept_with_its_sources(agen
     assert agent[-1][1]["history"] == [{"question": "How much was 43 Te Wharo Drive sold for?", "answer": "It sold for $891,000.00."}]
     # Access follows the task (today every signed-in member may open every task); signed out, no.
     assert APIClient().post(url, {"question": "What is the rent?"}, format="json").status_code in (401, 403)
+
+
+def test_a_correction_teaches_the_ai_and_the_rule_is_drafted_in_the_background(agent):
+    from apps.precheck.models import PrecheckLesson
+
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    r = api(pat).post(f"/api/precheck/jobs/{issue.key}/review/runs/", {}, format="json")
+    finish_round(r.data["run_id"], [finding("", "Show rent by property.", "low", "Rental income")])
+    f = ReviewFinding.objects.get(issue=issue, ref="R1")
+    api(pat).post(f"/api/precheck/review-findings/{f.id}/respond/", {"response": "agree"}, format="json")
+    assert not PrecheckLesson.objects.exists()  # agreeing teaches nothing
+    api(pat).post(f"/api/precheck/review-findings/{f.id}/respond/", {"response": "not_an_issue", "note": "The client owns one property only."}, format="json")
+    lesson = PrecheckLesson.objects.get()
+    assert (lesson.source, lesson.kind, lesson.scope, lesson.status, lesson.finding_id) == ("review", "not_needed", "client", "active", f.id)
+    path, body = agent[-1]
+    assert path == "/precheck/learn" and body["lesson_id"] == lesson.id and body["context"]["issue"] == "Show rent by property."
+    assert lesson.drafting == "drafting"
+
+    rule = {"title": "One property: rent in one line", "when": "The client owns a single rental property.",
+            "do": "Do not ask for rental income to be split by property.", "why": "There is nothing to split."}
+    assert APIClient().post("/api/precheck/internal/events/", {"run_id": f"lesson-{lesson.id}", "type": "ai_learning.drafted", "result": rule},
+                            format="json", **TOKEN).status_code == 200
+    lesson.refresh_from_db()
+    assert lesson.drafting == "drafted" and lesson.rule_do.startswith("Do not ask")
+    sent = services.job_payload(Issue.objects.get(pk=issue.pk))["lessons"]
+    assert sent[0]["rule"]["when"] == "The client owns a single rental property." and sent[0]["source"] == "review"
+
+    # Something the AI missed teaches too.
+    api(pat).post(f"/api/precheck/jobs/{issue.key}/review/missed/", {"issue": "GST on the sale is not accounted for."}, format="json")
+    assert PrecheckLesson.objects.filter(kind="missed", source="review").exists()
+
+
+def test_wider_rules_wait_for_a_lead_and_reach_only_their_project_team_or_firm(agent):
+    from apps.precheck.models import PrecheckLesson
+    from apps.teams.models import Team
+
+    pat, sam, boss = person("pat"), person("sam"), person("boss", staff=True)  # pat leads the projects; sam does not
+    a1 = make_job(pat, "Smith", "SmithRent")
+    a2 = make_job(pat, "Smith", "SmithRent", summary="Another task in the same project")
+    other = make_job(pat, "Jones", "JonesRent")
+    team = Team.objects.create(name="Rentals", organization=a1.project.organization)
+    for issue in (a1, other):
+        issue.project.client.team = team
+        issue.project.client.save()
+    url = f"/api/precheck/jobs/{a1.key}/lessons/"
+    proj = api(sam).post(url, {"kind": "other", "note": "Always ask for the bond lodgement receipt.", "scope": "project"}, format="json").data
+    assert proj["status"] == "pending" and proj["scope_label"] == "This project"
+    assert api(sam).post(url, {"kind": "other", "note": "x x x x x", "scope": "galaxy"}, format="json").status_code == 400
+    teamwide = api(boss).post(url, {"kind": "other", "note": "Check body corporate levy statements.", "scope": "team"}, format="json").data
+    assert teamwide["status"] == "active"  # a lead or admin teaching it: no wait
+    api(boss).patch(f"/api/precheck/lessons/{proj['id']}/", {"status": "active"}, format="json")
+
+    notes = lambda i: {l["note"] for l in services.job_payload(Issue.objects.get(pk=i.pk))["lessons"]}  # noqa: E731
+    assert notes(a2) == {"Always ask for the bond lodgement receipt.", "Check body corporate levy statements."}  # same project and team
+    assert notes(other) == {"Check body corporate levy statements."}  # same team, another project
+    assert PrecheckLesson.objects.filter(scope="project", status="active").count() == 1

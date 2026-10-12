@@ -117,8 +117,11 @@ MAX_LESSONS = 40
 
 
 def lesson_dict(lesson) -> dict:
-    return {"id": lesson.id, "scope": lesson.scope, "status": lesson.status, "kind": lesson.kind, "precheck_type": lesson.precheck_type,
-            "item": lesson.item, "note": lesson.note, "created_by": lesson.created_by.display_name if lesson.created_by else "",
+    return {"id": lesson.id, "scope": lesson.scope, "scope_label": lesson.get_scope_display(), "status": lesson.status, "kind": lesson.kind,
+            "precheck_type": lesson.precheck_type, "item": lesson.item, "note": lesson.note, "source": lesson.source,
+            "rule": {"title": lesson.rule_title, "when": lesson.rule_when, "do": lesson.rule_do, "why": lesson.rule_why} if lesson.rule_do else None,
+            "drafting": lesson.drafting, "client_scope": lesson.client_scope, "project_scope": lesson.project_scope, "team_scope": lesson.team_scope,
+            "created_by": lesson.created_by.display_name if lesson.created_by else "",
             "created_at": lesson.created_at, "task": lesson.issue.key if lesson.issue_id else ""}
 
 
@@ -129,10 +132,13 @@ def lessons_for(issue) -> list[dict]:
 
     from .models import PrecheckLesson
 
-    mine = client_scope(issue)
+    mine, team = client_scope(issue), team_scope(issue)
+    wider = Q(scope="project", project_scope=f"project-{issue.project_id}", status="active") | Q(scope="firm", status="active")
+    if team:
+        wider |= Q(scope="team", team_scope=team, status="active")
     qs = PrecheckLesson.objects.filter(
-        Q(client_scope=mine, status__in=["active", "pending"]) | Q(scope="firm", status="active")
-    ).exclude(status="disabled").select_related("created_by", "issue")[:MAX_LESSONS]
+        Q(client_scope=mine, status__in=["active", "pending"]) | wider
+    ).exclude(status="disabled").select_related("created_by", "issue").order_by("-created_at")[:MAX_LESSONS]
     return [lesson_dict(lesson) for lesson in qs]
 
 
@@ -325,6 +331,8 @@ def record_event(event: dict) -> bool:
     for it are ignored."""
     if str(event.get("type", "")).startswith("ai_assistant."):
         return _record_answer(event)
+    if str(event.get("type", "")).startswith("ai_learning."):
+        return _record_rule(event)
     run = AIPrecheck.objects.select_for_update().select_related("issue__project").filter(run_id=event.get("run_id")).first()
     if run is None or run.status != AIPrecheck.Status.RUNNING:
         return False
@@ -483,3 +491,59 @@ def serialize_run(run: AIPrecheck, full: bool = True) -> dict:
         "duration_s": run.duration_s,
         "findings": findings,
     }
+
+
+LESSON_SCOPES = ("client", "project", "team", "firm")
+
+
+def teach(issue, user, *, kind: str, item: str, note: str, scope: str = "client", source: str = "precheck", finding=None, run=None):
+    """A correction becomes a lesson: active at once for this client; for the project, the team or
+    the firm it waits for a lead or an admin (unless one is teaching it). The AI then drafts it as
+    a rule in the background; until then the note itself applies."""
+    from .models import PrecheckLesson
+
+    scope = scope if scope in LESSON_SCOPES else "client"
+    approver = can_approve_lessons(user, issue)
+    wide = scope != "client"
+    latest = run or issue.prechecks.filter(status__in=["complete", "partial"]).order_by("-created_at").first()
+    lesson = PrecheckLesson.objects.create(
+        client_scope=client_scope(issue), project_scope=f"project-{issue.project_id}", team_scope=team_scope(issue),
+        scope=scope, status="active" if (not wide or approver) else "pending", kind=kind, item=item[:300], note=note[:1000],
+        precheck_type=(latest.precheck_type if latest else "") or "", issue=issue, run=latest, created_by=user, source=source,
+        finding=finding, decided_by=user if wide and approver else None, decided_at=timezone.now() if wide and approver else None,
+    )
+    draft_rule(lesson)
+    return lesson
+
+
+def draft_rule(lesson) -> None:
+    """Ask the agent to draft the lesson as a rule (when / do / why). Best-effort: if the agent is
+    not reachable, the lesson's own note applies and the rule can be drafted later."""
+    finding = lesson.finding
+    body = {"lesson_id": lesson.id, "job_id": str(lesson.issue_id), "kind": lesson.kind, "item": lesson.item, "note": lesson.note,
+            "source": lesson.source, "scope": lesson.scope, "nature": lesson.precheck_type,
+            "context": {"fs_line": finding.fs_line, "issue": finding.text, "why": finding.why} if finding else {}}
+    try:
+        _call_agent("/precheck/learn", body)
+        lesson.drafting = "drafting"
+    except AgentUnavailable:
+        lesson.drafting = "failed"
+    lesson.save(update_fields=["drafting"])
+
+
+def _record_rule(event: dict) -> bool:
+    from .models import PrecheckLesson
+
+    lesson_id = str(event.get("run_id", "")).removeprefix("lesson-")
+    lesson = PrecheckLesson.objects.select_for_update().filter(pk=int(lesson_id) if lesson_id.isdigit() else 0).first()
+    if lesson is None or lesson.drafting != "drafting":
+        return False
+    rule = event.get("result") or {}
+    if event.get("type") == "ai_learning.drafted" and rule.get("do"):
+        lesson.rule_title, lesson.rule_when = str(rule.get("title", ""))[:200], str(rule.get("when", ""))[:600]
+        lesson.rule_do, lesson.rule_why, lesson.drafting = str(rule["do"])[:800], str(rule.get("why", ""))[:600], "drafted"
+    else:
+        lesson.drafting = "failed"
+    lesson.save()
+    return True
+

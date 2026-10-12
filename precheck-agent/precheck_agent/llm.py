@@ -132,8 +132,13 @@ def demo_review(body: str, by) -> AIMessage:
 
 def demo_assistant(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     """Stand-in for the assistant (demo mode and tests): quotes the first passage found, or says
-    nothing was found."""
+    nothing was found; drafts a lesson as a rule from the note itself."""
     body = _flatten(messages[-1].content)
+    if body.startswith("Kind: "):
+        note = re.search(r"^Accountant's note: (.*)$", body, re.M)
+        text = json.dumps({"title": "Demo rule", "when": "Demo: in the same situation.", "do": (note.group(1) if note else "Follow the note."),
+                           "why": "An AFIT accountant said so."})
+        return AIMessage(content=text, usage_metadata=_usage(body, text))
     first = re.search(r"^(K\d+) \| \[[^\]]*\] (.*)$", body, re.M)
     answer = ({"answer": f"Demo: the documents say: {first.group(2)[:200]}", "sources": [first.group(1)], "status": "answered"} if first
               else {"answer": "Demo: nothing in this task's documents answers that.", "sources": [], "status": "not_found"})

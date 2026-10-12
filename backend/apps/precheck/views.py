@@ -233,7 +233,8 @@ class JobLessonsView(APIView):
     def get(self, request, key):
         issue = _job(request, key)
         can_approve = services.can_approve_lessons(request.user, issue)
-        pending = PrecheckLesson.objects.filter(scope="firm", status="pending").select_related("created_by", "issue")[:50] if can_approve else []
+        pending = (PrecheckLesson.objects.filter(scope__in=["project", "team", "firm"], status="pending").select_related("created_by", "issue")[:50]
+                   if can_approve else [])
         return Response({
             "lessons": services.lessons_for(issue),
             "pending_firm_wide": [services.lesson_dict(lesson) for lesson in pending],
@@ -249,15 +250,10 @@ class JobLessonsView(APIView):
             return Response({"kind": ["Choose not needed, wrong reason, missed item or other."]}, status=status.HTTP_400_BAD_REQUEST)
         if len(note) < 5:
             return Response({"note": ["Say in a few words what the pre-check should do differently."]}, status=status.HTTP_400_BAD_REQUEST)
-        firm_wide = bool(request.data.get("firm_wide"))
-        approver = services.can_approve_lessons(request.user, issue)
-        latest = issue.prechecks.filter(status__in=["complete", "partial"]).order_by("-created_at").first()
-        lesson = PrecheckLesson.objects.create(
-            client_scope=services.client_scope(issue), scope="firm" if firm_wide else "client",
-            status="active" if (not firm_wide or approver) else "pending", kind=kind, item=item, note=note[:1000],
-            precheck_type=(latest.precheck_type if latest else "") or "", issue=issue, run=latest, created_by=request.user,
-            decided_by=request.user if firm_wide and approver else None, decided_at=timezone.now() if firm_wide and approver else None,
-        )
+        scope = str(request.data.get("scope") or ("firm" if request.data.get("firm_wide") else "client"))
+        if scope not in services.LESSON_SCOPES:
+            return Response({"scope": ["Choose this client, this project, the workspace or the firm."]}, status=status.HTTP_400_BAD_REQUEST)
+        lesson = services.teach(issue, request.user, kind=kind, item=item, note=note, scope=scope, source=str(request.data.get("source") or "precheck"))
         return Response(services.lesson_dict(lesson), status=status.HTTP_201_CREATED)
 
 
@@ -402,6 +398,12 @@ class ReviewFindingRespondView(APIView):
         if response in review_record.NOTE_REQUIRED and len(note) < 5:
             return Response({"note": ["Say why, so the AI learns from it."]}, status=status.HTTP_400_BAD_REQUEST)
         finding = review_record.respond(finding, response, note, request.user)
+        # Closing a finding, or correcting its reason, teaches the AI (this client at once; wider
+        # once a lead approves).
+        if response in review_record.NOTE_REQUIRED:
+            services.teach(finding.issue, request.user, kind="not_needed" if response == "not_an_issue" else "wrong_reason",
+                           item=finding.text[:300], note=note, scope=str(request.data.get("scope") or "client"), source="review",
+                           finding=finding, run=finding.last_run)
         services._announce_issue(finding.issue)
         return Response(review_record.finding_dict(finding))
 
@@ -418,6 +420,8 @@ class ReviewMissedView(APIView):
         if len(text) < 5:
             return Response({"issue": ["Say what was missed."]}, status=status.HTTP_400_BAD_REQUEST)
         f = review_record.add_missed(issue, request.user, _text(request, "area", 100), _text(request, "fs_line", 200), text, _text(request, "note", 1000))
+        services.teach(issue, request.user, kind="missed", item=text[:300], note=_text(request, "note", 1000) or text,
+                       scope=str(request.data.get("scope") or "client"), source="review", finding=f)
         services._announce_issue(issue)
         return Response(review_record.finding_dict(f), status=status.HTTP_201_CREATED)
 

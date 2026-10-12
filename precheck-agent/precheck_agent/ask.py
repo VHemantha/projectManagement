@@ -18,6 +18,7 @@ import re
 
 from langchain_core.messages import HumanMessage
 
+from . import learn
 from . import review as RV
 from .archives import display_name
 from .budget import cost_usd, usage_from_message
@@ -114,7 +115,7 @@ def key_terms(question: str) -> list[str]:
     return out[:7]
 
 
-def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: int = 8) -> list[dict]:
+def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: int = 8, lessons: list[dict] | None = None) -> list[dict]:
     kn, embedder = get_knowledge(), get_embedder()
     vec = embedder.embed([question])[0]
     found: dict[str, dict] = {}
@@ -141,6 +142,9 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
                 break
         add(hits[:3], f'words "{term}"')
     add(kn.search(scope, vec, 6, source_types=["assumption", "finding", "feedback"]), "meaning")
+    if lessons:  # learned skills: only those that apply to this task (the PM application says which), then by meaning
+        learn.remember(lessons)
+        add(kn.search(scope, vec, 4, level="firm", source_types=["skill"], lesson_id=[int(x["id"]) for x in lessons]), "learned rule")
     hits = [h for h in found.values() if h.get("source_type") != "document" or h.get("file_id") in files]
     hits.sort(key=lambda h: -h.get("score", 0))
     # An exact match on a name, an address or an amount the question asked about is kept even when
@@ -166,7 +170,8 @@ def build_input(job: dict, question: str, history: list[dict], hits: list[dict],
             where = f"{display_name(f)}, {h.get('location', '')}, {year}"
             text = h["text"].split("\n", 1)[-1]
         else:
-            where = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback"}[h["source_type"]]
+            where = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback",
+                     "skill": "AFIT's learned rule"}[h["source_type"]]
             text = h["text"]
         text = re.sub(r"\s+", " ", text)[:700]
         out.append(f"{kid} | [{where}] {text}")
@@ -201,7 +206,7 @@ def _view(kid: str, h: dict, files: dict) -> dict:
         e = evidence_from(f, h["blocks"][:3]) if h.get("blocks") else None
         return {"id": kid, "label": f"{display_name(f)}, {h.get('location', '')}", "how": h.get("how", ""),
                 "evidence": {k: e[k] for k in ("file_name", "location", "quote", "drive_url")} if e else None}
-    label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback"}[h["source_type"]]
+    label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "Learned rule"}[h["source_type"]]
     return {"id": kid, "label": f"{label} {h.get('ref', '')}".strip(), "how": h.get("how", ""), "evidence": {"quote": h["text"][:500]}}
 
 
@@ -215,7 +220,7 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
     if not files or not get_knowledge().count(scope):
         return {"answer": "This task's documents have not been read yet. Run the pre-check or a review first, then ask again.",
                 "status": "not_found", "sources": [], "flags": [], "usage": {}, "cost_usd": 0.0}
-    hits = retrieve(scope, question, files, s)
+    hits = retrieve(scope, question, files, s, lessons=job.get("lessons") or [])
     body, index = build_input(job, question, history or [], hits, files)
     nature = review.get("nature") or job.get("precheck_type") or ""
     message = get_model("assistant", s).invoke(

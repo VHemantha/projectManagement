@@ -117,6 +117,25 @@ def ask_now(job_id: str, question_id: str, question: str, history: list[dict]) -
     return {"status": "failed", "reason": reason}
 
 
+def learn_now(body: dict) -> dict:
+    """Draft a lesson as a rule and send it to the PM application (blocking)."""
+    from . import learn
+
+    pm, run_id = get_pm(), f"lesson-{body['lesson_id']}"
+    try:
+        rule, _ = learn.draft(body)
+        pm.send_event(run_id, {"type": "ai_learning.drafted", "job_id": body.get("job_id", ""), "result": rule})
+        return rule
+    except Exception:  # the person's note still applies; the rule can be drafted again later
+        logger.exception("Drafting lesson %s failed", body.get("lesson_id"))
+        pm.send_event(run_id, {"type": "ai_learning.failed", "job_id": body.get("job_id", ""), "reason": "The rule could not be drafted."})
+        return {}
+
+
+def start_learn(body: dict) -> None:
+    threading.Thread(target=learn_now, args=(body,), name=f"learn-{body['lesson_id']}", daemon=True).start()
+
+
 def start_ask(job_id: str, question_id: str, question: str, history: list[dict]) -> None:
     threading.Thread(target=ask_now, args=(job_id, question_id, question, history), name=f"ask-{question_id[:8]}", daemon=True).start()
 

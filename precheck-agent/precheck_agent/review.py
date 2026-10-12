@@ -33,6 +33,7 @@ from .config import Settings
 from .embeddings import get_embedder
 from .evidence import evidence_from, file_evidence
 from .keydocs import placed
+from .learn import lesson_text
 from .knowledge import Scope, get_knowledge
 from .llm import get_model, model_id, stop_reason, text_of
 from .precheck import TYPES, Unusable, _line, figures_ok, known_numbers
@@ -255,7 +256,7 @@ def build_input(job: dict, scope: Scope, key: dict, docs: list[dict], files: dic
     for lesson in (job.get("lessons") or [])[:40]:
         lid = f"L{lesson['id']}"
         index[lid] = {"kind": "lesson", "lesson": lesson}
-        out.append(f"{lid} | {lesson.get('kind', '')} | {_line(lesson.get('item', ''), 120)} | {_line(lesson.get('note', ''), 300)}")
+        out.append(f"{lid} | {lesson.get('kind', '')} | {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
     out.append("\n" + ANSWER)
     return "\n".join(out), index
 

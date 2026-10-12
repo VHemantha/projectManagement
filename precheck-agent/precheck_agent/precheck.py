@@ -34,6 +34,7 @@ from .evidence import evidence_from, file_evidence
 from .llm import get_model, model_id, stop_reason, text_of
 from .prompting import system_message
 from .rules import _block_for
+from .learn import lesson_text
 from .skills_loader import get_skill
 from .textutil import clip_words, est_tokens, sha, to_number
 
@@ -188,8 +189,9 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
     for lesson in lessons[:40]:
         lid = f"L{lesson['id']}"
         index[lid] = {"kind": "lesson", "lesson": lesson}
-        where = "this client" if lesson.get("scope") == "client" else f"all {TYPES.get(lesson.get('precheck_type'), 'clients')}"
-        out.append(f"{lid} | {where} | {lesson.get('kind', '')} | item: {_line(lesson.get('item', ''), 120)} | {_line(lesson.get('note', ''), 300)}")
+        scope = lesson.get("scope", "client")
+        where = f"all {TYPES.get(lesson.get('precheck_type'), 'clients')}" if scope == "firm" else {"project": "this project", "team": "this workspace"}.get(scope, "this client")
+        out.append(f"{lid} | {where} | {lesson.get('kind', '')} | item: {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
     out.append("\n" + ANSWER)
     return "\n".join(out), index
 

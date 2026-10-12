@@ -224,11 +224,16 @@ class PrecheckLesson(models.Model):
     because …", "the reason was wrong", "you missed …". Not training: lessons are given to the
     model with each pre-check they apply to, and every run lists the ones it applied.
 
-    A lesson applies at once to the client it came from. Applying it to every client of that
-    business nature needs a lead or an admin to approve it (AFIT, 5 Oct 2026)."""
+    A lesson applies at once to the client it came from. Applying it more widely - the project, the
+    team (workspace) or every client of that business nature - needs a lead or an admin to approve
+    it (AFIT, 5 Oct 2026). Since 12 Oct 2026 lessons also come from the review (a finding closed as
+    not an issue, a wrong reason, something the AI missed), and the AI drafts each one as a rule
+    (when it applies, what to do, why): a learned skill the pre-check, the review and Ask apply."""
 
     class Scope(models.TextChoices):
         CLIENT = "client", "This client"
+        PROJECT = "project", "This project"
+        TEAM = "team", "This workspace (team)"
         FIRM = "firm", "All clients of this business nature"
 
     class Status(models.TextChoices):
@@ -243,6 +248,16 @@ class PrecheckLesson(models.Model):
         OTHER = "other", "Other"
 
     client_scope = models.CharField(max_length=100)  # the client (or workspace) it came from
+    project_scope = models.CharField(max_length=40, blank=True)  # "project-<id>" it came from
+    team_scope = models.CharField(max_length=40, blank=True)  # "team-<id>" it came from
+    source = models.CharField(max_length=10, choices=[("precheck", "Pre-check"), ("review", "Review"), ("ask", "Ask")], default="precheck")
+    finding = models.ForeignKey("ReviewFinding", null=True, blank=True, on_delete=models.SET_NULL, related_name="lessons")
+    # The rule the AI drafted from the correction; empty until drafted (the note applies meanwhile).
+    rule_title = models.CharField(max_length=200, blank=True)
+    rule_when = models.TextField(max_length=600, blank=True)
+    rule_do = models.TextField(max_length=800, blank=True)
+    rule_why = models.TextField(max_length=600, blank=True)
+    drafting = models.CharField(max_length=10, blank=True)  # "" | drafting | drafted | failed
     scope = models.CharField(max_length=10, choices=Scope.choices, default=Scope.CLIENT)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)

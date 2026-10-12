@@ -61,3 +61,23 @@ def ask_question(body: AskRequest):
     runner.start_ask(body.job_id, body.question_id, body.question[:2000], body.history[-4:])
     return {"question_id": body.question_id, "status": "running"}
 
+
+class LearnRequest(BaseModel):
+    lesson_id: int
+    job_id: str = ""
+    kind: str = "other"
+    item: str = ""
+    note: str
+    source: str = "precheck"
+    scope: str = "client"
+    nature: str = ""
+    context: dict = {}
+
+
+@app.post("/precheck/learn", status_code=202, dependencies=[Depends(require_token)])
+def learn_lesson(body: LearnRequest):
+    """A correction from AFIT staff: drafted as a rule in the background; the rule comes back to the
+    PM application as an event."""
+    runner.start_learn(body.model_dump())
+    return {"lesson_id": body.lesson_id, "status": "drafting"}
+
