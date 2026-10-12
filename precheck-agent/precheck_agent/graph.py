@@ -29,6 +29,7 @@ from .archives import container_of, display_name
 from .archives import members as archive_members
 from .budget import budget_for, cost_usd, empty_usage
 from .classify import classify, classify_email
+from .knowledge import Scope, get_knowledge
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
 from .emails import is_email
@@ -45,6 +46,12 @@ from .textutil import est_tokens, sha
 logger = logging.getLogger(__name__)
 
 PENDING_NS = "pending"  # a file with an image still to read: looked at again on the next run
+INDEXED_NS = "indexed"  # which knowledge store and embedder hold a file's chunks
+KNOWLEDGE_VERSION = "k1"  # k1: ChromaDB with team / vendor / project / task tags (12 Oct 2026)
+
+
+def _index_marker() -> str:
+    return f"{KNOWLEDGE_VERSION}:{get_embedder().name}"
 
 
 def _pending_key(client_id: str, job_id: str, file_id: str) -> str:
@@ -130,12 +137,16 @@ def sync_drive(state: State) -> dict:
         f["id"] for f in listing
         if f["id"] not in manifest or manifest[f["id"]]["version"] != f["version"] or manifest[f["id"]]["parser_version"] != s.parser_version
         or cache.get_value(PENDING_NS, _pending_key(job["client_id"], state["job_id"], f["id"]))
+        # Not yet in the knowledge store, or embedded another way: indexed again from the cached parse.
+        or cache.get_value(INDEXED_NS, _pending_key(job["client_id"], state["job_id"], f["id"])) != _index_marker()
     ]
     present = {f["id"] for f in listing}
     # A document inside a zip ("<zip id>!<path>") stays for as long as its zip is in the folder.
     removed = [fid for fid in manifest if container_of(fid) not in present]
+    scope = Scope.of(job)
     for fid in removed:
         store.delete_file(job["client_id"], state["job_id"], fid)
+        get_knowledge().delete_file(scope, fid)
     if not listing:
         raise PrecheckStop("The task's Drive folder is empty, so there is nothing to check yet.")
     sync = {"total": len(listing), "changed": changed, "removed": len(removed), "first_run": not manifest}
@@ -222,6 +233,7 @@ def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
     # here for anything cached before this existed.
     parsed = scrub(parsed)
     StoreCache(store).set_value(PENDING_NS, _pending_key(client_id, job_id, f["id"]), pending)
+    StoreCache(store).set_value(INDEXED_NS, _pending_key(client_id, job_id, f["id"]), _index_marker())
     shown = display_name(f)
     sample = "\n".join(b["text"] for b in parsed["blocks"][:40])
     doc_class = classify_email(f["name"], sample) if is_email(f["name"], f["mime_type"]) else classify(f["name"], sample)
@@ -241,7 +253,7 @@ def _index_document(f: dict, data_or_error, ctx: dict) -> bool:
         "location": c["location"], "document_class": doc_class, "text": text, "blocks": c["blocks"],
         "content_hash": h, "tokens": est_tokens(text), "embedding": have[k],
     } for seq, (c, text, h, k) in enumerate(zip(chunks, texts, hashes, keys))]
-    store.replace_chunks(client_id, job_id, f["id"], rows)
+    get_knowledge().replace_file(ctx["scope"], f["id"], rows)
     store.upsert_manifest({
         "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
         "version": f["version"], "parser_version": s.parser_version, "document_class": doc_class, "web_url": f["web_url"],
@@ -270,7 +282,8 @@ def _index_container(f: dict, drive, ctx: dict, before: dict) -> list[str]:
         keep.add(d["id"])
         old = before.get(d["id"])
         waiting = cache.get_value(PENDING_NS, _pending_key(client_id, job_id, d["id"]))
-        if d["id"] != f["id"] and old and old["version"] == d["version"] and old["parser_version"] == s.parser_version and not waiting:
+        indexed = cache.get_value(INDEXED_NS, _pending_key(client_id, job_id, d["id"])) == _index_marker()
+        if d["id"] != f["id"] and old and old["version"] == d["version"] and old["parser_version"] == s.parser_version and not waiting and indexed:
             continue
         changed.append(d["id"])
         content = d.get("data")
@@ -278,8 +291,9 @@ def _index_container(f: dict, drive, ctx: dict, before: dict) -> list[str]:
     for fid in before:  # documents that were in it before and are gone now
         if container_of(fid) == f["id"] and fid != f["id"] and fid not in keep:
             store.delete_file(client_id, job_id, fid)
+            get_knowledge().delete_file(ctx["scope"], fid)
     if not email:
-        store.replace_chunks(client_id, job_id, f["id"], [])
+        get_knowledge().delete_file(ctx["scope"], f["id"])
         store.upsert_manifest({
             "job_id": job_id, "file_id": f["id"], "client_id": client_id, "name": f["name"], "mime_type": f["mime_type"],
             "version": f["version"], "parser_version": s.parser_version, "document_class": ARCHIVE_CLASS, "web_url": f["web_url"],
@@ -287,6 +301,7 @@ def _index_container(f: dict, drive, ctx: dict, before: dict) -> list[str]:
         })
     # An image inside still to be read: the whole container is opened again on the next run.
     cache.set_value(PENDING_NS, _pending_key(client_id, job_id, f["id"]), pending)
+    cache.set_value(INDEXED_NS, _pending_key(client_id, job_id, f["id"]), _index_marker())
     return changed
 
 
@@ -298,7 +313,7 @@ def index(state: State) -> dict:
 
     store, drive, job = get_store(), get_drive(), state["job"]
     client_id, job_id = job["client_id"], state["job_id"]
-    ctx = {"client_id": client_id, "job_id": job_id, "run_id": state["run_id"], "usage": [], "skipped": []}
+    ctx = {"client_id": client_id, "job_id": job_id, "run_id": state["run_id"], "usage": [], "skipped": [], "scope": Scope.of(job)}
     before = store.get_manifest(client_id, job_id)
     changed: list[str] = []
     for f in state["listing"]:
@@ -331,6 +346,9 @@ def run_rules(state: State) -> dict:
     docs = _docs(state["files"])
     ai_read = [d["file"]["file_id"] for d in docs if d["parsed"].get("read_by") == vision.AI_READ]
     periods = assign_years(docs, state["job"])
+    # The year of each document is known only now: its chunks are tagged with it, so a search can
+    # ask for this year's or last year's documents.
+    get_knowledge().tag_years(Scope.of(state["job"]), periods["by_file"])
     files = {}
     for fid, row in state["files"].items():
         info = periods["by_file"].get(fid, {"year": None, "role": "unknown"})

@@ -1,9 +1,8 @@
-"""The agent's own storage: file manifest, chunks with embeddings, and the exact-match caches.
+"""The agent's own records: file manifest, parsed documents, embeddings and the exact-match
+caches, and its copy of each run. Postgres in production; SQLite for dev and tests.
 
-Postgres with pgvector in production; SQLite for dev and tests (vectors compared in numpy).
-Both run the same queries, and every chunk query carries `client_id = ? AND job_id = ?` in the
-SQL itself (token rule 2 and the no-cross-client guardrail): one client's pre-check cannot
-retrieve another client's text, whatever a prompt says.
+What the AI searches — document chunks and everything tagged with them — is in the knowledge
+store (knowledge.py, ChromaDB). Every manifest query carries `client_id = ? AND job_id = ?`.
 """
 import json
 import time
@@ -19,14 +18,7 @@ from .config import get_settings
 metadata = sa.MetaData()
 
 
-def _tables(is_pg: bool, dim: int):
-    if is_pg:
-        from pgvector.sqlalchemy import Vector
-
-        vector = Vector(dim)
-    else:
-        vector = sa.LargeBinary
-
+def _tables():
     manifest = sa.Table(
         "pc_manifest",
         metadata,
@@ -43,25 +35,6 @@ def _tables(is_pg: bool, dim: int):
         sa.Column("n_blocks", sa.Integer, nullable=False, default=0),
         sa.Column("error", sa.Text, nullable=False, default=""),
         sa.Column("indexed_at", sa.Float, nullable=False),
-        extend_existing=True,
-    )
-    chunks = sa.Table(
-        "pc_chunks",
-        metadata,
-        sa.Column("id", sa.String(64), primary_key=True),
-        sa.Column("client_id", sa.String(64), nullable=False),
-        sa.Column("job_id", sa.String(64), nullable=False),
-        sa.Column("file_id", sa.String(400), nullable=False),
-        sa.Column("file_version", sa.String(128), nullable=False),
-        sa.Column("seq", sa.Integer, nullable=False),
-        sa.Column("location", sa.Text, nullable=False),
-        sa.Column("document_class", sa.String(40), nullable=False),
-        sa.Column("text", sa.Text, nullable=False),
-        sa.Column("blocks", sa.Text, nullable=False),
-        sa.Column("content_hash", sa.String(64), nullable=False),
-        sa.Column("tokens", sa.Integer, nullable=False),
-        sa.Column("embedding", vector, nullable=False),
-        sa.Index("pc_chunks_scope", "client_id", "job_id"),
         extend_existing=True,
     )
     parsed = sa.Table(
@@ -99,33 +72,19 @@ def _tables(is_pg: bool, dim: int):
         sa.Column("result", sa.Text, nullable=False, default=""),
         extend_existing=True,
     )
-    return manifest, chunks, parsed, emb, node_cache, runs
+    return manifest, parsed, emb, node_cache, runs
 
 
 class Store:
-    def __init__(self, url: str, dim: int):
+    def __init__(self, url: str):
         self.is_pg = url.startswith("postgresql")
         kwargs = {} if self.is_pg else {"connect_args": {"check_same_thread": False, "timeout": 30}}
         self.engine = sa.create_engine(url, **kwargs)
-        self.dim = dim
-        (self.manifest, self.chunks, self.parsed, self.emb, self.node_cache, self.runs) = _tables(self.is_pg, dim)
+        (self.manifest, self.parsed, self.emb, self.node_cache, self.runs) = _tables()
         with self.engine.begin() as conn:
             if not self.is_pg:
                 conn.execute(sa.text("PRAGMA journal_mode=WAL"))
-        if self.is_pg:
-            # Creating the extension needs a privileged role; in production the deploy script
-            # has already done it, so a refusal here is fine as long as the extension exists.
-            try:
-                with self.engine.begin() as conn:
-                    conn.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector"))
-            except sa.exc.DBAPIError:
-                pass
-        metadata.create_all(self.engine, tables=[self.manifest, self.chunks, self.parsed, self.emb, self.node_cache, self.runs])
-
-    # -- vectors ---------------------------------------------------------------------------
-    def _to_db(self, vec: np.ndarray):
-        vec = np.asarray(vec, dtype=np.float32)
-        return vec.tolist() if self.is_pg else vec.tobytes()
+        metadata.create_all(self.engine, tables=[self.manifest, self.parsed, self.emb, self.node_cache, self.runs])
 
     # -- manifest ---------------------------------------------------------------------------
     def get_manifest(self, client_id: str, job_id: str) -> dict[str, dict]:
@@ -141,83 +100,9 @@ class Store:
             conn.execute(sa.insert(m).values(**row, indexed_at=time.time()))
 
     def delete_file(self, client_id: str, job_id: str, file_id: str) -> None:
+        m = self.manifest
         with self.engine.begin() as conn:
-            for t in (self.manifest, self.chunks):
-                conn.execute(sa.delete(t).where(t.c.client_id == client_id, t.c.job_id == job_id, t.c.file_id == file_id))
-
-    # -- chunks -----------------------------------------------------------------------------
-    def replace_chunks(self, client_id: str, job_id: str, file_id: str, rows: list[dict]) -> None:
-        c = self.chunks
-        with self.engine.begin() as conn:
-            conn.execute(sa.delete(c).where(c.c.client_id == client_id, c.c.job_id == job_id, c.c.file_id == file_id))
-            if rows:
-                conn.execute(
-                    sa.insert(c),
-                    [
-                        {**r, "client_id": client_id, "job_id": job_id, "file_id": file_id,
-                         "blocks": json.dumps(r["blocks"]), "embedding": self._to_db(r["embedding"])}
-                        for r in rows
-                    ],
-                )
-
-    _COLS = ("id", "file_id", "file_version", "seq", "location", "document_class", "text", "blocks", "content_hash", "tokens")
-
-    def _row(self, r) -> dict:
-        d = {k: r[k] for k in self._COLS}
-        d["blocks"] = json.loads(d["blocks"])
-        return d
-
-    def search(
-        self,
-        client_id: str,
-        job_id: str,
-        query: np.ndarray,
-        k: int,
-        classes: Sequence[str] | None = None,
-        token_cap: int | None = None,
-    ) -> list[dict]:
-        """Top-k chunks for this job only. The scope filter is part of the query, not the prompt."""
-        c = self.chunks
-        where = [c.c.client_id == client_id, c.c.job_id == job_id]
-        if classes:
-            where.append(c.c.document_class.in_(list(classes)))
-        cols = [getattr(c.c, name) for name in self._COLS]
-        with self.engine.connect() as conn:
-            if self.is_pg:
-                distance = c.c.embedding.cosine_distance(self._to_db(query)).label("distance")
-                rows = conn.execute(sa.select(*cols, distance).where(*where).order_by(distance).limit(k)).mappings().all()
-                scored = [(1.0 - float(r["distance"]), self._row(r)) for r in rows]
-            else:
-                rows = conn.execute(sa.select(*cols, c.c.embedding).where(*where)).mappings().all()
-                q = np.asarray(query, dtype=np.float32)
-                scored = sorted(
-                    ((float(np.frombuffer(r["embedding"], dtype=np.float32) @ q), self._row(r)) for r in rows),
-                    key=lambda pair: (-pair[0], pair[1]["id"]),
-                )[:k]
-        out, used = [], 0
-        for score, row in scored:
-            if token_cap is not None and out and used + row["tokens"] > token_cap:
-                continue
-            used += row["tokens"]
-            out.append({**row, "score": round(score, 4)})
-        return out
-
-    def get_chunks(self, client_id: str, job_id: str, ids: Sequence[str]) -> list[dict]:
-        c = self.chunks
-        cols = [getattr(c.c, name) for name in self._COLS]
-        with self.engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(*cols).where(c.c.client_id == client_id, c.c.job_id == job_id, c.c.id.in_(list(ids)))
-            ).mappings().all()
-        by_id = {r["id"]: self._row(r) for r in rows}
-        return [by_id[i] for i in ids if i in by_id]
-
-    def count_chunks(self, client_id: str, job_id: str) -> int:
-        c = self.chunks
-        with self.engine.connect() as conn:
-            return conn.execute(
-                sa.select(sa.func.count()).select_from(c).where(c.c.client_id == client_id, c.c.job_id == job_id)
-            ).scalar_one()
+            conn.execute(sa.delete(m).where(m.c.client_id == client_id, m.c.job_id == job_id, m.c.file_id == file_id))
 
     # -- exact-match caches (token rule 6) -----------------------------------------------------
     def _get_blob(self, table, key: str):
@@ -333,4 +218,4 @@ class StoreCache(BaseCache):
 @lru_cache
 def get_store() -> Store:
     s = get_settings()
-    return Store(s.database_url, s.embedding_dim)
+    return Store(s.database_url)

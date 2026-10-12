@@ -126,3 +126,16 @@ def test_a_person_says_where_the_key_documents_are_and_the_agent_is_told():
     # Cleared: the pre-check searches the folder again.
     api(pat).put(url, {"key_paths": {"questionnaire": ""}}, format="json")
     assert services.job_payload(Issue.objects.get(pk=issue.pk))["key_paths"] == {}
+
+
+def test_the_agent_is_told_the_cards_place_for_its_knowledge_tags():
+    """Workspace (team) > Sub-workspace (vendor) > Project > Task: the knowledge store tags every
+    entry with these, and searches filter on them first."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    team = Team.objects.create(name="Rentals team", organization=issue.project.organization)
+    issue.project.client.team = team
+    issue.project.client.save()
+    payload = services.job_payload(Issue.objects.get(pk=issue.pk))
+    assert payload["team_id"] == f"team-{team.id}" and payload["project_id"] == f"project-{issue.project.id}"
+    assert payload["client_id"] == f"client-{issue.project.client_id}" and payload["job_id"] == str(issue.id)

@@ -13,8 +13,11 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="PRECHECK_", env_file=".env", extra="ignore")
 
     # --- storage -------------------------------------------------------------------------
-    # Postgres + pgvector in production ("postgresql+psycopg://..."); SQLite for dev and tests.
+    # Records and caches: Postgres in production ("postgresql+psycopg://..."); SQLite for dev and tests.
     database_url: str = "sqlite:///./precheck.db"
+    # The knowledge store (ChromaDB, embedded): document chunks and, with their team / vendor /
+    # project / task tags, everything else the AI searches. A folder on the server's disk.
+    chroma_path: str = "./chroma"
 
     # --- PM application ------------------------------------------------------------------
     pm_base_url: str = "http://127.0.0.1:8000"

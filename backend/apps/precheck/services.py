@@ -30,6 +30,13 @@ def client_scope(issue) -> str:
     return f"client-{project.client_id}" if project.client_id else f"workspace-{project.id}"
 
 
+def team_scope(issue) -> str:
+    """The Workspace (team) a task sits in: its client's team, else its project's main team."""
+    project = issue.project
+    team_id = (project.client.team_id if project.client_id else None) or project.primary_team_id
+    return f"team-{team_id}" if team_id else ""
+
+
 def setup_for(issue) -> dict:
     folder = getattr(issue, "drive_folder", None)
     items = list(issue.direction_items.all())
@@ -151,6 +158,10 @@ def job_payload(issue) -> dict:
         "status": issue.status.name,
         "workspace": project.name,
         "client_id": client_scope(issue),
+        # The card's place, for the knowledge store's tags: Workspace (team) > Sub-workspace
+        # (client_id, the vendor) > Project > Task.
+        "team_id": team_scope(issue),
+        "project_id": f"project-{project.id}",
         "client_name": project.client.name if project.client_id else project.name,
         "drive_folder_id": setup["drive_folder_id"],
         "precheck_type": setup["precheck_type"],

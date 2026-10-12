@@ -11,3 +11,4 @@ service-account*.json
 # Google service account keys never belong in the repository.
 afit-precheck-*.json
 *-key.json
+chroma/

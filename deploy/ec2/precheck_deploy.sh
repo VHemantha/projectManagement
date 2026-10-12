@@ -64,6 +64,11 @@ EOF
   env_set "$ENV_FILE" PRECHECK_SERVICE_TOKEN "$(env_get "$PC_ENV" PRECHECK_SERVICE_TOKEN)"
   env_set "$ENV_FILE" PRECHECK_AGENT_URL "http://127.0.0.1:8100"
 
+  # --- knowledge store: ChromaDB, embedded in the agent, data in a shared folder that survives
+  # releases (and is in the nightly backup)
+  install -d -m 750 -o trackflow -g trackflow "$SHARED/chroma"
+  env_set "$PC_ENV" PRECHECK_CHROMA_PATH "$SHARED/chroma"
+
   # --- database: its own database on the app's Postgres, with pgvector
   db_host="$(env_get "$ENV_FILE" DB_HOST)"
   db_port="$(env_get "$ENV_FILE" DB_PORT)"

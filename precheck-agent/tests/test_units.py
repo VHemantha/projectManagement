@@ -110,6 +110,8 @@ def test_control_characters_never_reach_storage(env):
     store = get_store()
     files = store.get_manifest("client-nul", "1")
     fid = next(f for f, row in files.items() if row["name"] == "Export with nulls.txt")
-    chunks = [c for c in store.search("client-nul", "1", __import__("numpy").ones(get_settings().embedding_dim, dtype="float32"), 50) if c["file_id"] == fid]
+    from precheck_agent.knowledge import Scope, get_knowledge
+
+    chunks = get_knowledge().get(Scope.of(env.pm.jobs["1"]), file_id=fid)
     assert chunks and all("\x00" not in c["text"] and "\x01" not in c["text"] for c in chunks)
     assert "Bank export line one" in chunks[0]["text"]

@@ -17,6 +17,11 @@ pg_dump --format=custom \
   -h "$(env_get DB_HOST)" -p "$(env_get DB_PORT)" -U "$(env_get DB_USER)" "$(env_get DB_NAME)" \
   > "$DEST/db-$STAMP.dump"
 tar -czf "$DEST/media-$STAMP.tar.gz" -C /srv/trackflow/shared media
+# The pre-check's knowledge store (ChromaDB): its chunks can be rebuilt from Drive, but the
+# assumptions, findings, feedback and learned skills kept in it cannot.
+if [ -d /srv/trackflow/shared/chroma ]; then
+  tar -czf "$DEST/chroma-$STAMP.tar.gz" -C /srv/trackflow/shared chroma
+fi
 
 find "$DEST" -type f -mtime +7 -delete
-echo "$(date -u) backup ok: db-$STAMP.dump media-$STAMP.tar.gz"
+echo "$(date -u) backup ok: db-$STAMP.dump media-$STAMP.tar.gz chroma-$STAMP.tar.gz"

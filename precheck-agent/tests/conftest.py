@@ -81,7 +81,7 @@ class FakePM:
     def add_job(self, job_id, client_id, folder, direction=None, history=None, precheck_type="auto", lessons=None):
         self.jobs[job_id] = {
             "job_id": job_id, "key": f"JOB-{job_id}", "title": "Year end accounts", "workspace": "Acme FY25", "client_id": client_id,
-            "client_name": client_id, "drive_folder_id": folder, "knowledge_ids": [],
+            "client_name": client_id, "drive_folder_id": folder, "knowledge_ids": [], "team_id": "team-1", "project_id": f"project-{client_id}",
             "direction_items": [dict(i) for i in (DIRECTION if direction is None else direction)],
             "history": history or {"past_items": [], "past_findings": [], "jobs_seen": 0},
             "precheck_type": precheck_type, "lessons": lessons or [],
@@ -101,7 +101,7 @@ class FakePM:
 
 @pytest.fixture
 def env(tmp_path, monkeypatch):
-    from precheck_agent import budget, config, embeddings, llm, pm_client, runner, skills_loader, store
+    from precheck_agent import budget, config, embeddings, knowledge, llm, pm_client, runner, skills_loader, store
 
     drive_root = tmp_path / "drive"
     drive_root.mkdir()
@@ -116,11 +116,12 @@ def env(tmp_path, monkeypatch):
             conn.execute(sa.text("DROP SCHEMA public CASCADE; CREATE SCHEMA public;"))
         engine.dispose()
     monkeypatch.setenv("PRECHECK_DATABASE_URL", pg_url or f"sqlite:///{(tmp_path / 'precheck.db').as_posix()}")
+    monkeypatch.setenv("PRECHECK_CHROMA_PATH", str(tmp_path / "chroma"))
     monkeypatch.setenv("PRECHECK_LLM_MODE", "fake")
     monkeypatch.setenv("PRECHECK_DRIVE_MODE", "local")
     monkeypatch.setenv("PRECHECK_LOCAL_DRIVE_ROOT", str(drive_root))
     monkeypatch.setenv("PRECHECK_SERVICE_TOKEN", "test-token")
-    for cached in (config.get_settings, store.get_store, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
+    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
         cached.cache_clear()
     store.metadata.clear()
     llm.reset_fakes()
@@ -143,7 +144,7 @@ def env(tmp_path, monkeypatch):
     e.run = run
     yield e
     pm_client.set_pm(None)
-    for cached in (config.get_settings, store.get_store, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
+    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
         cached.cache_clear()
 
 
