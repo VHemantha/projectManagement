@@ -117,7 +117,7 @@ def test_a_person_says_where_the_key_documents_are_and_the_agent_is_told():
     r = api(pat).put(url, {"key_paths": {"questionnaire": " 2026/Client  Questionnaire.pdf ", "last_year_fs": "",
                                           "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}}, format="json")
     assert r.status_code == 200
-    assert r.data["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf", "last_year_fs": "",
+    assert r.data["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf", "last_year_fs": "", "draft_fs": "",
                                    "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}
     payload = services.job_payload(Issue.objects.get(pk=issue.pk))
     assert payload["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf",

@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    AssumptionDetailView,
+    AssumptionListView,
     FindingDispositionView,
     InternalEventView,
     InternalJobView,
@@ -8,7 +10,12 @@ from .views import (
     JobLessonsView,
     JobPrecheckView,
     JobSetupView,
+    JobReviewView,
     LessonDetailView,
+    ReviewCompleteView,
+    ReviewFindingRespondView,
+    ReviewMissedView,
+    ReviewRunView,
     RunDetailView,
     RunListView,
 )
@@ -19,6 +26,13 @@ urlpatterns = [
     path("jobs/<str:key>/draft/", JobDraftView.as_view(), name="precheck-draft"),
     path("jobs/<str:key>/lessons/", JobLessonsView.as_view(), name="precheck-lessons"),
     path("lessons/<int:pk>/", LessonDetailView.as_view(), name="precheck-lesson"),
+    path("jobs/<str:key>/review/", JobReviewView.as_view(), name="precheck-review"),
+    path("jobs/<str:key>/review/runs/", ReviewRunView.as_view(), name="precheck-review-runs"),
+    path("jobs/<str:key>/review/missed/", ReviewMissedView.as_view(), name="precheck-review-missed"),
+    path("jobs/<str:key>/review/complete/", ReviewCompleteView.as_view(), name="precheck-review-complete"),
+    path("jobs/<str:key>/assumptions/", AssumptionListView.as_view(), name="precheck-assumptions"),
+    path("assumptions/<int:pk>/", AssumptionDetailView.as_view(), name="precheck-assumption"),
+    path("review-findings/<int:pk>/respond/", ReviewFindingRespondView.as_view(), name="precheck-review-respond"),
     path("runs/", RunListView.as_view(), name="precheck-runs"),
     path("runs/<str:run_id>/", RunDetailView.as_view(), name="precheck-run"),
     path("findings/<int:pk>/disposition/", FindingDispositionView.as_view(), name="precheck-disposition"),

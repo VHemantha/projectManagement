@@ -36,6 +36,8 @@ PRECHECK_TYPES = [
 # The three documents a pre-check cannot start without. A person may say where each one is: a
 # path inside the task folder or a Drive link, several separated by ";".
 KEY_DOCUMENT_ROLES = ("questionnaire", "last_year_fs", "last_year_workpapers")
+# Other places a person can set on the card: this year's draft statements, for the review.
+CARD_PATH_ROLES = KEY_DOCUMENT_ROLES + ("draft_fs",)
 
 
 class JobFolder(models.Model):
@@ -97,6 +99,7 @@ class AIPrecheck(models.Model):
     class Kind(models.TextChoices):
         PRECHECK = "precheck", "Pre-check"
         DRAFT = "draft", "Direction Note draft only"
+        REVIEW = "review", "Review of the draft financial statements"
 
     run_id = models.CharField(max_length=64, unique=True)  # also the agent's LangGraph thread id
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRECHECK)
@@ -121,6 +124,9 @@ class AIPrecheck(models.Model):
     # The pre-check itself: decision, key documents, business nature with its reasoning, each item
     # requested / already provided / not needed with its reason and sources, and the drafted email.
     precheck = models.JSONField(default=dict)
+    # A review round: the draft reviewed, findings (with refs given by the PM application),
+    # resolved findings, a verdict on each assumption, and the code checks.
+    review = models.JSONField(default=dict)
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)
@@ -252,3 +258,113 @@ class PrecheckLesson(models.Model):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+# --- the review of the draft financial statements -------------------------------------------------
+
+class Assumption(models.Model):
+    """An assumption or judgement the preparer used, recorded on the task as the accounts are
+    prepared: what was decided, on what basis, with what evidence. The review tests each one.
+    An edit keeps the earlier wording in `history`; nothing is deleted, only withdrawn."""
+
+    class Area(models.TextChoices):
+        INCOME = "income", "Income"
+        EXPENSES = "expenses", "Expenses"
+        ASSETS = "assets", "Fixed assets and depreciation"
+        ACCRUALS = "accruals", "Accruals and prepayments"
+        LOANS = "loans", "Loans and interest"
+        PROPERTY = "property", "Property"
+        PRIVATE_USE = "private_use", "Private use and home office"
+        RELATED = "related", "Related parties and shareholders"
+        TAX = "tax", "Tax and GST"
+        OTHER = "other", "Other"
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="assumptions")
+    ref = models.CharField(max_length=10)  # A1, A2, ... stable within the task
+    area = models.CharField(max_length=20, choices=Area.choices, default=Area.OTHER)
+    fs_line = models.CharField(max_length=200, blank=True)
+    amount = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    judgement = models.TextField(max_length=2000)
+    basis = models.TextField(max_length=2000, blank=True)
+    evidence = models.CharField(max_length=500, blank=True)  # a document name, path or link
+    status = models.CharField(max_length=10, choices=[("active", "Active"), ("withdrawn", "Withdrawn")], default="active")
+    history = models.JSONField(default=list)  # earlier versions: [{judgement, basis, ..., by, at}]
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["issue", "ref"], name="assumption_ref_per_task")]
+
+
+class ReviewFinding(models.Model):
+    """One problem in the draft statements, kept across review rounds under one ref (R1, R2...)
+    until it is resolved or the reviewer closes it. Raised by the AI, or by a person ("something
+    the AI missed"). Each response is also a ReviewResponse row, so the history is kept."""
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        RESOLVED = "resolved", "Resolved"
+        CLOSED = "closed", "Closed by the reviewer"
+
+    class Response(models.TextChoices):
+        AGREE = "agree", "Agree - to be fixed"
+        FIXED = "fixed", "Fixed"
+        NOT_AN_ISSUE = "not_an_issue", "Not an issue"
+        WRONG_REASON = "wrong_reason", "Wrong reason"
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="review_findings")
+    ref = models.CharField(max_length=10)
+    origin = models.CharField(max_length=10, choices=[("ai", "Raised by AI"), ("person", "Raised by a person")], default="ai")
+    first_run = models.ForeignKey(AIPrecheck, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    last_run = models.ForeignKey(AIPrecheck, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    area = models.CharField(max_length=100, blank=True)
+    fs_line = models.CharField(max_length=200, blank=True)
+    text = models.TextField(max_length=1000)  # the issue
+    why = models.TextField(max_length=1000, blank=True)
+    action = models.TextField(max_length=500, blank=True)
+    severity = models.CharField(max_length=10, default="medium")
+    sources = models.JSONField(default=list)  # as shown on the card: [{id, label, evidence_id}]
+    assumptions = models.JSONField(default=list)  # A refs
+    flags = models.JSONField(default=list)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    resolved_reason = models.CharField(max_length=500, blank=True)
+    response = models.CharField(max_length=20, choices=Response.choices, blank=True)
+    note = models.TextField(max_length=1000, blank=True)
+    responded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    responded_at = models.DateTimeField(null=True, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["issue", "ref"], name="review_finding_ref_per_task")]
+
+
+class ReviewResponse(models.Model):
+    """Every response a person gave to a review finding, in order: the audit trail."""
+
+    finding = models.ForeignKey(ReviewFinding, on_delete=models.CASCADE, related_name="responses")
+    response = models.CharField(max_length=20, choices=ReviewFinding.Response.choices)
+    note = models.TextField(max_length=1000, blank=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+
+class ReviewSession(models.Model):
+    """Where the review of a task stands. Only a person completes it: the AI never marks work
+    reviewed."""
+
+    issue = models.OneToOneField("issues.Issue", on_delete=models.CASCADE, related_name="review_session")
+    status = models.CharField(max_length=12, choices=[("in_progress", "In progress"), ("complete", "Complete")], default="in_progress")
+    completed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completion_note = models.TextField(max_length=1000, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+

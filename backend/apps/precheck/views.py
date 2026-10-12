@@ -13,7 +13,8 @@ from apps.projects.keys import get_issue_or_404
 from trackflow.naming import clean_name
 
 from . import services
-from .models import KEY_DOCUMENT_ROLES, PRECHECK_TYPES, AIFeedback, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
+from . import review as review_record
+from .models import CARD_PATH_ROLES, PRECHECK_TYPES, AIFeedback, Assumption, ReviewFinding, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
 
 MAX_DIRECTION_ITEMS = 40
 
@@ -46,7 +47,7 @@ class JobPrecheckView(APIView):
 
     def get(self, request, key):
         issue = _job(request, key)
-        runs = list(_runs(issue).filter(kind=AIPrecheck.Kind.PRECHECK)[:20])
+        runs = list(_runs(issue).filter(kind=AIPrecheck.Kind.PRECHECK)[:20])  # review rounds are on the Review tab
         draft = _runs(issue).filter(kind=AIPrecheck.Kind.DRAFT).first()
         return Response({
             "job": issue.key,
@@ -90,10 +91,10 @@ class JobSetupView(APIView):
                 errors["precheck_type"] = ["Link the task's Drive folder first."]
         if "key_paths" in request.data:
             raw = request.data.get("key_paths")
-            if not isinstance(raw, dict) or set(raw) - set(KEY_DOCUMENT_ROLES):
-                errors["key_paths"] = ["Give the questionnaire, last year's financial statements and last year's workpapers."]
+            if not isinstance(raw, dict) or set(raw) - set(CARD_PATH_ROLES):
+                errors["key_paths"] = ["Give the questionnaire, last year's financial statements, last year's workpapers or this year's draft statements."]
             else:
-                paths = {role: " ".join(str(raw.get(role) or "").split())[:MAX_KEY_PATH] for role in KEY_DOCUMENT_ROLES}
+                paths = {role: " ".join(str(raw.get(role) or "").split())[:MAX_KEY_PATH] for role in CARD_PATH_ROLES}
                 paths = {role: p for role, p in paths.items() if p}
                 if not JobFolder.objects.filter(issue=issue).update(key_paths=paths) and paths:
                     errors["key_paths"] = ["Link the task's Drive folder first."]
@@ -283,3 +284,165 @@ class LessonDetailView(APIView):
         lesson.status, lesson.decided_by, lesson.decided_at = wanted, request.user, timezone.now()
         lesson.save(update_fields=["status", "decided_by", "decided_at"])
         return Response(services.lesson_dict(lesson))
+
+
+# --- the review of the draft financial statements -------------------------------------------------
+
+def _text(request, name: str, limit: int) -> str:
+    return " ".join(str(request.data.get(name) or "").split())[:limit]
+
+
+class JobReviewView(APIView):
+    """GET /api/precheck/jobs/<key>/review/ — the Review tab: assumptions, findings with their
+    responses, the latest round in full and the earlier rounds."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        return Response(review_record.state(issue, request.user))
+
+
+class ReviewRunView(APIView):
+    """POST /api/precheck/jobs/<key>/review/runs/ — "Run AI review": one round. Returns at once;
+    progress and the result arrive as events."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        if review_record.session_for(issue).status == "complete":
+            return Response({"detail": "This review is complete. Reopen it to run another round."}, status=status.HTTP_409_CONFLICT)
+        refused = _refuse_to_start(issue)
+        if refused:
+            return refused
+        run = services.start_run(issue, request.user, kind=AIPrecheck.Kind.REVIEW)
+        return Response({**services.serialize_run(run), "review": run.review}, status=status.HTTP_201_CREATED)
+
+
+class AssumptionListView(APIView):
+    """POST /api/precheck/jobs/<key>/assumptions/ — record an assumption or judgement:
+    {area, fs_line, amount, judgement, basis, evidence}."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        data, errors = _assumption_fields(request)
+        if not data.get("judgement"):
+            errors["judgement"] = ["Say what was assumed or decided."]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        a = review_record.save_assumption(issue, request.user, data)
+        return Response(review_record.assumption_dict(a), status=status.HTTP_201_CREATED)
+
+
+class AssumptionDetailView(APIView):
+    """PATCH /api/precheck/assumptions/<id>/ — edit it (the earlier wording is kept) or
+    withdraw it: {status: "withdrawn"}."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        a = get_object_or_404(Assumption.objects.select_related("issue__project", "updated_by"), pk=pk)
+        if not services.can_open_job(request.user, a.issue):
+            raise PermissionDenied("You can't open this task.")
+        data, errors = _assumption_fields(request)
+        if "status" in request.data:
+            if request.data["status"] not in ("active", "withdrawn"):
+                errors["status"] = ["Use active or withdrawn."]
+            else:
+                data["status"] = request.data["status"]
+        if "judgement" in data and not data["judgement"]:
+            errors["judgement"] = ["Say what was assumed or decided."]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        a = review_record.save_assumption(a.issue, request.user, data, a)
+        return Response(review_record.assumption_dict(a))
+
+
+def _assumption_fields(request) -> tuple[dict, dict]:
+    from decimal import Decimal, InvalidOperation
+
+    data, errors = {}, {}
+    if "area" in request.data:
+        if request.data["area"] not in Assumption.Area.values:
+            errors["area"] = ["Choose one of the areas offered."]
+        else:
+            data["area"] = request.data["area"]
+    for name, limit in (("fs_line", 200), ("evidence", 500)):
+        if name in request.data:
+            data[name] = _text(request, name, limit)
+    for name in ("judgement", "basis"):
+        if name in request.data:
+            data[name] = str(request.data.get(name) or "").strip()[:2000]
+    if "amount" in request.data:
+        raw = str(request.data.get("amount") or "").replace(",", "").replace("$", "").strip()
+        try:
+            data["amount"] = Decimal(raw) if raw else None
+        except InvalidOperation:
+            errors["amount"] = ["Give an amount, e.g. 1,250.00, or leave it empty."]
+    return data, errors
+
+
+class ReviewFindingRespondView(APIView):
+    """POST /api/precheck/review-findings/<id>/respond/ {response, note} — agree, fixed, not an
+    issue (closes it; a note is required) or wrong reason (a note is required)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        finding = get_object_or_404(ReviewFinding.objects.select_related("issue__project"), pk=pk)
+        if not services.can_open_job(request.user, finding.issue):
+            raise PermissionDenied("You can't open this task.")
+        response = str(request.data.get("response") or "")
+        note = str(request.data.get("note") or "").strip()
+        if response not in ReviewFinding.Response.values:
+            return Response({"response": ["Choose agree, fixed, not an issue or wrong reason."]}, status=status.HTTP_400_BAD_REQUEST)
+        if response in review_record.NOTE_REQUIRED and len(note) < 5:
+            return Response({"note": ["Say why, so the AI learns from it."]}, status=status.HTTP_400_BAD_REQUEST)
+        finding = review_record.respond(finding, response, note, request.user)
+        services._announce_issue(finding.issue)
+        return Response(review_record.finding_dict(finding))
+
+
+class ReviewMissedView(APIView):
+    """POST /api/precheck/jobs/<key>/review/missed/ {area, fs_line, issue, note} — something the
+    AI missed: an open finding raised by a person, reviewed with the rest next round."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        text = _text(request, "issue", 1000)
+        if len(text) < 5:
+            return Response({"issue": ["Say what was missed."]}, status=status.HTTP_400_BAD_REQUEST)
+        f = review_record.add_missed(issue, request.user, _text(request, "area", 100), _text(request, "fs_line", 200), text, _text(request, "note", 1000))
+        services._announce_issue(issue)
+        return Response(review_record.finding_dict(f), status=status.HTTP_201_CREATED)
+
+
+class ReviewCompleteView(APIView):
+    """POST /api/precheck/jobs/<key>/review/complete/ {note} — the reviewer completes the review.
+    With high findings still open, a note saying why is required. {reopen: true} reopens it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        if not (issue.reviewer_id == request.user.id or services.can_approve_lessons(request.user, issue)):
+            raise PermissionDenied("Only the task's reviewer, a lead or an admin can complete or reopen the review.")
+        session = review_record.session_for(issue)
+        note = str(request.data.get("note") or "").strip()[:1000]
+        if request.data.get("reopen"):
+            session.status, session.completed_by, session.completed_at = "in_progress", None, None
+        else:
+            high = review_record.open_high(issue)
+            if high and len(note) < 5:
+                return Response({"note": [f"{high} high finding{'s are' if high != 1 else ' is'} still open. Say why the review can be completed anyway."]},
+                                status=status.HTTP_400_BAD_REQUEST)
+            session.status, session.completed_by, session.completed_at, session.completion_note = "complete", request.user, timezone.now(), note
+        session.save()
+        services._announce_issue(issue)
+        return Response(review_record.state(issue, request.user)["session"])
+

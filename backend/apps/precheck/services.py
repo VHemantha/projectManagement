@@ -11,7 +11,8 @@ from django.utils import timezone
 
 from apps.live.broadcast import notify
 
-from .models import KEY_DOCUMENT_ROLES, PRECHECK_TYPES, AIEvidence, AIFeedback, AIFinding, AIPrecheck, DirectionItem, ModelRun
+from . import review as review_record
+from .models import CARD_PATH_ROLES, PRECHECK_TYPES, AIEvidence, AIFeedback, AIFinding, AIPrecheck, DirectionItem, ModelRun
 
 MAX_PROGRESS_EVENTS = 60
 
@@ -49,7 +50,7 @@ def setup_for(issue) -> dict:
         "drive_folder_url": folder.folder_url if folder else "",
         "drive_folder_id": folder.folder_id if folder else "",
         "precheck_type": folder.precheck_type if folder else "auto",
-        "key_paths": {role: (folder.key_paths or {}).get(role, "") if folder else "" for role in KEY_DOCUMENT_ROLES},
+        "key_paths": {role: (folder.key_paths or {}).get(role, "") if folder else "" for role in CARD_PATH_ROLES},
         "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES],
         "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,
@@ -167,6 +168,8 @@ def job_payload(issue) -> dict:
         "precheck_type": setup["precheck_type"],
         "key_paths": {role: path for role, path in setup["key_paths"].items() if path},
         "lessons": lessons_for(issue),
+        # For a review round: the preparer's assumptions and every finding with the reviewer's response.
+        "review": review_record.payload(issue),
         "direction_items": setup["direction_items"],
         "history": history_for(issue),
         "knowledge_ids": [],
@@ -251,6 +254,8 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
         body = {"job_id": str(issue.id), "run_id": run.run_id}
         if kind == AIPrecheck.Kind.DRAFT:
             body["mode"] = "draft"
+        elif kind == AIPrecheck.Kind.REVIEW:
+            body["mode"] = "review"
         _call_agent("/precheck/runs", body)
     except AgentUnavailable:
         run.status = AIPrecheck.Status.FAILED
@@ -263,7 +268,11 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
 
 def _announce(run: AIPrecheck) -> None:
     """The existing event mechanism: a live change notice, so every open job card refreshes."""
-    notify("precheck", project=run.issue.project.key, key=run.issue.key)
+    _announce_issue(run.issue)
+
+
+def _announce_issue(issue) -> None:
+    notify("precheck", project=issue.project.key, key=issue.key)
 
 
 @transaction.atomic
@@ -286,6 +295,8 @@ def record_event(event: dict) -> bool:
         _store_draft(run, event)
     elif kind == "ai_precheck.completed":
         _store_result(run, event["result"])
+        if run.kind == AIPrecheck.Kind.REVIEW:
+            review_record.store_round(run, event["result"].get("review") or {})
     else:
         return False
     _announce(run)
@@ -385,6 +396,7 @@ def current_disposition(finding) -> dict | None:
 def serialize_run(run: AIPrecheck, full: bool = True) -> dict:
     head = {
         "run_id": run.run_id,
+        "kind": run.kind,
         "status": run.status,
         "verdict": run.verdict,
         "summary": run.summary,
