@@ -30,6 +30,7 @@ from .archives import members as archive_members
 from .budget import budget_for, cost_usd, empty_usage
 from .classify import classify, classify_email
 from .knowledge import Scope, get_knowledge
+from . import review as RV
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
 from .emails import is_email
@@ -82,7 +83,7 @@ def _concat(a: list, b: list) -> list:
 class State(TypedDict, total=False):
     run_id: str
     job_id: str
-    mode: str  # "precheck" (default) | "draft" (only draft the Direction Note)
+    mode: str  # "precheck" (default) | "draft" (only draft the Direction Note) | "review" (review the draft statements)
     drafted: dict
     started_at: float
     job: dict
@@ -93,6 +94,7 @@ class State(TypedDict, total=False):
     rule_results: list[dict]
     periods: dict
     key: dict
+    review: dict
     folders: dict  # Drive folder id -> path inside the task folder
     precheck: dict
     evidence: Annotated[dict, _merge]
@@ -404,6 +406,8 @@ def key_documents(state: State) -> dict:
 
 
 def route_after_key(state: State):
+    if state.get("mode") == "review":
+        return "review"  # a review does not wait for the pre-check's key documents
     return "publish" if state["key"]["missing"] else "precheck"
 
 
@@ -449,6 +453,61 @@ def precheck(state: State) -> dict:
     emit("judged", f"{output['business_nature']['label']}: {n['requests']} to request, {n['provided']} already provided, {n['not_needed']} not needed",
          **n)
     return {"precheck": output, "evidence": evidence, "usage": usage}
+
+
+# --- review (model: Opus, one call per round) -------------------------------------------------------
+
+def review(state: State) -> dict:
+    """Review this year's draft financial statements: one Opus call per round, with the preparer's
+    assumptions, the reviewer's responses to earlier findings and evidence from the knowledge
+    store. Code checks the answer and keeps the knowledge store in step with the record."""
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    emit("judged", "Reviewing the draft financial statements", "running")
+    docs = [{"file": state["files"][d["file"]["file_id"]], "parsed": d["parsed"]} for d in _docs(state["files"])]
+    scope, rv = Scope.of(job), job.get("review") or {}
+    draft, how_found = RV.draft_statements(docs, state["key"], job, state.get("folders") or {})
+    if not draft:
+        RV.remember(scope, rv, [], run_id)
+        reason = ("Nothing in the task folder is where the task card says the draft financial statements are. Correct it on the task card."
+                  if how_found == "task card" else
+                  "No draft financial statements for this year were found in the task folder. Save them there, or say on the task card where they are.")
+        emit("judged", "Cannot review yet: no draft financial statements")
+        return {"review": RV.blocked(reason), "evidence": {}, "usage": []}
+    last_fs_ids = {f["file_id"] for k in state["key"]["documents"] if k["role"] == "last_year_fs" for f in k.get("files_all", k["files"])}
+    last_fs = [d for d in docs if d["file"]["file_id"] in last_fs_ids]
+    prior = [d for d in docs if d["file"].get("year_role") in ("prior", "older") or d["file"]["file_id"] in last_fs_ids]
+    facts = A.prepare(prior, [d for d in docs if d not in prior], state["periods"], s)
+    checks = RV.comparative_checks(draft, last_fs) + facts["checks"] + [
+        {"id": r["rule_id"], "label": r["title"] or r["label"], "passed": False, "detail": r["why"], "evidence": r["evidence_pairs"]}
+        for r in state["rule_results"] if r["passed"] is False]
+    nature = rv.get("nature") or (job.get("precheck_type") if job.get("precheck_type") in P.TYPES else "")
+    body, index = RV.fit_input(lambda caps: RV.build_input(job, scope, state["key"], docs, state["files"], draft, checks, s, caps), s)
+    cache = StoreCache(store)
+    key = RV.cache_key(job["client_id"], state["job_id"], nature, body, s)
+    usage, how = [], "model"
+    cleaned = cache.get_value("review", key)
+    if cleaned is not None:
+        how = "cache"
+    else:
+        reason = budget_for(run_id).can_call(est_tokens(RV.system_text(nature)) + est_tokens(body))
+        if reason:
+            raise PrecheckStop(f"The review could not run: {reason}. Ask an administrator to raise the run budget.")
+        try:
+            raw, u = RV.call_model(body, nature, s)
+        except P.Unusable as exc:
+            logger.warning("Review answer unusable: %s", exc)
+            raise PrecheckStop(f"{exc} Nothing was changed. Please try again.") from exc
+        budget_for(run_id).add(u)
+        usage.append({"node": "review", "task_id": "review", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
+        cleaned = RV.clean(raw, index, body, rv.get("findings") or [])
+        cache.set_value("review", key, cleaned)
+    output, evidence = RV.assemble(cleaned, index, draft, how_found, checks)
+    output["how"] = how
+    RV.remember(scope, rv, cleaned["findings"], run_id)
+    c = output["counts"]
+    emit("judged", f"{len(output['findings'])} findings open ({c['high']} high), {len(output['resolved'])} resolved, "
+                   f"{len(output['assumption_reviews'])} assumptions reviewed", findings=len(output["findings"]))
+    return {"review": output, "evidence": evidence, "usage": usage}
 
 
 # --- draft_directions (model; only when a person asks for a draft) ---------------------------------------
@@ -537,8 +596,57 @@ def blocked_output(state: State) -> tuple[dict, dict]:
 VERDICT = {"blocked": "not_ready", "requests": "ready_with_exceptions", "nothing": "ready"}
 
 
+def build_review_final(state: State) -> dict:
+    """The review round's result, in the same envelope as a pre-check's."""
+    s, job, run_id = get_settings(), state["job"], state["run_id"]
+    out = state["review"]
+    calls = [u for u in state.get("usage", []) if u["run_id"] == run_id]
+    totals = empty_usage()
+    cost = 0.0
+    for u in calls:
+        for k in totals:
+            totals[k] += u[k]
+        cost += cost_usd(u["model"], u, s) if not u["model"].startswith("fake-") else 0.0
+    files, changed = state["files"], set(state["sync"]["changed"])
+    shown = [f for f in files.values() if not (f["document_class"] == "archive" and not f["error"])]
+    flagged = sum(1 for f in out["findings"] if f.get("flags"))
+    c, state_ = out["counts"], out["decision"]["state"]
+    trail = {
+        "read": {"label": f"{len(shown)} documents, {len(changed)} changed since last run", "documents": len(shown), "changed": len(changed),
+                 "removed": state["sync"]["removed"], "images_read": sum(u["calls"] for u in calls if u["node"] == "read_image"), "detail": []},
+        "checked": {"label": f"{len(out['checks'])} checks by code, {sum(1 for x in out['checks'] if not x['passed'])} failed",
+                    "detail": [{"label": x["label"], "passed": x["passed"], "note": x["detail"]} for x in out["checks"]]},
+        "compared": {"label": "Draft statements: " + (", ".join(d["name"] for d in out["draft_fs"]) or "none found"), "detail": []},
+        "judged": {"label": out["decision"]["label"] + (f": {len(out['findings'])} open, {len(out['resolved'])} resolved" if state_ != "blocked" else ""),
+                   "how": out.get("how", ""), "detail": []},
+        "verified": {"label": f"{len(out.get('evidence', {}))} sources linked; {flagged} findings flagged for a closer look",
+                     "evidence": len(out.get("evidence", {})), "detail": []},
+    }
+    all_input = totals["input"] + totals["cache_read"] + totals["cache_write"]
+    return {
+        "run_id": run_id, "job_id": state["job_id"], "mode": "review", "status": "partial" if state.get("skipped") else "complete",
+        "verdict": "not_ready" if state_ == "blocked" or c["high"] else ("ready_with_exceptions" if out["findings"] else "ready"),
+        "readiness": out["decision"]["label"], "summary": (out["summary"] or out["decision"]["reason"])[:400],
+        "coverage": {"addressed": len(out["resolved"]), "total": len(out["resolved"]) + len(out["findings"])},
+        "counts": c, "direction_items": [{**i, "addressed": False} for i in job.get("direction_items", [])],
+        "findings": [], "evidence": [], "precheck_type": (job.get("review") or {}).get("nature") or job.get("precheck_type") or "auto",
+        "review": out, "trail": trail, "skipped": state.get("skipped", []),
+        "usage": {
+            "calls": calls, "totals": totals, "model_calls": sum(u["calls"] for u in calls), "reader_calls": 0,
+            "cost_usd": round(cost, 6), "cache_share": round(totals["cache_read"] / all_input, 3) if all_input else 0.0, "reused_answers": 0,
+            "budget": {"image_calls": s.budget_image_calls, "uncached_input_tokens": s.run_input_tokens, "output_tokens": s.run_output_tokens},
+        },
+        "models": {role: model_id(role, s) for role in ("precheck", "vision")},
+        "versions": {"prompt": s.prompt_version, "parser": s.parser_version, "skills": {name: sk.version for name, sk in all_skills().items()}},
+        "knowledge_ids": job.get("knowledge_ids", []), "demo": s.llm_mode == "fake",
+        "duration_s": round(time.time() - state["started_at"], 1),
+    }
+
+
 def build_final(state: State) -> dict:
     s, job, run_id = get_settings(), state["job"], state["run_id"]
+    if state.get("mode") == "review":
+        return build_review_final(state)
     if state.get("precheck"):
         out = state["precheck"]
     else:
@@ -626,15 +734,17 @@ def publish(state: State) -> dict:
 def build_graph(checkpointer=None):
     g = StateGraph(State)
     for name, fn in [("load_job", load_job), ("sync_drive", sync_drive), ("index", index), ("run_rules", run_rules),
-                     ("key_documents", key_documents), ("precheck", precheck), ("draft_directions", draft_directions), ("publish", publish)]:
+                     ("key_documents", key_documents), ("precheck", precheck), ("review", review), ("draft_directions", draft_directions),
+                     ("publish", publish)]:
         g.add_node(name, fn)
     g.add_edge(START, "load_job")
     g.add_edge("load_job", "sync_drive")
     g.add_edge("sync_drive", "index")
     g.add_edge("index", "run_rules")
     g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "key_documents"])
-    g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck"])
+    g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck", "review"])
     g.add_edge("precheck", "publish")
+    g.add_edge("review", "publish")
     g.add_edge("draft_directions", END)
     g.add_edge("publish", END)
     return g.compile(checkpointer=checkpointer, cache=StoreCache(get_store()))

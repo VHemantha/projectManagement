@@ -90,6 +90,8 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     body = _flatten(messages[-1].content)
     lines = [ln for ln in body.splitlines() if re.match(r"^[A-Z]\d+(\.\d+)? \| ", ln)]
     by = lambda p: [ln.split(" | ") for ln in lines if re.match(rf"^{p}\d+ \| ", ln)]  # noqa: E731
+    if "THIS YEAR'S DRAFT FINANCIAL STATEMENTS" in body:
+        return demo_review(body, by)
     q_text = " ".join(" | ".join(parts[1:]) for parts in by("Q")).lower()
     btype = "residential_rental" if re.search(r"rent|tenant|property manager", q_text) else ("investment" if re.search(r"dividend|shares|fund", q_text) else "general")
     q_ids = [parts[0] for parts in by("Q")][:2]
@@ -107,6 +109,24 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
                             "sources": q_ids, "facts": [{"text": "Demo fact from the questionnaire.", "sources": q_ids[:1]}]},
         "items": items, "preparer_notes": [], "lessons_applied": lessons,
     })
+    return AIMessage(content=text, usage_metadata=_usage(body, text))
+
+
+def demo_review(body: str, by) -> AIMessage:
+    """Stand-in for the review (demo mode and tests): a failed code check becomes a finding, each
+    open earlier finding stays open, and each assumption needs evidence unless an E line backs it."""
+    findings = [{"ref": "", "area": "Comparatives", "fs_line": parts[1][:60], "issue": f"Demo: {parts[1]} failed.",
+                 "why": "A code check failed.", "severity": "high", "action": "Correct the draft.", "sources": [parts[0]], "assumptions": []}
+                for parts in by("C") if len(parts) > 2 and parts[2] == "FAILED"][:3]
+    open_refs = re.findall(r"^(R\d+) \| open \|", body, re.M)
+    findings += [{"ref": ref, "area": "Earlier finding", "fs_line": "", "issue": "Demo: still open.", "why": "Not yet shown fixed.",
+                  "severity": "medium", "action": "Fix it.", "sources": [p[0] for p in by("S")][:1], "assumptions": []} for ref in open_refs]
+    assumptions = re.findall(r"^(A\d+) \| ", body, re.M)
+    evidence = [p[0] for p in by("E")]
+    reviews = [{"assumption": a, "verdict": "supported" if evidence else "needs_evidence", "reason": "Demo verdict.", "sources": evidence[:1]}
+               for a in assumptions]
+    text = json.dumps({"summary": "Demo review.", "findings": findings, "resolved": [], "assumption_reviews": reviews,
+                       "lessons_applied": [p[0] for p in by("L")]})
     return AIMessage(content=text, usage_metadata=_usage(body, text))
 
 

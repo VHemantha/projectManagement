@@ -100,7 +100,9 @@ def statement_lines(doc: dict) -> list[dict]:
             continue
         label = m.group("label").strip(" .")
         nums = [_fs_number(t) for t in m.group("nums").split()]
-        if _is_total(label) or label.lower() in seen or re.fullmatch(r"(page|note|notes)\b.*", label.lower()) or len(label) < 3:
+        # "For the year ended 31 March 2026" or "As at 31 March 2026" is a heading, not a line of 2,026.
+        period = re.match(r"(for the (year|period)|year ended|as at|balance date)\b", label.lower())
+        if period or _is_total(label) or label.lower() in seen or re.fullmatch(r"(page|note|notes)\b.*", label.lower()) or len(label) < 3:
             continue
         seen.add(label.lower())
         out.append({"label": label, "section": section or _section(label), "type": "", "amount": nums[0],

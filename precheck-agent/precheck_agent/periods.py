@@ -103,7 +103,10 @@ def assign_years(docs: list[dict], job: dict | None = None) -> dict:
         year, basis = doc_year(d["file"], d["parsed"])
         by_file[d["file"]["file_id"]] = {"year": year, "basis": basis}
         if year:
-            (finished if d["file"].get("document_class") in FINISHED_CLASSES else received).add(year)
+            # A draft of this year's statements (what a review looks at) is work in progress, not
+            # a finished year: it must not make the folder look a year further on.
+            done = d["file"].get("document_class") in FINISHED_CLASSES and not re.search(r"\bdraft\b", f"{d['file'].get('path', '')}{d['file']['name']}", re.I)
+            (finished if done else received).add(year)
             if d["file"].get("document_class") == "questionnaire":
                 questionnaires.add(year)
     title_year = None
