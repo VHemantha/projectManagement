@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     judge_thinking: str = "between_tools"
     judge_effort: str = "low"
     judge_max_tokens: int = 2500
+    assistant_max_tokens: int = 2000  # one answer to a question on the task card
     # Opus 5.5 cannot disable thinking; effort is the control. Thinking counts toward max_tokens
     # (kept under the limit above which the SDK requires streaming).
     precheck_effort: str = "medium"

@@ -29,7 +29,7 @@ class RunRequest(BaseModel):
 def healthz():
     s = get_settings()
     return {"status": "ok", "version": __version__, "llm_mode": s.llm_mode, "drive_mode": s.drive_mode,
-            "models": {r: model_id(r, s) for r in ("precheck", "drafter", "vision")}}
+            "models": {r: model_id(r, s) for r in ("precheck", "drafter", "assistant", "vision")}}
 
 
 @app.post("/precheck/runs", status_code=202, dependencies=[Depends(require_token)])
@@ -45,3 +45,19 @@ def get_run(run_id: str):
     if run is None:
         raise HTTPException(status_code=404, detail="No such run.")
     return {"run_id": run_id, "job_id": run["job_id"], "status": run["status"], "result": run["result"]}
+
+
+class AskRequest(BaseModel):
+    job_id: str
+    question_id: str
+    question: str
+    history: list[dict] = []
+
+
+@app.post("/precheck/ask", status_code=202, dependencies=[Depends(require_token)])
+def ask_question(body: AskRequest):
+    """A question about a task. Answered in the background from the knowledge store; the answer
+    comes back to the PM application as an event."""
+    runner.start_ask(body.job_id, body.question_id, body.question[:2000], body.history[-4:])
+    return {"question_id": body.question_id, "status": "running"}
+

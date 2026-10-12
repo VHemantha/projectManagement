@@ -130,6 +130,17 @@ def demo_review(body: str, by) -> AIMessage:
     return AIMessage(content=text, usage_metadata=_usage(body, text))
 
 
+def demo_assistant(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """Stand-in for the assistant (demo mode and tests): quotes the first passage found, or says
+    nothing was found."""
+    body = _flatten(messages[-1].content)
+    first = re.search(r"^(K\d+) \| \[[^\]]*\] (.*)$", body, re.M)
+    answer = ({"answer": f"Demo: the documents say: {first.group(2)[:200]}", "sources": [first.group(1)], "status": "answered"} if first
+              else {"answer": "Demo: nothing in this task's documents answers that.", "sources": [], "status": "not_found"})
+    text = json.dumps(answer)
+    return AIMessage(content=text, usage_metadata=_usage(body, text))
+
+
 _fake: dict[str, ScriptedChatModel] = {}
 
 
@@ -145,7 +156,7 @@ def reset_fakes() -> None:
 
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck}[role])
+        set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck, "assistant": demo_assistant}[role])
     return _fake[role]
 
 
@@ -155,7 +166,7 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return f"fake-{role}"
-    return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "precheck": s.precheck_model}[role]
+    return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "assistant": s.judge_model, "precheck": s.precheck_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
@@ -171,6 +182,8 @@ def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
         common["api_key"] = s.anthropic_api_key
     if role == "vision":
         return ChatAnthropic(model=s.vision_model or s.reader_model, max_tokens=s.image_max_tokens, **common)
+    if role == "assistant":  # answers a question on the task card: Sonnet, short, no extended thinking
+        return ChatAnthropic(model=s.judge_model, max_tokens=s.assistant_max_tokens, **common)
     if role == "drafter":
         extra: dict[str, Any] = {}
         if s.judge_thinking:

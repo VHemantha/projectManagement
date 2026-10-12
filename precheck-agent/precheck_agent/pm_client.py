@@ -31,7 +31,7 @@ class PMClient:
 
     def send_event(self, run_id: str, event: dict) -> None:
         """Progress and completion events. Best-effort for progress; the final event is retried."""
-        final = event.get("type") in ("ai_precheck.completed", "ai_precheck.failed")
+        final = event.get("type") in ("ai_precheck.completed", "ai_precheck.failed", "ai_assistant.answered", "ai_assistant.failed")
         for attempt in range(3 if final else 1):
             try:
                 resp = httpx.post(

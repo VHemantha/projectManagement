@@ -417,6 +417,14 @@ def remember(scope: Scope, review: dict, round_findings: list[dict], run_id: str
         if f.get("response"):
             text = f"Reviewer on {f['ref']} ({f.get('fs_line', '')}): {RESPONSES.get(f['response'], f['response'])}. {f.get('note', '')}"
             entries["feedback"].append({"id": f"{scope.task}:feedback:{f['ref']}", "text": text, "meta": {"ref": f["ref"], "response": f["response"]}})
+    recorded = {f["ref"] for f in round_findings if f.get("ref")}
+    for f in review.get("findings") or []:
+        if f["ref"] in recorded:
+            continue  # this round's version replaces it below
+        text = (f"Review finding {f['ref']} ({f.get('status', 'open')}) [{f.get('severity', '')}] {f.get('area', '')} — {f.get('fs_line', '')}: "
+                f"{f.get('issue', '')} {f.get('why', '')}")
+        entries["finding"].append({"id": f"{scope.task}:finding:{f['ref']}", "text": text,
+                                   "meta": {"ref": f["ref"], "severity": f.get("severity", ""), "status": f.get("status", "open")}})
     for n, f in enumerate(round_findings):
         ref = f["ref"] or f"new-{run_id[:8]}-{n}"
         text = f"Review finding {f['ref'] or '(new)'} [{f['severity']}] {f['area']} — {f['fs_line']}: {f['issue']} Why: {f['why']} Action: {f['action']}"

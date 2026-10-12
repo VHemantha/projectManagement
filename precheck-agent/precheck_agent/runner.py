@@ -97,3 +97,26 @@ def start(job_id: str, run_id: str | None = None, mode: str = "precheck") -> str
     run_id = run_id or new_run_id()
     threading.Thread(target=execute, args=(run_id, job_id, mode), name=f"precheck-{run_id[:8]}", daemon=True).start()
     return run_id
+
+
+def ask_now(job_id: str, question_id: str, question: str, history: list[dict]) -> dict:
+    """Answer a question about a task and send the answer to the PM application (blocking)."""
+    from . import ask
+
+    pm = get_pm()
+    try:
+        result = ask.answer(pm.get_job(job_id), question, history)
+        pm.send_event(question_id, {"type": "ai_assistant.answered", "job_id": job_id, "result": result})
+        return result
+    except PMError as exc:
+        reason = str(exc)
+    except Exception:  # say so plainly; keep the detail in the log
+        logger.exception("Answering question %s failed", question_id)
+        reason = "The AI could not answer just now. Please ask again."
+    pm.send_event(question_id, {"type": "ai_assistant.failed", "job_id": job_id, "reason": reason})
+    return {"status": "failed", "reason": reason}
+
+
+def start_ask(job_id: str, question_id: str, question: str, history: list[dict]) -> None:
+    threading.Thread(target=ask_now, args=(job_id, question_id, question, history), name=f"ask-{question_id[:8]}", daemon=True).start()
+

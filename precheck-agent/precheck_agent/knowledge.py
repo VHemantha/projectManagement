@@ -149,12 +149,14 @@ class Knowledge:
 
     # -- reading ------------------------------------------------------------------------------
     def search(self, scope: Scope, query: np.ndarray, k: int, level: str = "task", source_types: Iterable[str] = ("document",),
-               token_cap: int | None = None, **filters) -> list[dict]:
+               token_cap: int | None = None, contains: str | None = None, **filters) -> list[dict]:
         """Filter on the tags first, then the k entries closest in meaning among what is left. The
-        same text held twice (a statement saved in two folders) counts once."""
+        same text held twice (a statement saved in two folders) counts once. `contains`: only
+        entries whose text has these exact words (a name, an address, an amount)."""
         where = where_for(scope, level, source_types, **filters)
+        extra = {"where_document": {"$contains": contains}} if contains else {}
         res = self.col.query(query_embeddings=[np.asarray(query, dtype=np.float32).tolist()], n_results=k * 3, where=where,
-                             include=["documents", "metadatas", "distances"])
+                             include=["documents", "metadatas", "distances"], **extra)
         out, used, seen = [], 0, set()
         for i, text, meta, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0]):
             # A copy: the same text in the same task (the first line names the file and place,
