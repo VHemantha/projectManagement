@@ -139,3 +139,26 @@ def test_only_the_reviewer_completes_the_review_and_open_high_findings_need_a_re
     assert api(pat).post(f"/api/precheck/jobs/{issue.key}/review/runs/", {}, format="json").status_code == 409  # complete: no more rounds
     assert api(rita).post(url, {"reopen": True}, format="json").data["status"] == "in_progress"
     assert Issue.objects.get(pk=issue.pk).status_id == issue.status_id  # the task itself is never changed
+
+
+def test_a_question_is_answered_in_the_background_and_kept_with_its_sources(agent):
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    url = f"/api/precheck/jobs/{issue.key}/ask/"
+    assert api(pat).post(url, {"question": " "}, format="json").status_code == 400
+    q = api(pat).post(url, {"question": "How much was 43 Te Wharo Drive sold for?"}, format="json").data
+    assert q["status"] == "pending" and agent[-1][0] == "/precheck/ask" and agent[-1][1]["question"] == "How much was 43 Te Wharo Drive sold for?"
+    answer = {"answer": "It sold for $891,000.00.", "status": "answered", "flags": [], "cost_usd": 0.01,
+              "sources": [{"id": "K1", "label": "Settlement Statement.pdf, page 1", "how": 'words "Settlement"', "evidence": {"quote": "Purchase price 891,000.00"}}]}
+    r = APIClient().post("/api/precheck/internal/events/", {"run_id": q["id"], "type": "ai_assistant.answered", "result": answer}, format="json", **TOKEN)
+    assert r.status_code == 200
+    # A late or repeated answer changes nothing.
+    assert APIClient().post("/api/precheck/internal/events/", {"run_id": q["id"], "type": "ai_assistant.failed", "reason": "x"},
+                            format="json", **TOKEN).status_code == 409
+    shown = api(pat).get(url).data["questions"]
+    assert shown[0]["answer"] == "It sold for $891,000.00." and shown[0]["sources"][0]["label"].startswith("Settlement Statement")
+    # A follow-up carries the conversation so far.
+    api(pat).post(url, {"question": "And when did it settle?"}, format="json")
+    assert agent[-1][1]["history"] == [{"question": "How much was 43 Te Wharo Drive sold for?", "answer": "It sold for $891,000.00."}]
+    # Access follows the task (today every signed-in member may open every task); signed out, no.
+    assert APIClient().post(url, {"question": "What is the rent?"}, format="json").status_code in (401, 403)

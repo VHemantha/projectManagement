@@ -275,10 +275,56 @@ def _announce_issue(issue) -> None:
     notify("precheck", project=issue.project.key, key=issue.key)
 
 
+MAX_QUESTIONS_SHOWN = 30
+
+
+def question_dict(q) -> dict:
+    return {"id": q.question_id, "question": q.question, "status": q.status, "answer": q.answer, "answer_status": q.answer_status,
+            "sources": q.sources, "flags": q.flags, "failure_reason": q.failure_reason,
+            "asked_by": q.asked_by.display_name if q.asked_by else "", "created_at": q.created_at, "answered_at": q.answered_at}
+
+
+def ask_question(issue, user, question: str):
+    """A question about the task: saved, then answered by the agent in the background from the
+    knowledge store. The last few questions and answers go with it, so a follow-up makes sense."""
+    from .models import AssistantQuestion
+
+    earlier = list(issue.assistant_questions.filter(status="answered").order_by("-created_at")[:4])[::-1]
+    q = AssistantQuestion.objects.create(question_id=uuid.uuid4().hex, issue=issue, asked_by=user, question=question[:2000])
+    try:
+        _call_agent("/precheck/ask", {"job_id": str(issue.id), "question_id": q.question_id, "question": q.question,
+                                      "history": [{"question": e.question, "answer": e.answer} for e in earlier]})
+    except AgentUnavailable:
+        q.status, q.failure_reason, q.answered_at = "failed", "The AI service is not reachable right now. Please ask again shortly.", timezone.now()
+        q.save()
+    _announce_issue(issue)
+    return q
+
+
+def _record_answer(event: dict) -> bool:
+    from .models import AssistantQuestion
+
+    q = AssistantQuestion.objects.select_for_update().select_related("issue__project").filter(question_id=event.get("run_id")).first()
+    if q is None or q.status != "pending":
+        return False
+    if event.get("type") == "ai_assistant.answered":
+        r = event.get("result") or {}
+        q.status, q.answer, q.answer_status = "answered", str(r.get("answer", ""))[:5000], str(r.get("status", ""))[:12]
+        q.sources, q.flags, q.cost_usd = r.get("sources") or [], r.get("flags") or [], float(r.get("cost_usd") or 0)
+    else:
+        q.status, q.failure_reason = "failed", str(event.get("reason", ""))[:500] or "The AI could not answer."
+    q.answered_at = timezone.now()
+    q.save()
+    _announce_issue(q.issue)
+    return True
+
+
 @transaction.atomic
 def record_event(event: dict) -> bool:
     """An event from the agent. A finished run is never changed again: late or repeated events
     for it are ignored."""
+    if str(event.get("type", "")).startswith("ai_assistant."):
+        return _record_answer(event)
     run = AIPrecheck.objects.select_for_update().select_related("issue__project").filter(run_id=event.get("run_id")).first()
     if run is None or run.status != AIPrecheck.Status.RUNNING:
         return False

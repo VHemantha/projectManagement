@@ -446,3 +446,27 @@ class ReviewCompleteView(APIView):
         services._announce_issue(issue)
         return Response(review_record.state(issue, request.user)["session"])
 
+
+class JobAskView(APIView):
+    """GET /api/precheck/jobs/<key>/ask/ — the conversation about this task (latest questions).
+    POST {question} — ask the AI. Answered in the background from this task's knowledge."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        rows = list(issue.assistant_questions.select_related("asked_by").order_by("-created_at")[: services.MAX_QUESTIONS_SHOWN])[::-1]
+        return Response({"questions": [services.question_dict(q) for q in rows]})
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        question = " ".join(str(request.data.get("question") or "").split())
+        if len(question) < 3:
+            return Response({"question": ["Type a question."]}, status=status.HTTP_400_BAD_REQUEST)
+        if issue.assistant_questions.filter(status="pending").count() >= 3:
+            return Response({"detail": "Wait for the answers to your earlier questions."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+        if not services.setup_for(issue)["ready"]:
+            return Response({"detail": "Link the task's Google Drive folder first."}, status=status.HTTP_400_BAD_REQUEST)
+        q = services.ask_question(issue, request.user, question)
+        return Response(services.question_dict(q), status=status.HTTP_201_CREATED)
+

@@ -368,3 +368,30 @@ class ReviewSession(models.Model):
     completion_note = models.TextField(max_length=1000, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+
+class AssistantQuestion(models.Model):
+    """A question a person asked the AI about a task, and its answer: what it said, how sure it
+    was, and the passages it rests on. Kept, so the conversation and its sources can be checked."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Being answered"
+        ANSWERED = "answered", "Answered"
+        FAILED = "failed", "Failed"
+
+    question_id = models.CharField(max_length=64, unique=True)
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="assistant_questions")
+    asked_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    question = models.TextField(max_length=2000)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    answer = models.TextField(blank=True)
+    answer_status = models.CharField(max_length=12, blank=True)  # answered | partial | not_found
+    sources = models.JSONField(default=list)  # [{id, label, how, evidence}]
+    flags = models.JSONField(default=list)
+    failure_reason = models.CharField(max_length=500, blank=True)
+    cost_usd = models.FloatField(default=0.0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
