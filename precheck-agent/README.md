@@ -31,9 +31,9 @@ gets a run id at once; progress and the result come back as events.
    data covering the year, the rules), the Direction Note if there is one (N) and the lessons
    people taught (L). Its instructions are the skills: `precheck-method` plus the one for the
    business nature: `nz-residential-rental` (AFIT's rental rules: property manager or owner
-   managed, property details, invoices for expenses not paid through the bank and for body
-   corporate, loans and refinancing, rent bond, short-term rental statements, items over
-   $1,000; NZ interest deductibility, bright-line, ring-fencing), `nz-general-business` or
+   managed, property details, invoices for expenses and accruals (else the manager statement,
+   else a request) and for body corporate, loans and refinancing, rent bond, short-term rental
+   statements, a sold property's remaining assets to drawings (a preparer note), items over $1,000; NZ interest deductibility, bright-line, ring-fencing), `nz-general-business` or
    `nz-investment`. The model decides the type from the questionnaire and last year's accounts
    unless the task's setup fixes it.
 3. **Code checks the answer.** Ids that do not exist are dropped; an item "already provided"

@@ -120,6 +120,7 @@ def test_with_all_three_the_precheck_lists_what_is_needed_with_reasons(env):
         assert marker in body, marker
     system = env.precheck.calls[0]["messages"][0].content
     assert "# Skill: precheck-method" in system and "# Skill: nz-residential-rental" in system and "Rent bond" in system
+    assert "invoice, then manager statement, then request" in system and "as drawings" in system
 
     nature = p["business_nature"]
     assert nature["type"] == "residential_rental" and nature["label"] == "Residential rental" and nature["sources"][0]["label"].startswith("Questionnaire:")

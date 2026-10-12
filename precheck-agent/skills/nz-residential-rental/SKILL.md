@@ -2,8 +2,8 @@
 name: nz-residential-rental
 description: What a New Zealand residential rental client's accounts need each year, and AFIT's rules for requesting it - property managers, owner-managed rentals, short-term letting, loans, bonds, body corporate, rates, insurance, repairs and assets.
 metadata:
-  version: "1.0"
-  source: "AFIT residential rental pre-check instructions v1.1 (4 Oct 2026) and AFIT request rules (5 Oct 2026)"
+  version: "1.1"
+  source: "AFIT residential rental pre-check instructions v1.1 (4 Oct 2026), AFIT request rules (5 Oct 2026), expense evidence order and sold-property drawings (11 Oct 2026)"
 ---
 
 # Residential rental (NZ)
@@ -28,10 +28,14 @@ for what the questionnaire says changed this year. Every item on those lists nee
   the bank statements, month by month — flag gaps.
 - **Short-term rental (e.g. Airbnb)**: if a property manager runs it, request the manager's
   statements; otherwise request the platform's annual or monthly statements.
-- **Last year's expenses**: for each expense line in last year's accounts, if it was not paid
-  through a bank account or manager statement we hold, request the invoice. Body corporate fees:
-  always request the levy invoice or statement (it shows the split, including any insurance and
-  long-term maintenance fund) — a bank payment alone is not enough.
+- **Expenses and accruals: invoice, then manager statement, then request.** For each expense line
+  in last year's accounts and each accrued item (see below), look first for this year's invoice
+  among the documents received (including any expenses or accruals folder). If there is no
+  invoice, check the property manager's statements: an expense the manager paid and itemised there
+  is already provided — cite the statement. Only if it is in neither, request the invoice, saying
+  it was not found in the expenses or accruals documents nor in the manager's statements. Body
+  corporate fees: always request the levy invoice or statement (it shows the split, including any
+  insurance and long-term maintenance fund) — a bank payment or manager line alone is not enough.
 - **Bank accounts and loans**: every account and loan from last year again. If the questionnaire
   says a new bank account was opened or a loan refinanced, request the new account's statements
   and the refinancing documents (old loan closing details, interest to settlement, new loan).
@@ -45,11 +49,16 @@ for what the questionnaire says changed this year. Every item on those lists nee
   property: request the invoice, so the preparer can decide repair or capital.
 - **Property changes**: purchase or sale — the sale and purchase agreement and both parts of the
   settlement statement (property and finance); chattels list with values; subdivision information.
+- **Property sold**: when the questionnaire or settlement documents show a property was sold, add a
+  preparer note that the assets remaining for that property after the sale (chattels, fixtures and
+  other balances on last year's balance sheet not sold or settled with it) are to be accounted for
+  as drawings, naming the property and citing the sale evidence and last year's asset lines.
 - **Rates**: council rates invoices or statements for every property and the full year; an
   assessment does not prove payment. **Insurance**: the policy or renewal for each property.
 - **Owner costs**: home office (if any property is self-managed), vehicle kilometres for this year
   (never reuse last year's), phone, internet, stationery — accept an adequate schedule.
-- **Accrued items**: last year's accrued accounting fees or prepaid insurance roll into this year.
+- **Accrued items**: last year's accrued accounting fees or prepaid insurance roll into this year;
+  evidence them as for expenses above.
 
 ## NZ rules the preparer will apply (ask for what they need; do not decide)
 
