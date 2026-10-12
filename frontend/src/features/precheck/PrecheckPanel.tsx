@@ -264,7 +264,7 @@ function SetupForm({
             <span>{label}</span>
             <input
               type="text"
-              value={paths[role]}
+              value={paths[role] ?? ''}
               onChange={(e) => setPaths((p) => ({ ...p, [role]: e.target.value }))}
               placeholder={placeholder}
             />
@@ -345,12 +345,13 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
   )
 }
 
-const NO_PATHS: KeyPaths = { questionnaire: '', last_year_fs: '', last_year_workpapers: '' }
+const NO_PATHS: KeyPaths = { questionnaire: '', last_year_fs: '', last_year_workpapers: '', draft_fs: '' }
 
 const KEY_PATH_FIELDS: { role: keyof KeyPaths; label: string; placeholder: string }[] = [
   { role: 'questionnaire', label: "This year's client questionnaire", placeholder: '2026/Client Questionnaire 2026.pdf' },
   { role: 'last_year_fs', label: "Last year's financial statements", placeholder: '2025/Financial Statements 2025 - Signed.pdf' },
   { role: 'last_year_workpapers', label: "Last year's workpapers", placeholder: '2025/Workpapers' },
+  { role: 'draft_fs', label: "This year's draft financial statements (for the review)", placeholder: '2026/Draft Financial Statements.pdf' },
 ]
 
 function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void }) {

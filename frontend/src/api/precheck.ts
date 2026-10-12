@@ -160,6 +160,8 @@ export interface KeyPaths {
   questionnaire: string
   last_year_fs: string
   last_year_workpapers: string
+  /** This year's draft financial statements, for the review. */
+  draft_fs?: string
 }
 
 export interface PrecheckSetup {
