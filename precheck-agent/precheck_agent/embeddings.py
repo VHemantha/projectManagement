@@ -4,8 +4,10 @@ Claude has no embeddings endpoint, so there are two local options:
 - "hash": a signed feature-hashing vector over words, numbers and character trigrams. No model
   download, deterministic, good at the exact terms accounting documents share (account names,
   codes, amounts). The default, and what the tests use.
-- "fastembed": a small local ONNX sentence model, for better recall on paraphrased questions
-  (pip install fastembed).
+- "fastembed": a small local ONNX sentence model (BAAI/bge-small-en-v1.5, 384 dimensions) that
+  matches meaning, not only words: "who manages the property" finds the manager's statements.
+  What production uses (12 Oct 2026). About 180 MB of memory once loaded, so it is loaded on
+  first use, from a folder the deploy fills once (no download while the service runs).
 """
 import hashlib
 import math
@@ -52,15 +54,20 @@ class HashEmbedder:
 
 
 class FastEmbedder:
-    def __init__(self, model: str):
-        from fastembed import TextEmbedding  # optional dependency
+    def __init__(self, model: str, cache_dir: str = ""):
+        self.model_name, self.cache_dir = model, cache_dir or None
+        self.name = "fastembed:" + model  # known without loading the model
+        self._model = None
 
-        self._model = TextEmbedding(model_name=model)
-        self.name = "fastembed:" + model
-        self.dim = len(next(iter(self._model.embed(["x"]))))
+    def _loaded(self):
+        if self._model is None:
+            from fastembed import TextEmbedding
+
+            self._model = TextEmbedding(model_name=self.model_name, cache_dir=self.cache_dir)
+        return self._model
 
     def embed(self, texts: list[str]) -> np.ndarray:
-        vectors = np.array(list(self._model.embed(texts)), dtype=np.float32)
+        vectors = np.array(list(self._loaded().embed(texts)), dtype=np.float32)
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         return vectors / np.where(norms == 0, 1, norms)
 
@@ -69,5 +76,5 @@ class FastEmbedder:
 def get_embedder():
     s = get_settings()
     if s.embedder == "fastembed":
-        return FastEmbedder(s.fastembed_model)
+        return FastEmbedder(s.fastembed_model, s.fastembed_cache)
     return HashEmbedder(s.embedding_dim)

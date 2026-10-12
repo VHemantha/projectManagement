@@ -104,6 +104,15 @@ EOF
   "$PC_VENV/bin/pip" install --quiet --upgrade pip
   "$PC_VENV/bin/pip" install --quiet -r "$AGENT_DIR/requirements.txt"
   ln -sfn "$PC_ENV" "$AGENT_DIR/.env"
+
+  # --- the search model (local, free): downloaded once into a shared folder, so the service never
+  # fetches it while running and client text never leaves the server
+  install -d -m 750 -o trackflow -g trackflow "$SHARED/fastembed"
+  env_set "$PC_ENV" PRECHECK_EMBEDDER fastembed
+  env_set "$PC_ENV" PRECHECK_FASTEMBED_CACHE "$SHARED/fastembed"
+  log "Fetching the search model (first deploy only)"
+  sudo -u trackflow "$PC_VENV/bin/python" -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='$SHARED/fastembed')" \
+    || log "WARNING: the search model could not be fetched; the agent will try again on first use"
 }
 
 start() {

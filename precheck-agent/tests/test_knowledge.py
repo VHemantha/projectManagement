@@ -122,3 +122,30 @@ def test_the_same_text_in_two_folders_is_one_result(env):
     kn.replace_file(SMITH_1, "other", [chunk("o1", "Loan interest 6.950% $599.79")])
     hits = kn.search(SMITH_1, get_embedder().embed([page])[0], 2)
     assert len(hits) == 2 and hits[0]["id"] in ("c0", "c1", "c2") and hits[1]["id"] == "o1"
+
+
+def test_the_search_model_is_loaded_only_when_first_used():
+    """About 180 MB once loaded, on a 1 GB server: a run that embeds nothing never loads it."""
+    from precheck_agent.embeddings import FastEmbedder
+
+    e = FastEmbedder("BAAI/bge-small-en-v1.5", "")
+    assert e.name == "fastembed:BAAI/bge-small-en-v1.5" and e._model is None
+
+
+def test_a_lost_knowledge_store_is_rebuilt_even_though_the_markers_say_indexed(env):
+    """The chroma folder lost or restored from an older backup while the markers in the SQL store
+    survive (seen locally on 12 Oct 2026: a run found 0 chunks). Files and zip members with text
+    are indexed again from their cached parse."""
+    import zipfile
+
+    folder = add_key_documents(make_job_folder(env.drive_root, "acme"))
+    with zipfile.ZipFile(folder / "Pack.zip", "w") as z:
+        z.writestr("Pack/Notes.txt", "Owner notes: the ASB loan was refinanced in October.\n")
+    env.pm.add_job("1", "client-acme", "acme")
+    env.run("1")
+    scope = Scope.of(env.pm.jobs["1"])
+    before = get_knowledge().file_ids(scope)
+    assert any("Pack.zip!" in f for f in before)
+    get_knowledge().delete([c["id"] for c in get_knowledge().get(scope)])  # the markers stay
+    env.run("1")
+    assert get_knowledge().file_ids(scope) == before

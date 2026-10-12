@@ -19,6 +19,7 @@ from typing import Iterable
 import numpy as np
 
 from .config import get_settings
+from .embeddings import get_embedder
 
 SOURCE_TYPES = ("document", "assumption", "finding", "feedback", "skill", "answer")
 # From narrowest to widest. A search starts at one level and may widen; documents stop at vendor.
@@ -107,7 +108,8 @@ class Knowledge:
             ids=[e["id"] for e in entries],
             documents=[e["text"] for e in entries],
             embeddings=[np.asarray(e["embedding"], dtype=np.float32).tolist() for e in entries],
-            metadatas=[_clean_meta({**e.get("meta", {}), **scope.tags(), "source_type": source_type}) for e in entries],
+            metadatas=[_clean_meta({**e.get("meta", {}), **scope.tags(), "source_type": source_type, "embedder": get_embedder().name})
+                       for e in entries],
         )
 
     def replace_file(self, scope: Scope, file_id: str, rows: list[dict]) -> None:
@@ -175,6 +177,12 @@ class Knowledge:
         """Entries by their tags alone, no meaning involved (e.g. every assumption on a task)."""
         res = self.col.get(where=where_for(scope, level, source_types, **filters), limit=limit, include=["documents", "metadatas"])
         return [self._entry(i, t, m) for i, t, m in zip(res["ids"], res["documents"], res["metadatas"])]
+
+    def file_ids(self, scope: Scope) -> set[str]:
+        """The files whose chunks this task holds: what is really in the store, whatever a marker
+        elsewhere says (the folder may have been restored from an older backup)."""
+        res = self.col.get(where=where_for(scope, "task", ["document"]), include=["metadatas"])
+        return {m.get("file_id") for m in res["metadatas"]}
 
     def count(self, scope: Scope, level: str = "task", source_types: Iterable[str] = ("document",), **filters) -> int:
         return len(self.col.get(where=where_for(scope, level, source_types, **filters), include=[])["ids"])

@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     # --- indexing --------------------------------------------------------------------------
     embedder: str = "hash"  # "hash" (built in, no download) | "fastembed" (local ONNX model)
     fastembed_model: str = "BAAI/bge-small-en-v1.5"
+    fastembed_cache: str = ""  # where the model files are; empty: fastembed's own default
     embedding_dim: int = 384
     parser_version: str = "p2"  # p2: emails, images and scans are read
     chunk_tokens: int = 450

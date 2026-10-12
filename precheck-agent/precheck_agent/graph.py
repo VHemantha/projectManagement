@@ -54,6 +54,15 @@ def _index_marker() -> str:
     return f"{KNOWLEDGE_VERSION}:{get_embedder().name}"
 
 
+def _needs_index(cache, client_id: str, job_id: str, row: dict | None, file_id: str, in_store: set[str]) -> bool:
+    """A file's chunks are missing from the knowledge store, or were made another way: index it
+    again from its cached parse. A file with text but no chunks in the store is missing whatever
+    the marker says (the store may have been restored from an older backup)."""
+    if cache.get_value(INDEXED_NS, _pending_key(client_id, job_id, file_id)) != _index_marker():
+        return True
+    return bool(row and row.get("n_blocks") and file_id not in in_store)
+
+
 def _pending_key(client_id: str, job_id: str, file_id: str) -> str:
     return sha(client_id, job_id, file_id)
 
@@ -133,12 +142,19 @@ def sync_drive(state: State) -> dict:
         raise PrecheckStop(str(exc)) from exc
     manifest = store.get_manifest(job["client_id"], state["job_id"])
     cache = StoreCache(store)
+    in_store = get_knowledge().file_ids(Scope.of(job))
+    # A zip's documents are rows of their own: the zip is opened again if any of them is missing.
+    members: dict[str, list[str]] = {}
+    for fid in manifest:
+        if container_of(fid) != fid:
+            members.setdefault(container_of(fid), []).append(fid)
     changed = [
         f["id"] for f in listing
         if f["id"] not in manifest or manifest[f["id"]]["version"] != f["version"] or manifest[f["id"]]["parser_version"] != s.parser_version
         or cache.get_value(PENDING_NS, _pending_key(job["client_id"], state["job_id"], f["id"]))
         # Not yet in the knowledge store, or embedded another way: indexed again from the cached parse.
-        or cache.get_value(INDEXED_NS, _pending_key(job["client_id"], state["job_id"], f["id"])) != _index_marker()
+        or _needs_index(cache, job["client_id"], state["job_id"], manifest.get(f["id"]), f["id"], in_store)
+        or any(_needs_index(cache, job["client_id"], state["job_id"], manifest[m], m, in_store) for m in members.get(f["id"], []))
     ]
     present = {f["id"] for f in listing}
     # A document inside a zip ("<zip id>!<path>") stays for as long as its zip is in the folder.
@@ -282,7 +298,7 @@ def _index_container(f: dict, drive, ctx: dict, before: dict) -> list[str]:
         keep.add(d["id"])
         old = before.get(d["id"])
         waiting = cache.get_value(PENDING_NS, _pending_key(client_id, job_id, d["id"]))
-        indexed = cache.get_value(INDEXED_NS, _pending_key(client_id, job_id, d["id"])) == _index_marker()
+        indexed = not _needs_index(cache, client_id, job_id, old, d["id"], ctx["in_store"])
         if d["id"] != f["id"] and old and old["version"] == d["version"] and old["parser_version"] == s.parser_version and not waiting and indexed:
             continue
         changed.append(d["id"])
@@ -313,7 +329,8 @@ def index(state: State) -> dict:
 
     store, drive, job = get_store(), get_drive(), state["job"]
     client_id, job_id = job["client_id"], state["job_id"]
-    ctx = {"client_id": client_id, "job_id": job_id, "run_id": state["run_id"], "usage": [], "skipped": [], "scope": Scope.of(job)}
+    ctx = {"client_id": client_id, "job_id": job_id, "run_id": state["run_id"], "usage": [], "skipped": [], "scope": Scope.of(job),
+           "in_store": get_knowledge().file_ids(Scope.of(job))}
     before = store.get_manifest(client_id, job_id)
     changed: list[str] = []
     for f in state["listing"]:
