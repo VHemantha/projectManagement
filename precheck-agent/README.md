@@ -1,11 +1,21 @@
 # precheck-agent
 
-The AI pre-check for AFIT Connect. A user presses **Run pre-check** on a task card; the agent
-reads the task's Google Drive folder and acts like the preparer starting the job: it checks the
-three documents nothing can start without, decides the client's business nature, and lists what
-is still needed to prepare this year's accounts, each item with its decision and the reason,
-plus a drafted email to the client. It never sends the email, never marks a task reviewed,
-never edits workpapers and never writes to Drive.
+The AI assistant for AFIT Connect's accountants, on every task card, in three tabs:
+
+- **Pre-check** — before the accounts are prepared: checks the three documents nothing can start
+  without, decides the client's business nature, and lists what is still needed, each with its
+  reason, plus a drafted email to the client.
+- **Review** — once the preparer has drafted the financial statements: reviews them round after
+  round against last year's signed statements, the documents received and the preparer's
+  assumptions and judgements; the reviewer responds to every finding, and only the reviewer
+  completes the review.
+- **Ask** — any question about the task, answered only from the task's own knowledge, with the
+  passages each answer rests on.
+
+Every correction a person makes teaches it: the AI drafts the correction as a rule (a learned
+skill) that applies from then on — to that client at once, more widely once a lead approves.
+It never sends an email, never marks a task reviewed, never edits workpapers and never writes
+to Drive.
 
 ## How it works
 
@@ -46,6 +56,51 @@ add one that was missed. The lesson applies to this client at once. "Apply to al
 this type" waits until a lead or admin approves it. Active lessons are given to the model on
 every run (L lines) and the result lists the lessons it applied. Nothing is trained.
 
+**The knowledge store (ChromaDB).** Everything the AI searches lives in ChromaDB, open source,
+embedded in this service, with its data in a folder on the server (`PRECHECK_CHROMA_PATH`, in the
+nightly backup): every document chunk, the preparer's assumptions, review findings, the
+reviewer's feedback and the learned rules. Every entry is tagged with where the task card sits —
+**team** (Workspace), **vendor** (Sub-workspace, the client), **project** and **task** — plus what it
+is (source type, document class, this year / last year). A search filters on those tags first,
+from the card's own place, and only then compares meaning among what is left; the filter is part
+of the query, never of a prompt. Documents never leave their vendor (code refuses a wider
+search); only learned rules may be shared across a team or the firm. Embeddings are made on the
+server by a small local model (`fastembed`, BAAI/bge-small-en-v1.5, about 180 MB, loaded on first
+use), so client text never leaves the server for indexing. Postgres in the PM application stays
+the record for everything people decide (finding status, responses, approvals, the audit trail);
+ChromaDB is kept in step with it on every run. A file counts as indexed only when its chunks are
+really in ChromaDB, so a lost or restored store is rebuilt from the cached parse (no image is
+read again).
+
+**The review** (`review.py`, `mode: "review"`, one Opus call per round). The draft statements are
+found in the folder (this year's financial statements) or where the task card says. The input:
+the draft line by line with its comparatives (S), this year's trial balance (T), last year's
+signed statements (F), the preparer's assumptions and judgements (A), passages from this year's
+documents found in the knowledge store for each assumption, each open finding and the largest
+lines (E), the questionnaire (Q), code checks (C — including each comparative against last year's
+signed statements), the files (D), earlier findings with the reviewer's responses (R) and the
+learned rules (L). Skills: `nz-fs-review` plus the business nature's. Code checks the answer:
+real sources only, a finding the reviewer closed is never raised again, unknown refs become new
+findings, figures not in the input or the skills are flagged. Findings keep one ref (R1, R2…)
+across rounds in the PM application; responses are agree, fixed, not an issue or wrong reason
+(the last two need a reason, which teaches the AI); a person can add something the AI missed.
+Each assumption gets a verdict: supported, challenged or needs evidence.
+
+**Ask** (`ask.py`, `POST /precheck/ask`, Sonnet). Retrieval: this task's tags first, narrowed by
+what the question names (last year / this year, bank, questionnaire, invoice, trial balance…),
+then meaning, then exact words — names, addresses, amounts and the words documents use (sold →
+Sale / Settlement) in their usual capitalisations; exact matches are always kept. Assumptions,
+findings, feedback and the learned rules that apply to the task are searched too. The answer
+cites only the passages given; code keeps real citations, flags amounts not in them, and an
+answer with nothing behind it is "partly answered", never "answered".
+
+**Learned skills** (`learn.py`, `POST /precheck/learn`, Sonnet). A correction — the pre-check's
+"Correct this", or in the review "not an issue", "wrong reason" or "something the AI missed" —
+becomes a lesson; the AI drafts it as a rule (when / do / why) without widening what the person
+said, and the note stays with it. Scope: this client (at once), this project, this workspace or
+all clients of the type (a lead or admin approves). Active rules reach the pre-check and the
+review as L lines and Ask through the knowledge store.
+
 | Where | What |
 |---|---|
 | `precheck_agent/graph.py` | the nodes |
@@ -53,10 +108,14 @@ every run (L lines) and the result lists the lessons it applied. Nothing is trai
 | `precheck_agent/precheck.py` | the input, the call, the checks on the answer, the email |
 | `precheck_agent/analysis.py` | what code works out from last year's accounts and this year's bank |
 | `precheck_agent/rules.py` | checks that need no model |
-| `precheck_agent/store.py` | manifest, chunks, exact-match caches (client and job are part of every key) |
-| `skills/` | the method and the three business natures, versioned with the code |
-| `../backend/apps/precheck` | run history, lessons, audit log in the PM application |
-| `../frontend/src/features/precheck` | the task card panel |
+| `precheck_agent/store.py` | manifest, parsed documents, exact-match caches (client and job are part of every key) |
+| `precheck_agent/knowledge.py` | the knowledge store (ChromaDB): tags, tag-filtered search, boundaries |
+| `precheck_agent/review.py` | the review: input, call, checks on the answer, knowledge kept in step |
+| `precheck_agent/ask.py` | Ask: retrieval (tags, meaning, exact words), the answer and its checks |
+| `precheck_agent/learn.py` | learned skills: corrections drafted as rules |
+| `skills/` | the pre-check method, the review method and the three business natures, versioned with the code |
+| `../backend/apps/precheck` | runs, assumptions, review findings and responses, questions, lessons, audit log |
+| `../frontend/src/features/precheck` | the task card's AI assistant (Pre-check, Review, Ask tabs) |
 
 **Drafting a Direction Note** stays available on request (`mode: "draft"` on
 `POST /precheck/runs`): one call to the drafting model from this client's past tasks and what
@@ -137,6 +196,14 @@ the answer is cached by an exact hash of the model, skills, lessons and input.
 ```bash
 python -m precheck_agent.measure --folder <Drive folder id> --client <client id>
 ```
+
+**Measured (12 Oct 2026).** A review round with Opus 5.5 on a small rental task with four
+planted errors: all four found and both assumptions challenged, 8,400 tokens in, 3,900 out,
+$0.11, 55 s; the next round resolved the fixed finding, kept the unfixed one under its ref and
+applied the learned rule instead of re-raising a closed finding ($0.07, 34 s). Ask on the real
+Landm folder (123 files, 887 chunks): $0.01–0.016 and 4–15 s per question; the sale price and
+settlement date were found and cited. Drafting a rule: under $0.003. Indexing that folder with
+the local search model: no model cost beyond the images read ($0.13 for its scans).
 
 ## Decisions
 
