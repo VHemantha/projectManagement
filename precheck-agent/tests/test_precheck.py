@@ -66,31 +66,45 @@ def ready_folder(env, name="smith", questionnaire=True, fs=True, workpapers=True
     return folder
 
 
-def test_without_the_questionnaire_the_precheck_stops_and_asks_for_it(env):
+def test_without_the_questionnaire_the_precheck_continues_and_asks_for_it_first(env):
+    """Nothing is required (AFIT, 13 Oct 2026): the pre-check works from what is there, tells the
+    model what is missing, and requests it first."""
     ready_folder(env, questionnaire=False)
     env.pm.add_job("1", "client-s", "smith", direction=[])
+    env.pm.jobs["1"]["client_name"] = "John and Kate Smith"
     result = env.run("1")
     p = result["precheck"]
-    assert result["status"] == "complete" and result["readiness"] == "Blocked" and result["verdict"] == "not_ready"
-    assert p["decision"]["state"] == "blocked" and "client questionnaire" in p["decision"]["reason"]
-    assert not env.precheck.calls  # nothing else is worked out without it
+    assert result["status"] == "complete" and len(env.precheck.calls) == 1  # it ran
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert body.startswith("KEY DOCUMENTS NOT IN THE FOLDER: client questionnaire. Continue with what is here.")
     found = {k["role"]: k for k in p["key_documents"]}
     assert not found["questionnaire"]["found"] and found["last_year_fs"]["found"] and found["last_year_workpapers"]["found"]
-    assert found["last_year_fs"]["files"][0]["name"].startswith("Smith 2025 Financial Statements - Signed.txt")
-    assert [r["item"] for r in p["requests"]] == ["Your completed client questionnaire for the year to 31 March 2026"]
-    email = p["email"]
-    assert "questionnaire" in email["body"] and "ask you once" in email["body"] and "2026" in email["subject"]
+    first = p["requests"][0]
+    assert (first["group"], first["item"], first["flags"]) == ("Key documents", "Your completed client questionnaire for the year to 31 March 2026", ["key_document"])
+    assert "ask you once" in first["reason"]
+    assert p["business_nature"] and p["decision"]["state"] == "requests" and p["decision"]["provisional"]
+    assert "Worked without client questionnaire" in p["decision"]["reason"]
+    assert p["email"]["body"].index("Key documents") < p["email"]["body"].index("Last year's accounts")  # asked first in the email
     assert result["trail"]["compared"]["label"].startswith("Key documents: client questionnaire missing")
 
 
-def test_last_years_statements_and_workpapers_are_needed_too(env):
-    ready_folder(env, fs=False, workpapers=False)
+def test_with_none_of_the_key_documents_it_still_runs(env):
+    ready_folder(env, questionnaire=False, fs=False, workpapers=False)
     env.pm.add_job("1", "client-s", "smith", direction=[])
     p = env.run("1")["precheck"]
-    assert p["decision"]["state"] == "blocked" and not env.precheck.calls
-    asked = " ".join(r["item"] for r in p["requests"])
-    assert "Last year's financial statements" in asked and "Last year's workpapers" in asked and "questionnaire" not in asked
+    assert len(env.precheck.calls) == 1
+    asked = [r["item"] for r in p["requests"] if "key_document" in r["flags"]]
+    assert len(asked) == 3 and "Last year's financial statements" in asked[1] and "Last year's workpapers" in asked[2]
     assert "closing balances" in p["email"]["body"] and "fixed assets, loans" in p["email"]["body"]
+
+
+def test_the_models_own_request_for_a_missing_key_document_is_not_repeated(env):
+    from precheck_agent import precheck as P
+
+    key = {"missing": ["questionnaire"], "wrong_place": [], "this_year": "the year to 31 March 2026", "last_year": "the year to 31 March 2025"}
+    assert P._asks_for_missing_key({"group": "Questionnaire", "item": "Completed year-end questionnaire for 2026"}, key)
+    assert not P._asks_for_missing_key({"group": "ANZ", "item": "Bank statements for March 2026"}, key)
+    assert not P._asks_for_missing_key({"group": "Questionnaire", "item": "x"}, {**key, "missing": []})
 
 
 def test_last_years_questionnaire_is_not_this_years(env):
@@ -253,11 +267,11 @@ def test_a_place_on_the_card_that_holds_nothing_is_corrected_not_asked_for(env):
     env.pm.add_job("1", "client-s", "smith", direction=[])
     env.pm.jobs["1"]["key_paths"] = {"last_year_fs": "Smith.zip/Smith/2024/Financial Statements.pdf"}
     p = env.run("1")["precheck"]
-    assert p["decision"]["state"] == "blocked" and not env.precheck.calls
-    assert "correct it on the task card" in p["decision"]["reason"] and "requested" not in p["decision"]["reason"]
+    assert len(env.precheck.calls) == 1  # it ran anyway
     fs = next(k for k in p["key_documents"] if k["role"] == "last_year_fs")
     assert not fs["found"] and "2024/Financial Statements.pdf" in fs["note"]
-    assert p["requests"] == [] and p["email"]["body"] == ""  # nothing to ask the client
+    assert not [r for r in p["requests"] if "key_document" in r["flags"]]  # the card is wrong: nothing to ask the client
+    assert p["preparer_notes"][0]["text"] == "Last year's financial statements: nothing is at the place the task card gives. Correct it on the task card."
 
 
 def test_drive_links_on_the_card():

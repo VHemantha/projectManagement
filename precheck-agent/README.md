@@ -25,14 +25,16 @@ gets a run id at once; progress and the result come back as events.
 `load_job -> sync_drive -> index -> run_rules -> key_documents -> [precheck] -> publish`
 
 1. **Key documents, by code.** This year's client questionnaire, last year's financial
-   statements and last year's workpapers (`keydocs.py`). If any is missing the run stops there:
-   the result is Blocked, and code drafts the email asking for what is missing, with the reason.
-   No model is called. Last year's questionnaire does not count as this year's.
+   statements and last year's workpapers (`keydocs.py`). None is required (13 Oct 2026): the
+   pre-check always continues with what is in the folder. A missing one is requested by code at
+   the top of the list and the email, with its reason; the model is told what is missing, says
+   where that leaves an item open, and does not request it again; the decision says the list is
+   provisional. Last year's questionnaire does not count as this year's.
    A person can say on the task card where each one is: a path inside the task folder (a file
    or a folder, zips included; folders above the task folder are ignored) or a Drive file or
    folder link, several separated by ";". That decides the document whatever its name or year.
-   A place that holds nothing blocks the run as a mistake to correct on the card, and the
-   client is not asked for it.
+   A place that holds nothing is a mistake to correct on the card: a note for the preparer, and
+   the client is not asked for it.
 2. **The pre-check, one Opus call** (`precheck.py`, `PRECHECK_PRECHECK_MODEL`, structured
    output). Its input is built by code, every line with an id: the questionnaire (Q), last
    year's statements (F) and trial balance (T), the workpapers (W), the files received (D),

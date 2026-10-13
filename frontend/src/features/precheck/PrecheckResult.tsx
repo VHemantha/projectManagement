@@ -152,11 +152,14 @@ function ItemRow({
         </div>
       )}
       <Sources sources={item.sources} output={output} />
-      {item.flags.map((f) => (
-        <span key={f} className={styles.flag}>
-          <AlertTriangle size={11} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
-        </span>
-      ))}
+      {item.flags.includes('key_document') && <span className={styles.muted}>Not in the folder: requested first.</span>}
+      {item.flags
+        .filter((f) => f !== 'key_document')
+        .map((f) => (
+          <span key={f} className={styles.flag}>
+            <AlertTriangle size={11} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
+          </span>
+        ))}
       {teaching && (
         <TeachForm
           jobKey={jobKey}

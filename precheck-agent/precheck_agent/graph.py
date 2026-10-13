@@ -391,8 +391,9 @@ def route_after_rules(state: State):
 # --- 5. key_documents (code) --------------------------------------------------------------------
 
 def key_documents(state: State) -> dict:
-    """This year's questionnaire, last year's financial statements, last year's workpapers. A
-    pre-check does not start without all three (AFIT, 5 Oct 2026)."""
+    """This year's questionnaire, last year's financial statements, last year's workpapers: found
+    by code. None is required (AFIT, 13 Oct 2026): the pre-check continues with what is there and
+    requests what is missing, at the top of the list."""
     docs = [{"file": state["files"][d["file"]["file_id"]], "parsed": d["parsed"]} for d in _docs(state["files"])]
     key = K.find(docs, state["periods"], state["job"].get("key_paths") or {}, state.get("folders") or {})
     # Every workpaper for the pre-check's input; the card shows a few per role.
@@ -406,9 +407,9 @@ def key_documents(state: State) -> dict:
 
 
 def route_after_key(state: State):
-    if state.get("mode") == "review":
-        return "review"  # a review does not wait for the pre-check's key documents
-    return "publish" if state["key"]["missing"] else "precheck"
+    # Nothing is required (AFIT, 13 Oct 2026): the pre-check works from whatever is in the folder
+    # and requests the key documents that are missing; a review works from the draft statements.
+    return "review" if state.get("mode") == "review" else "precheck"
 
 
 # --- 6. precheck (model: Opus, one call) -----------------------------------------------------------
@@ -558,41 +559,6 @@ def draft_directions(state: State) -> dict:
 
 # --- 7. publish (code) ------------------------------------------------------------------------
 
-def blocked_output(state: State) -> tuple[dict, dict]:
-    """A key document is missing: the decision, what was found, and the email asking for the rest."""
-    key, evidence = state["key"], {}
-
-    def ev(e):
-        evidence[e["id"]] = e
-        return e["id"]
-
-    def listed(roles):
-        names = [K.KEY[r]["label"].lower() for r in roles]
-        names = [n if n.startswith("last year") else f"this year's {n}" for n in names]
-        return " and ".join([", ".join(names[:-1]), names[-1]] if len(names) > 1 else names)
-
-    wrong = [r for r in key["missing"] if r in key.get("wrong_place", [])]
-    ask = [r for r in key["missing"] if r not in wrong]
-    reason = f"The pre-check cannot start without {listed(key['missing'])}."
-    if ask:
-        reason += (f" {'They have' if len(ask) > 1 else 'It has'} been requested{f' ({listed(ask)})' if wrong else ''}; run the "
-                   f"pre-check again once {'they arrive' if len(ask) > 1 else 'it arrives'}.")
-    if wrong:
-        reason += f" Nothing was found where the task card says {listed(wrong)} {'are' if len(wrong) > 1 else 'is'}: correct it on the task card."
-    out = {
-        "decision": {"state": "blocked", "label": "Blocked", "reason": reason},
-        "key_documents": P.key_views(key, ev),
-        "business_nature": None,
-        "requests": [{"group": "To start the pre-check", "item": K.KEY[r]["ask"].format(this_year=key["this_year"], last_year=key["last_year"]),
-                      "decision": "request", "reason": K.KEY[r]["why"], "sources": [], "documents": [], "flags": []} for r in ask],
-        "provided": [], "not_needed": [], "preparer_notes": [], "lessons_applied": [], "bank": [], "checks": [],
-        "email": K.request_email(state["job"].get("client_name", ""), key),
-        "how": "code",
-    }
-    out["evidence"] = {k: {f: e[f] for f in ("file_name", "location", "quote", "drive_url")} for k, e in evidence.items()}
-    return out, evidence
-
-
 VERDICT = {"blocked": "not_ready", "requests": "ready_with_exceptions", "nothing": "ready"}
 
 
@@ -647,10 +613,7 @@ def build_final(state: State) -> dict:
     s, job, run_id = get_settings(), state["job"], state["run_id"]
     if state.get("mode") == "review":
         return build_review_final(state)
-    if state.get("precheck"):
-        out = state["precheck"]
-    else:
-        out, _ = blocked_output(state)
+    out = state["precheck"]
     files, changed = state["files"], set(state["sync"]["changed"])
     ai_read = set(state.get("ai_read", []))
     calls = [u for u in state.get("usage", []) if u["run_id"] == run_id]

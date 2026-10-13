@@ -30,6 +30,7 @@ from .analysis import counterparties
 from .archives import display_name
 from .budget import usage_from_message
 from .config import Settings
+from . import keydocs as K
 from .evidence import evidence_from, file_evidence
 from .llm import get_model, model_id, stop_reason, text_of
 from .prompting import system_message
@@ -120,6 +121,11 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
     index: dict[str, dict] = {}
     out: list[str] = []
     fixed = job.get("precheck_type") if job.get("precheck_type") in TYPES else ""
+    missing = [K.KEY[r]["label"].lower() for r in key.get("missing", [])]
+    if missing:
+        out.append(f"KEY DOCUMENTS NOT IN THE FOLDER: {', '.join(missing)}. Continue with what is here. Code already requests "
+                   "them from the client: do not request them again. Where a missing document would decide an item, say so in its "
+                   "reason, and request what you can already see is needed.")
     out.append(f"TASK: client {job.get('client_name') or ''}; task {job.get('title') or ''}; this year {key['this_year']}; "
                f"last year {key['last_year']}; business nature fixed by AFIT: {TYPES[fixed] if fixed else 'no — decide it'}")
 
@@ -360,15 +366,50 @@ def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: st
         "bank": bank_views(facts),
         "checks": [{"label": c["label"], "passed": c["passed"], "detail": c["detail"]} for c in facts.get("checks", [])],
     }
+    key_requests, notes = key_document_requests(key)
+    out["requests"] = key_requests + [r for r in out["requests"] if not _asks_for_missing_key(r, key)]
+    out["preparer_notes"] = notes + out["preparer_notes"]
     requests = out["requests"]
+    missing = [K.KEY[r]["label"].lower() for r in key.get("missing", [])]
     out["decision"] = ({"state": "requests", "label": "Requests to send",
                         "reason": f"{len(requests)} item{'s are' if len(requests) != 1 else ' is'} still needed before this year's accounts can be prepared."}
                        if requests else
                        {"state": "nothing", "label": "Nothing to request",
                         "reason": "Everything this year's accounts need appears to have been received."})
+    if missing:
+        out["decision"]["reason"] += f" Worked without {' and '.join(missing)}: the list may grow once {'they arrive' if len(missing) > 1 else 'it arrives'}."
+        out["decision"]["provisional"] = True
     out["email"] = email(requests, client_name, key)
     out["evidence"] = {k: {f: e[f] for f in ("file_name", "location", "quote", "drive_url")} for k, e in evidence.items()}
     return out, evidence
+
+
+_KEY_WORDS = {
+    "questionnaire": r"questionnaire|year[\s-]*end checklist",
+    "last_year_fs": r"(last|prior|previous) year.{0,30}(financial statements|accounts)|(financial statements|accounts).{0,30}(last|prior|previous) year",
+    "last_year_workpapers": r"(last|prior|previous) year.{0,30}(workpapers?|working papers)|(workpapers?|working papers).{0,30}(last|prior|previous) year",
+}
+
+
+def key_document_requests(key: dict) -> tuple[list[dict], list[dict]]:
+    """(requests for the key documents that are missing, notes for the preparer). Requested by code,
+    first, each with its reason. A place set on the task card that holds nothing is the card's
+    mistake: a note to correct it, not a request to the client."""
+    requests, notes = [], []
+    for role in key.get("missing", []):
+        k = K.KEY[role]
+        if role in key.get("wrong_place", []):
+            notes.append({"text": f"{k['label']}: nothing is at the place the task card gives. Correct it on the task card.", "sources": []})
+            continue
+        requests.append({"group": "Key documents", "item": k["ask"].format(this_year=key["this_year"], last_year=key["last_year"]),
+                         "decision": "request", "reason": k["why"], "sources": [], "documents": [], "flags": ["key_document"]})
+    return requests, notes
+
+
+def _asks_for_missing_key(item: dict, key: dict) -> bool:
+    """The model asked for a key document code already requests: one request is enough."""
+    text = f"{item['group']} {item['item']}".lower()
+    return any(re.search(_KEY_WORDS[r], text) for r in key.get("missing", []) if r not in key.get("wrong_place", []))
 
 
 def key_views(key: dict, ev) -> list[dict]:

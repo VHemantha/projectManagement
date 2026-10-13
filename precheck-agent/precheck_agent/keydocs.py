@@ -5,8 +5,8 @@
 3. Last year's workpapers (trial balance, ledger, schedules, reconciliations): they show how last
    year's balances were built up.
 
-If any is missing the pre-check stops there and drafts one email asking for what is missing,
-with the reason for each (AFIT's rule, 5 Oct 2026). Documents inside zips and attached to emails
+None is required (AFIT, 13 Oct 2026): the pre-check works from what is there, and requests what
+is missing at the top of its list and email, each with its reason. Documents inside zips and attached to emails
 count: they are indexed as documents of their own.
 """
 import re
@@ -132,26 +132,6 @@ def find(docs: list[dict], periods: dict, paths: dict | None = None, folders: di
                     "files": sorted(files, key=lambda f: f["name"].lower())[:6], "files_all": files, "note": note})
     return {"documents": out, "missing": [d["role"] for d in out if not d["found"]], "wrong_place": wrong_place,
             "this_year": _fy(current), "last_year": _fy(prior) if prior else "last year"}
-
-
-def request_email(client_name: str, found: dict) -> dict:
-    """The email asking for the missing key documents, written by code: each with its reason."""
-    lines = []
-    for role in [r for r in found["missing"] if r not in found.get("wrong_place", [])]:
-        k = KEY[role]
-        ask = k["ask"].format(this_year=found["this_year"], last_year=found["last_year"])
-        lines.append(f"- {ask}. {k['why']}")
-    if not lines:
-        return {"subject": "", "body": ""}  # only the task card is wrong: nothing to ask the client
-    body = (
-        f"Hi {client_name or 'there'},\n\n"
-        f"We are getting ready to prepare your accounts for {found['this_year']}. Before we can work out "
-        f"everything we need from you, we need the following:\n\n"
-        + "\n".join(lines)
-        + "\n\nOnce we have these, we will send you one list of anything else we need, with the reason for each item.\n\n"
-        "Thank you,\nAFIT"
-    )
-    return {"subject": f"Information needed to start your accounts for {found['this_year']}", "body": body}
 
 
 def today() -> date:

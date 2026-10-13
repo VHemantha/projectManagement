@@ -95,4 +95,19 @@ describe('PrecheckResult', () => {
     expect(screen.queryByRole('button', { name: 'Something was missed' })).not.toBeInTheDocument()
     expect(screen.getByText('Your completed client questionnaire')).toBeInTheDocument()
   })
+
+  it('a missing key document is requested first, as a plain note rather than a warning', () => {
+    renderIt({
+      ...output,
+      decision: { state: 'requests', label: 'Requests to send', reason: '3 items are still needed. Worked without client questionnaire: the list may grow once it arrives.' },
+      requests: [
+        { group: 'Key documents', item: 'Your completed client questionnaire for the year to 31 March 2026', decision: 'request',
+          reason: 'It tells us what changed this year.', sources: [], documents: [], flags: ['key_document'] },
+        ...output.requests,
+      ],
+    })
+    expect(screen.getByText('Your completed client questionnaire for the year to 31 March 2026')).toBeInTheDocument()
+    expect(screen.getByText('Not in the folder: requested first.')).toBeInTheDocument()
+    expect(screen.queryByText(/key_document/)).not.toBeInTheDocument()
+  })
 })

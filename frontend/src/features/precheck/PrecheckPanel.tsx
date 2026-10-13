@@ -374,9 +374,9 @@ function NeverRun({ setup, button, onEdit }: { setup: PrecheckSetup; button: Rea
   return (
     <div className={styles.empty}>
       <p className={styles.lead}>
-        Not run yet. The pre-check first looks for this year&apos;s client questionnaire and last year&apos;s financial
-        statements and workpapers — without them it drafts a request for them. Then it lists everything still needed for
-        this year&apos;s accounts, with the reason for each, and drafts the email to the client.
+        Not run yet. The pre-check reads whatever is in the folder — this year&apos;s client questionnaire and last year&apos;s
+        financial statements and workpapers matter most, and any that are missing are requested first. It lists everything
+        still needed for this year&apos;s accounts, with the reason for each, and drafts the email to the client.
       </p>
       <div className={styles.actionsRow}>{button}</div>
       <SetupLine setup={setup} onEdit={onEdit} />

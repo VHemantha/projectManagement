@@ -227,7 +227,7 @@ describe('PrecheckPanel states', () => {
   it('no Direction Note: the pre-check still runs, and a person can ask for a draft to edit', async () => {
     mocks.data = panel(null, { ...setup, direction_items: [], missing: ['direction_note'] })
     const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
-    expect(screen.getByText(/first looks for this year.s client questionnaire/)).toBeInTheDocument()
+    expect(screen.getByText(/reads whatever is in the folder/)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Run pre-check' }))
     expect(mocks.start).toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
