@@ -227,6 +227,8 @@
 .topnav {
   height: var(--tf-topnav-height);
   background: var(--tf-surface);
+  /* The brand: a maroon stripe along the top. */
+  border-top: 3px solid var(--tf-primary);
   border-bottom: 1px solid var(--tf-border);
   display: flex;
   align-items: center;

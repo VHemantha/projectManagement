@@ -5,13 +5,13 @@
  */
 
 /** Generated avatar backgrounds: white initials pass WCAG AA on each. */
-export const AVATAR_COLORS = ['#6a3df0', '#1d4ed8', '#0f766e', '#c2410c', '#be185d', '#15803d', '#5b2fd6', '#b42318']
+export const AVATAR_COLORS = ['#800000', '#1d4ed8', '#0f766e', '#c2410c', '#be185d', '#15803d', '#5c0a0a', '#b42318']
 
 /** Solid accents (--tf-solid-*): column stripes, dots, card accents. */
 export const SOLID = {
-  grey: '#7a7891',
+  grey: '#857777',
   blue: '#3b6ff5',
-  violet: '#7b5cff',
+  violet: '#a3243b',
   orange: '#e2620c',
   pink: '#e0457b',
   green: '#1f9d63',
@@ -40,7 +40,7 @@ export function defaultColumnColor(name: string, index: number): string {
 }
 
 /** Light label backgrounds (dark text on each). */
-export const LABEL_COLORS = ['#ecebf2', '#efebff', '#dbeafe', '#ccfbf1', '#dcfce7', '#ffedd5', '#fce7f3', '#fef3c7']
+export const LABEL_COLORS = ['#f0ebeb', '#f8eaea', '#dbeafe', '#ccfbf1', '#dcfce7', '#ffedd5', '#fce7f3', '#fef3c7']
 
 /** Epics without their own colour. */
 export const DEFAULT_EPIC_COLOR = SOLID.violet
