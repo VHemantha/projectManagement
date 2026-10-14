@@ -302,7 +302,7 @@ export function CreateIssueModal() {
           {pickFromTasks ? (
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-summary">
-                Summary
+                Job Name
               </label>
               <select
                 id="ci-summary"
@@ -319,25 +319,25 @@ export function CreateIssueModal() {
                   }
                 }}
               >
-                <option value="">Select a task…</option>
+                <option value="">Select a job…</option>
                 {projectTasks.map((task) => (
                   <option key={task} value={task}>
                     {task}
                   </option>
                 ))}
-                <option value={CUSTOM_SUMMARY}>Custom summary…</option>
+                <option value={CUSTOM_SUMMARY}>Custom job name…</option>
               </select>
             </div>
           ) : (
             <div className={styles.field}>
               <Input
                 id="ci-summary"
-                label="Summary"
+                label="Job Name"
                 required
                 autoFocus
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
-                placeholder="What needs to be done?"
+                placeholder="e.g. Smith Rentals year end 2026"
               />
               {projectTasks.length > 0 && (
                 <button
@@ -348,7 +348,7 @@ export function CreateIssueModal() {
                     setSummary('')
                   }}
                 >
-                  Choose from {project?.name}&apos;s tasks instead
+                  Choose from {project?.name}&apos;s job names instead
                 </button>
               )}
             </div>

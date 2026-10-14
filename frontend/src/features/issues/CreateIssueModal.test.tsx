@@ -61,7 +61,7 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(screen.getByLabelText('Epic')).toHaveValue('42')
     expect(screen.getByLabelText('Assignee')).toHaveValue('6')
     expect(screen.getByText('In review')).toBeInTheDocument()
-    await userEvent.type(screen.getByLabelText(/Summary/), 'Rental property year end')
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'Rental property year end')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenCalledWith(
       expect.objectContaining({ project: 'SMITH', summary: 'Rental property year end', status_id: 7, epic_id: 42, assignee_id: 6 }),
@@ -75,7 +75,7 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(screen.getByLabelText('Workspace')).toHaveValue('4')
     expect(screen.getByLabelText('Sub-workspace')).toHaveValue('20')
     expect(screen.getByLabelText('Project')).toHaveValue('JONES')
-    await userEvent.type(screen.getByLabelText(/Summary/), 'GST return')
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ project: 'JONES', status_category: 'in_progress' }), expect.anything())
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('status_id')
@@ -85,7 +85,7 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     mocks.defaults = { projectKey: 'SMITH', statusId: 7, columnName: 'In review' }
     render(<CreateIssueModal />)
     await userEvent.click(screen.getByRole('button', { name: 'Use the first column instead' }))
-    await userEvent.type(screen.getByLabelText(/Summary/), 'Something')
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'Something')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('status_id')
   })
