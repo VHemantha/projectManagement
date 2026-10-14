@@ -1,5 +1,5 @@
 import type { JSONContent } from '@tiptap/react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import styles from './CreateIssueModal.module.css'
 import { useClients } from '@/api/clients'
@@ -20,7 +20,7 @@ const CLIENT_JOBS = '__client_jobs__'
 
 export function CreateIssueModal() {
   const open = useUiStore((s) => s.createIssueOpen)
-  const defaultProjectKey = useUiStore((s) => s.createIssueDefaultProjectKey)
+  const defaults = useUiStore((s) => s.createIssueDefaults)
   const closeCreateIssue = useUiStore((s) => s.closeCreateIssue)
   const openIssueModal = useUiStore((s) => s.openIssueModal)
 
@@ -52,6 +52,8 @@ export function CreateIssueModal() {
   const [epicId, setEpicId] = useState('')
   const [labelIds, setLabelIds] = useState<number[]>([])
   const [createAnother, setCreateAnother] = useState(false)
+  // The board column it was created from (cleared if the person takes it off).
+  const [startColumn, setStartColumn] = useState<Pick<typeof defaults, 'statusId' | 'statusCategory' | 'columnName'> | null>(null)
 
   // Workspace + Sub-workspace narrow which projects are offered, cascading Workspace ->
   // Sub-workspace -> Project (the app's hierarchy);
@@ -87,12 +89,32 @@ export function CreateIssueModal() {
   // Assignee is restricted to the selected team's members once a team is chosen.
   const assigneeCandidates = selectedTeam ? selectedTeam.memberships.map((m) => m.user) : (users ?? [])
 
+  // Opening fills in what the page knows: the project, and from it (or from what was given) the
+  // workspace and sub-workspace; the board column's status; the swimlane's epic or assignee. Done
+  // once per opening, when projects and sub-workspaces have loaded, so later changes are the person's.
+  const filled = useRef(false)
   useEffect(() => {
-    const firstProject = (projects ?? []).find((p) => !p.is_client_workspace)
-    if (open && !projectKey && firstProject) {
-      setProjectKey(defaultProjectKey ?? firstProject.key)
+    if (!open) {
+      filled.current = false
+      return
     }
-  }, [open, projects, defaultProjectKey, projectKey])
+    if (filled.current || !projects || !clients) return
+    filled.current = true
+    const project = defaults.projectKey ? projects.find((p) => p.key === defaults.projectKey) : undefined
+    const clientIdWanted = defaults.clientId ?? project?.client?.id
+    const client = clientIdWanted != null ? clients.find((c) => c.id === clientIdWanted) : undefined
+    // With a project, its own workspace (the form offers a workspace's projects by their main
+    // workspace, so any other would drop the project); without one, what the page gave.
+    const team = project ? project.primary_team?.id : (defaults.teamId ?? client?.team_id ?? undefined)
+    setTeamId(team != null ? String(team) : '')
+    setClientId(client ? String(client.id) : '')
+    if (project?.is_client_workspace && client && !client.requires_projects) setProjectKey(CLIENT_JOBS)
+    else if (project) setProjectKey(project.key)
+    else setProjectKey((projects.find((p) => !p.is_client_workspace) ?? projects[0])?.key ?? '')
+    if (defaults.epicId) setEpicId(String(defaults.epicId))
+    if (defaults.assigneeId) setAssigneeId(String(defaults.assigneeId))
+    setStartColumn(defaults.statusId || defaults.statusCategory ? defaults : null)
+  }, [open, projects, clients, defaults])
 
   useEffect(() => {
     if (!projectChoices.includes(projectKey)) {
@@ -127,6 +149,7 @@ export function CreateIssueModal() {
 
   const handleClose = () => {
     closeCreateIssue()
+    setStartColumn(null)
     setProjectKey('')
     setTeamId('')
     setClientId('')
@@ -150,6 +173,10 @@ export function CreateIssueModal() {
         due_date: dueDate || null,
         epic_id: epicId ? Number(epicId) : null,
         label_ids: selectedLabelIds,
+        // The column it was created from. The server keeps it only if it is one of the chosen
+        // project's statuses, else takes that project's status in the same category.
+        ...(startColumn?.statusId ? { status_id: startColumn.statusId } : {}),
+        ...(startColumn?.statusCategory ? { status_category: startColumn.statusCategory } : {}),
       },
       {
         onSuccess: (issue) => {
@@ -262,6 +289,15 @@ export function CreateIssueModal() {
               </select>
             </div>
           </div>
+
+          {startColumn && (
+            <p className={styles.fieldHint}>
+              Starts in <strong>{startColumn.columnName ?? 'the column you chose'}</strong>.{' '}
+              <button type="button" className={styles.linkButton} onClick={() => setStartColumn(null)}>
+                Use the first column instead
+              </button>
+            </p>
+          )}
 
           {pickFromTasks ? (
             <div className={styles.field}>

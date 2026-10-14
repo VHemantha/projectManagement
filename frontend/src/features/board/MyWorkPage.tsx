@@ -1,13 +1,16 @@
 import { useMemo } from 'react'
 
 import { useCrossProjectBoard } from './crossProjectBoard'
+import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { useIssues, useMoveIssue } from '@/api/issues'
 import { useAuthStore } from '@/store/authStore'
+import { useUiStore } from '@/store/uiStore'
 
 export function MyWorkPage() {
   const currentUser = useAuthStore((s) => s.user)
   const moveIssue = useMoveIssue()
+  const openCreateIssue = useUiStore((s) => s.openCreateIssue)
 
   const { data: issuesPage, isLoading } = useIssues(
     {
@@ -31,6 +34,8 @@ export function MyWorkPage() {
       defaultSwimlaneMode="project"
       availableSwimlanes={['none', 'project']}
       emptyMessage="Nothing assigned to you yet."
+      // My work: the new task is mine.
+      onCreateIssue={(ctx) => openCreateIssue({ ...defaultsFromColumn(ctx), assigneeId: currentUser?.id })}
       onMoveIssue={({ issue, column, beforeId, afterId }) => {
         const statusId = board.resolveStatus(issue, column)
         if (statusId === null) return

@@ -219,3 +219,26 @@ def test_issue_list_honours_page_size(api_client, project, task_type):
     resp = api_client.get("/api/issues/", {"project": "TST", "page_size": 300})
     assert resp.data["count"] == 55
     assert len(resp.data["results"]) == 55  # was silently capped at PAGE_SIZE (50)
+
+
+def test_a_task_created_from_a_board_column_starts_in_that_column(api_client, project, task_type, user):
+    """Create from a Kanban column: the column's status (same project) or its category (a board
+    that spans projects) decides where the task starts - always one of its own project's statuses."""
+    done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
+    resp = api_client.post("/api/issues/", {"project": "TST", "summary": "In done", "issue_type_id": task_type.id, "status_id": done.id}, format="json")
+    assert resp.status_code == 201 and resp.data["status"]["name"] == "Done"
+
+    resp = api_client.post("/api/issues/", {"project": "TST", "summary": "By category", "issue_type_id": task_type.id, "status_category": "done"}, format="json")
+    assert resp.status_code == 201 and resp.data["status"]["name"] == "Done"
+
+    # A status from another project's workflow is never used: the same category here instead.
+    other = Project.objects.create(organization=project.organization, key="OTH", name="Other", lead=user)
+    other_wf = Workflow.objects.create(project=other)
+    foreign_done = WorkflowStatus.objects.create(workflow=other_wf, name="Finished", category="done", order=0)
+    resp = api_client.post("/api/issues/", {"project": "TST", "summary": "Foreign", "issue_type_id": task_type.id, "status_id": foreign_done.id}, format="json")
+    assert resp.status_code == 201 and resp.data["status"]["name"] == "Done"
+    assert Issue.objects.get(key=resp.data["key"]).status.workflow.project_id == project.id
+
+    # A category this workflow has no status for: the default first column.
+    resp = api_client.post("/api/issues/", {"project": "TST", "summary": "No such", "issue_type_id": task_type.id, "status_category": "in_progress"}, format="json")
+    assert resp.status_code == 201 and resp.data["status"]["name"] == "To do"

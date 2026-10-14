@@ -4,11 +4,13 @@ import { useSearchParams } from 'react-router-dom'
 
 import styles from './AllIssuesBoardPage.module.css'
 import { useCrossProjectBoard } from './crossProjectBoard'
+import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { useClients } from '@/api/clients'
 import { useIssues, useMoveIssue } from '@/api/issues'
 import { useTeams } from '@/api/teams'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
+import { useUiStore } from '@/store/uiStore'
 
 const PAGE_SIZE = 300
 const NONE = 'none'
@@ -25,6 +27,12 @@ export function AllIssuesBoardPage() {
   const clientId = searchParams.get('client') ?? ''
   const noTeam = searchParams.get('no_team') === 'true'
   const noClient = searchParams.get('no_client') === 'true'
+  const openCreateIssue = useUiStore((s) => s.openCreateIssue)
+  // The board's filters are what it knows about a new task: its workspace and sub-workspace.
+  const filterDefaults = {
+    ...(teamId && !noTeam ? { teamId: Number(teamId) } : {}),
+    ...(clientId && !noClient ? { clientId: Number(clientId) } : {}),
+  }
   // Set by the tree's Team mode: that team's own projects only, not its sub-teams'.
   const excludeSubTeams = searchParams.get('exclude_sub_teams') === 'true'
   const { data: teams } = useTeams()
@@ -144,6 +152,7 @@ export function AllIssuesBoardPage() {
           defaultSwimlaneMode="project"
           availableSwimlanes={['none', 'project', 'assignee']}
           emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
+          onCreateIssue={(ctx) => openCreateIssue({ ...filterDefaults, ...defaultsFromColumn(ctx) })}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = board.resolveStatus(issue, column)
             if (statusId === null) return

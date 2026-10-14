@@ -1,11 +1,12 @@
 import { HelpCircle, Menu, Plus, Search } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import styles from './AppShell.module.css'
 import { GlobalTimerWidget } from './GlobalTimerWidget'
 import { useLogout } from '@/api/auth'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { useAuthStore } from '@/store/authStore'
+import { pageDefaults } from '@/features/issues/pageDefaults'
 import { useUiStore } from '@/store/uiStore'
 import {
   Avatar,
@@ -28,6 +29,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
   const logout = useLogout()
   const navigate = useNavigate()
   const openCreateIssue = useUiStore((s) => s.openCreateIssue)
+  const location = useLocation()
   const toggleQuickSearch = useUiStore((s) => s.toggleQuickSearch)
 
   return (
@@ -41,7 +43,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
           <button
             className={styles.iconBtn}
             style={{ background: 'var(--tf-primary)', color: 'var(--tf-text-inverse)', borderRadius: 'var(--tf-radius-md)', width: 'auto', padding: '0 12px', display: 'flex', gap: 4 }}
-            onClick={() => openCreateIssue()}
+            onClick={() => openCreateIssue(pageDefaults(location.pathname, location.search))}
           >
             <Plus size={16} />
             <span className={styles.createLabel} style={{ fontSize: 14, fontWeight: 500 }}>

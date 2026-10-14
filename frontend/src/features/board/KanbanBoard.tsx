@@ -11,7 +11,7 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 
 import styles from './KanbanBoard.module.css'
@@ -79,6 +79,17 @@ interface KanbanBoardProps {
     afterId: number | null
   }) => void
   emptyMessage?: string
+  /** When set, every column (in every swimlane) has a "+" that creates a task there: the page
+   * fills in what it knows (project, workspace, sub-workspace) and the column's status, plus the
+   * lane's epic or assignee. */
+  onCreateIssue?: (context: CreateContext) => void
+}
+
+/** Where on the board "+" was pressed. */
+export interface CreateContext {
+  column: BoardColumn
+  lane: Lane
+  swimlaneMode: SwimlaneMode
 }
 
 const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
@@ -109,6 +120,7 @@ export function KanbanBoard({
   onMoveIssue,
   onRenameColumn,
   emptyMessage = 'No tasks to show.',
+  onCreateIssue,
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
   const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
@@ -349,6 +361,7 @@ export function KanbanBoard({
               issuesById={issuesById}
               configFor={configFor}
               onRenameColumn={onRenameColumn}
+              onCreate={onCreateIssue && ((column) => onCreateIssue({ column, lane, swimlaneMode }))}
             />
           ))}
           <DragOverlay>
@@ -371,6 +384,7 @@ function BoardLane({
   issuesById,
   configFor,
   onRenameColumn,
+  onCreate,
 }: {
   lane: Lane
   columns: BoardColumn[]
@@ -380,6 +394,7 @@ function BoardLane({
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
   onRenameColumn?: (index: number, name: string) => Promise<unknown>
+  onCreate?: (column: BoardColumn) => void
 }) {
   return (
     <div className={styles.lane}>
@@ -418,6 +433,8 @@ function BoardLane({
               issuesById={issuesById}
               configFor={configFor}
               onRename={onRenameColumn && ((name) => onRenameColumn(colIndex, name))}
+              onCreate={onCreate && (() => onCreate(col))}
+              createLabel={`Create task in ${col.name}${lane.label ? ` (${lane.label})` : ''}`}
             />
           )
         })}
@@ -439,6 +456,8 @@ function BoardColumnView({
   issuesById,
   configFor,
   onRename,
+  onCreate,
+  createLabel,
 }: {
   containerId: string
   title: string
@@ -452,6 +471,8 @@ function BoardColumnView({
   issuesById: Record<number, IssueListItem>
   configFor: ConfigFor
   onRename?: (name: string) => Promise<unknown>
+  onCreate?: () => void
+  createLabel?: string
 }) {
   const { setNodeRef } = useDroppable({ id: containerId })
 
@@ -478,6 +499,20 @@ function BoardColumnView({
               {count}
               {wipLimit != null ? ` / ${wipLimit}` : ''}
             </span>
+            {onCreate && (
+              <button
+                type="button"
+                className={styles.columnCreate}
+                aria-label={createLabel}
+                title={createLabel}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onCreate()
+                }}
+              >
+                <Plus size={13} aria-hidden="true" />
+              </button>
+            )}
           </>
         )}
       </div>

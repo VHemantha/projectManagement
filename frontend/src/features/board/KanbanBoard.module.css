@@ -132,6 +132,25 @@
 .columnCount {
   font-weight: 500;
 }
+.columnCreate {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: var(--tf-radius-sm);
+  background: transparent;
+  color: var(--tf-text-subtle);
+  cursor: pointer;
+}
+.columnCreate:hover,
+.columnCreate:focus-visible {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+}
+
 .columnCount.overLimit {
   color: var(--tf-danger);
   font-weight: 700;

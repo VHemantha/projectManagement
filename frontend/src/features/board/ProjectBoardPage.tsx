@@ -1,7 +1,8 @@
-import { Settings } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { useState } from 'react'
 
 import { useCanConfigureBoard } from './boardPermissions'
+import { defaultsFromColumn } from './createFromBoard'
 import { BoardSettingsPanel } from './BoardSettingsPanel'
 import { KanbanBoard } from './KanbanBoard'
 import { resolveDropStatusId } from './laneUtils'
@@ -13,9 +14,11 @@ import { useSprints } from '@/api/sprints'
 import { Button } from '@/design-system'
 import { useProjectContext } from '@/features/projects/useProjectContext'
 import { isScrumWorkspace } from '@/features/projects/workspaceTabs'
+import { useUiStore } from '@/store/uiStore'
 
 export function ProjectBoardPage() {
   const { project } = useProjectContext()
+  const openCreateIssue = useUiStore((s) => s.openCreateIssue)
   const { data: board, isLoading: boardLoading } = useProjectBoard(project.key)
   // With the Scrum feature off, Scrum workspaces show every job like a Kanban board.
   const isScrum = isScrumWorkspace(project)
@@ -73,13 +76,18 @@ export function ProjectBoardPage() {
         onRenameColumn={
           canConfigureBoard && board ? (index, name) => renameColumn.mutateAsync({ index, name }) : undefined
         }
+        onCreateIssue={(ctx) => openCreateIssue({ ...defaultsFromColumn(ctx), projectKey: project.key })}
         toolbarExtra={
-          canConfigureBoard &&
-          board && (
-            <Button variant="subtle" size="sm" onClick={() => setSettingsOpen(true)}>
-              <Settings size={14} /> Configure board
+          <>
+            <Button variant="primary" size="sm" onClick={() => openCreateIssue({ projectKey: project.key })}>
+              <Plus size={14} /> Create task
             </Button>
-          )
+            {canConfigureBoard && board && (
+              <Button variant="subtle" size="sm" onClick={() => setSettingsOpen(true)}>
+                <Settings size={14} /> Configure board
+              </Button>
+            )}
+          </>
         }
         onMoveIssue={({ issue, column, beforeId, afterId }) => {
           const statusId = resolveDropStatusId(issue, column)

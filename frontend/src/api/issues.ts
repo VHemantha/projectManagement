@@ -92,6 +92,8 @@ export interface CreateIssuePayload {
   issue_type_id: number
   description?: Record<string, unknown> | null
   status_id?: number
+  /** From a board column across projects: the server picks the project's status in this category. */
+  status_category?: 'todo' | 'in_progress' | 'done'
   priority?: string
   assignee_id?: number | null
   reporter_id?: number | null

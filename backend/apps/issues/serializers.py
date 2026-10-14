@@ -215,6 +215,9 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     status_id = serializers.PrimaryKeyRelatedField(
         source="status", queryset=WorkflowStatus.objects.all(), write_only=True, required=False
     )
+    # A new task created from a board column that spans projects (All issues, My work): the
+    # column's category, mapped to the chosen project's own status on create.
+    status_category = serializers.ChoiceField(choices=WorkflowStatus.Category.choices, write_only=True, required=False)
     assignee = UserSerializer(read_only=True)
     assignee_id = serializers.PrimaryKeyRelatedField(
         source="assignee", queryset=User.objects.all(), write_only=True, required=False, allow_null=True
@@ -287,6 +290,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "issue_type_id",
             "status",
             "status_id",
+            "status_category",
             "priority",
             "assignee",
             "assignee_id",
@@ -362,6 +366,30 @@ class IssueDetailSerializer(serializers.ModelSerializer):
                     {"project": f"Tasks in {client.name} must belong to one of its projects — choose a project."}
                 )
             attrs["project"] = get_or_create_client_workspace(client, self.context["request"].user)
+        category = attrs.pop("status_category", None)
+        if self.instance is None:
+            attrs = self._starting_status(attrs, category)
+        return attrs
+
+    @staticmethod
+    def _starting_status(attrs, category):
+        """A new task's status must be one of its project's own statuses. A status from a board
+        column of another project's workflow is replaced by this project's first status in the
+        same category (the board's column order first); with neither, the default applies."""
+        project = attrs["project"]
+        workflow = getattr(project, "workflow", None)
+        status = attrs.get("status")
+        if status is not None and (workflow is None or status.workflow_id != workflow.id):
+            category = category or status.category
+            attrs.pop("status")
+            status = None
+        if status is None and category and workflow is not None:
+            candidates = list(workflow.statuses.filter(category=category))
+            board = project.boards.order_by("id").first()
+            by_column = [sid for col in (board.column_config if board else []) or [] for sid in col.get("status_ids", [])]
+            candidates.sort(key=lambda s: (by_column.index(s.id) if s.id in by_column else len(by_column), s.order, s.id))
+            if candidates:
+                attrs["status"] = candidates[0]
         return attrs
 
     def get_components(self, obj):

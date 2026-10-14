@@ -196,4 +196,19 @@ describe('KanbanBoard', () => {
     expect(screen.getByText(/OPS \(1\)/)).toBeInTheDocument()
     expect(screen.getByText(/TRK \(1\)/)).toBeInTheDocument()
   })
+
+  it('creates a task from a column: the page is told which column and swimlane', async () => {
+    const onCreateIssue = vi.fn()
+    render(<KanbanBoard issues={[makeIssue({})]} columns={columns} onMoveIssue={vi.fn()} onCreateIssue={onCreateIssue} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Create task in In Progress' }))
+    expect(onCreateIssue).toHaveBeenCalledWith({ column: columns[1], lane: expect.objectContaining({ id: 'all' }), swimlaneMode: 'none' })
+    // Pressing + did not collapse the column (a collapsed column hides its button).
+    expect(screen.getByRole('button', { name: 'Create task in In Progress' })).toBeInTheDocument()
+  })
+
+  it('has no create button where the page does not allow it', () => {
+    render(<KanbanBoard issues={[]} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /Create task in/ })).not.toBeInTheDocument()
+  })
 })
+

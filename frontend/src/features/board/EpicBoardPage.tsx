@@ -1,13 +1,16 @@
 import { useParams } from 'react-router-dom'
 
+import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { resolveDropStatusId } from './laneUtils'
 import { useIssue, useIssues, useMoveIssue } from '@/api/issues'
 import { useProjectBoard } from '@/api/projects'
+import { useUiStore } from '@/store/uiStore'
 
 export function EpicBoardPage() {
   const { epicKey } = useParams<{ key: string; epicKey: string }>()
   const { data: epic } = useIssue(epicKey)
+  const openCreateIssue = useUiStore((s) => s.openCreateIssue)
   const { data: board, isLoading: boardLoading } = useProjectBoard(epic?.project)
   const moveIssue = useMoveIssue()
 
@@ -35,6 +38,7 @@ export function EpicBoardPage() {
           isLoading={boardLoading || issuesLoading}
           availableSwimlanes={['none', 'assignee']}
           emptyMessage="No tasks under this epic yet."
+          onCreateIssue={(ctx) => openCreateIssue({ ...defaultsFromColumn(ctx), projectKey: epic.project, epicId: epic.id })}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = resolveDropStatusId(issue, column)
             if (statusId === null) return
