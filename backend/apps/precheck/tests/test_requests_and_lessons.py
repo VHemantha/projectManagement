@@ -117,7 +117,7 @@ def test_a_person_says_where_the_key_documents_are_and_the_agent_is_told():
     r = api(pat).put(url, {"key_paths": {"questionnaire": " 2026/Client  Questionnaire.pdf ", "last_year_fs": "",
                                           "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}}, format="json")
     assert r.status_code == 200
-    assert r.data["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf", "last_year_fs": "", "draft_fs": "",
+    assert r.data["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf", "last_year_fs": "", "draft_fs": "", "general_ledger": "",
                                    "last_year_workpapers": "Archive.zip/2025/Workpapers; https://drive.google.com/file/d/abc/view"}
     payload = services.job_payload(Issue.objects.get(pk=issue.pk))
     assert payload["key_paths"] == {"questionnaire": "2026/Client Questionnaire.pdf",
@@ -139,3 +139,11 @@ def test_the_agent_is_told_the_cards_place_for_its_knowledge_tags():
     payload = services.job_payload(Issue.objects.get(pk=issue.pk))
     assert payload["team_id"] == f"team-{team.id}" and payload["project_id"] == f"project-{issue.project.id}"
     assert payload["client_id"] == f"client-{issue.project.client_id}" and payload["job_id"] == str(issue.id)
+
+
+def test_this_years_general_ledger_can_be_placed_on_the_card():
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    r = api(pat).put(f"/api/precheck/jobs/{issue.key}/setup/", {"key_paths": {"general_ledger": "2026/Xero General Ledger.xlsx"}}, format="json")
+    assert r.status_code == 200 and r.data["key_paths"]["general_ledger"] == "2026/Xero General Ledger.xlsx"
+    assert services.job_payload(Issue.objects.get(pk=issue.pk))["key_paths"] == {"general_ledger": "2026/Xero General Ledger.xlsx"}

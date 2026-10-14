@@ -43,7 +43,7 @@ TYPES = {"residential_rental": "Residential rental", "general": "General busines
 DECISIONS = ["request", "already_provided", "not_needed"]
 SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment"]
 SOURCE_KINDS = {"Q": "questionnaire", "F": "last_year_fs", "T": "last_year_tb", "W": "workpaper", "D": "document",
-                "B": "bank", "C": "check", "N": "direction", "R": "received"}
+                "B": "bank", "C": "check", "N": "direction", "R": "received", "G": "general_ledger"}
 
 SCHEMA = {
     "type": "object",
@@ -87,7 +87,7 @@ SCHEMA = {
 
 ANSWER = """Answer in the JSON shape given.
 - business_nature: the type, a one-sentence summary, your reasoning (at most 80 words) and the facts that drive what is needed, each with its sources.
-- items: everything this year's accounts need. decision: request, already_provided (list the D ids that provide it in "documents") or not_needed (say why). "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, C, N) the reason rests on.
+- items: everything this year's accounts need. decision: request, already_provided (list the D ids that provide it in "documents") or not_needed (say why). "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N) the reason rests on.
 - preparer_notes: points the preparer must decide or watch (tax positions, risks), each with sources.
 - lessons_applied: the L ids you applied.
 Never invent a figure, file or fact: use only what is in the input."""
@@ -173,6 +173,8 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
             continue
         if any(e["file"]["file_id"] == f["file_id"] for e in facts.get("exports", [])):
             continue
+        if any(a["file"]["file_id"] == f["file_id"] for a in facts.get("ledger", [])):
+            continue  # summarised below as G lines
         for b in parsed.get(f["file_id"], {}).get("blocks", [])[: caps.get("R_per_doc", 30)]:
             received.append((f"{_line(b['text'], 160)}  [{display_name(f)}, {b['loc']}]", {"kind": "received", "file": f, "block": b}))
     section("THIS YEAR'S DOCUMENTS (first lines of each)", "R", received, caps.get("R", 1200))
@@ -185,6 +187,24 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
         for m, cp in enumerate(counterparties(e), start=1):
             index[f"{bid}.{m}"] = {"kind": "counterparty", "export": e, "party": cp}
             out.append(f"{bid}.{m} | {cp['name']} | {cp['type']} | {cp['count']} payments | total {_fmt(cp['total'])}")
+    out.append("\n== THIS YEAR'S GENERAL LEDGER (summarised by code; optional) ==")
+    ledger = facts.get("ledger", [])
+    if not ledger:
+        out.append("(not provided)")
+    n_lines = 0
+    for n, acct in enumerate(ledger, start=1):
+        if n_lines >= caps.get("G", 250):
+            out.append(f"({len(ledger) - n + 1} more accounts not shown)")
+            break
+        gid = f"G{n}"
+        index[gid] = {"kind": "gl_account", "account": acct}
+        out.append(f"{gid} | {_line(acct['name'], 80)} | {len(acct['entries'])} entries | debits {_fmt(acct['debits'])} | credits {_fmt(acct['credits'])}")
+        n_lines += 1
+        big = sorted((e for e in acct["entries"] if abs(e["amount"]) >= settings.gl_entry_min), key=lambda e: -abs(e["amount"]))[:5]
+        for m, e in enumerate(big, start=1):
+            index[f"{gid}.{m}"] = {"kind": "gl_entry", "account": acct, "entry": e}
+            out.append(f"{gid}.{m} | {e['date']:%d %b %Y} | {_line(e['description'], 90)} | {_fmt(e['amount'])}")
+            n_lines += 1
     out.append("\n== CHECKS DONE BY CODE ==")
     for n, c in enumerate(facts.get("checks", []), start=1):
         index[f"C{n}"] = {"kind": "check", "check": c}
@@ -338,6 +358,13 @@ def _source_view(sid: str, index: dict, ev) -> dict:
         c = item["check"]
         first = next(((f, b) for f, b in c["evidence"] if b), None)
         return {"id": sid, "label": f"Check: {c['label']}", "evidence_id": ev(evidence_from(first[0], [first[1]])) if first else None}
+    if kind in ("gl_account", "gl_entry"):
+        a = item["account"]
+        row = item["entry"]["row"] if kind == "gl_entry" else a["row"]
+        block = _block_for(a["parsed"], a["table"], row)
+        label = (f"General ledger: {a['name']}" if kind == "gl_account" else
+                 f"General ledger: {a['name']}, {item['entry']['date']:%d %b %Y}, {_fmt(item['entry']['amount'])}")
+        return {"id": sid, "label": label, "evidence_id": ev(evidence_from(a["file"], [block])) if block else ev(file_evidence(a["file"]))}
     return {"id": sid, "label": f"Direction Note: {_line(item['text'], 90)}", "evidence_id": None}
 
 

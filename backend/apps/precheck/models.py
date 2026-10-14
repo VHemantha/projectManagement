@@ -36,8 +36,9 @@ PRECHECK_TYPES = [
 # The three documents a pre-check cannot start without. A person may say where each one is: a
 # path inside the task folder or a Drive link, several separated by ";".
 KEY_DOCUMENT_ROLES = ("questionnaire", "last_year_fs", "last_year_workpapers")
-# Other places a person can set on the card: this year's draft statements, for the review.
-CARD_PATH_ROLES = KEY_DOCUMENT_ROLES + ("draft_fs",)
+# Other places a person can set on the card: this year's draft statements (for the review) and
+# this year's general ledger (an optional pre-check input).
+CARD_PATH_ROLES = KEY_DOCUMENT_ROLES + ("draft_fs", "general_ledger")
 
 
 class JobFolder(models.Model):

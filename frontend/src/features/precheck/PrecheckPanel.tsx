@@ -253,7 +253,7 @@ function SetupForm({
       </label>
       <fieldset className={styles.keyPaths}>
         <legend>
-          <FolderSearch size={14} aria-hidden="true" /> Where the key documents are (optional)
+          <FolderSearch size={14} aria-hidden="true" /> Where the documents are (all optional)
         </legend>
         <small>
           A path inside the task folder (a file or a folder, zips included, e.g. 2025/Workpapers) or a Google Drive link.
@@ -345,12 +345,13 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
   )
 }
 
-const NO_PATHS: KeyPaths = { questionnaire: '', last_year_fs: '', last_year_workpapers: '', draft_fs: '' }
+const NO_PATHS: KeyPaths = { questionnaire: '', last_year_fs: '', last_year_workpapers: '', draft_fs: '', general_ledger: '' }
 
 const KEY_PATH_FIELDS: { role: keyof KeyPaths; label: string; placeholder: string }[] = [
   { role: 'questionnaire', label: "This year's client questionnaire", placeholder: '2026/Client Questionnaire 2026.pdf' },
   { role: 'last_year_fs', label: "Last year's financial statements", placeholder: '2025/Financial Statements 2025 - Signed.pdf' },
   { role: 'last_year_workpapers', label: "Last year's workpapers", placeholder: '2025/Workpapers' },
+  { role: 'general_ledger', label: "This year's general ledger details (optional)", placeholder: '2026/Xero General Ledger Detail.xlsx' },
   { role: 'draft_fs', label: "This year's draft financial statements (for the review)", placeholder: '2026/Draft Financial Statements.pdf' },
 ]
 

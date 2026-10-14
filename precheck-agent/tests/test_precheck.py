@@ -285,3 +285,55 @@ def test_drive_links_on_the_card():
                                       "https://drive.google.com/drive/folders/1Folder2025xx?usp=sharing\n"
                                       "https://drive.google.com/drive/folders/1NotInTheTask", folders)
     assert [f["name"] for f in files] == ["GL.xlsx", "TB.xlsx"] and unmatched == ["https://drive.google.com/drive/folders/1NotInTheTask"]
+
+
+GL_2026 = [
+    ["General Ledger Detail"], ["Smith Rentals Ltd"], ["For the period 1 April 2025 to 31 March 2026"], [],
+    ["Date", "Source", "Description", "Reference", "Debit", "Credit", "Running Balance"],
+    ["Repairs and Maintenance"],
+    [datetime(2025, 11, 14), "Spend Money", "Climate Heat Pumps - new heat pump", "", 6840, 0, 6840],
+    [datetime(2026, 1, 9), "Spend Money", "Plumber - blocked drain", "", 410, 0, 7250],
+    ["Total Repairs and Maintenance", "", "", "", 7250, 0, ""],
+    ["Net movement", "", "", "", 7250, 0, ""],
+    ["Rental Income"],
+    [datetime(2025, 4, 2), "Receive Money", "Barfoot & Thompson", "", 0, 2390, -2390],
+    ["Total Rental Income", "", "", "", 0, 2390, ""],
+]
+
+
+def test_this_years_general_ledger_is_an_optional_input_summarised_by_code(env):
+    folder = ready_folder(env)
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmp:
+        gl = Path(tmp) / "Smith GL 2026.xlsx"
+        write_xlsx(gl, {"General Ledger Detail": GL_2026})
+        with zipfile.ZipFile(folder / "Smith.zip", "a") as z:
+            z.write(gl, "Smith/2026/Smith GL 2026.xlsx")
+    env.pm.add_job("1", "client-s", "smith", direction=[])
+    env.run("1")
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "== THIS YEAR'S GENERAL LEDGER (summarised by code; optional) ==" in body
+    assert "G1 | Repairs and Maintenance | 2 entries | debits 7,250.00 | credits 0.00" in body
+    assert "G1.1 | 14 Nov 2025 | Spend Money Climate Heat Pumps - new heat pump | 6,840.00" in body
+    assert "blocked drain" not in body  # under $1,000: in the account's totals, not listed
+    assert "G2 | Rental Income | 1 entries | debits 0.00 | credits 2,390.00" in body
+    assert not [ln for ln in body.splitlines() if ln.startswith("R") and "Smith GL 2026.xlsx" in ln]  # not repeated as R lines
+
+    # A cited ledger line links to its row in the ledger.
+    from precheck_agent import precheck as P
+
+    index = {"G1.1": {"kind": "gl_entry", "account": {"name": "Repairs", "file": {"file_id": "x", "version": "1", "name": "GL.xlsx", "path": "", "web_url": ""},
+                                                       "parsed": {"blocks": []}, "table": "t", "row": 7},
+                      "entry": {"date": datetime(2025, 11, 14), "amount": 6840.0, "row": 7}}}
+    view = P._source_view("G1.1", index, lambda e: e["id"] if e else None)
+    assert view["label"] == "General ledger: Repairs, 14 Nov 2025, 6,840.00"
+
+
+def test_without_a_general_ledger_the_precheck_says_so_and_runs(env):
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[])
+    assert env.run("1")["status"] == "complete"
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "== THIS YEAR'S GENERAL LEDGER (summarised by code; optional) ==\n(not provided)" in body

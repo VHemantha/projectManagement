@@ -127,7 +127,7 @@ describe('PrecheckPanel states', () => {
         drive_folder_url: 'https://drive.google.com/drive/folders/xyz',
         direction_items: ['Agree bank', 'Check accruals'],
         precheck_type: 'residential_rental',
-        key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers', draft_fs: '' },
+        key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers', draft_fs: '', general_ledger: '' },
       },
       expect.anything(),
     )

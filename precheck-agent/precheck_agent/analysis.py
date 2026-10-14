@@ -310,3 +310,58 @@ def prepare(prior_docs: list[dict], current_docs: list[dict], periods: dict, set
     checks = run_checks(exports, prior_docs, all_prior_lines or prior_lines, start, end, today)
     return {"prior_lines": prior_lines, "all_prior_lines": all_prior_lines, "sources": sources,
             "exports": exports, "checks": checks, "start": start, "end": end}
+
+
+# --- this year's general ledger (optional) ------------------------------------------------------
+
+_GL_SKIP = ("total", "net movement", "opening balance", "closing balance", "balance brought forward", "balance carried forward")
+
+
+def ledger_accounts(doc: dict) -> list[dict]:
+    """The accounts of a general ledger detail report (Xero, MYOB and the like): a header row with
+    a date and debit/credit (or amount) columns, a row naming each account, then its entries;
+    "Total ..." and "Net movement" rows are left out. Each account: {name, entries, debits,
+    credits, file, parsed, table, row}; each entry: {date, description, amount (debit positive),
+    row}."""
+    out = []
+    for table in doc["parsed"]["tables"]:
+        rows = table["rows"]
+        header = None
+        for i, (_, cells) in enumerate(rows[:20]):
+            low = [str(c or "").strip().lower() for c in cells]
+            if "date" in low and (("debit" in low and "credit" in low) or "amount" in low):
+                header = (i, low)
+                break
+        if not header:
+            continue
+        start, low = header
+        find = lambda *names: next((low.index(n) for n in names if n in low), None)  # noqa: E731
+        c_date, c_dr, c_cr, c_amt = low.index("date"), find("debit"), find("credit"), find("amount", "net")
+        c_desc = find("description", "details", "particulars", "narration", "memo", "transaction")
+        c_src = find("source", "contact", "reference")
+        account = None
+        for row_no, cells in rows[start + 1:]:
+            filled = [c for c in cells if c not in (None, "")]
+            if not filled:
+                continue
+            first = str(cells[0] or "").strip()
+            if first.lower().startswith(_GL_SKIP):
+                continue
+            when = _as_date(cells[c_date]) if c_date < len(cells) else None
+            if when is None:
+                if len(filled) == 1 and isinstance(cells[0], str) and first:
+                    account = {"name": first, "entries": [], "debits": 0.0, "credits": 0.0, "file": doc["file"], "parsed": doc["parsed"],
+                               "table": table["name"], "row": row_no}
+                    out.append(account)
+                continue
+            if account is None:
+                continue
+            get = lambda i: to_number(cells[i]) if i is not None and i < len(cells) else None  # noqa: E731
+            dr, cr = get(c_dr) or 0.0, get(c_cr) or 0.0
+            amount = (dr - cr) if (c_dr is not None or c_cr is not None) else (get(c_amt) or 0.0)
+            desc = " ".join(str(cells[i]).strip() for i in (c_src, c_desc) if i is not None and i < len(cells) and str(cells[i] or "").strip())
+            account["entries"].append({"date": when, "description": desc[:120], "amount": round(amount, 2), "row": row_no})
+            account["debits"] += max(amount, 0.0)
+            account["credits"] += max(-amount, 0.0)
+    return [a for a in out if a["entries"]]
+

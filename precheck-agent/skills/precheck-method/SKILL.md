@@ -21,6 +21,10 @@ of finished work: you do not prepare the accounts, post entries or decide tax po
 - **D** items: every file received, with its kind and year. A file listed here has been received.
 - **R** lines: the first lines of each document received this year, so you can judge what a
   document actually covers (full year? every property? the right entity?).
+- **G** items (optional): this year's general ledger as summarised by code — each account with
+  its entries, debits and credits (G3), and its entries of $1,000 or more (G3.1). Use it to see
+  what has been coded so far: an expense recorded without an invoice or a manager statement, an
+  item over $1,000 that may be capital, an account last year had that has no entries yet.
 - **B** items: this year's bank exports as summarised by code (period covered, opening and closing
   balance, totals by payer and payee). **C** items: checks done by code.
 - **N** items: the task's Direction Note — the firm's own instructions for this task.

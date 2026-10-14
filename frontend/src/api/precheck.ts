@@ -170,6 +170,8 @@ export interface KeyPaths {
   last_year_workpapers: string
   /** This year's draft financial statements, for the review. */
   draft_fs?: string
+  /** This year's general ledger: an optional pre-check input. */
+  general_ledger?: string
 }
 
 export interface PrecheckSetup {

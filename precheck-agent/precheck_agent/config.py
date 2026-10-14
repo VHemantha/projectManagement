@@ -87,6 +87,7 @@ class Settings(BaseSettings):
     run_output_tokens: int = 24_000
 
     # --- last year's lines ---------------------------------------------------------------------
+    gl_entry_min: float = 1000.0  # ledger entries at least this large are listed one by one (the invoice threshold)
     analysis_min_amount: float = 250.0  # material lines (used for the bank account check)
 
     # --- rules -------------------------------------------------------------------------------

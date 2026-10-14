@@ -92,7 +92,7 @@ class JobSetupView(APIView):
         if "key_paths" in request.data:
             raw = request.data.get("key_paths")
             if not isinstance(raw, dict) or set(raw) - set(CARD_PATH_ROLES):
-                errors["key_paths"] = ["Give the questionnaire, last year's financial statements, last year's workpapers or this year's draft statements."]
+                errors["key_paths"] = ["Give the questionnaire, last year's financial statements, last year's workpapers, this year's draft statements or this year's general ledger."]
             else:
                 paths = {role: " ".join(str(raw.get(role) or "").split())[:MAX_KEY_PATH] for role in CARD_PATH_ROLES}
                 paths = {role: p for role, p in paths.items() if p}

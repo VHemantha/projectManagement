@@ -406,6 +406,18 @@ def key_documents(state: State) -> dict:
     return {"key": key}
 
 
+def this_years_ledger(docs: list[dict], job: dict, prior: list[dict], folders: dict) -> list[dict]:
+    """This year's general ledger, an optional input: where the task card says, or this year's
+    general ledger in the folder (never last year's, which is a workpaper)."""
+    on_card = ((job.get("key_paths") or {}).get("general_ledger") or "").strip()
+    if on_card:
+        ids = {f["file_id"] for f in K.placed(docs, on_card, folders)[0]}
+        return [d for d in docs if d["file"]["file_id"] in ids]
+    last_year = {d["file"]["file_id"] for d in prior}
+    return [d for d in docs if d["file"]["document_class"] == "general_ledger" and d["file"]["file_id"] not in last_year
+            and d["file"].get("year_role") in ("current", "unknown") and not d["file"].get("error")]
+
+
 def route_after_key(state: State):
     # Nothing is required (AFIT, 13 Oct 2026): the pre-check works from whatever is in the folder
     # and requests the key documents that are missing; a review works from the draft statements.
@@ -422,6 +434,7 @@ def precheck(state: State) -> dict:
     prior = [d for d in docs if d["file"].get("year_role") in ("prior", "older") or d["file"]["file_id"] in last_year_ids]
     current = [d for d in docs if d not in prior]
     facts = A.prepare(prior, current, state["periods"], s)
+    facts["ledger"] = [a for d in this_years_ledger(docs, job, prior, state.get("folders") or {}) for a in A.ledger_accounts(d)]
     facts["checks"] = facts["checks"] + [
         {"id": r["rule_id"], "label": r["title"] or r["label"], "passed": False, "detail": r["why"], "evidence": r["evidence_pairs"]}
         for r in state["rule_results"] if r["passed"] is False
