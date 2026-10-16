@@ -51,6 +51,9 @@ class JobFolder(models.Model):
     precheck_type = models.CharField(max_length=30, choices=PRECHECK_TYPES, default="auto")
     # {"questionnaire": "2026/Client Questionnaire.pdf", ...}: where each key document is. Empty: search the folder.
     key_paths = models.JSONField(default=dict, blank=True)
+    # Accountant-confirmed settings (general business and investment briefs, 16 Oct 2026):
+    # {"year_start", "year_end" (ISO dates), "xero_complete", "ird_access", "related_records" (yes|no|"")}.
+    accountant_settings = models.JSONField(default=dict, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -410,4 +413,19 @@ class AssistantQuestion(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class AccountantAnswer(models.Model):
+    """The accountant's answer to a pre-check question for the accountant (section B). Kept with
+    the task and given to every later run, so a settled question is not asked again."""
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="accountant_answers")
+    question = models.TextField(max_length=1000)
+    answer = models.TextField(max_length=2000)
+    run = models.ForeignKey(AIPrecheck, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    answered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    answered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["answered_at", "id"]
 

@@ -23,6 +23,8 @@ vi.mock('@/api/precheck', () => ({
   useSavePrecheckSetup: () => ({ mutate: mocks.save, isPending: false, isError: false }),
   useSetDisposition: () => ({ mutate: mocks.dispose, isPending: false }),
   useDraftDirections: () => ({ mutate: mocks.draft, isPending: false, isError: false }),
+  useAccountantAnswers: () => ({ data: { answers: [] } }),
+  useAnswerQuestion: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
   useLessons: () => ({ data: undefined }),
   useTeachLesson: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
   useSetLessonStatus: () => ({ mutate: vi.fn() }),
@@ -108,6 +110,23 @@ beforeEach(() => {
 })
 
 describe('PrecheckPanel states', () => {
+  it('general and investment tasks take the accountant-confirmed settings; rental tasks do not', async () => {
+    mocks.data = panel(null, { ...setup, precheck_type: 'general', settings: { year_start: '', year_end: '', xero_complete: '', ird_access: 'no', related_records: '' } })
+    const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
+    expect(screen.getByLabelText('The team has working IRD access for this entity')).toHaveValue('no')
+    await userEvent.type(screen.getByLabelText('Financial year ends'), '2026-06-30')
+    await userEvent.selectOptions(screen.getByLabelText("Xero holds the full year's bank transactions"), 'yes')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(mocks.save).toHaveBeenLastCalledWith(
+      expect.objectContaining({ settings: { year_start: '', year_end: '2026-06-30', xero_complete: 'yes', ird_access: 'no', related_records: '' } }),
+      expect.anything(),
+    )
+    await userEvent.selectOptions(screen.getByLabelText(/Pre-check type/), 'residential_rental')
+    expect(screen.queryByText(/Accountant-confirmed settings/)).not.toBeInTheDocument()
+    unmount()
+  })
+
   it('not set up: asks for the folder and the Direction Note instead of inventing them', async () => {
     mocks.data = panel(null, { ...setup, drive_folder_url: '', drive_folder_id: '', direction_items: [], missing: ['drive_folder', 'direction_note'], ready: false })
     render(<PrecheckPanel jobKey="ACME-1" />)
@@ -128,6 +147,7 @@ describe('PrecheckPanel states', () => {
         direction_items: ['Agree bank', 'Check accruals'],
         precheck_type: 'residential_rental',
         key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers', draft_fs: '', general_ledger: '' },
+        settings: { year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' },
       },
       expect.anything(),
     )
@@ -285,7 +305,7 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByText('Requests to send', { selector: 'div' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '1 of 3 needed items received' })).toBeInTheDocument()
     expect(screen.getByLabelText('Items')).toHaveTextContent('2 to request')
-    expect(screen.getByRole('heading', { name: 'Requests to send (2)' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Section A — Information required from the client (2)' })).toBeInTheDocument()
     expect(screen.queryByText('Nothing found that needs attention.')).not.toBeInTheDocument()
   })
 

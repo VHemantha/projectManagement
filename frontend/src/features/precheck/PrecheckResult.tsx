@@ -4,10 +4,13 @@ import { useState } from 'react'
 import styles from './PrecheckResult.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import {
+  type AccountantAnswer,
   type LessonKind,
   type PrecheckItem,
   type PrecheckOutput,
   type SourceRef,
+  useAccountantAnswers,
+  useAnswerQuestion,
   useLessons,
   useSetLessonStatus,
   useTeachLesson,
@@ -139,6 +142,7 @@ function ItemRow({
     <li className={styles.item}>
       <div className={styles.itemHead}>
         <span className={styles.itemTitle}>{item.item}</span>
+        {item.priority === 'blocking' && item.decision === 'request' && <span className={styles.blocking}>Blocks preparation</span>}
         {!teaching && (
           <button type="button" className={styles.teachButton} onClick={() => setTeaching(true)} aria-label={`Correct: ${item.item}`}>
             <GraduationCap size={13} aria-hidden="true" /> {taught ? 'Lesson saved' : 'Correct this'}
@@ -297,7 +301,7 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
       <section aria-labelledby="pc-requests">
         <div className={styles.sectionHead}>
           <h3 id="pc-requests" className={styles.sectionTitle}>
-            Requests to send ({output.requests.length})
+            Section A — Information required from the client ({output.requests.length})
           </h3>
           {nature && (
             <button type="button" className={styles.teachButton} onClick={() => setMissedOpen((v) => !v)}>
@@ -330,18 +334,27 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
         </details>
       )}
 
-      {output.preparer_notes.length > 0 && (
-        <section aria-labelledby="pc-notes">
+      {(output.preparer_notes.length > 0 || (output.accountant_questions?.length ?? 0) > 0) && (
+        <section aria-labelledby="pc-notes" className={styles.internal}>
           <h3 id="pc-notes" className={styles.sectionTitle}>
-            Notes for the preparer
+            Section B — Internal analysis and accountant questions
           </h3>
-          <ul className={styles.facts}>
-            {output.preparer_notes.map((n) => (
-              <li key={n.text}>
-                {n.text} <Sources sources={n.sources} output={output} />
-              </li>
-            ))}
-          </ul>
+          <p className={styles.muted}>For the team only: never sent to the client.</p>
+          {(output.accountant_questions?.length ?? 0) > 0 && (
+            <AccountantQuestions jobKey={jobKey} questions={output.accountant_questions!} output={output} />
+          )}
+          {output.preparer_notes.length > 0 && (
+            <>
+              <h4 className={styles.subTitle}>Notes for the preparer</h4>
+              <ul className={styles.facts}>
+                {output.preparer_notes.map((n) => (
+                  <li key={n.text}>
+                    {n.text} <Sources sources={n.sources} output={output} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
         </section>
       )}
 
@@ -367,3 +380,71 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
     </div>
   )
 }
+
+
+/** Questions the pre-check has for the accountant. An answer is kept with the task and given to
+ * every later run, so the question is not asked again. */
+function AccountantQuestions({ jobKey, questions, output }: { jobKey: string; questions: PrecheckItem[]; output: PrecheckOutput }) {
+  const { data } = useAccountantAnswers(jobKey)
+  const answers = data?.answers ?? []
+  return (
+    <>
+      <h4 className={styles.subTitle}>Questions for the accountant ({questions.length})</h4>
+      <ul className={styles.items}>
+        {questions.map((q) => (
+          <AccountantQuestion key={q.item} jobKey={jobKey} q={q} output={output}
+            answer={answers.filter((a) => a.question === q.item).at(-1)} />
+        ))}
+      </ul>
+    </>
+  )
+}
+
+function AccountantQuestion({ jobKey, q, output, answer }: { jobKey: string; q: PrecheckItem; output: PrecheckOutput; answer?: AccountantAnswer }) {
+  const save = useAnswerQuestion(jobKey)
+  const [text, setText] = useState('')
+  const [open, setOpen] = useState(false)
+  return (
+    <li className={styles.item}>
+      <div className={styles.itemHead}>
+        <span className={styles.itemTitle}>{q.item}</span>
+        {q.priority === 'blocking' && <span className={styles.blocking}>Blocks preparation</span>}
+        <span className={styles.muted}>{q.group}</span>
+      </div>
+      <p className={styles.reason}>{q.reason}</p>
+      <Sources sources={q.sources} output={output} />
+      {answer ? (
+        <p className={styles.answer}>
+          <strong>Answered by {answer.answered_by}:</strong> {answer.answer}
+        </p>
+      ) : open ? (
+        <form
+          className={styles.teachForm}
+          onSubmit={(e) => {
+            e.preventDefault()
+            save.mutate({ question: q.item, answer: text.trim() }, { onSuccess: () => setOpen(false) })
+          }}
+        >
+          <label className={styles.teachLabel}>
+            Your answer (the next pre-check will use it and not ask again)
+            <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} />
+          </label>
+          {save.isError && <p className={styles.flag}>{extractErrorMessage(save.error)}</p>}
+          <div className={styles.teachActions}>
+            <Button type="submit" size="sm" variant="primary" disabled={text.trim().length < 2 || save.isPending}>
+              Save answer
+            </Button>
+            <Button type="button" size="sm" variant="subtle" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <button type="button" className={styles.teachButton} onClick={() => setOpen(true)} aria-label={`Answer: ${q.item}`}>
+          Answer
+        </button>
+      )}
+    </li>
+  )
+}
+

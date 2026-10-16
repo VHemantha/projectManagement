@@ -12,12 +12,16 @@ const mocks = vi.hoisted(() => ({
   teach: vi.fn((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.()),
   setStatus: vi.fn(),
   lessons: undefined as unknown,
+  answers: [] as unknown[],
+  answer: vi.fn((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
 }))
 
 vi.mock('@/api/precheck', () => ({
   useLessons: () => ({ data: mocks.lessons }),
   useTeachLesson: () => ({ mutate: mocks.teach, isPending: false, isError: false }),
   useSetLessonStatus: () => ({ mutate: mocks.setStatus }),
+  useAccountantAnswers: () => ({ data: { answers: mocks.answers } }),
+  useAnswerQuestion: () => ({ mutate: mocks.answer, isPending: false, isError: false }),
 }))
 
 function renderIt(o: PrecheckOutput = output) {
@@ -33,6 +37,8 @@ describe('PrecheckResult', () => {
     mocks.teach.mockClear()
     mocks.setStatus.mockClear()
     mocks.lessons = undefined
+    mocks.answers = []
+    mocks.answer.mockClear()
   })
 
   it('shows the key documents, the business nature with its reasoning, and every request with its reason', () => {
@@ -43,7 +49,7 @@ describe('PrecheckResult', () => {
     expect(screen.getByRole('heading', { name: /Business nature: Residential rental/ })).toBeInTheDocument()
     expect(screen.getByText(/let through Barfoot & Thompson/)).toBeInTheDocument()
     expect(screen.getByText('The ASB loan was refinanced in October 2025.')).toBeInTheDocument()
-    const requests = screen.getByRole('heading', { name: 'Requests to send (2)' }).closest('section')!
+    const requests = screen.getByRole('heading', { name: 'Section A — Information required from the client (2)' }).closest('section')!
     expect(within(requests).getByRole('heading', { name: 'ASB loan' })).toBeInTheDocument()
     expect(within(requests).getByText(/old loan closing statement/)).toBeInTheDocument()
     expect(within(requests).getByText(/figure not found in the documents/)).toBeInTheDocument()
@@ -110,4 +116,29 @@ describe('PrecheckResult', () => {
     expect(screen.getByText('Not in the folder: requested first.')).toBeInTheDocument()
     expect(screen.queryByText(/key_document/)).not.toBeInTheDocument()
   })
+
+  it('section B holds the accountant questions, answered in place, apart from the client requests', async () => {
+    const question = { group: 'Related parties', item: "Does the firm prepare Smith Holdings' accounts?", decision: 'ask_accountant' as const,
+                       priority: 'blocking' as const, reason: 'Decides whether to ask the client.', sources: [], documents: [], flags: [] }
+    const blockingRequest = { ...output.requests[0], item: 'Year-end bank balance confirmation', priority: 'blocking' as const }
+    renderIt({ ...output, requests: [blockingRequest, ...output.requests.slice(1)], accountant_questions: [question] })
+    const b = screen.getByRole('heading', { name: 'Section B — Internal analysis and accountant questions' }).closest('section')!
+    expect(within(b).getByText("Does the firm prepare Smith Holdings' accounts?")).toBeInTheDocument()
+    expect(within(b).getByText('Interest is fully deductible from 1 April 2025.')).toBeInTheDocument()
+    const a = screen.getByRole('heading', { name: /Section A/ }).closest('section')!
+    expect(within(a).getByText('Blocks preparation')).toBeInTheDocument()
+    expect(within(a).queryByText(/Smith Holdings/)).not.toBeInTheDocument()
+    await userEvent.click(within(b).getByRole('button', { name: "Answer: Does the firm prepare Smith Holdings' accounts?" }))
+    await userEvent.type(within(b).getByLabelText(/Your answer/), 'Yes, we prepare them: use our file.')
+    await userEvent.click(within(b).getByRole('button', { name: 'Save answer' }))
+    expect(mocks.answer).toHaveBeenCalledWith({ question: "Does the firm prepare Smith Holdings' accounts?", answer: 'Yes, we prepare them: use our file.' }, expect.anything())
+  })
+
+  it('shows an earlier answer instead of asking again', () => {
+    mocks.answers = [{ id: 1, question: 'Is a dividend intended?', answer: 'No dividend this year.', answered_by: 'Rita', answered_at: '' }]
+    renderIt({ ...output, accountant_questions: [{ group: 'Dividends', item: 'Is a dividend intended?', decision: 'ask_accountant', reason: 'Paid last year.', sources: [], documents: [], flags: [] }] })
+    expect(screen.getByText(/Answered by Rita:/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Answer:/ })).not.toBeInTheDocument()
+  })
 })
+

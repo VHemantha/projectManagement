@@ -53,6 +53,19 @@ gets a run id at once; progress and the result come back as events.
    flagged; duplicates are removed. The decision (Requests to send / Ready) and the email are
    made by code from the checked list. Every source links to its place in the document.
 
+**General business and investment entities** follow AFIT's briefs of 16 Oct 2026
+(`nz-general-business`, `nz-investment`; the rental rules are unchanged). The result has two
+sections: **A — information required from the client** (requests, with gaps that block preparation
+first; the email is written from these only) and **B — internal analysis and accountant questions**
+(notes, and a decision `ask_accountant` that never reaches the client). The task card takes
+accountant-confirmed settings — the financial year, whether Xero holds the full year, IRD access,
+related entities' records held internally — given to the model as authoritative (not for rental
+tasks). Continuity: the accountant answers section B questions on the card; every later run gets
+those answers (M lines) and the previous run's requests (P lines), so it does not ask again and
+checks what has arrived. Real run on a general business (15 Oct 2026): IRD reports not requested
+because the team has access, an answered dividend question not repeated, the unconfirmed invoice rule
+raised for the accountant; $0.35, 75 s.
+
 **Teaching it.** On the task card a person can correct an item (not needed, wrong reason) or
 add one that was missed. The lesson applies to this client at once. "Apply to all clients of
 this type" waits until a lead or admin approves it. Active lessons are given to the model on

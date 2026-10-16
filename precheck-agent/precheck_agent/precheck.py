@@ -40,7 +40,10 @@ from .skills_loader import get_skill
 from .textutil import clip_words, est_tokens, sha, to_number
 
 TYPES = {"residential_rental": "Residential rental", "general": "General business", "investment": "Investment"}
-DECISIONS = ["request", "already_provided", "not_needed"]
+# ask_accountant: an internal question (uncertain applicability, Xero completeness, IRD access,
+# intended dividends...): section B, never sent to the client.
+DECISIONS = ["request", "already_provided", "not_needed", "ask_accountant"]
+PRIORITIES = ["blocking", "normal"]
 SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment"]
 SOURCE_KINDS = {"Q": "questionnaire", "F": "last_year_fs", "T": "last_year_tb", "W": "workpaper", "D": "document",
                 "B": "bank", "C": "check", "N": "direction", "R": "received", "G": "general_ledger"}
@@ -67,11 +70,12 @@ SCHEMA = {
         },
         "items": {"type": "array", "items": {
             "type": "object", "additionalProperties": False,
-            "required": ["group", "item", "decision", "reason", "sources", "documents"],
+            "required": ["group", "item", "decision", "priority", "reason", "sources", "documents"],
             "properties": {
                 "group": {"type": "string"},
                 "item": {"type": "string"},
                 "decision": {"type": "string", "enum": DECISIONS},
+                "priority": {"type": "string", "enum": PRIORITIES},
                 "reason": {"type": "string"},
                 "sources": {"type": "array", "items": {"type": "string"}},
                 "documents": {"type": "array", "items": {"type": "string"}},
@@ -87,8 +91,8 @@ SCHEMA = {
 
 ANSWER = """Answer in the JSON shape given.
 - business_nature: the type, a one-sentence summary, your reasoning (at most 80 words) and the facts that drive what is needed, each with its sources.
-- items: everything this year's accounts need. decision: request, already_provided (list the D ids that provide it in "documents") or not_needed (say why). "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N) the reason rests on.
-- preparer_notes: points the preparer must decide or watch (tax positions, risks), each with sources.
+- items: everything this year's accounts need. decision: request (missing or incomplete evidence: say which), already_provided (list the D ids that provide it in "documents"), not_needed (say why), or ask_accountant (an internal question for the accountant: uncertain applicability, something the team may hold internally; never sent to the client). "priority": blocking when the gap stops preparation, else normal. "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N, P, M) the reason rests on.
+- preparer_notes: the internal analysis (section B): what you understood, assumptions, doubts, conflicting documents, possible accounting or tax issues and matters for judgment, each with sources; facts apart from assumptions.
 - lessons_applied: the L ids you applied.
 Never invent a figure, file or fact: use only what is in the input."""
 
@@ -128,6 +132,10 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
                    "reason, and request what you can already see is needed.")
     out.append(f"TASK: client {job.get('client_name') or ''}; task {job.get('title') or ''}; this year {key['this_year']}; "
                f"last year {key['last_year']}; business nature fixed by AFIT: {TYPES[fixed] if fixed else 'no — decide it'}")
+    if fixed != "residential_rental":  # the general business and investment briefs; rental rules are unchanged
+        settings_line = accountant_settings(job.get("settings") or {})
+        if settings_line:
+            out.append(f"ACCOUNTANT-CONFIRMED SETTINGS (authoritative): {settings_line}")
 
     def section(title: str, prefix: str, rows: list[tuple[str, dict]], cap: int) -> None:
         out.append(f"\n== {title} ==")
@@ -209,6 +217,13 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
     for n, c in enumerate(facts.get("checks", []), start=1):
         index[f"C{n}"] = {"kind": "check", "check": c}
         out.append(f"C{n} | {c['label']} | {'passed' if c['passed'] else 'FAILED'} | {c['detail']}")
+    # Continuity: what was asked last time, and what the accountant has already answered.
+    section("REQUESTED IN THE PREVIOUS PRE-CHECK (check whether each has now arrived)", "P",
+            [(f"{_line(r.get('group', ''), 40)} | {_line(r.get('item', ''), 140)}", {"kind": "previous_request", "request": r})
+             for r in job.get("previous_requests") or []], 60)
+    section("ANSWERS FROM THE ACCOUNTANT (settled: do not ask again)", "M",
+            [(f"Q: {_line(a.get('question', ''), 200)} | A: {_line(a.get('answer', ''), 300)}", {"kind": "answer", "answer": a})
+             for a in job.get("accountant_answers") or []], 60)
     section("DIRECTION NOTE (the firm's instructions for this task)", "N",
             [(i["text"], {"kind": "direction", "text": i["text"]}) for i in job.get("direction_items", [])], 40)
     out.append("\n== LESSONS FROM EARLIER CORRECTIONS (apply each one that fits) ==")
@@ -220,6 +235,22 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
         out.append(f"{lid} | {where} | {lesson.get('kind', '')} | item: {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
     out.append("\n" + ANSWER)
     return "\n".join(out), index
+
+
+YES_NO = {"yes": "yes", "no": "no"}
+
+
+def accountant_settings(s: dict) -> str:
+    """The settings the accountant confirmed on the task card, as one line for the model."""
+    parts = []
+    if s.get("year_start") or s.get("year_end"):
+        parts.append(f"financial year {s.get('year_start') or '?'} to {s.get('year_end') or '?'}")
+    for key, label in (("xero_complete", "Xero holds the full year's bank transactions"),
+                       ("ird_access", "the team has working IRD access for this entity"),
+                       ("related_records", "related entities' records are held internally")):
+        if s.get(key) in YES_NO:
+            parts.append(f"{label}: {s[key]}")
+    return "; ".join(parts)
 
 
 def fit_input(build, settings: Settings) -> tuple[str, dict]:
@@ -306,6 +337,7 @@ def clean(raw: dict, index: dict, body: str, fixed_type: str = "") -> dict:
             continue
         seen.add(_norm(text))
         decision = it.get("decision") if it.get("decision") in DECISIONS else "request"
+        priority = it.get("priority") if it.get("priority") in PRIORITIES else "normal"
         documents = [d for d in valid(it.get("documents", [])) if index[d]["kind"] == "document"]
         sources = valid(it.get("sources", []))
         reason = clip_words(str(it.get("reason", "")), 60)
@@ -318,6 +350,7 @@ def clean(raw: dict, index: dict, body: str, fixed_type: str = "") -> dict:
         if not figures_ok(reason, known):
             flags.append("figure_not_in_documents")
         items.append({"group": clip_words(str(it.get("group", "")) or "General", 8), "item": text, "decision": decision,
+                      "priority": priority if decision == "request" else "normal",
                       "reason": reason, "sources": sources, "documents": documents, "flags": flags})
     notes = [{"text": clip_words(n.get("text", ""), 40), "sources": valid(n.get("sources", []))}
              for n in raw.get("preparer_notes", []) if n.get("text") and figures_ok(n.get("text", ""), known)][:10]
@@ -358,6 +391,10 @@ def _source_view(sid: str, index: dict, ev) -> dict:
         c = item["check"]
         first = next(((f, b) for f, b in c["evidence"] if b), None)
         return {"id": sid, "label": f"Check: {c['label']}", "evidence_id": ev(evidence_from(first[0], [first[1]])) if first else None}
+    if kind == "previous_request":
+        return {"id": sid, "label": f"Requested before: {_line(item['request'].get('item', ''), 80)}", "evidence_id": None}
+    if kind == "answer":
+        return {"id": sid, "label": f"Accountant's answer: {_line(item['answer'].get('answer', ''), 80)}", "evidence_id": None}
     if kind in ("gl_account", "gl_entry"):
         a = item["account"]
         row = item["entry"]["row"] if kind == "gl_entry" else a["row"]
@@ -388,13 +425,18 @@ def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: st
         "requests": [i for i in items if i["decision"] == "request"],
         "provided": [i for i in items if i["decision"] == "already_provided"],
         "not_needed": [i for i in items if i["decision"] == "not_needed"],
+        # Section B: questions for the accountant, never in the client email.
+        "accountant_questions": [i for i in items if i["decision"] == "ask_accountant"],
         "preparer_notes": [{**n, "sources": views(n["sources"])} for n in cleaned["preparer_notes"]],
         "lessons_applied": [{"id": lid, "text": index[lid]["lesson"].get("note") or index[lid]["lesson"].get("item", "")} for lid in cleaned["lessons_applied"]],
         "bank": bank_views(facts),
         "checks": [{"label": c["label"], "passed": c["passed"], "detail": c["detail"]} for c in facts.get("checks", [])],
     }
     key_requests, notes = key_document_requests(key)
-    out["requests"] = key_requests + [r for r in out["requests"] if not _asks_for_missing_key(r, key)]
+    model_requests = [r for r in out["requests"] if not _asks_for_missing_key(r, key)]
+    # Gaps that stop preparation first (the order within each kind is the model's).
+    model_requests.sort(key=lambda r: r.get("priority") != "blocking")
+    out["requests"] = key_requests + model_requests
     out["preparer_notes"] = notes + out["preparer_notes"]
     requests = out["requests"]
     missing = [K.KEY[r]["label"].lower() for r in key.get("missing", [])]
@@ -429,7 +471,7 @@ def key_document_requests(key: dict) -> tuple[list[dict], list[dict]]:
             notes.append({"text": f"{k['label']}: nothing is at the place the task card gives. Correct it on the task card.", "sources": []})
             continue
         requests.append({"group": "Key documents", "item": k["ask"].format(this_year=key["this_year"], last_year=key["last_year"]),
-                         "decision": "request", "reason": k["why"], "sources": [], "documents": [], "flags": ["key_document"]})
+                         "decision": "request", "priority": "blocking", "reason": k["why"], "sources": [], "documents": [], "flags": ["key_document"]})
     return requests, notes
 
 

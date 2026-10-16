@@ -396,6 +396,12 @@ def key_documents(state: State) -> dict:
     requests what is missing, at the top of the list."""
     docs = [{"file": state["files"][d["file"]["file_id"]], "parsed": d["parsed"]} for d in _docs(state["files"])]
     key = K.find(docs, state["periods"], state["job"].get("key_paths") or {}, state.get("folders") or {})
+    # A financial year the accountant confirmed names this year exactly (it may not end in March).
+    confirmed = (state["job"].get("settings") or {})
+    if confirmed.get("year_end"):
+        key["this_year"] = f"the year to {K.long_date(confirmed['year_end'])}"
+        if confirmed.get("year_start"):
+            key["this_year"] = f"the year {K.long_date(confirmed['year_start'])} to {K.long_date(confirmed['year_end'])}"
     # Every workpaper for the pre-check's input; the card shows a few per role.
     wp = next(k for k in key["documents"] if k["role"] == "last_year_workpapers")
     if wp["found"] and not wp["set_on_card"]:

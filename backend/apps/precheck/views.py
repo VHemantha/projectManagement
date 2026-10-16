@@ -98,6 +98,16 @@ class JobSetupView(APIView):
                 paths = {role: p for role, p in paths.items() if p}
                 if not JobFolder.objects.filter(issue=issue).update(key_paths=paths) and paths:
                     errors["key_paths"] = ["Link the task's Drive folder first."]
+        if "settings" in request.data:
+            raw = request.data.get("settings")
+            problem = _settings_problem(raw)
+            if problem:
+                errors["settings"] = [problem]
+            else:
+                clean = {k: str(raw.get(k) or "") for k in services.SETTING_KEYS}
+                clean = {k: v for k, v in clean.items() if v}
+                if not JobFolder.objects.filter(issue=issue).update(accountant_settings=clean) and clean:
+                    errors["settings"] = ["Link the task's Drive folder first."]
         if "direction_items" in request.data:
             items = request.data.get("direction_items")
             if not isinstance(items, list) or len(items) > MAX_DIRECTION_ITEMS:
@@ -113,6 +123,26 @@ class JobSetupView(APIView):
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
         issue = _job(request, key)
         return Response(services.setup_for(issue))
+
+
+def _settings_problem(raw) -> str:
+    from datetime import date
+
+    if not isinstance(raw, dict) or set(raw) - set(services.SETTING_KEYS):
+        return "Give the financial year, Xero completeness, IRD access and related records."
+    dates = {}
+    for k in ("year_start", "year_end"):
+        if raw.get(k):
+            try:
+                dates[k] = date.fromisoformat(str(raw[k]))
+            except ValueError:
+                return "Give the financial year's dates as dates."
+    if len(dates) == 2 and dates["year_start"] >= dates["year_end"]:
+        return "The financial year must start before it ends."
+    for k in ("xero_complete", "ird_access", "related_records"):
+        if raw.get(k) not in (None, "", "yes", "no"):
+            return "Answer yes, no or leave it unknown."
+    return ""
 
 
 class RunListView(APIView):
@@ -473,4 +503,28 @@ class JobAskView(APIView):
             return Response({"detail": "Link the task's Google Drive folder first."}, status=status.HTTP_400_BAD_REQUEST)
         q = services.ask_question(issue, request.user, question)
         return Response(services.question_dict(q), status=status.HTTP_201_CREATED)
+
+
+class AccountantAnswersView(APIView):
+    """GET /api/precheck/jobs/<key>/answers/ — the accountant's answers to pre-check questions.
+    POST {question, answer} — answer one; every later run is given it and does not ask again."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        return Response({"answers": [services.answer_dict(a) for a in issue.accountant_answers.select_related("answered_by")]})
+
+    def post(self, request, key):
+        from .models import AccountantAnswer
+
+        issue = _job(request, key)
+        question = " ".join(str(request.data.get("question") or "").split())[:1000]
+        answer = str(request.data.get("answer") or "").strip()[:2000]
+        if len(question) < 3 or len(answer) < 2:
+            return Response({"answer": ["Give the question and your answer."]}, status=status.HTTP_400_BAD_REQUEST)
+        latest = issue.prechecks.filter(kind=AIPrecheck.Kind.PRECHECK).order_by("-created_at").first()
+        a = AccountantAnswer.objects.create(issue=issue, question=question, answer=answer, run=latest, answered_by=request.user)
+        services._announce_issue(issue)
+        return Response(services.answer_dict(a), status=status.HTTP_201_CREATED)
 

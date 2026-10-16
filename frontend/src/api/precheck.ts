@@ -79,7 +79,9 @@ export interface SourceRef {
 export interface PrecheckItem {
   group: string
   item: string
-  decision: 'request' | 'already_provided' | 'not_needed'
+  decision: 'request' | 'already_provided' | 'not_needed' | 'ask_accountant'
+  /** "blocking": the gap stops preparation (asked first). */
+  priority?: 'blocking' | 'normal'
   reason: string
   sources: SourceRef[]
   documents: SourceRef[]
@@ -105,6 +107,8 @@ export interface PrecheckOutput {
   provided: PrecheckItem[]
   not_needed: PrecheckItem[]
   preparer_notes: { text: string; sources: SourceRef[] }[]
+  /** Section B: questions for the accountant (never in the client email). Runs before 16 Oct 2026 have none. */
+  accountant_questions?: PrecheckItem[]
   lessons_applied: { id: string; text: string }[]
   email: { subject: string; body: string }
   evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
@@ -174,6 +178,41 @@ export interface KeyPaths {
   general_ledger?: string
 }
 
+export type YesNoUnknown = 'yes' | 'no' | ''
+
+export interface AccountantSettings {
+  year_start: string
+  year_end: string
+  xero_complete: YesNoUnknown
+  ird_access: YesNoUnknown
+  related_records: YesNoUnknown
+}
+
+export interface AccountantAnswer {
+  id: number
+  question: string
+  answer: string
+  answered_by: string
+  answered_at: string
+}
+
+/** The accountant's answers to the pre-check's questions; every later run is given them. */
+export function useAccountantAnswers(jobKey: string) {
+  return useQuery({
+    queryKey: ['precheck', jobKey, 'answers'],
+    queryFn: async () => (await apiClient.get<{ answers: AccountantAnswer[] }>(`/precheck/jobs/${jobKey}/answers/`)).data,
+  })
+}
+
+export function useAnswerQuestion(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { question: string; answer: string }) =>
+      (await apiClient.post<AccountantAnswer>(`/precheck/jobs/${jobKey}/answers/`, body)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'answers'] }),
+  })
+}
+
 export interface PrecheckSetup {
   drive_folder_url: string
   drive_folder_id: string
@@ -181,6 +220,8 @@ export interface PrecheckSetup {
   precheck_type: PrecheckType
   precheck_types: { value: PrecheckType; label: string }[]
   key_paths?: KeyPaths
+  /** Settings the accountant confirmed (general business and investment). */
+  settings?: AccountantSettings
   direction_items: DirectionItem[]
   missing: ('drive_folder' | 'direction_note')[]
   /** True once the Drive folder is linked. With no Direction Note the AI drafts one first. */
@@ -241,6 +282,7 @@ export function useSavePrecheckSetup(jobKey: string) {
       direction_items?: string[]
       precheck_type?: PrecheckType
       key_paths?: KeyPaths
+      settings?: AccountantSettings
     }) =>
       (await apiClient.put<PrecheckSetup>(`/precheck/jobs/${jobKey}/setup/`, payload)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),

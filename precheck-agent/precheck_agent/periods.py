@@ -115,7 +115,9 @@ def assign_years(docs: list[dict], job: dict | None = None) -> dict:
         title_year = _fy(m.group(1) or m.group(2))
     candidates = received | ({max(finished) + 1} if finished else set())
     stated = max(questionnaires) if questionnaires and max(questionnaires) >= max(received) else None
-    current = title_year or stated or (max(candidates) if candidates else None)
+    year_end = ((job or {}).get("settings") or {}).get("year_end") or ""
+    confirmed = int(year_end[:4]) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", year_end) else None
+    current = confirmed or title_year or stated or (max(candidates) if candidates else None)
     prior = current - 1 if current else None
     for v in by_file.values():
         y = v["year"]

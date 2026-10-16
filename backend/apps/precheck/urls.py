@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    AccountantAnswersView,
     AssumptionDetailView,
     AssumptionListView,
     FindingDispositionView,
@@ -28,6 +29,7 @@ urlpatterns = [
     path("jobs/<str:key>/lessons/", JobLessonsView.as_view(), name="precheck-lessons"),
     path("lessons/<int:pk>/", LessonDetailView.as_view(), name="precheck-lesson"),
     path("jobs/<str:key>/ask/", JobAskView.as_view(), name="precheck-ask"),
+    path("jobs/<str:key>/answers/", AccountantAnswersView.as_view(), name="precheck-answers"),
     path("jobs/<str:key>/review/", JobReviewView.as_view(), name="precheck-review"),
     path("jobs/<str:key>/review/runs/", ReviewRunView.as_view(), name="precheck-review-runs"),
     path("jobs/<str:key>/review/missed/", ReviewMissedView.as_view(), name="precheck-review-missed"),

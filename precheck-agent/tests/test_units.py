@@ -24,7 +24,7 @@ def test_skills_in_agent_skills_format(env):
         assert skill.description and len(skill.description) < 400
         assert len(text.splitlines()) < 500
         assert "+" in skill.version
-    assert load_skill.invoke({"skill_name": "nz-investment"}).startswith("# Investment entity (NZ)")
+    assert load_skill.invoke({"skill_name": "nz-investment"}).startswith("# Investment entities (NZ)")
     assert "No skill named" in load_skill.invoke({"skill_name": "nope"})
 
 

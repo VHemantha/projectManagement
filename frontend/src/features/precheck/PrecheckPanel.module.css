@@ -945,3 +945,25 @@
 .requests > :first-child {
   align-self: flex-start;
 }
+
+.settingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tf-space-2);
+}
+@media (max-width: 560px) {
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.field select {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--tf-border);
+  border-radius: 8px;
+  background: var(--tf-surface);
+  font: inherit;
+  font-weight: 400;
+  color: var(--tf-text);
+}
+

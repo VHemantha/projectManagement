@@ -134,5 +134,14 @@ def find(docs: list[dict], periods: dict, paths: dict | None = None, folders: di
             "this_year": _fy(current), "last_year": _fy(prior) if prior else "last year"}
 
 
+def long_date(iso: str) -> str:
+    """"2026-03-31" -> "31 March 2026"."""
+    try:
+        d = date.fromisoformat(iso)
+    except ValueError:
+        return iso
+    return f"{d.day} {d:%B %Y}"
+
+
 def today() -> date:
     return date.today()

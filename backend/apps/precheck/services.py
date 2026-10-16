@@ -31,6 +31,21 @@ def client_scope(issue) -> str:
     return f"client-{project.client_id}" if project.client_id else f"workspace-{project.id}"
 
 
+SETTING_KEYS = ("year_start", "year_end", "xero_complete", "ird_access", "related_records")
+
+
+def previous_requests(issue) -> list[dict]:
+    """The requests of the last finished pre-check: the next one checks whether each has arrived."""
+    latest = issue.prechecks.filter(kind=AIPrecheck.Kind.PRECHECK, status__in=["complete", "partial"]).order_by("-created_at").first()
+    rows = ((latest.precheck or {}).get("requests") or []) if latest else []
+    return [{"group": r.get("group", ""), "item": r.get("item", "")} for r in rows if r.get("item")][:60]
+
+
+def answer_dict(a) -> dict:
+    return {"id": a.id, "question": a.question, "answer": a.answer, "answered_by": a.answered_by.display_name if a.answered_by else "",
+            "answered_at": a.answered_at}
+
+
 def team_scope(issue) -> str:
     """The Workspace (team) a task sits in: its client's team, else its project's main team."""
     project = issue.project
@@ -51,6 +66,7 @@ def setup_for(issue) -> dict:
         "drive_folder_id": folder.folder_id if folder else "",
         "precheck_type": folder.precheck_type if folder else "auto",
         "key_paths": {role: (folder.key_paths or {}).get(role, "") if folder else "" for role in CARD_PATH_ROLES},
+        "settings": {k: (folder.accountant_settings or {}).get(k, "") if folder else "" for k in SETTING_KEYS},
         "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES],
         "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,
@@ -173,6 +189,10 @@ def job_payload(issue) -> dict:
         "drive_folder_id": setup["drive_folder_id"],
         "precheck_type": setup["precheck_type"],
         "key_paths": {role: path for role, path in setup["key_paths"].items() if path},
+        "settings": {k: v for k, v in setup["settings"].items() if v},
+        # Continuity: what the last pre-check asked for, and what the accountant has answered.
+        "previous_requests": previous_requests(issue),
+        "accountant_answers": [{"question": a.question, "answer": a.answer} for a in issue.accountant_answers.all()[:60]],
         "lessons": lessons_for(issue),
         # For a review round: the preparer's assumptions and every finding with the reviewer's response.
         "review": review_record.payload(issue),

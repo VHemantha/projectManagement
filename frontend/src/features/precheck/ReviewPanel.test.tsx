@@ -20,6 +20,8 @@ vi.mock('@/api/precheck', () => ({
   useLessons: () => ({ data: mocks.lessons }),
   useSetLessonStatus: () => ({ mutate: mocks.setStatus }),
   useTeachLesson: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useAccountantAnswers: () => ({ data: { answers: [] } }),
+  useAnswerQuestion: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
 }))
 
 const mutation = (fn: unknown) => ({ mutate: fn, isPending: false, isError: false })

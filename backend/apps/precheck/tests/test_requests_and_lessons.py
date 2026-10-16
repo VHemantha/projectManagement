@@ -147,3 +147,27 @@ def test_this_years_general_ledger_can_be_placed_on_the_card():
     r = api(pat).put(f"/api/precheck/jobs/{issue.key}/setup/", {"key_paths": {"general_ledger": "2026/Xero General Ledger.xlsx"}}, format="json")
     assert r.status_code == 200 and r.data["key_paths"]["general_ledger"] == "2026/Xero General Ledger.xlsx"
     assert services.job_payload(Issue.objects.get(pk=issue.pk))["key_paths"] == {"general_ledger": "2026/Xero General Ledger.xlsx"}
+
+
+def test_accountant_settings_and_answers_reach_the_agent():
+    """General business and investment briefs: settings the accountant confirms, answers to the
+    pre-check's questions, and what was requested last time all go with every run."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    url = f"/api/precheck/jobs/{issue.key}/setup/"
+    good = {"year_start": "2025-07-01", "year_end": "2026-06-30", "xero_complete": "yes", "ird_access": "no", "related_records": ""}
+    r = api(pat).put(url, {"settings": good}, format="json")
+    assert r.status_code == 200 and r.data["settings"]["year_end"] == "2026-06-30" and r.data["settings"]["related_records"] == ""
+    assert api(pat).put(url, {"settings": {"year_start": "2026-06-30", "year_end": "2025-07-01"}}, format="json").status_code == 400
+    assert api(pat).put(url, {"settings": {"xero_complete": "maybe"}}, format="json").status_code == 400
+    assert api(pat).put(url, {"settings": {"vat": "yes"}}, format="json").status_code == 400
+
+    r = api(pat).post(f"/api/precheck/jobs/{issue.key}/answers/", {"question": "Is a dividend intended this year?", "answer": "No."}, format="json")
+    assert r.status_code == 201 and r.data["answered_by"] == "Pat"
+    assert api(pat).post(f"/api/precheck/jobs/{issue.key}/answers/", {"question": "x"}, format="json").status_code == 400
+
+    finished(issue, pat)  # a finished pre-check with requests
+    payload = services.job_payload(Issue.objects.get(pk=issue.pk))
+    assert payload["settings"] == {"year_start": "2025-07-01", "year_end": "2026-06-30", "xero_complete": "yes", "ird_access": "no"}
+    assert payload["accountant_answers"] == [{"question": "Is a dividend intended this year?", "answer": "No."}]
+    assert payload["previous_requests"] and all(r["item"] for r in payload["previous_requests"])

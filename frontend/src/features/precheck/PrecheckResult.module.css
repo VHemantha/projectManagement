@@ -262,3 +262,33 @@ a.source:hover {
   border-top: 1px solid var(--tf-border);
   padding-top: var(--tf-space-3);
 }
+
+.blocking {
+  border-radius: var(--tf-radius-full);
+  padding: 1px 8px;
+  font-size: var(--tf-font-size-sm);
+  font-weight: 600;
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+.internal {
+  border: 1px dashed var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-3);
+  background: var(--tf-surface-sunken);
+}
+.subTitle {
+  margin: var(--tf-space-3) 0 var(--tf-space-2);
+  font-size: var(--tf-font-size-base);
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.answer {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-success-bg);
+  color: var(--tf-text);
+  font-size: var(--tf-font-size-base);
+}
+

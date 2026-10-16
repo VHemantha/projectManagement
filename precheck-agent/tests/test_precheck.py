@@ -337,3 +337,44 @@ def test_without_a_general_ledger_the_precheck_says_so_and_runs(env):
     assert env.run("1")["status"] == "complete"
     body = env.precheck.calls[0]["messages"][-1].content
     assert "== THIS YEAR'S GENERAL LEDGER (summarised by code; optional) ==\n(not provided)" in body
+
+
+def test_general_and_investment_settings_answers_and_two_sections(env):
+    """AFIT briefs for general businesses and investment entities (16 Oct 2026): accountant-confirmed
+    settings, internal questions apart from client requests, blocking gaps first, and continuity."""
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[], precheck_type="general")
+    job = env.pm.jobs["1"]
+    job["settings"] = {"year_start": "2025-07-01", "year_end": "2026-06-30", "xero_complete": "yes", "ird_access": "no", "related_records": ""}
+    job["previous_requests"] = [{"group": "ANZ", "item": "Bank statements to 30 June 2026"}]
+    job["accountant_answers"] = [{"question": "Is a dividend intended this year?", "answer": "No dividend this year."}]
+    env.precheck = llm.set_fake("precheck", scripted({
+        "business_nature": {"type": "general", "summary": "A trading company.", "reasoning": "Q1.", "sources": ["Q1"], "facts": []},
+        "items": [
+            {"group": "Tax", "item": "IRD income summary report", "decision": "request", "priority": "normal", "reason": "No IRD access.", "sources": ["Q1"], "documents": []},
+            {"group": "ANZ", "item": "Year-end balance confirmation", "decision": "request", "priority": "blocking", "reason": "Xero is complete but the balance needs independent evidence.", "sources": ["P1"], "documents": []},
+            {"group": "Related parties", "item": "Does the firm prepare Smith Holdings' accounts?", "decision": "ask_accountant", "priority": "blocking", "reason": "Decides whether to ask the client.", "sources": ["M1"], "documents": []},
+        ],
+        "preparer_notes": [], "lessons_applied": [],
+    }))
+    p = env.run("1")["precheck"]
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert ("ACCOUNTANT-CONFIRMED SETTINGS (authoritative): financial year 2025-07-01 to 2026-06-30; Xero holds the full year's bank "
+            "transactions: yes; the team has working IRD access for this entity: no") in body
+    assert "this year the year 1 July 2025 to 30 June 2026" in body  # the confirmed year, not a guessed one ending in March
+    assert "P1 | ANZ | Bank statements to 30 June 2026" in body and "M1 | Q: Is a dividend intended this year? | A: No dividend this year." in body
+    assert [r["item"] for r in p["requests"]] == ["Year-end balance confirmation", "IRD income summary report"]  # blocking first
+    assert p["requests"][0]["priority"] == "blocking" and p["requests"][0]["sources"][0]["label"].startswith("Requested before:")
+    assert [q["item"] for q in p["accountant_questions"]] == ["Does the firm prepare Smith Holdings' accounts?"]
+    assert "Smith Holdings" not in p["email"]["body"]  # section B never reaches the client
+    system = env.precheck.calls[0]["messages"][0].content
+    assert "A valuation report alone is not enough" in system and "NZD 1,000 or more" in system
+
+
+def test_rental_tasks_keep_their_rules_and_get_no_settings_line(env):
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[], precheck_type="residential_rental")
+    env.pm.jobs["1"]["settings"] = {"xero_complete": "yes", "ird_access": "yes"}
+    env.run("1")
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "ACCOUNTANT-CONFIRMED SETTINGS" not in body

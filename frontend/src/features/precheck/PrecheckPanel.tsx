@@ -43,7 +43,9 @@ import {
   type DirectionItem,
   type Finding,
   type JobPrecheck,
+  type AccountantSettings,
   type KeyPaths,
+  type YesNoUnknown,
   type PrecheckSetup,
   type PrecheckType,
   type Run,
@@ -205,13 +207,14 @@ function SetupForm({
   const [precheckType, setPrecheckType] = useState<PrecheckType>(setup.precheck_type ?? 'general')
   const [items, setItems] = useState(setup.direction_items.map((i) => i.text).join('\n'))
   const [paths, setPaths] = useState<KeyPaths>({ ...NO_PATHS, ...setup.key_paths })
+  const [confirmed, setConfirmed] = useState<AccountantSettings>({ ...NO_SETTINGS, ...setup.settings })
   const lines = items.split('\n').map((l) => l.trim()).filter(Boolean)
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
     const keyPaths = Object.fromEntries(Object.entries(paths).map(([role, p]) => [role, p.trim()])) as unknown as KeyPaths
     save.mutate(
-      { drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType, key_paths: keyPaths },
+      { drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType, key_paths: keyPaths, settings: confirmed },
       { onSuccess: () => onDone?.() },
     )
   }
@@ -251,6 +254,7 @@ function SetupForm({
         </select>
         <small>{TYPE_HINTS[precheckType]}</small>
       </label>
+      {precheckType !== 'residential_rental' && <AccountantSettingsFields value={confirmed} onChange={setConfirmed} />}
       <fieldset className={styles.keyPaths}>
         <legend>
           <FolderSearch size={14} aria-hidden="true" /> Where the documents are (all optional)
@@ -342,6 +346,44 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+const NO_SETTINGS: AccountantSettings = { year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' }
+
+const YES_NO_FIELDS: { key: 'xero_complete' | 'ird_access' | 'related_records'; label: string }[] = [
+  { key: 'xero_complete', label: "Xero holds the full year's bank transactions" },
+  { key: 'ird_access', label: 'The team has working IRD access for this entity' },
+  { key: 'related_records', label: "Related entities' records are held internally" },
+]
+
+/** What the accountant confirms for a general business or investment pre-check: it stops the AI
+ * asking the client for what the team already has (AFIT briefs, 16 Oct 2026). */
+function AccountantSettingsFields({ value, onChange }: { value: AccountantSettings; onChange: (v: AccountantSettings) => void }) {
+  return (
+    <fieldset className={styles.keyPaths}>
+      <legend>Accountant-confirmed settings (general business and investment; optional)</legend>
+      <div className={styles.settingsGrid}>
+        <label className={styles.field}>
+          <span>Financial year starts</span>
+          <input type="date" value={value.year_start} onChange={(e) => onChange({ ...value, year_start: e.target.value })} />
+        </label>
+        <label className={styles.field}>
+          <span>Financial year ends</span>
+          <input type="date" value={value.year_end} onChange={(e) => onChange({ ...value, year_end: e.target.value })} />
+        </label>
+      </div>
+      {YES_NO_FIELDS.map(({ key, label }) => (
+        <label key={key} className={styles.field}>
+          <span>{label}</span>
+          <select value={value[key]} onChange={(e) => onChange({ ...value, [key]: e.target.value as YesNoUnknown })}>
+            <option value="">Not confirmed</option>
+            <option value="yes">Yes</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+      ))}
+    </fieldset>
   )
 }
 
