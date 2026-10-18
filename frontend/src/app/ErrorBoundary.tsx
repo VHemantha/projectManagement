@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('Unhandled error in TrackFlow UI:', error, info.componentStack)
+    console.error('Unhandled error in Loca UI:', error, info.componentStack)
   }
 
   render() {

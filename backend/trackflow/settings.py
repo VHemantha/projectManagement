@@ -189,8 +189,8 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "TrackFlow API",
-    "DESCRIPTION": "API for the TrackFlow Jira clone",
+    "TITLE": "Loca API",
+    "DESCRIPTION": "API for Loca",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
@@ -215,7 +215,7 @@ EMAIL_PORT = int(env("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "TrackFlow <no-reply@trackflow.local>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Loca <no-reply@trackflow.local>")
 # Base URL of the web app for links in emails (invitations). Empty: use the admin's browser origin.
 FRONTEND_URL = env("FRONTEND_URL", "")
 

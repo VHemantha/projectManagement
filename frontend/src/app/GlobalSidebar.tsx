@@ -55,11 +55,11 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
           the "Your work" landing page (/), the way the Jira/Atlassian logo does. */}
       <Tooltip label="Home" side="right">
         <Link to="/" className={styles.sidebarHeader} aria-label="Go to home">
-          {/* TrackFlow brand mark (the same SVG used as the browser favicon). */}
+          {/* Loca brand mark (the same SVG used as the browser favicon). */}
           <span className={styles.sidebarLogoMark}>
             <img src="/favicon.svg" alt="" width={28} height={28} />
           </span>
-          {showLabels && <span className={styles.sidebarLogoText}>TrackFlow</span>}
+          {showLabels && <span className={styles.sidebarLogoText}>Loca</span>}
         </Link>
       </Tooltip>
       <nav className={styles.sidebarNav}>

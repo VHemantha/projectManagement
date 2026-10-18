@@ -17,6 +17,6 @@ class Organization(models.Model):
     @classmethod
     def get_solo(cls):
         org, _ = cls.objects.get_or_create(
-            slug="default", defaults={"name": "TrackFlow"}
+            slug="default", defaults={"name": "Loca"}
         )
         return org

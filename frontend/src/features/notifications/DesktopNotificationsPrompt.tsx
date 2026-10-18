@@ -30,7 +30,7 @@ export function DesktopNotificationsPrompt() {
         <BellRing size={16} />
       </span>
       <span className={styles.promptText}>
-        Get a desktop notification when someone messages or mentions you, even when TrackFlow is in the
+        Get a desktop notification when someone messages or mentions you, even when Loca is in the
         background.
       </span>
       <Button
@@ -80,7 +80,7 @@ export function DesktopNotificationSetting() {
     permission === 'unsupported'
       ? "This browser can't show desktop notifications."
       : permission === 'denied'
-        ? 'Your browser is blocking notifications from TrackFlow. Allow them in the site settings (the icon left of the address) to see them.'
+        ? 'Your browser is blocking notifications from Loca. Allow them in the site settings (the icon left of the address) to see them.'
         : permission === 'default' && enabled
           ? 'Your browser will ask for permission.'
           : null

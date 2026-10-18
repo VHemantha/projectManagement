@@ -64,9 +64,9 @@ def _send_invitation_email(invitation: Invitation, url: str) -> bool:
     team = f" in the {invitation.team.name} workspace" if invitation.team else ""
     try:
         send_mail(
-            subject="You're invited to TrackFlow",
+            subject="You're invited to Loca",
             message=(
-                f"{inviter} has invited you to join TrackFlow as {invitation.get_role_display().lower()}{team}.\n\n"
+                f"{inviter} has invited you to join Loca as {invitation.get_role_display().lower()}{team}.\n\n"
                 f"Create your account here (the link works once and expires in {INVITATION_DAYS} days):\n{url}\n"
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
