@@ -30,6 +30,7 @@ from .archives import members as archive_members
 from .budget import budget_for, cost_usd, empty_usage
 from .classify import classify, classify_email
 from .knowledge import Scope, get_knowledge
+from . import guide as G
 from . import review as RV
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
@@ -95,6 +96,7 @@ class State(TypedDict, total=False):
     periods: dict
     key: dict
     review: dict
+    guide: dict
     folders: dict  # Drive folder id -> path inside the task folder
     precheck: dict
     evidence: Annotated[dict, _merge]
@@ -427,14 +429,15 @@ def this_years_ledger(docs: list[dict], job: dict, prior: list[dict], folders: d
 def route_after_key(state: State):
     # Nothing is required (AFIT, 13 Oct 2026): the pre-check works from whatever is in the folder
     # and requests the key documents that are missing; a review works from the draft statements.
-    return "review" if state.get("mode") == "review" else "precheck"
+    return {"review": "review", "guide": "guide"}.get(state.get("mode") or "", "precheck")
 
 
 # --- 6. precheck (model: Opus, one call) -----------------------------------------------------------
 
-def precheck(state: State) -> dict:
-    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
-    emit("judged", "Pre-checking: reading the questionnaire, last year's accounts and workpapers", "running")
+def precheck_input(state: State) -> tuple[list[dict], dict, str, dict, str]:
+    """(documents, facts, input text, id index, fixed business nature): what the pre-check reads,
+    also used by the preparation guide so both cite the same lines."""
+    s, job = get_settings(), state["job"]
     docs = [{"file": state["files"][d["file"]["file_id"]], "parsed": d["parsed"]} for d in _docs(state["files"])]
     last_year_ids = {f["file_id"] for k in state["key"]["documents"] if k["role"] != "questionnaire" for f in k["files_all"]}
     prior = [d for d in docs if d["file"].get("year_role") in ("prior", "older") or d["file"]["file_id"] in last_year_ids]
@@ -448,6 +451,13 @@ def precheck(state: State) -> dict:
     fixed = job.get("precheck_type") if job.get("precheck_type") in P.TYPES else ""
     body, index = P.fit_input(lambda caps: P.build_input(job, state["key"], docs, state["files"], state["periods"], facts,
                                                          job.get("lessons", []), s, caps), s)
+    return docs, facts, body, index, fixed
+
+
+def precheck(state: State) -> dict:
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    emit("judged", "Pre-checking: reading the questionnaire, last year's accounts and workpapers", "running")
+    docs, facts, body, index, fixed = precheck_input(state)
     cache = StoreCache(store)
     key = P.cache_key(job["client_id"], state["job_id"], body, s)
     usage, how = [], "model"
@@ -473,6 +483,40 @@ def precheck(state: State) -> dict:
     emit("judged", f"{output['business_nature']['label']}: {n['requests']} to request, {n['provided']} already provided, {n['not_needed']} not needed",
          **n)
     return {"precheck": output, "evidence": evidence, "usage": usage}
+
+
+# --- guide (model: Opus, one call) -----------------------------------------------------------------
+
+def guide(state: State) -> dict:
+    """The preparation guide: the steps to prepare this year's statements, with the figures from the
+    documents and how to verify each. Reads what the pre-check reads, plus its latest result."""
+    s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
+    emit("judged", "Writing the preparation guide", "running")
+    _, _, body, index, _ = precheck_input(state)
+    body = G.with_precheck(body, job.get("last_precheck"))
+    cache = StoreCache(store)
+    key = G.cache_key(job["client_id"], state["job_id"], body, s)
+    usage, how = [], "model"
+    cleaned = cache.get_value("guide", key)
+    if cleaned is not None:
+        how = "cache"
+    else:
+        reason = budget_for(run_id).can_call(est_tokens(G.system_text()) + est_tokens(body))
+        if reason:
+            raise PrecheckStop(f"The guide could not be written: {reason}. Ask an administrator to raise the run budget.")
+        try:
+            raw, u = G.call_model(body, s)
+        except P.Unusable as exc:
+            logger.warning("Guide answer unusable: %s", exc)
+            raise PrecheckStop(f"{exc} Nothing was changed. Please try again.") from exc
+        budget_for(run_id).add(u)
+        usage.append({"node": "guide", "task_id": "guide", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
+        cleaned = G.clean(raw, index, body + "\n" + G.system_text())
+        cache.set_value("guide", key, cleaned)
+    output, evidence = G.assemble(cleaned, index)
+    output["how"] = how
+    emit("judged", output["decision"]["reason"], steps=len(output["steps"]))
+    return {"guide": output, "evidence": evidence, "usage": usage}
 
 
 # --- review (model: Opus, one call per round) -------------------------------------------------------
@@ -628,10 +672,30 @@ def build_review_final(state: State) -> dict:
     }
 
 
+def build_guide_final(state: State) -> dict:
+    """The guide's result, in the same envelope as a review round's."""
+    s, run_id = get_settings(), state["run_id"]
+    out = state["guide"]
+    state = {**state, "review": {**out, "findings": [], "resolved": [], "checks": [], "draft_fs": [],
+                                 "counts": {"high": 0, "medium": 0, "low": 0}}}
+    final = build_review_final(state)
+    final.update(mode="guide", verdict="ready", readiness="Preparation guide", summary=(out["summary"] or out["decision"]["reason"])[:400],
+                 coverage={"addressed": 0, "total": len(out["steps"])}, counts={"high": 0, "medium": 0, "low": 0}, guide=out)
+    final.pop("review", None)
+    final["trail"]["compared"] = {"label": "Pre-check result: " + ("used" if state["job"].get("last_precheck") else "none yet"), "detail": []}
+    final["trail"]["judged"] = {"label": out["decision"]["reason"], "how": out.get("how", ""), "detail": []}
+    final["trail"]["checked"] = {"label": "Figures checked against the documents", "detail": []}
+    final["trail"]["verified"] = {"label": f"{len(out.get('evidence', {}))} sources linked; {sum(1 for x in out['steps'] if x.get('flags'))} steps flagged",
+                                  "evidence": len(out.get("evidence", {})), "detail": []}
+    return final
+
+
 def build_final(state: State) -> dict:
     s, job, run_id = get_settings(), state["job"], state["run_id"]
     if state.get("mode") == "review":
         return build_review_final(state)
+    if state.get("mode") == "guide":
+        return build_guide_final(state)
     out = state["precheck"]
     files, changed = state["files"], set(state["sync"]["changed"])
     ai_read = set(state.get("ai_read", []))
@@ -716,7 +780,8 @@ def publish(state: State) -> dict:
 def build_graph(checkpointer=None):
     g = StateGraph(State)
     for name, fn in [("load_job", load_job), ("sync_drive", sync_drive), ("index", index), ("run_rules", run_rules),
-                     ("key_documents", key_documents), ("precheck", precheck), ("review", review), ("draft_directions", draft_directions),
+                     ("key_documents", key_documents), ("precheck", precheck), ("review", review), ("guide", guide),
+                     ("draft_directions", draft_directions),
                      ("publish", publish)]:
         g.add_node(name, fn)
     g.add_edge(START, "load_job")
@@ -724,7 +789,8 @@ def build_graph(checkpointer=None):
     g.add_edge("sync_drive", "index")
     g.add_edge("index", "run_rules")
     g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "key_documents"])
-    g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck", "review"])
+    g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck", "review", "guide"])
+    g.add_edge("guide", "publish")
     g.add_edge("precheck", "publish")
     g.add_edge("review", "publish")
     g.add_edge("draft_directions", END)

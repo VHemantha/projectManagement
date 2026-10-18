@@ -22,7 +22,7 @@ def require_token(x_precheck_token: str = Header(default="")) -> None:
 class RunRequest(BaseModel):
     job_id: str
     run_id: str | None = None
-    mode: Literal["precheck", "draft", "review"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
+    mode: Literal["precheck", "draft", "review", "guide"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
 
 
 @app.get("/healthz")

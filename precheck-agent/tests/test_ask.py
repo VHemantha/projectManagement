@@ -45,37 +45,55 @@ def test_tags_meaning_and_exact_words_find_the_passage(env):
     assert "assumption" in kinds
 
 
-def test_an_answer_cites_only_what_was_found_and_never_invents_a_figure(env):
-    job = folder_with_sale(env)
-    seen = {}
-
+def answering(answer: dict, seen: dict | None = None):
     def responder(messages, kwargs):
-        seen["body"] = messages[-1].content
-        seen["system"] = messages[0].content if isinstance(messages[0].content, str) else messages[0].content[0]["text"]
-        k = next(ln.split(" | ")[0] for ln in seen["body"].splitlines() if "845,000" in ln)
-        return AIMessage(content=json.dumps({"answer": "It settled on 2 October 2025 for $845,000.00; the vendor received 520,113.45 after the ASB loan of 999,999.",
-                                             "sources": [k, "K99", "skill"], "status": "answered"}),
-                         usage_metadata={"input_tokens": 3000, "output_tokens": 120, "total_tokens": 3120}, response_metadata={"stop_reason": "end_turn"})
-
-    llm.set_fake("assistant", responder)
-    out = ask.answer(job, "How much was 43 Te Wharo Drive sold for?", [{"question": "Who is the vendor?", "answer": "Smith Rentals Ltd."}])
-    assert "# Skill: nz-fs-review" in seen["system"] and "Q: Who is the vendor?" in seen["body"]
-    assert [s["label"].split(",")[0] for s in out["sources"]] == ["Settlement Statement.txt"] and out["skill"]  # K99 does not exist
-    assert out["sources"][0]["evidence"]["quote"].startswith("Settlement Statement") or "845,000" in out["sources"][0]["evidence"]["quote"]
-    assert out["flags"] == ["figure_not_in_documents"]  # 999,999 is not in any passage
-    assert out["status"] == "answered"
+        if seen is not None:
+            seen["body"] = messages[-1].content
+            seen["system"] = messages[0].content if isinstance(messages[0].content, str) else messages[0].content[0]["text"]
+            seen["k"] = next((ln.split(" | ")[0] for ln in seen["body"].splitlines() if "845,000" in ln), "K1")
+        body = json.dumps(answer(seen) if callable(answer) else answer)
+        return AIMessage(content=body, usage_metadata={"input_tokens": 3000, "output_tokens": 120, "total_tokens": 3120},
+                         response_metadata={"stop_reason": "end_turn"})
+    return responder
 
 
-def test_nothing_read_yet_and_nothing_found(env):
-    env.pm.add_job("1", "client-empty", "nothing-here", direction=[])
-    out = ask.answer(env.pm.jobs["1"], "What is the rental income?")
-    assert out["status"] == "not_found" and "have not been read yet" in out["answer"] and not llm._fake.get("assistant")
-
+def test_each_point_says_where_it_comes_from_and_document_points_are_checked(env):
+    """AFIT, 18 Oct 2026: Ask answers from general knowledge too, NZ standards and law first, and says
+    exactly where it went beyond the task's documents and NZ standards."""
     job = folder_with_sale(env)
-    llm.set_fake("assistant", lambda m, k: AIMessage(content=json.dumps({"answer": "Yes.", "sources": [], "status": "answered"}),
-                                                    usage_metadata={"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}))
-    out = ask.answer(job, "Is there a home office?")
-    assert out["status"] == "partial" and out["flags"] == ["no_source"]  # an answer with nothing behind it is not "answered"
+    seen: dict = {}
+    llm.set_fake("assistant", answering(lambda s: {
+        "answer": "It settled for 845,000.00; the gain may be taxable under the bright-line test.", "status": "answered", "outside_job": False,
+        "points": [
+            {"text": "The property sold for 845,000.00 and settled on 2 October 2025.", "basis": "task_documents", "sources": [s["k"], "K99"], "reference": ""},
+            {"text": "The vendor received 999,999.00.", "basis": "task_documents", "sources": [s["k"]], "reference": ""},
+            {"text": "Residential land sold within 2 years of purchase is taxed under the bright-line test.", "basis": "nz_standards_law",
+             "sources": [], "reference": "Income Tax Act 2007, s CB 6AA"},
+            {"text": "In Australia a 50% CGT discount would apply.", "basis": "general_knowledge", "sources": [], "reference": "Australian tax law"},
+            {"text": "Buyers usually pay a deposit of 10%.", "basis": "task_documents", "sources": [], "reference": ""},
+        ]}, seen))
+    out = ask.answer(job, "How much was 43 Te Wharo Drive sold for, and is it taxable?", [{"question": "Who is the vendor?", "answer": "Smith Rentals Ltd."}])
+    assert "nz_standards_law" in seen["system"] and "Companies Act 1993" in seen["system"] and "Q: Who is the vendor?" in seen["body"]
+    sold, invented, brightline, australia, uncited = out["points"]
+    assert sold["basis"] == "task_documents" and [x["label"].split(",")[0] for x in sold["sources"]] == ["Settlement Statement.txt"]  # K99 does not exist
+    assert invented["flags"] == ["figure_not_in_documents"]  # 999,999 is in no document
+    assert brightline["basis"] == "nz_standards_law" and brightline["reference"] == "Income Tax Act 2007, s CB 6AA" and brightline["flags"] == []
+    assert australia["basis"] == "general_knowledge" and out["beyond_nz"]
+    assert uncited["basis"] == "general_knowledge" and uncited["flags"] == ["no_source"]  # "from the documents" with no source: not passed off as such
+    assert out["status"] == "answered" and not out["outside_job"]
+    assert set(out["flags"]) == {"figure_not_in_documents", "no_source"}
+
+
+def test_general_questions_are_answered_even_before_the_documents_are_read(env):
+    env.pm.add_job("1", "client-empty", "nothing-here", direction=[])
+    seen: dict = {}
+    llm.set_fake("assistant", answering({
+        "answer": "Companies must keep accounting records for 7 years.", "status": "answered", "outside_job": True,
+        "points": [{"text": "Accounting records must be kept for 7 years.", "basis": "nz_standards_law", "sources": [],
+                    "reference": "Companies Act 1993, s 189; Tax Administration Act 1994, s 22"}]}, seen))
+    out = ask.answer(env.pm.jobs["1"], "How long must a company keep its records?")
+    assert "this task's documents have not been read yet" in seen["body"]
+    assert out["status"] == "answered" and out["outside_job"] and out["points"][0]["basis"] == "nz_standards_law" and out["flags"] == []
 
 
 def test_the_answer_goes_back_to_the_pm_application_as_an_event(env):

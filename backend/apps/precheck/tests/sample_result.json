@@ -58,7 +58,7 @@
     "files": [
      {
       "name": "Final TB 2025.xlsx (in Smith.zip)",
-      "evidence_id": "E-27ff79f09e"
+      "evidence_id": "E-8d64be7442"
      }
     ]
    }
@@ -105,7 +105,7 @@
      {
       "id": "T1",
       "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
-      "evidence_id": "E-12b7a8b14d"
+      "evidence_id": "E-218707a1e1"
      }
     ],
     "documents": [],
@@ -121,7 +121,7 @@
      {
       "id": "T2",
       "label": "Last year's trial balance: row 7: 410 | Body corporate levies | Expense | 2400 | | 2300",
-      "evidence_id": "E-7546eacc56"
+      "evidence_id": "E-09dee51516"
      }
     ],
     "documents": [],
@@ -137,7 +137,7 @@
      {
       "id": "T3",
       "label": "Last year's trial balance: row 8: 420 | Rates | Expense | 3412 | | 3300",
-      "evidence_id": "E-313500550f"
+      "evidence_id": "E-9f5da6620b"
      }
     ],
     "documents": [],
@@ -153,7 +153,7 @@
      {
       "id": "T4",
       "label": "Last year's trial balance: row 9: 430 | Interest | Expense | 14322.18 | | 15010",
-      "evidence_id": "E-bf4ba82210"
+      "evidence_id": "E-7e7bdf90b3"
      }
     ],
     "documents": [],
@@ -171,14 +171,14 @@
      {
       "id": "B1",
       "label": "Bank 01-0123-0456789-00, 02 Apr 2025 to 30 Mar 2026",
-      "evidence_id": "E-a7f586bd63"
+      "evidence_id": "E-30d6c79900"
      }
     ],
     "documents": [
      {
       "id": "D2",
       "label": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
-      "evidence_id": "E-a526d44ab4"
+      "evidence_id": "E-4804d9b067"
      }
     ],
     "flags": []
@@ -219,37 +219,37 @@
    "body": "Hi client-s,\n\nThank you for your documents. To prepare your accounts for the year to 31 March 2026, we still need the following. We have said why each item is needed.\n\nLast year's accounts\n- Evidence for Rental income this year: Rental income was in last year's accounts and will be needed again.\n- Evidence for Body corporate levies this year: Body corporate levies was in last year's accounts and will be needed again.\n- Evidence for Rates this year: Rates was in last year's accounts and will be needed again.\n- Evidence for Interest this year: Interest was in last year's accounts and will be needed again.\n\nIf something does not apply to you, just let us know and we will note it.\n\nThank you,\nAFIT"
   },
   "evidence": {
-   "E-a7f586bd63": {
+   "E-30d6c79900": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "sheet 'Transactions', row 2",
     "quote": "row 2: 2026-03-30 00:00:00 | Credit | Barfoot & Thompson | 2390 | 7537",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-a526d44ab4": {
+   "E-4804d9b067": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-12b7a8b14d": {
+   "E-218707a1e1": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 6",
     "quote": "row 6: 200 | Rental income | Revenue |  | 31200 | -29900",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-7546eacc56": {
+   "E-09dee51516": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 7",
     "quote": "row 7: 410 | Body corporate levies | Expense | 2400 |  | 2300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-313500550f": {
+   "E-9f5da6620b": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 8",
     "quote": "row 8: 420 | Rates | Expense | 3412 |  | 3300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-bf4ba82210": {
+   "E-7e7bdf90b3": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 9",
     "quote": "row 9: 430 | Interest | Expense | 14322.18 |  | 15010",
@@ -267,7 +267,7 @@
     "quote": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-27ff79f09e": {
+   "E-8d64be7442": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "Final TB 2025.xlsx (in Smith.zip)",
@@ -392,7 +392,7 @@
     "task_id": "precheck",
     "model": "fake-precheck",
     "calls": 1,
-    "run_id": "b980f85c653d45778d82ce30c173e632",
+    "run_id": "8f0393bb5d9e4784a1fde8c9afafdc97",
     "input": 2345,
     "output": 560,
     "cache_write": 0,
@@ -428,11 +428,12 @@
    "nz-fs-review": "1.0+14559597",
    "nz-general-business": "2.0+12c0068b",
    "nz-investment": "2.0+761b52e8",
+   "nz-preparation-guide": "1.0+36203fa2",
    "nz-residential-rental": "1.1+0d26e63d",
    "precheck-method": "2.0+fed94440"
   }
  },
  "knowledge_ids": [],
  "demo": true,
- "duration_s": 3.1
+ "duration_s": 1.9
 }

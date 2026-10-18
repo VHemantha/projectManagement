@@ -92,6 +92,13 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     by = lambda p: [ln.split(" | ") for ln in lines if re.match(rf"^{p}\d+ \| ", ln)]  # noqa: E731
     if "THIS YEAR'S DRAFT FINANCIAL STATEMENTS" in body:
         return demo_review(body, by)
+    if "== THE LATEST PRE-CHECK'S RESULT ==" in body:
+        steps = [{"area": "Bank", "step": f"Reconcile {parts[1]} to its year-end balance.", "check": "Agree to the bank statement.",
+                  "waits_on_client": False, "sources": [parts[0]]} for parts in by("B")][:3]
+        steps += [{"area": "Opening balances", "step": f"Roll forward {parts[1]} from last year's accounts.", "check": "Agree to last year's signed statements.",
+                   "waits_on_client": False, "sources": [parts[0]]} for parts in by("T")][:3]
+        text = json.dumps({"summary": "Demo guide.", "steps": steps})
+        return AIMessage(content=text, usage_metadata=_usage(body, text))
     q_text = " ".join(" | ".join(parts[1:]) for parts in by("Q")).lower()
     btype = "residential_rental" if re.search(r"rent|tenant|property manager", q_text) else ("investment" if re.search(r"dividend|shares|fund", q_text) else "general")
     q_ids = [parts[0] for parts in by("Q")][:2]
@@ -140,8 +147,10 @@ def demo_assistant(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
                            "why": "An AFIT accountant said so."})
         return AIMessage(content=text, usage_metadata=_usage(body, text))
     first = re.search(r"^(K\d+) \| \[[^\]]*\] (.*)$", body, re.M)
-    answer = ({"answer": f"Demo: the documents say: {first.group(2)[:200]}", "sources": [first.group(1)], "status": "answered"} if first
-              else {"answer": "Demo: nothing in this task's documents answers that.", "sources": [], "status": "not_found"})
+    answer = ({"answer": f"Demo: the documents say: {first.group(2)[:200]}", "status": "answered", "outside_job": False,
+               "points": [{"text": f"The documents say: {first.group(2)[:200]}", "basis": "task_documents", "sources": [first.group(1)], "reference": ""}]}
+              if first else
+              {"answer": "Demo: nothing in this task's documents answers that.", "status": "not_found", "outside_job": False, "points": []})
     text = json.dumps(answer)
     return AIMessage(content=text, usage_metadata=_usage(body, text))
 

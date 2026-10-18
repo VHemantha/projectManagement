@@ -16,7 +16,7 @@ from .conftest import make_job_folder
 
 def test_skills_in_agent_skills_format(env):
     skills = all_skills()
-    assert set(skills) == {"precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "direction-drafting", "nz-fs-review"}
+    assert set(skills) == {"precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "direction-drafting", "nz-fs-review", "nz-preparation-guide"}
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
