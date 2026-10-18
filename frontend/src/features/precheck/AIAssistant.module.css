@@ -16,10 +16,15 @@
 }
 .launchers {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--tf-space-2);
 }
-@media (max-width: 720px) {
+@media (max-width: 960px) {
+  .launchers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
   .launchers {
     grid-template-columns: 1fr;
   }
@@ -80,3 +85,101 @@
   color: var(--tf-primary-strong);
   overflow-wrap: anywhere;
 }
+
+.milestones {
+  margin-top: var(--tf-space-4);
+  border-top: 1px solid var(--tf-border-subtle);
+  padding-top: var(--tf-space-3);
+}
+.subTitle {
+  margin: 0 0 var(--tf-space-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--tf-font-size-base);
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.timeline {
+  margin: 0 0 var(--tf-space-2);
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--tf-font-size-sm);
+}
+.timeline li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+}
+.when {
+  min-width: 90px;
+  font-variant-numeric: tabular-nums;
+  color: var(--tf-text-secondary);
+}
+.what {
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.who {
+  color: var(--tf-text-subtle);
+}
+.muted {
+  margin: 0 0 var(--tf-space-2);
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+}
+.error {
+  margin: 4px 0 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-danger);
+}
+.stampRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.stamp {
+  border: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+  border-radius: var(--tf-radius-full);
+  padding: 3px 12px;
+  font: inherit;
+  font-size: var(--tf-font-size-sm);
+  cursor: pointer;
+}
+.stamp:hover {
+  background: var(--tf-surface-hover);
+  border-color: var(--tf-primary);
+  color: var(--tf-text);
+}
+.stampForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--tf-space-2);
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.stampForm label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stampForm input {
+  padding: 5px 8px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-sm);
+  font: inherit;
+  color: var(--tf-text);
+  background: var(--tf-surface);
+}
+.grow {
+  flex: 1;
+  min-width: 180px;
+}
+

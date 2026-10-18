@@ -1,8 +1,8 @@
-import { AlertTriangle, ExternalLink, Loader2, Send } from 'lucide-react'
+import { AlertTriangle, ExternalLink, Globe2, Loader2, Send } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
 import styles from './AskPanel.module.css'
-import { type AnswerSource, type AssistantQuestion, useAsk, useConversation } from '@/api/ask'
+import { type AnswerBasis, type AnswerPoint, type AnswerSource, type AssistantQuestion, useAsk, useConversation } from '@/api/ask'
 import { extractErrorMessage } from '@/api/errors'
 import { Button, Skeleton } from '@/design-system'
 
@@ -10,6 +10,16 @@ const STATUS_LABEL: Record<string, string> = {
   answered: 'Answered from the documents',
   partial: 'Partly answered',
   not_found: 'Not found in the documents',
+}
+const NEW_STATUS_LABEL: Record<string, string> = {
+  answered: 'Answered',
+  partial: 'Partly answered',
+  not_found: 'Could not be answered',
+}
+const BASIS_LABEL: Record<AnswerBasis, string> = {
+  task_documents: "From this task's documents",
+  nz_standards_law: 'NZ standards / law',
+  general_knowledge: 'General knowledge — beyond NZ standards',
 }
 const FLAG_TEXT: Record<string, string> = {
   no_source: 'No source was given for this answer',
@@ -20,10 +30,12 @@ const SUGGESTIONS = [
   'Which bank accounts and loans are there, and what are the closing balances?',
   'What evidence supports the repairs and maintenance expense?',
   'Which review findings are still open, and why?',
+  'How is GST treated on the sale of a residential rental?',
 ]
 
-/** Ask the AI about this task. Answers come only from this task's documents, assumptions, review
- * findings and feedback, each with the passages it rests on. */
+/** Ask the AI about this task or the accounting and tax around it. Answers draw first on this
+ * task's documents, then NZ standards and law, then general knowledge — and each point says which,
+ * so the accountant can see where the AI went beyond the folder and NZ sources. */
 export function AskPanel({ jobKey }: { jobKey: string }) {
   const { data, isLoading, isError } = useConversation(jobKey)
   const ask = useAsk(jobKey)
@@ -42,8 +54,8 @@ export function AskPanel({ jobKey }: { jobKey: string }) {
   return (
     <div className={styles.ask}>
       <p className={styles.lead}>
-        Ask about this task. The AI answers only from this task&apos;s documents, the preparer&apos;s assumptions and the review,
-        and shows where each answer comes from.
+        Ask about this task, or a general accounting or tax question. The AI answers from this task&apos;s documents first, then
+        NZ standards, IRD law and company law, and general knowledge last — each point says which.
       </p>
       {data.questions.length === 0 ? (
         <div className={styles.suggestions} role="group" aria-label="Suggested questions">
@@ -113,9 +125,23 @@ function Exchange({ q }: { q: AssistantQuestion }) {
       ) : (
         <div className={styles.answer}>
           <span className={styles.status} data-status={q.answer_status}>
-            {STATUS_LABEL[q.answer_status] ?? q.answer_status}
+            {(q.points?.length ? NEW_STATUS_LABEL : STATUS_LABEL)[q.answer_status] ?? q.answer_status}
           </span>
+          {q.outside_job && <span className={styles.outside}>Outside this job</span>}
           <p className={styles.text}>{q.answer}</p>
+          {q.beyond_nz && (
+            <p className={styles.beyond} role="note">
+              <Globe2 size={13} aria-hidden="true" /> Part of this answer goes beyond NZ standards and law — those points are
+              marked below with where the advice comes from.
+            </p>
+          )}
+          {q.points && q.points.length > 0 && (
+            <ol className={styles.points} aria-label="Points of the answer">
+              {q.points.map((pt, i) => (
+                <Point key={i} p={pt} />
+              ))}
+            </ol>
+          )}
           {q.flags.map((f) => (
             <p key={f} className={styles.flag}>
               <AlertTriangle size={12} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
@@ -130,6 +156,30 @@ function Exchange({ q }: { q: AssistantQuestion }) {
           )}
         </div>
       )}
+    </li>
+  )
+}
+
+function Point({ p }: { p: AnswerPoint }) {
+  return (
+    <li className={styles.point} data-basis={p.basis}>
+      <span className={styles.basis} data-basis={p.basis}>
+        {BASIS_LABEL[p.basis] ?? p.basis}
+      </span>
+      <p className={styles.text}>{p.text}</p>
+      {p.reference && <p className={styles.reference}>Source: {p.reference}</p>}
+      {p.sources.length > 0 && (
+        <ul className={styles.sources} aria-label="Sources">
+          {p.sources.map((s) => (
+            <Source key={s.id} s={s} />
+          ))}
+        </ul>
+      )}
+      {p.flags.map((f) => (
+        <p key={f} className={styles.flag}>
+          <AlertTriangle size={12} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
+        </p>
+      ))}
     </li>
   )
 }

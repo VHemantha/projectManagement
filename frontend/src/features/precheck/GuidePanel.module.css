@@ -1,0 +1,110 @@
+.guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+  min-width: 0;
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--tf-space-3);
+  flex-wrap: wrap;
+}
+.lead {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--tf-font-size-base);
+  line-height: 1.55;
+  color: var(--tf-text-secondary);
+}
+.muted {
+  margin: 0;
+  color: var(--tf-text-subtle);
+  font-size: var(--tf-font-size-sm);
+}
+.error {
+  margin: 0;
+  color: var(--tf-danger);
+  font-size: var(--tf-font-size-sm);
+}
+.spin {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.summary {
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-primary-subtle);
+  padding: var(--tf-space-3);
+  font-size: var(--tf-font-size-base);
+  color: var(--tf-text);
+}
+.summary p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+.area {
+  margin: var(--tf-space-2) 0;
+  font-size: var(--tf-font-size-md);
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.steps {
+  margin: 0;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+}
+.step {
+  padding-left: 4px;
+}
+.text {
+  margin: 0;
+  font-size: var(--tf-font-size-base);
+  color: var(--tf-text);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.check,
+.waits,
+.flag {
+  margin: 4px 0 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.waits {
+  color: var(--tf-warning-text);
+}
+.flag {
+  color: var(--tf-warning-text);
+}
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: var(--tf-radius-sm);
+  padding: 1px 6px;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-link);
+  font-size: var(--tf-font-size-sm);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+a.source:hover {
+  text-decoration: underline;
+}

@@ -29,6 +29,9 @@ export function TimeTracking({ issue }: { issue: IssueDetail }) {
             min={0}
             step="0.25"
             aria-label="Budgeted hours"
+            // Budgeted time feeds the assignee's KPI: only a team lead or above sets it.
+            readOnly={issue.can_set_budget === false}
+            title={issue.can_set_budget === false ? 'Only a team lead or above can set the budgeted time' : undefined}
             value={budget ?? ''}
             placeholder="—"
             onChange={(e) => updateIssue.mutate({ budgeted_hours: e.target.value ? Number(e.target.value) : null })}

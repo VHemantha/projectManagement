@@ -189,3 +189,60 @@ a.source:hover {
 .form textarea:focus {
   outline: 2px solid var(--tf-border-focus);
 }
+
+.outside {
+  display: inline-block;
+  margin-left: 6px;
+  border-radius: var(--tf-radius-full);
+  padding: 1px 8px;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.beyond {
+  margin: 6px 0 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+  font-size: var(--tf-font-size-sm);
+}
+.points {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.point {
+  border-left: 3px solid var(--tf-border);
+  padding-left: 8px;
+}
+.point[data-basis='task_documents'] {
+  border-left-color: var(--tf-primary);
+}
+.point[data-basis='general_knowledge'] {
+  border-left-color: var(--tf-warning-text);
+}
+.basis {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--tf-text-secondary);
+}
+.basis[data-basis='general_knowledge'] {
+  color: var(--tf-warning-text);
+}
+.reference {
+  margin: 2px 0 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+  font-style: italic;
+}
+

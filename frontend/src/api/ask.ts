@@ -10,6 +10,18 @@ export interface AnswerSource {
   evidence: { file_name?: string; location?: string; quote: string; drive_url?: string } | null
 }
 
+/** Where a point of an answer comes from: this task's documents (cited), New Zealand standards and
+ * law (with the reference), or general knowledge beyond them (with what and where). */
+export type AnswerBasis = 'task_documents' | 'nz_standards_law' | 'general_knowledge'
+
+export interface AnswerPoint {
+  text: string
+  basis: AnswerBasis
+  reference: string
+  sources: AnswerSource[]
+  flags: string[]
+}
+
 export interface AssistantQuestion {
   id: string
   question: string
@@ -18,6 +30,10 @@ export interface AssistantQuestion {
   answer_status: '' | 'answered' | 'partial' | 'not_found'
   sources: AnswerSource[]
   flags: string[]
+  /** Answers from 18 Oct 2026: each point with its basis. */
+  points?: AnswerPoint[]
+  outside_job?: boolean
+  beyond_nz?: boolean
   failure_reason: string
   asked_by: string
   created_at: string

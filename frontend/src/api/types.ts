@@ -328,6 +328,8 @@ export interface VelocityRow {
 }
 
 export interface IssueDetail {
+  /** Only a team lead or above may set the budgeted time (it feeds the assignee's KPI). */
+  can_set_budget?: boolean
   id: number
   key: string
   project: string

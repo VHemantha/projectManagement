@@ -81,6 +81,22 @@ template in `deploy/`).
 - **Timeline**: drag-to-move/resize Gantt bars for epics
 - **Reports**: sprint burndown + velocity charts
 - **Dashboard**: assigned-to-me, recent activity feed, personal status breakdown pie chart
+- **AI assistant on a task** (buttons in this order: Pre-check, Guide, Ask, Review):
+  - **Guide**: after the pre-check, a step-by-step guide to preparing the financial statements.
+    Each step gives figures from the documents and how to check them (e.g. agree the rates paid
+    to the bank statement), and marks steps that wait on the client.
+  - **Results posted as comments**: each finished pre-check, guide and review is posted on the
+    task automatically, once, with the date.
+  - **Milestones**: the AI's stages are dated automatically. People stamp *checks*,
+    *preparation* and *adjustments* with a date (not in the future) and an optional note.
+  - **Ask**: answers from the task's documents first, then NZ standards and law (NZ IFRS/PBE,
+    the Income Tax, GST and Tax Administration Acts, IRD guidance, the Companies Act 1993), then
+    general knowledge. Each point is labelled with its basis and reference, and the answer
+    flags any advice that goes beyond NZ sources.
+- **Budgeted time and KPI**: only a project manager or a team lead can set a task's budgeted
+  hours. A person's page shows *Budget vs actual* for the 30-day, 90-day or 12-month period:
+  finished tasks within budget, hours logged against hours budgeted, and open tasks already
+  over budget (`GET /api/reports/people/<id>/kpi/`).
 
 ## Architecture overview
 

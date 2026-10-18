@@ -2,6 +2,7 @@ import { addDays, format, startOfWeek, subWeeks } from 'date-fns'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import { BudgetKpi } from './BudgetKpi'
 import styles from './UserWorkloadPage.module.css'
 import { useIssues } from '@/api/issues'
 import { useTimeEntries } from '@/api/timesheets'
@@ -103,6 +104,8 @@ export function UserWorkloadPage() {
           <div className={styles.statLabel}>Billable this week</div>
         </div>
       </div>
+
+      <BudgetKpi userId={user.id} />
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {(Object.keys(ROLE_SCOPE_LABELS) as RoleScope[]).map((scope) => (

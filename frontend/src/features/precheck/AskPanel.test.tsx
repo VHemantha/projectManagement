@@ -56,4 +56,31 @@ describe('AskPanel', () => {
     expect(within(items[3]).getByText('Looking…')).toBeInTheDocument()
     expect(screen.getByText(/looking through the task/)).toBeInTheDocument()
   })
+
+  it('labels each point by where it comes from, and says when the advice goes beyond NZ standards', () => {
+    mocks.questions = [
+      q({ question: 'Is the gain on sale taxable?', answer: 'Probably, under the bright-line test.', beyond_nz: true, outside_job: false, sources: [],
+          points: [
+            { text: 'The property settled on 1 October 2025.', basis: 'task_documents', reference: '', flags: [], sources: q({}).sources },
+            { text: 'The bright-line test may tax the gain.', basis: 'nz_standards_law', reference: 'Income Tax Act 2007, s CB 6AA', flags: [], sources: [] },
+            { text: 'In Australia a CGT discount would apply.', basis: 'general_knowledge', reference: 'Australian Income Tax Assessment Act 1997', flags: [], sources: [] },
+          ] }),
+      q({ id: 'q2', question: 'What is IFRS 16 about?', answer: 'Leases.', outside_job: true, beyond_nz: false, sources: [],
+          points: [{ text: 'NZ IFRS 16 sets out lease accounting.', basis: 'nz_standards_law', reference: 'NZ IFRS 16', flags: [], sources: [] }] }),
+    ]
+    render(<AskPanel jobKey="LANDM-1" />)
+    const conversation = screen.getByRole('list', { name: 'Questions and answers' })
+    const [first, second] = Array.from(conversation.children) as HTMLElement[]
+    expect(within(first).getByRole('note')).toHaveTextContent(/goes beyond NZ standards and law/)
+    const points = within(within(first).getByRole('list', { name: 'Points of the answer' })).getAllByRole('listitem').filter((li) => li.parentElement?.tagName === 'OL')
+    expect(points[0]).toHaveTextContent("From this task's documents")
+    expect(within(points[0]).getByRole('link', { name: /Settlement Statement/ })).toBeInTheDocument()
+    expect(points[1]).toHaveTextContent('NZ standards / law')
+    expect(points[1]).toHaveTextContent('Source: Income Tax Act 2007, s CB 6AA')
+    expect(points[2]).toHaveTextContent('General knowledge — beyond NZ standards')
+    expect(points[2]).toHaveTextContent('Source: Australian Income Tax Assessment Act 1997')
+    expect(within(first).getByText('Answered')).toBeInTheDocument()
+    expect(within(second).getByText('Outside this job')).toBeInTheDocument()
+    expect(within(second).queryByRole('note')).not.toBeInTheDocument()
+  })
 })
