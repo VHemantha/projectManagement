@@ -11,3 +11,16 @@ def can_manage_project(user, project: Project) -> bool:
     return ProjectMembership.objects.filter(
         project=project, user=user, role=ProjectMembership.Role.ADMIN
     ).exists()
+
+
+def can_set_budget(user, project: Project) -> bool:
+    """Team lead and above (AFIT, 18 Oct 2026): budgeted time on a task feeds the KPI of the person it
+    is assigned to, so only an organisation admin, the project's lead or admins, or a lead of the
+    project's workspace (team) may set it."""
+    if can_manage_project(user, project):
+        return True
+    from apps.teams.models import TeamMembership
+
+    teams = [t for t in (project.primary_team_id, getattr(project.client, "team_id", None) if project.client_id else None) if t]
+    return bool(teams) and TeamMembership.objects.filter(team_id__in=teams, user=user, role=TeamMembership.Role.LEAD).exists()
+

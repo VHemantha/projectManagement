@@ -528,3 +528,62 @@ class AccountantAnswersView(APIView):
         services._announce_issue(issue)
         return Response(services.answer_dict(a), status=status.HTTP_201_CREATED)
 
+
+class JobGuideView(APIView):
+    """GET /api/precheck/jobs/<key>/guide/ — the latest preparation guide in full, and earlier ones.
+    POST — write a new guide (after a pre-check). Returns at once; the result arrives as events."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        runs = list(_runs(issue).filter(kind=AIPrecheck.Kind.GUIDE)[:20])
+        latest = runs[0] if runs else None
+        return Response({
+            "latest": ({**services.serialize_run(latest), "guide": latest.guide} if latest else None),
+            "history": [services.serialize_run(r, full=False) for r in runs],
+            "has_precheck": issue.prechecks.filter(kind=AIPrecheck.Kind.PRECHECK, status__in=["complete", "partial"]).exists(),
+        })
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        refused = _refuse_to_start(issue)
+        if refused:
+            return refused
+        run = services.start_run(issue, request.user, kind=AIPrecheck.Kind.GUIDE)
+        return Response({**services.serialize_run(run), "guide": run.guide}, status=status.HTTP_201_CREATED)
+
+
+class MilestonesView(APIView):
+    """GET /api/precheck/jobs/<key>/milestones/ — when each stage of the task happened.
+    POST {kind: checks|preparation|adjustments, on?: date, note?} — stamp a stage (today by default)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        from .posting import milestone_dict
+
+        issue = _job(request, key)
+        return Response({"milestones": [milestone_dict(m) for m in issue.milestones.select_related("by")]})
+
+    def post(self, request, key):
+        from datetime import date
+
+        from .models import TaskMilestone
+        from .posting import milestone_dict
+
+        issue = _job(request, key)
+        kind = str(request.data.get("kind") or "")
+        if kind not in TaskMilestone.PERSON_KINDS:
+            return Response({"kind": ["Choose checks, preparation or adjustments."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            on = date.fromisoformat(str(request.data.get("on"))) if request.data.get("on") else timezone.localdate()
+        except ValueError:
+            return Response({"on": ["Give a date."]}, status=status.HTTP_400_BAD_REQUEST)
+        if on > timezone.localdate():
+            return Response({"on": ["The date cannot be in the future."]}, status=status.HTTP_400_BAD_REQUEST)
+        m = TaskMilestone.objects.create(issue=issue, kind=kind, on=on, note=" ".join(str(request.data.get("note") or "").split())[:300],
+                                         by=request.user)
+        services._announce_issue(issue)
+        return Response(milestone_dict(m), status=status.HTTP_201_CREATED)
+

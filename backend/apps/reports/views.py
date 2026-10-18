@@ -323,3 +323,60 @@ class BudgetVsActualView(APIView):
         projects = Project.objects.filter(is_archived=False).select_related("client", "primary_team", "lead")
         rows = [_project_budget_row(p) for p in projects.order_by("key")]
         return Response({"projects": rows})
+
+
+class PersonKpiView(APIView):
+    """GET /api/reports/people/<user_id>/kpi/?from=YYYY-MM-DD&to=YYYY-MM-DD — the person's budget KPI:
+    for each task assigned to them with budgeted time (set by a team lead or above), the hours they
+    logged against it, and whether it came in within budget. Tasks finished in the period count;
+    open tasks count as they stand today. Default period: the last 90 days."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, user_id):
+        from datetime import date, timedelta
+
+        from django.db.models import Q, Sum
+
+        from apps.accounts.models import User
+        from apps.timesheets.models import TimeEntry
+
+        person = get_object_or_404(User, pk=user_id)
+        try:
+            end = date.fromisoformat(request.query_params["to"]) if request.query_params.get("to") else date.today()
+            start = date.fromisoformat(request.query_params["from"]) if request.query_params.get("from") else end - timedelta(days=90)
+        except ValueError:
+            return Response({"detail": "Give the period as dates (YYYY-MM-DD)."}, status=400)
+        tasks = (Issue.objects.filter(assignee=person, budgeted_hours__isnull=False, is_archived=False)
+                 .filter(Q(resolved_at__date__gte=start, resolved_at__date__lte=end) | ~Q(status__category="done"))
+                 .select_related("status", "project").order_by("-resolved_at", "key"))
+        rows = []
+        for task in tasks:
+            mine = TimeEntry.objects.filter(issue=task, user=person).exclude(duration__isnull=True).aggregate(s=Sum("duration"))["s"]
+            hours = round(mine.total_seconds() / 3600, 2) if mine else 0.0
+            done = task.status.category == "done"
+            rows.append({
+                "key": task.key, "summary": task.summary, "project": task.project.key, "status": task.status.name, "done": done,
+                "resolved_at": task.resolved_at, "budgeted_hours": task.budgeted_hours, "actual_hours": hours,
+                "all_hours": issue_actual_hours(task),
+                "variance_hours": round(hours - task.budgeted_hours, 2),
+                "within_budget": hours <= task.budgeted_hours,
+            })
+        finished = [r for r in rows if r["done"]]
+        budgeted = sum(r["budgeted_hours"] for r in finished)
+        actual = sum(r["actual_hours"] for r in finished)
+        within = sum(1 for r in finished if r["within_budget"])
+        return Response({
+            "person": {"id": person.id, "display_name": person.display_name},
+            "period": {"from": start, "to": end},
+            "finished": {
+                "tasks": len(finished), "within_budget": within, "over_budget": len(finished) - within,
+                "pct_within_budget": round(within / len(finished) * 100, 1) if finished else None,
+                "budgeted_hours": round(budgeted, 2), "actual_hours": round(actual, 2),
+                # Above 100%: the work took less time than budgeted.
+                "efficiency_pct": round(budgeted / actual * 100, 1) if actual else None,
+            },
+            "open": {"tasks": len(rows) - len(finished), "over_budget_already": sum(1 for r in rows if not r["done"] and not r["within_budget"])},
+            "tasks": rows,
+        })
+

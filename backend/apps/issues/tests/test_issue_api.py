@@ -242,3 +242,29 @@ def test_a_task_created_from_a_board_column_starts_in_that_column(api_client, pr
     # A category this workflow has no status for: the default first column.
     resp = api_client.post("/api/issues/", {"project": "TST", "summary": "No such", "issue_type_id": task_type.id, "status_category": "in_progress"}, format="json")
     assert resp.status_code == 201 and resp.data["status"]["name"] == "To do"
+
+
+def test_only_a_team_lead_or_above_sets_budgeted_time(api_client, project, task_type, user, other_user):
+    """Budgeted time feeds the assignee's KPI (AFIT, 18 Oct 2026): the project lead (here `user`), a
+    project admin, a lead of the project's workspace or an organisation admin may set it."""
+    from apps.projects.models import ProjectMembership
+    from apps.teams.models import Team, TeamMembership
+
+    created = api_client.post("/api/issues/", {"project": "TST", "summary": "Year end", "issue_type_id": task_type.id, "budgeted_hours": 12},
+                              format="json")
+    assert created.status_code == 201 and created.data["budgeted_hours"] == 12 and created.data["can_set_budget"]
+    member = APIClient()
+    member.force_authenticate(user=other_user)
+    ProjectMembership.objects.create(project=project, user=other_user, role=ProjectMembership.Role.MEMBER)
+    key = created.data["key"]
+    r = member.patch(f"/api/issues/{key}/", {"budgeted_hours": 20}, format="json")
+    assert r.status_code == 400 and "team lead" in str(r.data["budgeted_hours"])
+    assert member.get(f"/api/issues/{key}/").data["can_set_budget"] is False
+    assert member.patch(f"/api/issues/{key}/", {"summary": "Year end 2026"}, format="json").status_code == 200  # everything else as before
+    assert member.post("/api/issues/", {"project": "TST", "summary": "x", "issue_type_id": task_type.id, "budgeted_hours": 5}, format="json").status_code == 400
+
+    team = Team.objects.create(name="Rentals", organization=project.organization)
+    project.primary_team = team
+    project.save()
+    TeamMembership.objects.create(team=team, user=other_user, role=TeamMembership.Role.LEAD)
+    assert member.patch(f"/api/issues/{key}/", {"budgeted_hours": 20}, format="json").status_code == 200

@@ -11,6 +11,7 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify, notify_many
 from apps.projects.keys import resolve_project
 from apps.projects.models import Component, Label, Project, Version
+from apps.projects.permissions import can_set_budget
 from apps.sprints.models import Sprint
 from apps.teams.models import TeamMembership
 from apps.workflow.models import IssueType, WorkflowStatus, WorkflowTransition
@@ -275,6 +276,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     subtasks = IssueMiniSerializer(many=True, read_only=True)
     watcher_count = serializers.IntegerField(source="watchers.count", read_only=True)
     is_watching = serializers.SerializerMethodField()
+    can_set_budget = serializers.SerializerMethodField()
 
     class Meta:
         model = Issue
@@ -328,6 +330,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "subtasks",
             "watcher_count",
             "is_watching",
+            "can_set_budget",
             "is_archived",
             "archived_at",
             "rank",
@@ -369,7 +372,18 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         category = attrs.pop("status_category", None)
         if self.instance is None:
             attrs = self._starting_status(attrs, category)
+        self._check_budget(attrs)
         return attrs
+
+    def _check_budget(self, attrs):
+        """Budgeted time is set by a team lead and above only: it feeds the assignee's KPI."""
+        if "budgeted_hours" not in attrs:
+            return
+        new = attrs["budgeted_hours"]
+        changing = (new is not None) if self.instance is None else (new != self.instance.budgeted_hours)
+        project = attrs.get("project") or (self.instance.project if self.instance is not None else None)
+        if changing and project is not None and not can_set_budget(self.context["request"].user, project):
+            raise serializers.ValidationError({"budgeted_hours": "Only a team lead or above can set the budgeted time."})
 
     @staticmethod
     def _starting_status(attrs, category):
@@ -397,6 +411,10 @@ class IssueDetailSerializer(serializers.ModelSerializer):
 
     def get_fix_versions(self, obj):
         return [{"id": v.id, "name": v.name} for v in obj.fix_versions.all()]
+
+    def get_can_set_budget(self, obj):
+        request = self.context.get("request")
+        return bool(request and can_set_budget(request.user, obj.project))
 
     def get_is_watching(self, obj):
         request = self.context.get("request")

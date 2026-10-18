@@ -104,6 +104,7 @@ class AIPrecheck(models.Model):
         PRECHECK = "precheck", "Pre-check"
         DRAFT = "draft", "Direction Note draft only"
         REVIEW = "review", "Review of the draft financial statements"
+        GUIDE = "guide", "Preparation guide"
 
     run_id = models.CharField(max_length=64, unique=True)  # also the agent's LangGraph thread id
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRECHECK)
@@ -131,6 +132,8 @@ class AIPrecheck(models.Model):
     # A review round: the draft reviewed, findings (with refs given by the PM application),
     # resolved findings, a verdict on each assumption, and the code checks.
     review = models.JSONField(default=dict)
+    # A preparation guide: the steps to prepare this year's statements, with figures and checks.
+    guide = models.JSONField(default=dict)
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)
@@ -406,6 +409,11 @@ class AssistantQuestion(models.Model):
     answer_status = models.CharField(max_length=12, blank=True)  # answered | partial | not_found
     sources = models.JSONField(default=list)  # [{id, label, how, evidence}]
     flags = models.JSONField(default=list)
+    # Each point of the answer with its basis: the task's documents, NZ standards and law, or
+    # general knowledge beyond them (18 Oct 2026); outside_job: a question not about this task.
+    points = models.JSONField(default=list)
+    outside_job = models.BooleanField(default=False)
+    beyond_nz = models.BooleanField(default=False)
     failure_reason = models.CharField(max_length=500, blank=True)
     cost_usd = models.FloatField(default=0.0)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -428,4 +436,31 @@ class AccountantAnswer(models.Model):
 
     class Meta:
         ordering = ["answered_at", "id"]
+
+
+class TaskMilestone(models.Model):
+    """When a stage of a task happened: the AI's pre-check, guide and review (stamped when they are
+    posted), and the checks, preparation and adjustments (stamped by a person, with the date)."""
+
+    class Kind(models.TextChoices):
+        PRECHECK = "precheck", "Pre-check posted"
+        GUIDE = "guide", "Guide posted"
+        REVIEW = "review", "Review posted"
+        CHECKS = "checks", "Checks"
+        PREPARATION = "preparation", "Preparation"
+        ADJUSTMENTS = "adjustments", "Adjustments"
+
+    PERSON_KINDS = ("checks", "preparation", "adjustments")
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="milestones")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    on = models.DateField()  # the date it happened (a person may give an earlier date)
+    note = models.CharField(max_length=300, blank=True)
+    auto = models.BooleanField(default=False)  # stamped by the AI when it posted its result
+    run = models.ForeignKey(AIPrecheck, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["on", "created_at", "id"]
 

@@ -41,6 +41,16 @@ def previous_requests(issue) -> list[dict]:
     return [{"group": r.get("group", ""), "item": r.get("item", "")} for r in rows if r.get("item")][:60]
 
 
+def last_precheck(issue) -> dict | None:
+    latest = issue.prechecks.filter(kind=AIPrecheck.Kind.PRECHECK, status__in=["complete", "partial"]).order_by("-created_at").first()
+    if not latest or not latest.precheck:
+        return None
+    p = latest.precheck
+    return {"business_nature": {"label": (p.get("business_nature") or {}).get("label", "")},
+            "requests": [{"group": r.get("group", ""), "item": r.get("item", "")} for r in p.get("requests") or []][:60],
+            "preparer_notes": [{"text": n.get("text", "")} for n in p.get("preparer_notes") or []][:20]}
+
+
 def answer_dict(a) -> dict:
     return {"id": a.id, "question": a.question, "answer": a.answer, "answered_by": a.answered_by.display_name if a.answered_by else "",
             "answered_at": a.answered_at}
@@ -192,6 +202,8 @@ def job_payload(issue) -> dict:
         "settings": {k: v for k, v in setup["settings"].items() if v},
         # Continuity: what the last pre-check asked for, and what the accountant has answered.
         "previous_requests": previous_requests(issue),
+        # For the preparation guide: what the latest pre-check found.
+        "last_precheck": last_precheck(issue),
         "accountant_answers": [{"question": a.question, "answer": a.answer} for a in issue.accountant_answers.all()[:60]],
         "lessons": lessons_for(issue),
         # For a review round: the preparer's assumptions and every finding with the reviewer's response.
@@ -282,6 +294,8 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
             body["mode"] = "draft"
         elif kind == AIPrecheck.Kind.REVIEW:
             body["mode"] = "review"
+        elif kind == AIPrecheck.Kind.GUIDE:
+            body["mode"] = "guide"
         _call_agent("/precheck/runs", body)
     except AgentUnavailable:
         run.status = AIPrecheck.Status.FAILED
@@ -307,6 +321,7 @@ MAX_QUESTIONS_SHOWN = 30
 def question_dict(q) -> dict:
     return {"id": q.question_id, "question": q.question, "status": q.status, "answer": q.answer, "answer_status": q.answer_status,
             "sources": q.sources, "flags": q.flags, "failure_reason": q.failure_reason,
+            "points": q.points, "outside_job": q.outside_job, "beyond_nz": q.beyond_nz,
             "asked_by": q.asked_by.display_name if q.asked_by else "", "created_at": q.created_at, "answered_at": q.answered_at}
 
 
@@ -337,6 +352,7 @@ def _record_answer(event: dict) -> bool:
         r = event.get("result") or {}
         q.status, q.answer, q.answer_status = "answered", str(r.get("answer", ""))[:5000], str(r.get("status", ""))[:12]
         q.sources, q.flags, q.cost_usd = r.get("sources") or [], r.get("flags") or [], float(r.get("cost_usd") or 0)
+        q.points, q.outside_job, q.beyond_nz = r.get("points") or [], bool(r.get("outside_job")), bool(r.get("beyond_nz"))
     else:
         q.status, q.failure_reason = "failed", str(event.get("reason", ""))[:500] or "The AI could not answer."
     q.answered_at = timezone.now()
@@ -371,6 +387,12 @@ def record_event(event: dict) -> bool:
         _store_result(run, event["result"])
         if run.kind == AIPrecheck.Kind.REVIEW:
             review_record.store_round(run, event["result"].get("review") or {})
+        elif run.kind == AIPrecheck.Kind.GUIDE:
+            run.guide = event["result"].get("guide") or {}
+            run.save(update_fields=["guide"])
+        from . import posting
+
+        posting.post_result(run)
     else:
         return False
     _announce(run)
