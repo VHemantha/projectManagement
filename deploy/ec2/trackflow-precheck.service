@@ -19,7 +19,9 @@ RestartSec=5
 # Keeps a runaway run from starving the main app on a small instance. Swap is capped too:
 # without it the service went past MemoryMax into ~900 MB of swap and crawled for an hour
 # instead of stopping (20 Oct 2026). Now a runaway is stopped and its run reported as failed.
-MemoryMax=700M
+# 1100M on the 2 GB t3.small (700M was for the 1 GB t3.micro): the agent's libraries, search
+# model and knowledge store alone come to ~700 MB, so 700M kept it squeezed into swap.
+MemoryMax=1100M
 MemorySwapMax=300M
 UMask=0027
 NoNewPrivileges=true
