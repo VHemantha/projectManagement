@@ -383,13 +383,13 @@ the parameters you want to change. Don't change `UbuntuAmiId` casually: a new AM
 | `403` on every API call | nginx didn't get the right `X-Origin-Verify`. Check that `ORIGIN_SECRET` in `.env` matches the stack's `OriginSecret`, then redeploy the backend (it re-renders nginx.conf). |
 | `400 Bad Request` from Django | Host isn't in `ALLOWED_HOSTS`. Redeploy the backend (it syncs hosts from the stack outputs) or edit `.env`. |
 | Admin login fails with "CSRF verification failed" | Same fix: `CSRF_TRUSTED_ORIGINS` must contain `https://<your domain>`. |
-| Chat shows "connecting…" forever | Check `journalctl -u trackflow` for WebSocket errors; confirm `CHANNEL_LAYER=redis` in `.env` and that `systemctl status redis-server` is active. |
+| Chat shows "connecting…" forever | WebSockets run in their own service: check `systemctl status trackflow-ws` and `journalctl -u trackflow-ws` for errors; confirm `CHANNEL_LAYER=redis` in `.env` and that `systemctl status redis-server` is active. |
 | Frontend still shows the old version | Hard-refresh. `index.html` is uncached, but the invalidation can take 1–2 minutes. |
 | `deploy_backend.sh`: *Permission denied (publickey)* | Wrong key path, or you're using `ec2-user` instead of `ubuntu`. |
 | `deploy_backend.sh` hangs at "Uploading" | Your IP changed; update `SshCidr` (§13). |
 | `WARNING: UNPROTECTED PRIVATE KEY FILE` (Windows OpenSSH) | In PowerShell: `icacls $HOME\.ssh\trackflow-key.pem /inheritance:r /grant:r "$($env:USERNAME):R"` |
 | Stack fails on `Database`: engine version not available | AWS retired that minor version. Run `aws rds describe-db-engine-versions --engine postgres --query "DBEngineVersions[?starts_with(EngineVersion,'16')].EngineVersion"` and set `EngineVersion` in the template to a listed 16.x version. |
-| Instance slow or out of memory | `free -h`. The micro box has 1 GB RAM + 2 GB swap. Lower `--workers` in `deploy/ec2/trackflow.service` to 1, or move to t3.small (not free). |
+| Instance slow or out of memory | `free -h`. The micro box has 1 GB RAM + 2 GB swap. The web API is one process with 8 threads (`trackflow.service`) and WebSockets one more (`trackflow-ws.service`); lower `--threads` if memory is short, or move to t3.small (not free). Slow requests show in `/var/log/nginx/trackflow.access.log` (the number after the byte count is seconds). |
 
 ## 16. AI pre-check agent
 

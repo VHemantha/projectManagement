@@ -7,6 +7,9 @@ import { useAuthStore } from '@/store/authStore'
 const MAX_BACKOFF_MS = 10_000
 // Notices arrive in bursts (one per saved row); refetch once per burst.
 const FLUSH_DELAY_MS = 300
+// After a dropped connection everything on screen is refetched, but at most this often: a
+// connection that keeps dropping must not keep reloading every list.
+export const CATCH_UP_MIN_INTERVAL_MS = 60_000
 
 type LiveKind = 'issues' | 'issue' | 'board' | 'project' | 'sprints' | 'teams' | 'clients' | 'precheck'
 
@@ -102,6 +105,7 @@ export function useLiveUpdates() {
     let attempt = 0
     let hasConnected = false
     let pending: LiveEvent[] = []
+    let lastCatchUp = 0
 
     const flush = () => {
       flushTimer = null
@@ -116,7 +120,10 @@ export function useLiveUpdates() {
 
       socket.onopen = () => {
         setLiveConnected(true)
-        if (hasConnected) invalidate(queryClient, ALL_EVENTS) // catch up on anything missed
+        if (hasConnected && Date.now() - lastCatchUp >= CATCH_UP_MIN_INTERVAL_MS) {
+          lastCatchUp = Date.now()
+          invalidate(queryClient, ALL_EVENTS) // catch up on anything missed
+        }
         hasConnected = true
         attempt = 0
       }

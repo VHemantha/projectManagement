@@ -1,0 +1,29 @@
+[Unit]
+Description=TrackFlow WebSockets: live updates and chat (gunicorn + uvicorn ASGI worker)
+After=network.target redis-server.service postgresql.service
+Wants=redis-server.service
+# Restarting or stopping the app (trackflow.service) does the same to this.
+PartOf=trackflow.service
+
+[Service]
+Type=simple
+User=trackflow
+Group=trackflow
+WorkingDirectory=/srv/trackflow/current/backend
+# Only /ws/ is sent here (nginx.conf). The Redis channel layer (CHANNEL_LAYER=redis) links it
+# to the web API, which sends the change notices.
+ExecStart=/srv/trackflow/venv/bin/gunicorn trackflow.asgi:application \
+    --worker-class uvicorn_worker.UvicornWorker \
+    --workers 1 \
+    --bind 127.0.0.1:8001 \
+    --timeout 60 \
+    --graceful-timeout 20
+Restart=always
+RestartSec=3
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

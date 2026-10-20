@@ -33,7 +33,11 @@ KEY_LOOKUP_REGEX = r"[A-Za-z0-9]+-\d+"
 
 class IssueViewSet(viewsets.ModelViewSet):
     queryset = (
-        Issue.objects.select_related("project", "issue_type", "status", "assignee", "reporter", "epic", "sprint")
+        # Every person and object a list row shows, joined in the one query: without them a
+        # 300-task board made ~900 extra queries (one per task per person).
+        Issue.objects.select_related(
+            "project", "issue_type", "status", "assignee", "reporter", "preparer", "reviewer", "current_responsible", "epic", "sprint"
+        )
         .prefetch_related("labels")
     )
     permission_classes = [permissions.IsAuthenticated]

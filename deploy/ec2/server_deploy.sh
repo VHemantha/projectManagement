@@ -86,17 +86,18 @@ ln -sfn /etc/nginx/sites-available/trackflow /etc/nginx/sites-enabled/trackflow
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 install -m 644 "$DEPLOY_DIR/trackflow.service" /etc/systemd/system/trackflow.service
+install -m 644 "$DEPLOY_DIR/trackflow-ws.service" /etc/systemd/system/trackflow-ws.service
 install -m 755 "$DEPLOY_DIR/backup_db.sh" /usr/local/bin/trackflow-backup
 install -m 755 "$DEPLOY_DIR/trackflow-manage.sh" /usr/local/bin/trackflow-manage
 echo '30 3 * * * root /usr/local/bin/trackflow-backup >> /var/log/trackflow-backup.log 2>&1' \
   > /etc/cron.d/trackflow-backup
 systemctl daemon-reload
-systemctl enable --quiet trackflow
+systemctl enable --quiet trackflow trackflow-ws
 
 log "Activating release $(basename "$RELEASE_DIR")"
 ln -sfn "$RELEASE_DIR" "$APP_ROOT/current.tmp"
 mv -Tf "$APP_ROOT/current.tmp" "$APP_ROOT/current"
-systemctl restart trackflow
+systemctl restart trackflow trackflow-ws
 systemctl reload nginx
 
 log "Health check"
@@ -111,7 +112,7 @@ for _ in $(seq 1 30); do
 done
 if [ "$healthy" != 1 ]; then
   echo "Health check FAILED. Recent app logs:" >&2
-  journalctl -u trackflow -n 60 --no-pager >&2 || true
+  journalctl -u trackflow -u trackflow-ws -n 60 --no-pager >&2 || true
   exit 1
 fi
 

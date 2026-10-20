@@ -124,6 +124,11 @@ else:
             "PASSWORD": env("DB_PASSWORD", "trackflow"),
             "HOST": env("DB_HOST", "localhost"),
             "PORT": env("DB_PORT", "5432"),
+            # Keep each connection for a while instead of connecting on every request (a new
+            # connection costs a TLS handshake to RDS). Set for the threaded web API only
+            # (trackflow.service); the WebSocket process keeps the default.
+            "CONN_MAX_AGE": int(env("DB_CONN_MAX_AGE", "0")),
+            "CONN_HEALTH_CHECKS": True,
         }
     }
 

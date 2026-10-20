@@ -1,7 +1,7 @@
 [Unit]
-Description=TrackFlow Django app (gunicorn + uvicorn ASGI workers)
+Description=TrackFlow Django app: the web API (gunicorn, threaded WSGI)
 After=network.target redis-server.service postgresql.service
-Wants=redis-server.service
+Wants=redis-server.service trackflow-ws.service
 
 [Service]
 Type=simple
@@ -9,11 +9,15 @@ User=trackflow
 Group=trackflow
 # `current` is a symlink to the active release; it is resolved at (re)start.
 WorkingDirectory=/srv/trackflow/current/backend
-# 2 workers fit comfortably in 1 GB RAM. The uvicorn worker speaks both HTTP and
-# WebSockets; the Redis channel layer (CHANNEL_LAYER=redis) links the workers.
-ExecStart=/srv/trackflow/venv/bin/gunicorn trackflow.asgi:application \
-    --worker-class uvicorn_worker.UvicornWorker \
-    --workers 2 \
+# Normal page requests. Threaded WSGI, not ASGI: under ASGI Django runs ordinary (sync) views
+# one at a time per worker, so one slow request held up everyone. One process with 8 threads
+# serves 8 requests at once in about the memory of one worker. WebSockets (live updates, chat)
+# are served by trackflow-ws.service.
+Environment=DB_CONN_MAX_AGE=60
+ExecStart=/srv/trackflow/venv/bin/gunicorn trackflow.wsgi:application \
+    --worker-class gthread \
+    --workers 1 \
+    --threads 8 \
     --bind 127.0.0.1:8000 \
     --timeout 60 \
     --graceful-timeout 20 \
