@@ -54,20 +54,22 @@ class HashEmbedder:
 
 
 class FastEmbedder:
-    def __init__(self, model: str, cache_dir: str = ""):
+    def __init__(self, model: str, cache_dir: str = "", batch_size: int = 8, threads: int | None = 2):
         self.model_name, self.cache_dir = model, cache_dir or None
         self.name = "fastembed:" + model  # known without loading the model
+        self.batch_size, self.threads = batch_size, threads
         self._model = None
 
     def _loaded(self):
         if self._model is None:
             from fastembed import TextEmbedding
 
-            self._model = TextEmbedding(model_name=self.model_name, cache_dir=self.cache_dir)
+            self._model = TextEmbedding(model_name=self.model_name, cache_dir=self.cache_dir, threads=self.threads)
         return self._model
 
     def embed(self, texts: list[str]) -> np.ndarray:
-        vectors = np.array(list(self._loaded().embed(texts)), dtype=np.float32)
+        # A few chunks at a time keeps the memory this needs small (see config.fastembed_batch_size).
+        vectors = np.array(list(self._loaded().embed(texts, batch_size=self.batch_size)), dtype=np.float32)
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         return vectors / np.where(norms == 0, 1, norms)
 
@@ -76,5 +78,5 @@ class FastEmbedder:
 def get_embedder():
     s = get_settings()
     if s.embedder == "fastembed":
-        return FastEmbedder(s.fastembed_model, s.fastembed_cache)
+        return FastEmbedder(s.fastembed_model, s.fastembed_cache, s.fastembed_batch_size, s.fastembed_threads)
     return HashEmbedder(s.embedding_dim)

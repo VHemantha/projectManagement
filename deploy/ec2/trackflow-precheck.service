@@ -16,8 +16,11 @@ ExecStart=/srv/trackflow/precheck-venv/bin/uvicorn precheck_agent.api:app \
     --host 127.0.0.1 --port 8100 --workers 1 --no-access-log
 Restart=always
 RestartSec=5
-# Keeps a runaway run from starving the main app on a small instance.
+# Keeps a runaway run from starving the main app on a small instance. Swap is capped too:
+# without it the service went past MemoryMax into ~900 MB of swap and crawled for an hour
+# instead of stopping (20 Oct 2026). Now a runaway is stopped and its run reported as failed.
 MemoryMax=700M
+MemorySwapMax=300M
 UMask=0027
 NoNewPrivileges=true
 PrivateTmp=true

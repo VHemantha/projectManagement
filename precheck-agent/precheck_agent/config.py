@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     embedder: str = "hash"  # "hash" (built in, no download) | "fastembed" (local ONNX model)
     fastembed_model: str = "BAAI/bge-small-en-v1.5"
     fastembed_cache: str = ""  # where the model files are; empty: fastembed's own default
+    # fastembed's default embeds 256 chunks at once on every core: for a 450-token chunk that
+    # needs gigabytes while it runs, which the runtime then keeps. On the server that pushed the
+    # service past its memory cap into swap and every later step crawled (20 Oct 2026).
+    fastembed_batch_size: int = 8
+    fastembed_threads: int = 2
     embedding_dim: int = 384
     parser_version: str = "p2"  # p2: emails, images and scans are read
     chunk_tokens: int = 450

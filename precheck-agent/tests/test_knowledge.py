@@ -132,6 +132,40 @@ def test_the_search_model_is_loaded_only_when_first_used():
     assert e.name == "fastembed:BAAI/bge-small-en-v1.5" and e._model is None
 
 
+def test_the_search_model_embeds_a_few_chunks_at_a_time_on_few_threads(monkeypatch):
+    """fastembed's default (256 chunks at once, every core) needed gigabytes and sent the server
+    into swap; the configured batch and thread limits reach it."""
+    import sys
+    import types
+
+    import numpy as np
+
+    from precheck_agent import config
+    from precheck_agent.embeddings import get_embedder
+
+    seen = {}
+
+    class FakeTextEmbedding:
+        def __init__(self, model_name, cache_dir=None, threads=None):
+            seen["threads"] = threads
+
+        def embed(self, texts, batch_size=256):
+            seen["batch_size"] = batch_size
+            return [np.ones(3, dtype=np.float32) for _ in texts]
+
+    monkeypatch.setitem(sys.modules, "fastembed", types.SimpleNamespace(TextEmbedding=FakeTextEmbedding))
+    monkeypatch.setenv("PRECHECK_EMBEDDER", "fastembed")
+    config.get_settings.cache_clear()
+    get_embedder.cache_clear()
+    try:
+        vectors = get_embedder().embed(["a", "b"])
+    finally:
+        config.get_settings.cache_clear()
+        get_embedder.cache_clear()
+    assert seen == {"threads": 2, "batch_size": 8}
+    assert vectors.shape == (2, 3) and np.allclose(np.linalg.norm(vectors, axis=1), 1)
+
+
 def test_a_lost_knowledge_store_is_rebuilt_even_though_the_markers_say_indexed(env):
     """The chroma folder lost or restored from an older backup while the markers in the SQL store
     survive (seen locally on 12 Oct 2026: a run found 0 chunks). Files and zip members with text
