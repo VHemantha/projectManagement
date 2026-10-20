@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 
+import { readyForSocket } from './client'
 import { usePresenceStore } from '@/store/presenceStore'
 import { useAuthStore } from '@/store/authStore'
 
@@ -29,7 +30,7 @@ export function usePresenceSocket() {
     attemptRef.current = 0
 
     const connect = () => {
-      if (cancelled) return
+      if (cancelled || !readyForSocket(accessToken)) return
       const socket = new WebSocket(wsUrl(accessToken))
       latestSocket = socket
 

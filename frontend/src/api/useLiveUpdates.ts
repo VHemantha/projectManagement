@@ -1,6 +1,7 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useEffect } from 'react'
 
+import { readyForSocket } from './client'
 import { emitInboxEvent, type InboxEvent, setLiveConnected } from './inboxEvents'
 import { useAuthStore } from '@/store/authStore'
 
@@ -115,7 +116,7 @@ export function useLiveUpdates() {
     }
 
     const connect = () => {
-      if (cancelled) return
+      if (cancelled || !readyForSocket(accessToken)) return
       socket = new WebSocket(wsUrl(accessToken))
 
       socket.onopen = () => {

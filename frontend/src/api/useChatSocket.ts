@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { readyForSocket } from './client'
 import type { ChatMessage } from './types'
 import { useAuthStore } from '@/store/authStore'
 
@@ -44,7 +45,7 @@ export function useChatSocket(channelId: number | undefined) {
     attemptRef.current = 0
 
     const connect = () => {
-      if (cancelled) return
+      if (cancelled || !readyForSocket(accessToken)) return
       setConnectionState('connecting')
       const socket = new WebSocket(wsUrl(channelId, accessToken))
       latestSocket = socket
