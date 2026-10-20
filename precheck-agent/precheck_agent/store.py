@@ -145,6 +145,12 @@ class Store:
                     values.update(result=json.dumps(result), finished_at=time.time())
                 conn.execute(sa.update(r).where(r.c.run_id == run_id).values(**values))
 
+    def running_run_ids(self) -> list[tuple[str, str]]:
+        """(run id, job id) of runs this store still has as running."""
+        r = self.runs
+        with self.engine.connect() as conn:
+            return [(row.run_id, row.job_id) for row in conn.execute(sa.select(r.c.run_id, r.c.job_id).where(r.c.status == "running"))]
+
     def get_run(self, run_id: str) -> dict | None:
         with self.engine.connect() as conn:
             row = conn.execute(sa.select(self.runs).where(self.runs.c.run_id == run_id)).mappings().first()

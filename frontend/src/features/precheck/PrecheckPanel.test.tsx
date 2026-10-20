@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   dispose: vi.fn(),
   draft: vi.fn(),
+  stop: vi.fn(),
 }))
 
 vi.mock('@/api/precheck', () => ({
@@ -23,6 +24,7 @@ vi.mock('@/api/precheck', () => ({
   useSavePrecheckSetup: () => ({ mutate: mocks.save, isPending: false, isError: false }),
   useSetDisposition: () => ({ mutate: mocks.dispose, isPending: false }),
   useDraftDirections: () => ({ mutate: mocks.draft, isPending: false, isError: false }),
+  useStopRun: () => ({ mutate: mocks.stop, isPending: false, isError: false }),
   useAccountantAnswers: () => ({ data: { answers: [] } }),
   useAnswerQuestion: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
   useLessons: () => ({ data: undefined }),
@@ -183,6 +185,13 @@ describe('PrecheckPanel states', () => {
     expect(steps.map((s) => s.getAttribute('data-state'))).toEqual(['done', 'running', 'waiting', 'waiting', 'waiting'])
     expect(steps[0]).toHaveTextContent('14 documents, 3 changed since last run')
     expect(screen.queryByRole('button', { name: /^Run (again|pre-check)$/ })).not.toBeInTheDocument() // one run at a time
+  })
+
+  it('running: a person can stop it', async () => {
+    mocks.data = panel(run({ status: 'running', verdict: '', trail: {}, findings: [], progress: [] }))
+    render(<PrecheckPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Stop' }))
+    expect(mocks.stop).toHaveBeenCalledWith((mocks.data as { latest: { run_id: string } }).latest.run_id)
   })
 
   it('complete: verdict in words, coverage, counts, grouped findings', () => {

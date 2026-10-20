@@ -1,6 +1,8 @@
 """HTTP API of the precheck-agent service. Called only by the PM application, which has already
 checked that the user may open the job; every request must carry the shared service token."""
 import hmac
+import threading
+from contextlib import asynccontextmanager
 from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -11,7 +13,15 @@ from .config import get_settings
 from .llm import model_id
 from .store import get_store
 
-app = FastAPI(title="AFIT Connect pre-check agent", version=__version__)
+@asynccontextmanager
+async def lifespan(_app):
+    # Runs the previous process left unfinished are reported as failed, in the background so
+    # start-up is not held up while AFIT Connect is itself restarting.
+    threading.Thread(target=runner.fail_orphans, name="fail-orphans", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="AFIT Connect pre-check agent", version=__version__, lifespan=lifespan)
 
 
 def require_token(x_precheck_token: str = Header(default="")) -> None:
@@ -37,6 +47,13 @@ def create_run(body: RunRequest):
     """Start a pre-check for one job. Returns the run id at once; progress and the result come
     back to the PM application as events. The run id is the LangGraph thread id."""
     return {"run_id": runner.start(body.job_id, body.run_id, body.mode), "status": "running"}
+
+
+@app.post("/precheck/runs/{run_id}/cancel", status_code=202, dependencies=[Depends(require_token)])
+def cancel_run(run_id: str):
+    """A person stopped the run. The step under way finishes; nothing after it runs."""
+    runner.cancel(run_id)
+    return {"run_id": run_id, "status": "stopping"}
 
 
 @app.get("/precheck/runs/{run_id}", dependencies=[Depends(require_token)])

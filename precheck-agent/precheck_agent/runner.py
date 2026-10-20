@@ -14,6 +14,29 @@ from .store import get_store
 
 logger = logging.getLogger(__name__)
 
+# Runs a person stopped. Checked between steps: the step under way finishes (a model call cannot
+# be taken back), then nothing more runs and nothing is sent but the failure.
+_cancelled: set[str] = set()
+_lock = threading.Lock()
+
+
+class RunStopped(Exception):
+    pass
+
+
+def cancel(run_id: str) -> None:
+    with _lock:
+        _cancelled.add(run_id)
+
+
+def _check(run_id: str, started: float, deadline_s: int) -> None:
+    with _lock:
+        stopped = run_id in _cancelled
+    if stopped:
+        raise RunStopped("Stopped by a person. Nothing was changed.")
+    if time.time() - started > deadline_s:
+        raise RunStopped(f"The run took longer than {deadline_s // 60} minutes, so it was stopped. Nothing was changed. Please try again.")
+
 
 @lru_cache
 def _checkpointer():
@@ -56,7 +79,9 @@ def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
     final = None
+    started, deadline_s = time.time(), get_settings().run_deadline_s
     try:
+        _check(run_id, started, deadline_s)
         # One custom event per node goes to the job card as it happens; "updates" tells us when
         # each node has finished.
         for chunk in graph().stream(
@@ -65,6 +90,7 @@ def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
             stream_mode=["updates", "custom"],
             version="v2",
         ):
+            _check(run_id, started, deadline_s)
             if chunk["type"] == "custom":
                 pm.send_event(run_id, {"type": "ai_precheck.progress", "job_id": job_id, **chunk["data"]})
             elif chunk["type"] == "updates":
@@ -75,13 +101,15 @@ def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
                         final = {"run_id": run_id, "job_id": job_id, "status": "complete", "mode": "draft", **update["drafted"],
                                  "usage": update["usage"], "skipped": update["skipped"]}
                         get_store().save_run(run_id, job_id, "complete", final)
-    except (PrecheckStop, PMError) as exc:
+    except (PrecheckStop, PMError, RunStopped) as exc:
         return _fail(run_id, job_id, str(exc))
     except Exception:  # anything unexpected: say so plainly, keep the detail in the log
         logger.exception("Pre-check run %s failed", run_id)
         return _fail(run_id, job_id, "The pre-check stopped because of an unexpected error. Nothing was changed. Please try again.")
     finally:
         budget.release(run_id)
+        with _lock:
+            _cancelled.discard(run_id)
     return final or _fail(run_id, job_id, "The pre-check ended without a result. Please try again.")
 
 
@@ -90,6 +118,16 @@ def _fail(run_id: str, job_id: str, reason: str) -> dict:
     get_store().save_run(run_id, job_id, "failed", result)
     get_pm().send_event(run_id, {"type": "ai_precheck.failed", "job_id": job_id, "reason": reason})
     return result
+
+
+def fail_orphans() -> int:
+    """At start-up: runs left "running" by the previous process (stopped by a restart or a
+    crash) can never finish. Report them as failed so the task card does not wait for ever."""
+    orphans = get_store().running_run_ids()
+    for run_id, job_id in orphans:
+        logger.warning("Run %s was interrupted by a restart", run_id)
+        _fail(run_id, job_id, "The AI service restarted while this was running, so it stopped. Nothing was changed. Please run it again.")
+    return len(orphans)
 
 
 def start(job_id: str, run_id: str | None = None, mode: str = "precheck") -> str:

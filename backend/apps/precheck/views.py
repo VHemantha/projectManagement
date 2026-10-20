@@ -23,6 +23,7 @@ def _job(request, key: str) -> Issue:
     issue = get_issue_or_404(key, Issue.objects.select_related("project__client", "status", "drive_folder"))
     if not services.can_open_job(request.user, issue):
         raise PermissionDenied("You can't open this task, so you can't see or run its pre-check.")
+    services.expire_stale(issue)  # a run that never reported back must not keep the task waiting
     return issue
 
 
@@ -55,7 +56,8 @@ class JobPrecheckView(APIView):
             "latest": _full(runs[0]) if runs else None,
             "history": [services.serialize_run(r, full=False) for r in runs],
             # The latest "draft the Direction Note" request, if any: running, done or failed.
-            "draft": {"status": draft.status, "failure_reason": draft.failure_reason, "created_at": draft.created_at} if draft else None,
+            "draft": {"run_id": draft.run_id, "status": draft.status, "failure_reason": draft.failure_reason, "created_at": draft.created_at}
+                     if draft else None,
         })
 
 
@@ -197,7 +199,40 @@ class RunDetailView(APIView):
         run = get_object_or_404(AIPrecheck.objects.select_related("issue"), run_id=run_id)
         if not services.can_open_job(request.user, run.issue):
             raise PermissionDenied("You can't open this task, so you can't see its pre-check.")
+        services.expire_stale(run.issue)
         return Response(_full(run))
+
+
+class RunStopView(APIView):
+    """POST /api/precheck/runs/<run_id>/stop/ — stop a pre-check, guide, review or Direction Note
+    draft that is running. Anyone who can open the task may stop it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, run_id):
+        run = get_object_or_404(AIPrecheck.objects.select_related("issue__project"), run_id=run_id)
+        if not services.can_open_job(request.user, run.issue):
+            raise PermissionDenied("You can't open this task, so you can't stop its AI runs.")
+        if not services.stop_run(run, request.user):
+            return Response({"detail": "This run has already finished."}, status=status.HTTP_409_CONFLICT)
+        return Response(_full(run))
+
+
+class QuestionStopView(APIView):
+    """POST /api/precheck/questions/<question_id>/stop/ — stop waiting for an answer."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, question_id):
+        from .models import AssistantQuestion
+
+        q = get_object_or_404(AssistantQuestion.objects.select_related("issue__project"), question_id=question_id)
+        if not services.can_open_job(request.user, q.issue):
+            raise PermissionDenied("You can't open this task, so you can't stop its questions.")
+        if not services.stop_question(q, request.user):
+            return Response({"detail": "This question has already been answered."}, status=status.HTTP_409_CONFLICT)
+        q.refresh_from_db()
+        return Response(services.question_dict(q))
 
 
 class FindingDispositionView(APIView):

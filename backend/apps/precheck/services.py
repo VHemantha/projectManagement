@@ -4,6 +4,7 @@ import re
 import urllib.error
 import urllib.request
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
@@ -304,6 +305,51 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
         run.save()
     _announce(run)
     return run
+
+
+def expire_stale(issue) -> int:
+    """Runs, questions and rule drafts that never reported back (the agent restarted, crashed or
+    lost the result) are marked failed after a time limit, so the task is never stuck waiting and
+    a new run can start. Returns how many were expired."""
+    from .models import PrecheckLesson
+
+    now = timezone.now()
+    run_minutes, question_minutes = settings.PRECHECK_STALE_RUN_MINUTES, settings.PRECHECK_STALE_QUESTION_MINUTES
+    n = issue.prechecks.filter(status=AIPrecheck.Status.RUNNING, created_at__lt=now - timedelta(minutes=run_minutes)).update(
+        status=AIPrecheck.Status.FAILED, finished_at=now,
+        failure_reason=f"The AI did not finish within {run_minutes} minutes, so it was stopped. It was probably interrupted "
+                       "(for example the AI service restarted). Nothing was changed. Please run it again.")
+    n += issue.assistant_questions.filter(status="pending", created_at__lt=now - timedelta(minutes=question_minutes)).update(
+        status="failed", answered_at=now, failure_reason=f"The AI did not answer within {question_minutes} minutes. Please ask again.")
+    n += PrecheckLesson.objects.filter(issue=issue, drafting="drafting", created_at__lt=now - timedelta(minutes=question_minutes)).update(
+        drafting="failed")
+    return n
+
+
+def stop_run(run: AIPrecheck, user) -> bool:
+    """A person stops a run. It is marked failed at once, so the task is free; the agent is told
+    to do no more work, and anything it sends later is ignored. False if it had already ended."""
+    name = getattr(user, "display_name", "") or user.get_username()
+    stopped = AIPrecheck.objects.filter(pk=run.pk, status=AIPrecheck.Status.RUNNING).update(
+        status=AIPrecheck.Status.FAILED, finished_at=timezone.now(), failure_reason=f"Stopped by {name}. Nothing was changed.")
+    if not stopped:
+        return False
+    try:
+        _call_agent(f"/precheck/runs/{run.run_id}/cancel", {})
+    except AgentUnavailable:
+        pass  # already stopped here; an answer that arrives later is ignored
+    _announce(run)
+    return True
+
+
+def stop_question(q, user) -> bool:
+    """A person stops waiting for an answer; one that arrives later is ignored."""
+    name = getattr(user, "display_name", "") or user.get_username()
+    stopped = type(q).objects.filter(pk=q.pk, status="pending").update(
+        status="failed", answered_at=timezone.now(), failure_reason=f"Stopped by {name}.")
+    if stopped:
+        _announce_issue(q.issue)
+    return bool(stopped)
 
 
 def _announce(run: AIPrecheck) -> None:

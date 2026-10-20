@@ -2,7 +2,7 @@ import { AlertTriangle, ExternalLink, Globe2, Loader2, Send } from 'lucide-react
 import { type FormEvent, useState } from 'react'
 
 import styles from './AskPanel.module.css'
-import { type AnswerBasis, type AnswerPoint, type AnswerSource, type AssistantQuestion, useAsk, useConversation } from '@/api/ask'
+import { type AnswerBasis, type AnswerPoint, type AnswerSource, type AssistantQuestion, useAsk, useConversation, useStopQuestion } from '@/api/ask'
 import { extractErrorMessage } from '@/api/errors'
 import { Button, Skeleton } from '@/design-system'
 
@@ -68,7 +68,7 @@ export function AskPanel({ jobKey }: { jobKey: string }) {
       ) : (
         <ol className={styles.conversation} aria-label="Questions and answers">
           {data.questions.map((q) => (
-            <Exchange key={q.id} q={q} />
+            <Exchange key={q.id} q={q} jobKey={jobKey} />
           ))}
         </ol>
       )}
@@ -110,7 +110,8 @@ export function AskPanel({ jobKey }: { jobKey: string }) {
   )
 }
 
-function Exchange({ q }: { q: AssistantQuestion }) {
+function Exchange({ q, jobKey }: { q: AssistantQuestion; jobKey: string }) {
+  const stop = useStopQuestion(jobKey)
   return (
     <li className={styles.exchange}>
       <p className={styles.question}>
@@ -118,7 +119,10 @@ function Exchange({ q }: { q: AssistantQuestion }) {
       </p>
       {q.status === 'pending' ? (
         <p className={styles.answer} aria-busy="true">
-          <Loader2 size={14} className={styles.spin} aria-hidden="true" /> Looking…
+          <Loader2 size={14} className={styles.spin} aria-hidden="true" /> Looking…{' '}
+          <button type="button" className={styles.stop} disabled={stop.isPending} onClick={() => stop.mutate(q.id)}>
+            {stop.isPending ? 'Stopping…' : 'Stop'}
+          </button>
         </p>
       ) : q.status === 'failed' ? (
         <p className={styles.error}>{q.failure_reason || 'The AI could not answer.'}</p>

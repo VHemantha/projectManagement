@@ -16,12 +16,14 @@ from .views import (
     JobSetupView,
     JobReviewView,
     LessonDetailView,
+    QuestionStopView,
     ReviewCompleteView,
     ReviewFindingRespondView,
     ReviewMissedView,
     ReviewRunView,
     RunDetailView,
     RunListView,
+    RunStopView,
 )
 
 urlpatterns = [
@@ -43,6 +45,8 @@ urlpatterns = [
     path("review-findings/<int:pk>/respond/", ReviewFindingRespondView.as_view(), name="precheck-review-respond"),
     path("runs/", RunListView.as_view(), name="precheck-runs"),
     path("runs/<str:run_id>/", RunDetailView.as_view(), name="precheck-run"),
+    path("runs/<str:run_id>/stop/", RunStopView.as_view(), name="precheck-run-stop"),
+    path("questions/<str:question_id>/stop/", QuestionStopView.as_view(), name="precheck-question-stop"),
     path("findings/<int:pk>/disposition/", FindingDispositionView.as_view(), name="precheck-disposition"),
     path("internal/jobs/<int:issue_id>/", InternalJobView.as_view(), name="precheck-internal-job"),
     path("internal/events/", InternalEventView.as_view(), name="precheck-internal-events"),

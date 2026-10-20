@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     precheck_effort: str = "medium"
     precheck_max_tokens: int = 16_000
     precheck_timeout: int = 600
+    # A whole run (pre-check, guide, review, draft) is stopped after this long, so it can never
+    # run on without end. Checked between steps; each step has its own timeouts.
+    run_deadline_s: int = 2400
+    drive_timeout_s: int = 120  # one Drive request (list or download chunk)
     precheck_max_input_tokens: int = 90_000  # the input is shortened by code to fit
 
     # --- Drive -----------------------------------------------------------------------------

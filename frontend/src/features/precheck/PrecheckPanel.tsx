@@ -24,6 +24,7 @@ import { type FormEvent, useState } from 'react'
 
 import styles from './PrecheckPanel.module.css'
 import { PrecheckResult } from './PrecheckResult'
+import { StopRun } from './StopRun'
 import {
   BASIS_LABELS,
   costChip,
@@ -151,6 +152,7 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
           jobKey={jobKey}
           setup={data.setup}
           drafting={drafting}
+          draftRunId={drafting ? data.draft?.run_id : undefined}
           draftFailure={data.draft?.status === 'failed' ? data.draft.failure_reason : ''}
           onDone={data.setup.ready ? () => setEditingSetup(false) : undefined}
         />
@@ -191,12 +193,14 @@ function SetupForm({
   jobKey,
   setup,
   drafting,
+  draftRunId,
   draftFailure,
   onDone,
 }: {
   jobKey: string
   setup: PrecheckSetup
   drafting: boolean
+  draftRunId?: string
   draftFailure: string
   onDone?: () => void
 }) {
@@ -296,6 +300,7 @@ function SetupForm({
             {drafting || draft.isPending ? <Loader2 size={14} className={styles.spin} aria-hidden="true" /> : <Sparkles size={14} aria-hidden="true" />}
             {drafting || draft.isPending ? 'Drafting…' : 'Draft with AI'}
           </Button>
+          <StopRun jobKey={jobKey} runId={draftRunId} />
           <span className={styles.muted}>
             Suggests items from this sub-workspace&apos;s past tasks, what reviewers decided before, and what is in the folder now.
             You can edit them.
@@ -456,7 +461,13 @@ function RunView({
           <Loader2 size={28} className={styles.spin} aria-hidden="true" />
           <div className={styles.verdictText}>
             <div className={styles.verdictWords}>Checking the task…</div>
-            <p className={styles.summary}>This usually takes under a minute. You can leave this page; the result will be here.</p>
+            <p className={styles.summary}>
+              This usually takes a few minutes. You can leave this page; the result will be here. If it seems stuck, stop it and
+              run it again.
+            </p>
+          </div>
+          <div className={styles.verdictAction}>
+            <StopRun jobKey={jobKey} runId={run.run_id} />
           </div>
         </div>
       )}

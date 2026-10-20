@@ -205,6 +205,10 @@ CORS_ALLOW_CREDENTIALS = True
 # directions; set a real one in production.
 PRECHECK_AGENT_URL = env("PRECHECK_AGENT_URL", "http://127.0.0.1:8100")
 PRECHECK_SERVICE_TOKEN = env("PRECHECK_SERVICE_TOKEN", "dev-precheck-token")
+# An AI run still "running" after this many minutes has been lost (the agent stops its own runs
+# after 40): it is marked failed so the task is never stuck. Questions are short, so sooner.
+PRECHECK_STALE_RUN_MINUTES = int(env("PRECHECK_STALE_RUN_MINUTES", "50"))
+PRECHECK_STALE_QUESTION_MINUTES = int(env("PRECHECK_STALE_QUESTION_MINUTES", "10"))
 
 # Email (invitations). Console by default: messages are printed to the server log. For real
 # delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values

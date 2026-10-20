@@ -61,7 +61,12 @@ class GoogleDrive:
         else:
             raise DriveError("The pre-check service has no Google service account key configured.")
         self.account_email = creds.service_account_email
-        self._svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+        import google_auth_httplib2
+        import httplib2
+
+        # A timeout on every Drive request: without one, a stalled download hangs the run forever.
+        http = google_auth_httplib2.AuthorizedHttp(creds, http=httplib2.Http(timeout=settings.drive_timeout_s))
+        self._svc = build("drive", "v3", http=http, cache_discovery=False)
         self._max_files = settings.max_files_per_folder
         self._max_bytes = settings.max_file_bytes
         self._max_zip_bytes = settings.max_zip_bytes

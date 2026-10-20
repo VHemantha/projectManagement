@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckSquare, Clock, ExternalLink, Loader2, RotateCcw, Sparkles } from 'lucide-react'
 
 import styles from './GuidePanel.module.css'
+import { StopRun } from './StopRun'
 import { extractErrorMessage } from '@/api/errors'
 import { type GuideOutput, type GuideStep, useJobGuide, useRunGuide } from '@/api/guide'
 import { Button, Skeleton } from '@/design-system'
@@ -42,6 +43,7 @@ export function GuidePanel({ jobKey }: { jobKey: string }) {
           )}
           {running ? 'Writing the guide…' : guide ? 'Write it again' : 'Write the preparation guide'}
         </Button>
+        {running && <StopRun jobKey={jobKey} runId={latest?.run_id} />}
       </div>
       {run.isError && (
         <p role="alert" className={styles.error}>

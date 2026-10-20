@@ -8,11 +8,13 @@ import type { AssistantQuestion } from '@/api/ask'
 const mocks = vi.hoisted(() => ({
   questions: [] as unknown[],
   ask: vi.fn((_q: string, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
+  stop: vi.fn(),
 }))
 
 vi.mock('@/api/ask', () => ({
   useConversation: () => ({ data: { questions: mocks.questions }, isLoading: false, isError: false }),
   useAsk: () => ({ mutate: mocks.ask, isPending: false, isError: false }),
+  useStopQuestion: () => ({ mutate: mocks.stop, isPending: false }),
 }))
 
 function q(over: Partial<AssistantQuestion>): AssistantQuestion {
@@ -39,7 +41,7 @@ describe('AskPanel', () => {
     expect(mocks.ask).toHaveBeenLastCalledWith('Who manages the property?', expect.anything())
   })
 
-  it('shows each answer with how sure it is and the passages it rests on', () => {
+  it('shows each answer with how sure it is and the passages it rests on', async () => {
     mocks.questions = [
       q({}),
       q({ id: 'q2', question: 'What was the gross rent?', answer: 'Not in the passages.', answer_status: 'not_found', sources: [] }),
@@ -53,7 +55,9 @@ describe('AskPanel', () => {
     expect(within(items[0]).getByText('exact match')).toBeInTheDocument()
     expect(within(items[1]).getByText('Not found in the documents')).toBeInTheDocument()
     expect(within(items[2]).getByText(/mentions a figure not found/)).toBeInTheDocument()
-    expect(within(items[3]).getByText('Looking…')).toBeInTheDocument()
+    expect(within(items[3]).getByText(/Looking…/)).toBeInTheDocument()
+    await userEvent.click(within(items[3]).getByRole('button', { name: 'Stop' }))
+    expect(mocks.stop).toHaveBeenCalledWith('q4')
     expect(screen.getByText(/looking through the task/)).toBeInTheDocument()
   })
 

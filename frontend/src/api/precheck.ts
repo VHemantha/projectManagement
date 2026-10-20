@@ -234,7 +234,7 @@ export interface JobPrecheck {
   latest: Run | null
   history: RunSummary[]
   /** The latest "draft the Direction Note" request, if any. */
-  draft: { status: RunStatus; failure_reason: string; created_at: string } | null
+  draft: { run_id?: string; status: RunStatus; failure_reason: string; created_at: string } | null
 }
 
 /** While a run is live the socket pushes changes; this slow poll is the fallback. */
@@ -262,6 +262,19 @@ export function useRunPrecheck(jobKey: string) {
   return useMutation({
     mutationFn: async () => (await apiClient.post<Run>('/precheck/runs/', { job: jobKey })).data,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
+  })
+}
+
+/** Stop a running pre-check, guide, review or Direction Note draft. Every panel of the task is
+ * refreshed, since any of them may have been showing it. */
+export function useStopRun(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (runId: string) => (await apiClient.post<Run>(`/precheck/runs/${runId}/stop/`)).data,
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] })
+      queryClient.invalidateQueries({ queryKey: ['precheck-run'] })
+    },
   })
 }
 

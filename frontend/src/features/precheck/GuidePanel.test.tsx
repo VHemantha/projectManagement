@@ -6,6 +6,8 @@ import { GuidePanel } from './GuidePanel'
 
 const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn() }))
 
+vi.mock('./StopRun', () => ({ StopRun: ({ runId }: { runId?: string }) => <button type="button">Stop {runId}</button> }))
+
 vi.mock('@/api/guide', () => ({
   useJobGuide: () => ({ data: mocks.state, isLoading: false, isError: false }),
   useRunGuide: () => ({ mutate: mocks.run, isPending: false, isError: false }),
@@ -46,5 +48,12 @@ describe('GuidePanel', () => {
     expect(loans).toHaveTextContent('Waits on information from the client')
     expect(loans).toHaveTextContent(/figure not found in the documents/)
     expect(screen.getByRole('button', { name: 'Write it again' })).toBeEnabled()
+  })
+
+  it('while it is being written, it can be stopped', () => {
+    mocks.state = { has_precheck: true, history: [], latest: { run_id: 'g1', status: 'running', guide: {} } }
+    render(<GuidePanel jobKey="SMITH-1" />)
+    expect(screen.getByRole('button', { name: /Writing the guide/ })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Stop g1' })).toBeInTheDocument()
   })
 })

@@ -2,6 +2,7 @@ import { AlertTriangle, Check, ExternalLink, Loader2, Plus, RotateCcw, Sparkles,
 import { type FormEvent, useState } from 'react'
 
 import styles from './ReviewPanel.module.css'
+import { StopRun } from './StopRun'
 import { extractErrorMessage } from '@/api/errors'
 import { type LessonScope, type SourceRef, useLessons, useSetLessonStatus } from '@/api/precheck'
 import {
@@ -94,6 +95,7 @@ function ReviewBody({ jobKey, data }: { jobKey: string; data: ReviewState }) {
               {running ? 'Reviewing…' : start.isPending ? 'Starting…' : data.rounds_done ? `Run round ${data.rounds_done + 1}` : 'Run AI review'}
             </Button>
           )}
+          {running && <StopRun jobKey={jobKey} runId={latest?.run_id} />}
         </div>
       </div>
       {start.isError && (

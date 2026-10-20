@@ -50,6 +50,15 @@ export function useConversation(jobKey: string) {
   })
 }
 
+/** Stop waiting for an answer; one that arrives later is ignored. */
+export function useStopQuestion(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (questionId: string) => (await apiClient.post<AssistantQuestion>(`/precheck/questions/${questionId}/stop/`)).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'ask'] }),
+  })
+}
+
 export function useAsk(jobKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
