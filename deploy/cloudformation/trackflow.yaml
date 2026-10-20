@@ -256,9 +256,11 @@ Resources:
       InstanceType: !Ref InstanceType
       KeyName: !Ref KeyName
       IamInstanceProfile: !Ref AppInstanceProfile
-      # t3 defaults to "unlimited" CPU credits, which can bill beyond the free tier.
+      # "unlimited" (20 Oct 2026): with "standard" the credits ran out under AI pre-checks and
+      # the CPU was held at its baseline for hours, so everything crawled. Use above the
+      # baseline is billed ($0.05 per vCPU-hour); a budget alert watches the total.
       CreditSpecification:
-        CPUCredits: standard
+        CPUCredits: unlimited
       MetadataOptions:
         HttpTokens: required
       NetworkInterfaces:
