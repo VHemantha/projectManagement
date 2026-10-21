@@ -46,7 +46,7 @@ describe('GuidePanel', () => {
     expect(within(rates).getByRole('link', { name: /Rates\.pdf, page 1/ })).toHaveAttribute('href', 'https://drive.example/r')
     const loans = screen.getByRole('region', { name: 'Loans' })
     expect(loans).toHaveTextContent('Waits on information from the client')
-    expect(loans).toHaveTextContent(/figure not found in the documents/)
+    expect(loans).toHaveTextContent(/amount not found in the documents \(it may be calculated\)/)
     expect(screen.getByRole('button', { name: 'Write it again' })).toBeEnabled()
   })
 

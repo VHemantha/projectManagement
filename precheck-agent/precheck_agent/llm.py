@@ -90,23 +90,24 @@ def demo_guide(body: str, by) -> AIMessage:
     payees = [ln.split(" | ") for ln in body.splitlines() if re.match(r"^B\d+\.\d+ \| ", ln)]
     outstanding = [ln.split(" — ", 1)[-1] for ln in body.splitlines() if ln.startswith("Still requested from the client: ")]
     first = payees[0] if payees else None
-    answer = {
+    e1 = "E1" if first else ""
+    answer = {  # ids as comma-separated strings and one list of queries, as the real answer shape
         "snapshot": {"activities": "Demo client.", "assets_and_funding": "As in last year's accounts.",
                      "records": f"{len(banks)} bank export(s); last year's trial balance.", "bookkeeping": "Bank exports only.",
-                     "period": "Year to 31 March.", "sources": [p[0] for p in banks[:1]] + [p[0] for p in tb[:1]]},
+                     "period": "Year to 31 March.", "sources": ", ".join([p[0] for p in banks[:1]] + [p[0] for p in tb[:1]])},
         "events": [{"id": "E1", "event": f"Payments to {first[1]}.", "status": "suspected", "why_it_matters": "May be a significant transaction.",
-                    "action": "Confirm what the payments were for.", "effect": "Not yet quantifiable.", "sources": [first[0]]}] if first else [],
-        "prior_year": [{"item": f"Closing balance: {p[1]}.", "kind": "balance", "follow_through": "Agree the opening balance.", "sources": [p[0]]}
+                    "action": "Confirm what the payments were for.", "effect": "Not yet quantifiable.", "sources": first[0]}] if first else [],
+        "prior_year": [{"item": f"Closing balance: {p[1]}.", "kind": "balance", "follow_through": "Agree the opening balance.", "sources": p[0]}
                        for p in tb[:2]],
         "risks": [{"area": "Bank", "what_could_be_wrong": f"{p[1]} is not reconciled.", "examine": "The year-end balance.",
-                   "evidence": "The bank statement.", "events": [], "sources": [p[0]]} for p in banks[:3]],
+                   "evidence": "The bank statement.", "events": "", "sources": p[0]} for p in banks[:3]],
         "sequence": [{"step": f"Reconcile {p[1]} to its year-end balance.", "depends_on": "nothing", "can_start_now": True, "escalate": "",
-                      "events": ["E1"] if first and i == 0 else [], "sources": [p[0]]} for i, p in enumerate(banks[:3])],
+                      "events": e1 if i == 0 else "", "sources": p[0]} for i, p in enumerate(banks[:3])],
         "judgments": [],
-        "queries": {"manager": [], "client": [{"question": "What were the payments to the first payee for?", "events": ["E1"] if first else [], "sources": []}],
-                    "outstanding": [{"item": item, "events": [], "sources": []} for item in outstanding]},
-        "checklist": [{"check": "Significant events resolved.", "status": "open", "events": ["E1"] if first else []},
-                      {"check": "Bank accounts reconciled.", "status": "open", "events": []}],
+        "queries": [{"to": "client", "text": "What were the payments to the first payee for?", "events": e1, "sources": ""}]
+                   + [{"to": "outstanding", "text": item, "events": "", "sources": ""} for item in outstanding],
+        "checklist": [{"check": "Significant events resolved.", "status": "open", "events": e1},
+                      {"check": "Bank accounts reconciled.", "status": "open", "events": ""}],
     }
     text = json.dumps(answer)
     return AIMessage(content=text, usage_metadata=_usage(body, text))

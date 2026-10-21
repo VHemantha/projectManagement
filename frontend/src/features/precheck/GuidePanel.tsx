@@ -12,7 +12,7 @@ type Evidence = GuideV2['evidence']
 
 const FLAG_TEXT: Record<string, string> = {
   no_source: 'The AI gave no source for this step',
-  figure_not_in_documents: 'It mentions a figure not found in the documents — check it',
+  figure_not_in_documents: 'It has an amount not found in the documents (it may be calculated) — check it',
   confirmation_not_documented: 'The AI called this confirmed, but no document in the folder shows it — treat it as suspected',
   longer_than_a_page_and_a_half: 'This guide is longer than one and a half pages',
 }

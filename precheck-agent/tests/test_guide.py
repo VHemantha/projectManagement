@@ -23,9 +23,8 @@ def answer(**over) -> dict:
     base = {
         "snapshot": {"activities": "Residential rental at 43 Te Wharo Drive.", "assets_and_funding": "One rental property funded by an ASB loan.",
                      "records": "ANZ bank export for the year; last year's statements.", "bookkeeping": "Bank exports only, no ledger.",
-                     "period": "Year to 31 March 2026.", "sources": ["B1", "Z9"]},
-        "events": [], "prior_year": [], "risks": [], "sequence": [], "judgments": [],
-        "queries": {"manager": [], "client": [], "outstanding": []}, "checklist": [],
+                     "period": "Year to 31 March 2026.", "sources": "B1, Z9"},
+        "events": [], "prior_year": [], "risks": [], "sequence": [], "judgments": [], "queries": [], "checklist": [],
     }
     base.update(over)
     return base
@@ -64,20 +63,19 @@ def test_code_checks_figures_confirmations_follow_through_and_repeated_queries(e
         events=[
             # Confirmed with no document behind it: becomes suspected. Followed through everywhere.
             {"id": "a", "event": "Loan refinanced with ASB.", "status": "confirmed", "why_it_matters": "Interest and the loan balance change.",
-             "action": "Reconcile settlement of the old loan and drawdown of the new loan.", "effect": "Not yet quantifiable.", "sources": ["Z9"]},
+             "action": "Reconcile settlement of the old loan and drawdown of the new loan.", "effect": "Not yet quantifiable.", "sources": "Z9"},
             # Confirmed by the bank line, but its amount is invented and it is never followed through.
             {"id": "b", "event": "Machinery bought for 99,999.00.", "status": "confirmed", "why_it_matters": "Capital, not expense.",
-             "action": "Inspect the invoice.", "effect": "Fixed assets up.", "sources": ["B1.2"]},
-            {"id": "c", "event": "Loan refinanced with ASB.", "status": "suspected", "why_it_matters": "Duplicate.", "action": "x", "effect": "", "sources": []},
+             "action": "Inspect the invoice.", "effect": "Fixed assets up.", "sources": "B1.2"},
+            {"id": "c", "event": "Loan refinanced with ASB.", "status": "suspected", "why_it_matters": "Duplicate.", "action": "x", "effect": "", "sources": ""},
         ],
         sequence=[{"step": "Reconcile the ASB loan statements.", "depends_on": "Annual loan summary", "can_start_now": False,
-                   "escalate": "", "events": ["a", "zz"], "sources": ["B1"]}],
-        queries={"manager": [],
-                 "client": [{"question": "Annual loan summary", "events": [], "sources": []},  # repeats an outstanding request
-                            {"question": "Was the ASB loan refinanced, and on what date?", "events": ["a"], "sources": []}],
-                 "outstanding": [{"item": "Annual loan summary", "events": ["a"], "sources": []}]},
-        checklist=[{"check": "Refinance reconciled.", "status": "open", "events": ["a"]},
-                   {"check": "Bank reconciled.", "status": "maybe", "events": []}],
+                   "escalate": "", "events": "a, zz", "sources": "B1"}],
+        queries=[{"to": "client", "text": "Annual loan summary", "events": "", "sources": ""},  # repeats an outstanding request
+                 {"to": "client", "text": "Was the ASB loan refinanced, and on what date?", "events": "a", "sources": ""},
+                 {"to": "outstanding", "text": "Annual loan summary", "events": "a", "sources": ""}],
+        checklist=[{"check": "Refinance reconciled.", "status": "open", "events": "a"},
+                   {"check": "Bank reconciled.", "status": "maybe", "events": ""}],
     )))
     guide = env.run("1", mode="guide")["guide"]
     refinance, machinery = guide["events"]  # the duplicate is dropped; ids are renumbered
@@ -98,10 +96,25 @@ def test_a_guide_longer_than_a_page_and_a_half_is_flagged(env):
     long_step = "Reconcile the account and agree every receipt and payment to the statement and the ledger with care " * 3
     env.precheck = llm.set_fake("precheck", scripted(answer(
         sequence=[{"step": f"{n}. {long_step}", "depends_on": "nothing in particular at this stage of the work", "can_start_now": True,
-                   "escalate": "Raise with the manager if the difference cannot be explained within the day", "events": [], "sources": ["B1"]}
+                   "escalate": "Raise with the manager if the difference cannot be explained within the day", "events": "", "sources": "B1"}
                   for n in range(12)],
-        risks=[{"area": f"Area {n}", "what_could_be_wrong": f"Risk {n}: {long_step}", "examine": long_step, "evidence": long_step, "events": [], "sources": []}
+        risks=[{"area": f"Area {n}", "what_could_be_wrong": f"Risk {n}: {long_step}", "examine": long_step, "evidence": long_step, "events": "", "sources": ""}
                for n in range(5)],
     )))
     guide = env.run("1", mode="guide")["guide"]
     assert guide["words"] > 900 and guide["flags"] == ["longer_than_a_page_and_a_half"]
+
+
+def test_the_answer_shape_stays_small_enough_for_the_api():
+    """The API compiles the answer shape into a grammar and refused the first version (an array of
+    ids on every item, three query lists) as too large: ids are strings, queries one list."""
+    from precheck_agent.guide import SCHEMA
+
+    def arrays_of_strings(v) -> int:
+        if isinstance(v, dict):
+            here = 1 if v.get("type") == "array" and v.get("items", {}).get("type") == "string" else 0
+            return here + sum(arrays_of_strings(x) for x in v.values())
+        return sum(arrays_of_strings(x) for x in v) if isinstance(v, list) else 0
+
+    assert arrays_of_strings(SCHEMA) == 0
+    assert SCHEMA["properties"]["queries"]["type"] == "array"

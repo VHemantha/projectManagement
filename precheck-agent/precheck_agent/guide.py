@@ -32,7 +32,11 @@ CHECK_STATUSES = ["done", "open", "na"]
 MAX_WORDS = 900
 
 _STR = {"type": "string"}
-_IDS = {"type": "array", "items": _STR}
+# Ids as one comma-separated string ("B1, G2.1"), not an array, and the three query lists as one
+# list: the API compiles the answer shape into a grammar, and with an array of ids on every item
+# of eight sections it refused it as too large (21 Oct 2026).
+_IDS = _STR
+QUERY_TO = ["manager", "client", "outstanding"]
 
 
 def _obj(props: dict) -> dict:
@@ -52,20 +56,18 @@ SCHEMA = _obj({
         "step": _STR, "depends_on": _STR, "can_start_now": {"type": "boolean"}, "escalate": _STR, "events": _IDS, "sources": _IDS})},
     "judgments": {"type": "array", "items": _obj({
         "judgment": _STR, "evidence": _STR, "manager_approval": {"type": "boolean"}, "reference": _STR, "events": _IDS, "sources": _IDS})},
-    "queries": _obj({
-        "manager": {"type": "array", "items": _obj({"question": _STR, "events": _IDS, "sources": _IDS})},
-        "client": {"type": "array", "items": _obj({"question": _STR, "events": _IDS, "sources": _IDS})},
-        "outstanding": {"type": "array", "items": _obj({"item": _STR, "events": _IDS, "sources": _IDS})},
-    }),
+    "queries": {"type": "array", "items": _obj({
+        "to": {"type": "string", "enum": QUERY_TO}, "text": _STR, "events": _IDS, "sources": _IDS})},
     "checklist": {"type": "array", "items": _obj({"check": _STR, "status": {"type": "string", "enum": CHECK_STATUSES}, "events": _IDS})},
 })
 
-ANSWER = """Answer in the JSON shape given: the eight sections of the preparation guide skill (snapshot, events, prior_year, risks, sequence, judgments, queries, checklist), within one to one-and-a-half A4 pages (about 500 to 800 words in all). Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; cite the ids each item rests on; refer to events by their ids (E1, E2, ...) wherever they are followed through."""
+ANSWER = """Answer in the JSON shape given: the eight sections of the preparation guide skill (snapshot, events, prior_year, risks, sequence, judgments, queries, checklist), within one to one-and-a-half A4 pages (about 500 to 800 words in all). Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; give "sources" as the ids each item rests on and "events" as the event ids it follows through (E1, E2, ...), each as one comma-separated string ("B1, G2.1"; "" for none); give every query with "to": manager, client or outstanding."""
 
-# Words allowed per field (the page limit, shared out).
-LIMITS = {"snapshot": 30, "event": 30, "why_it_matters": 25, "action": 40, "effect": 30, "item": 25, "follow_through": 25,
-          "area": 6, "what_could_be_wrong": 25, "examine": 25, "evidence": 25, "step": 35, "depends_on": 15, "escalate": 20,
-          "judgment": 25, "reference": 15, "question": 30, "check": 20}
+# Words kept per field: about half as much again as the skill asks for, so an answer that runs a
+# little long is kept whole rather than cut mid-sentence (the page limit is checked on the total).
+LIMITS = {"snapshot": 45, "event": 45, "why_it_matters": 40, "action": 55, "effect": 40, "item": 35, "follow_through": 35,
+          "area": 8, "what_could_be_wrong": 35, "examine": 35, "evidence": 35, "step": 45, "depends_on": 20, "escalate": 30,
+          "judgment": 35, "reference": 25, "question": 45, "check": 30}
 MAX_ITEMS = {"events": 7, "prior_year": 6, "risks": 5, "sequence": 12, "judgments": 6, "manager": 6, "client": 8, "outstanding": 12, "checklist": 14}
 
 
@@ -120,11 +122,28 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
+def _ids(value) -> list[str]:
+    """Ids as the model gives them: "B1, G2.1" (or a list)."""
+    parts = value if isinstance(value, list) else re.split(r"[,;\s]+", str(value or ""))
+    return [p for p in dict.fromkeys(str(x).strip().strip(".") for x in parts) if p]
+
+
+def _queries(raw) -> dict:
+    """The model's one list of queries ({to, text}) as the three lists the guide shows."""
+    if isinstance(raw, dict):  # already split
+        return raw
+    out = {"manager": [], "client": [], "outstanding": []}
+    for q in raw or []:
+        to = q.get("to") if q.get("to") in QUERY_TO else "client"
+        out[to].append({("item" if to == "outstanding" else "question"): q.get("text", ""), "events": q.get("events"), "sources": q.get("sources")})
+    return out
+
+
 def clean(raw: dict, index: dict, known_text: str) -> dict:
     known = P.known_numbers(known_text)
 
     def sources(ids) -> list[str]:
-        return [i for i in dict.fromkeys(str(x).strip() for x in ids or []) if i in index][:6]
+        return [i for i in _ids(ids) if i in index][:6]
 
     def text(value, field: str) -> str:
         return clip_words(" ".join(str(value or "").split()), LIMITS[field])
@@ -151,7 +170,7 @@ def clean(raw: dict, index: dict, known_text: str) -> dict:
         events.append(item)
 
     def refs(ids) -> list[str]:
-        return [renumber[i] for i in dict.fromkeys(str(x).strip() for x in ids or []) if i in renumber]
+        return list(dict.fromkeys(renumber[i] for i in _ids(ids) if i in renumber))
 
     def rows(items, limit: int, fields: dict, extra=None) -> list[dict]:
         """Clean a list: text fields clipped, duplicates and empty rows dropped, sources and event
@@ -184,7 +203,7 @@ def clean(raw: dict, index: dict, known_text: str) -> dict:
                     lambda r: {"can_start_now": bool(r.get("can_start_now"))})
     judgments = rows(raw.get("judgments"), MAX_ITEMS["judgments"], {"judgment": "judgment", "evidence": "evidence", "reference": "reference"},
                      lambda r: {"manager_approval": bool(r.get("manager_approval"))})
-    q = raw.get("queries") or {}
+    q = _queries(raw.get("queries"))
     outstanding = rows(q.get("outstanding"), MAX_ITEMS["outstanding"], {"item": "item"})
     asked = {_norm(o["item"]) for o in outstanding}
     # A client question that only repeats an outstanding request is not asked twice.
