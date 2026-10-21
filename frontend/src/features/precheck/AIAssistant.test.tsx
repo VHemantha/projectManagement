@@ -40,6 +40,12 @@ describe('AIAssistant', () => {
     expect(within(screen.getByRole('dialog', { name: 'Preparation guide' })).getByText('guide panel')).toBeInTheDocument()
   })
 
+  it('a guide in the eight sections shows its event alerts on the Guide button', () => {
+    mocks.guide = { has_precheck: true, latest: { status: 'complete', guide: { format: 2, events: [{ status: 'confirmed' }, { status: 'suspected' }] } } }
+    render(<AIAssistant jobKey="SMITH-1" />)
+    expect(screen.getByRole('button', { name: /Guide/ })).toHaveTextContent('2 event alerts, 1 to confirm')
+  })
+
   it('opens each tool in its own window', async () => {
     render(<AIAssistant jobKey="SMITH-1" />)
     const precheck = screen.getByRole('button', { name: /Pre-check/ })

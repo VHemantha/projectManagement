@@ -1,12 +1,17 @@
-"""The preparation guide: after the pre-check, the steps a preparer takes to prepare this year's
-financial statements, each with the figures from the documents and how to verify it.
+"""The preparation guide: after the pre-check, an eight-section briefing for the accountant preparing
+this year's financial statements (AFIT's agreed structure, 21 Oct 2026): job snapshot, significant
+events and alerts, prior-year continuity, priority risks, starting sequence, judgments, queries and
+a completion checklist, within one to one-and-a-half A4 pages.
 
 One Opus call. The input is the pre-check's own (every line with an id: questionnaire, last year's
 statements and trial balance, workpapers, this year's documents, bank exports and the general ledger
-summarised by code, code checks), plus the latest pre-check's result. Code checks the answer: only
-real sources, and a step with an amount not in the input is flagged.
+summarised by code, code checks, earlier corrections), plus the latest pre-check's result. Code checks
+the answer: only real sources; any amount not in the input is flagged; an event called confirmed with
+no document behind it becomes suspected; every event is followed through to the work sequence, the
+queries and the checklist, or flagged; a client query that repeats an outstanding request is dropped.
 """
 import json
+import re
 
 from langchain_core.messages import HumanMessage
 
@@ -19,25 +24,49 @@ from .skills_loader import get_skill
 from .textutil import clip_words, sha
 
 SKILL = "nz-preparation-guide"
-SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["summary", "steps"],
-    "properties": {
-        "summary": {"type": "string"},
-        "steps": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False,
-            "required": ["area", "step", "check", "waits_on_client", "sources"],
-            "properties": {
-                "area": {"type": "string"},
-                "step": {"type": "string"},
-                "check": {"type": "string"},
-                "waits_on_client": {"type": "boolean"},
-                "sources": {"type": "array", "items": {"type": "string"}},
-            },
-        }},
-    },
-}
+FORMAT = 2  # the eight-section guide; format 1 was a flat list of steps
 
-ANSWER = """Answer in the JSON shape given: a summary (at most 50 words) and the preparation steps in the order the work is done, as the preparation guide skill says. Use only figures and names in the input; cite the ids each step rests on."""
+PRIOR_KINDS = ["error", "reviewer_point", "unresolved", "policy", "balance"]
+CHECK_STATUSES = ["done", "open", "na"]
+# About one to one-and-a-half A4 pages; past this the guide is flagged as too long.
+MAX_WORDS = 900
+
+_STR = {"type": "string"}
+_IDS = {"type": "array", "items": _STR}
+
+
+def _obj(props: dict) -> dict:
+    return {"type": "object", "additionalProperties": False, "required": list(props), "properties": props}
+
+
+SCHEMA = _obj({
+    "snapshot": _obj({"activities": _STR, "assets_and_funding": _STR, "records": _STR, "bookkeeping": _STR, "period": _STR, "sources": _IDS}),
+    "events": {"type": "array", "items": _obj({
+        "id": _STR, "event": _STR, "status": {"type": "string", "enum": ["confirmed", "suspected"]},
+        "why_it_matters": _STR, "action": _STR, "effect": _STR, "sources": _IDS})},
+    "prior_year": {"type": "array", "items": _obj({
+        "item": _STR, "kind": {"type": "string", "enum": PRIOR_KINDS}, "follow_through": _STR, "sources": _IDS})},
+    "risks": {"type": "array", "items": _obj({
+        "area": _STR, "what_could_be_wrong": _STR, "examine": _STR, "evidence": _STR, "events": _IDS, "sources": _IDS})},
+    "sequence": {"type": "array", "items": _obj({
+        "step": _STR, "depends_on": _STR, "can_start_now": {"type": "boolean"}, "escalate": _STR, "events": _IDS, "sources": _IDS})},
+    "judgments": {"type": "array", "items": _obj({
+        "judgment": _STR, "evidence": _STR, "manager_approval": {"type": "boolean"}, "reference": _STR, "events": _IDS, "sources": _IDS})},
+    "queries": _obj({
+        "manager": {"type": "array", "items": _obj({"question": _STR, "events": _IDS, "sources": _IDS})},
+        "client": {"type": "array", "items": _obj({"question": _STR, "events": _IDS, "sources": _IDS})},
+        "outstanding": {"type": "array", "items": _obj({"item": _STR, "events": _IDS, "sources": _IDS})},
+    }),
+    "checklist": {"type": "array", "items": _obj({"check": _STR, "status": {"type": "string", "enum": CHECK_STATUSES}, "events": _IDS})},
+})
+
+ANSWER = """Answer in the JSON shape given: the eight sections of the preparation guide skill (snapshot, events, prior_year, risks, sequence, judgments, queries, checklist), within one to one-and-a-half A4 pages (about 500 to 800 words in all). Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; cite the ids each item rests on; refer to events by their ids (E1, E2, ...) wherever they are followed through."""
+
+# Words allowed per field (the page limit, shared out).
+LIMITS = {"snapshot": 30, "event": 30, "why_it_matters": 25, "action": 40, "effect": 30, "item": 25, "follow_through": 25,
+          "area": 6, "what_could_be_wrong": 25, "examine": 25, "evidence": 25, "step": 35, "depends_on": 15, "escalate": 20,
+          "judgment": 25, "reference": 15, "question": 30, "check": 20}
+MAX_ITEMS = {"events": 7, "prior_year": 6, "risks": 5, "sequence": 12, "judgments": 6, "manager": 6, "client": 8, "outstanding": 12, "checklist": 14}
 
 
 def system_text() -> str:
@@ -49,8 +78,8 @@ def skill_version() -> str:
 
 
 def with_precheck(body: str, last: dict | None) -> str:
-    """The pre-check input with the pre-check's own result added: what is still requested (the steps
-    that depend on it wait for the client) and what it noted for the preparer."""
+    """The pre-check input with the pre-check's own result added: what is still requested (the
+    outstanding requests, and the steps that wait for them) and what it noted for the preparer."""
     lines = ["\n== THE LATEST PRE-CHECK'S RESULT =="]
     if not last:
         lines.append("(no pre-check has finished for this task yet)")
@@ -67,7 +96,7 @@ def with_precheck(body: str, last: dict | None) -> str:
 
 
 def cache_key(client_id: str, job_id: str, body: str, settings: Settings) -> str:
-    return sha("guide", client_id, job_id, model_id("precheck", settings), settings.prompt_version, skill_version(),
+    return sha("guide", FORMAT, client_id, job_id, model_id("precheck", settings), settings.prompt_version, skill_version(),
                *sorted(f"{k}={v}" for k, v in P.skill_versions().items()), body)
 
 
@@ -85,26 +114,128 @@ def call_model(body: str, settings: Settings) -> tuple[dict, dict]:
         raise P.Unusable("The guide model's answer was not valid JSON.", usage) from exc
 
 
+# --- code checks ------------------------------------------------------------------------------
+
+def _norm(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
+
+
 def clean(raw: dict, index: dict, known_text: str) -> dict:
     known = P.known_numbers(known_text)
-    valid = lambda ids: [i for i in dict.fromkeys(str(x).strip() for x in ids) if i in index and index[i]["kind"] != "lesson"][:6]  # noqa: E731
-    steps, seen = [], set()
-    for s in raw.get("steps", []):
-        step = clip_words(str(s.get("step", "")), 45)
-        if not step or step.lower() in seen:
+
+    def sources(ids) -> list[str]:
+        return [i for i in dict.fromkeys(str(x).strip() for x in ids or []) if i in index][:6]
+
+    def text(value, field: str) -> str:
+        return clip_words(" ".join(str(value or "").split()), LIMITS[field])
+
+    def figures(item: dict, *fields: str) -> list[str]:
+        return [] if all(P.figures_ok(item[f], known) for f in fields) else ["figure_not_in_documents"]
+
+    # 2. Events first: their ids are renumbered E1, E2, ... and every later reference is mapped.
+    events, renumber, seen = [], {}, set()
+    for e in (raw.get("events") or [])[: MAX_ITEMS["events"]]:
+        what = text(e.get("event"), "event")
+        if not what or _norm(what) in seen:
             continue
-        seen.add(step.lower())
-        check = clip_words(str(s.get("check", "")), 30)
-        sources = valid(s.get("sources", []))
-        flags = []
-        if not sources:
-            flags.append("no_source")
-        if not (P.figures_ok(step, known) and P.figures_ok(check, known)):
-            flags.append("figure_not_in_documents")
-        steps.append({"area": clip_words(str(s.get("area", "")) or "General", 6), "step": step, "check": check,
-                      "waits_on_client": bool(s.get("waits_on_client")), "sources": sources, "flags": flags})
-    summary = clip_words(str(raw.get("summary", "")), 50)
-    return {"summary": summary if P.figures_ok(summary, known) else "", "steps": steps}
+        seen.add(_norm(what))
+        eid = f"E{len(events) + 1}"
+        renumber[str(e.get("id", "")).strip()] = eid
+        item = {"id": eid, "event": what, "status": "confirmed" if e.get("status") == "confirmed" else "suspected",
+                "why_it_matters": text(e.get("why_it_matters"), "why_it_matters"), "action": text(e.get("action"), "action"),
+                "effect": text(e.get("effect"), "effect"), "sources": sources(e.get("sources")), "flags": []}
+        if item["status"] == "confirmed" and not item["sources"]:
+            item["status"] = "suspected"  # confirmed means documented
+            item["flags"].append("confirmation_not_documented")
+        item["flags"] += figures(item, "event", "why_it_matters", "action", "effect")
+        events.append(item)
+
+    def refs(ids) -> list[str]:
+        return [renumber[i] for i in dict.fromkeys(str(x).strip() for x in ids or []) if i in renumber]
+
+    def rows(items, limit: int, fields: dict, extra=None) -> list[dict]:
+        """Clean a list: text fields clipped, duplicates and empty rows dropped, sources and event
+        references checked, figures checked."""
+        out, dup = [], set()
+        first = next(iter(fields))
+        for r in (items or [])[:limit]:
+            row = {f: text(r.get(f), limit_name) for f, limit_name in fields.items()}
+            if not row[first] or _norm(row[first]) in dup:
+                continue
+            dup.add(_norm(row[first]))
+            row.update(extra(r) if extra else {})
+            row["events"] = refs(r.get("events"))
+            if "sources" in r:
+                row["sources"] = sources(r.get("sources"))
+            row["flags"] = figures(row, *fields)
+            out.append(row)
+        return out
+
+    snap = raw.get("snapshot") or {}
+    snapshot = {f: text(snap.get(f), "snapshot") for f in ("activities", "assets_and_funding", "records", "bookkeeping", "period")}
+    snapshot["sources"] = sources(snap.get("sources"))
+    snapshot["flags"] = figures(snapshot, "activities", "assets_and_funding", "records", "bookkeeping", "period")
+
+    prior = rows(raw.get("prior_year"), MAX_ITEMS["prior_year"], {"item": "item", "follow_through": "follow_through"},
+                 lambda r: {"kind": r.get("kind") if r.get("kind") in PRIOR_KINDS else "unresolved"})
+    risks = rows(raw.get("risks"), MAX_ITEMS["risks"],
+                 {"what_could_be_wrong": "what_could_be_wrong", "area": "area", "examine": "examine", "evidence": "evidence"})
+    sequence = rows(raw.get("sequence"), MAX_ITEMS["sequence"], {"step": "step", "depends_on": "depends_on", "escalate": "escalate"},
+                    lambda r: {"can_start_now": bool(r.get("can_start_now"))})
+    judgments = rows(raw.get("judgments"), MAX_ITEMS["judgments"], {"judgment": "judgment", "evidence": "evidence", "reference": "reference"},
+                     lambda r: {"manager_approval": bool(r.get("manager_approval"))})
+    q = raw.get("queries") or {}
+    outstanding = rows(q.get("outstanding"), MAX_ITEMS["outstanding"], {"item": "item"})
+    asked = {_norm(o["item"]) for o in outstanding}
+    # A client question that only repeats an outstanding request is not asked twice.
+    client = [c for c in rows(q.get("client"), MAX_ITEMS["client"], {"question": "question"}) if _norm(c["question"]) not in asked]
+    manager = rows(q.get("manager"), MAX_ITEMS["manager"], {"question": "question"})
+    checklist = rows(raw.get("checklist"), MAX_ITEMS["checklist"], {"check": "check"},
+                     lambda r: {"status": r.get("status") if r.get("status") in CHECK_STATUSES else "open"})
+
+    # Every event is followed through: a step to deal with it, a line on the checklist, and for a
+    # suspected event a question to confirm it.
+    def mentions(items) -> set[str]:
+        return {e for it in items for e in it.get("events", [])}
+
+    in_sequence, in_checklist, in_queries = mentions(sequence), mentions(checklist), mentions(manager + client + outstanding)
+    for e in events:
+        missing = [part for part, ok in (("sequence", e["id"] in in_sequence), ("checklist", e["id"] in in_checklist),
+                                         ("query", e["status"] == "confirmed" or e["id"] in in_queries)) if not ok]
+        e["not_followed_through"] = missing
+        if missing:
+            e["flags"].append("not_followed_through")
+
+    return {"format": FORMAT, "snapshot": snapshot, "events": events, "prior_year": prior, "risks": risks, "sequence": sequence,
+            "judgments": judgments, "queries": {"manager": manager, "client": client, "outstanding": outstanding}, "checklist": checklist}
+
+
+def word_count(guide: dict) -> int:
+    def walk(v) -> int:
+        if isinstance(v, str):
+            return len(v.split())
+        if isinstance(v, dict):
+            return sum(walk(x) for k, x in v.items() if k not in ("sources", "events", "flags", "id", "status", "kind", "not_followed_through"))
+        if isinstance(v, list):
+            return sum(walk(x) for x in v)
+        return 0
+    return walk({k: guide[k] for k in ("snapshot", "events", "prior_year", "risks", "sequence", "judgments", "queries", "checklist")})
+
+
+def size(guide: dict) -> int:
+    """How many items the guide holds (old guides: their steps)."""
+    if guide.get("format") != FORMAT:
+        return len(guide.get("steps", []))
+    q = guide["queries"]
+    return sum(len(guide[k]) for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist")) + sum(len(v) for v in q.values())
+
+
+def flagged(guide: dict) -> int:
+    """How many items code flagged (an amount not in the documents, an event not followed through...)."""
+    if guide.get("format") != FORMAT:
+        return sum(1 for s in guide.get("steps", []) if s.get("flags"))
+    items = [guide["snapshot"]] + [x for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist") for x in guide[k]]
+    return sum(1 for x in items + [q for v in guide["queries"].values() for q in v] if x.get("flags"))
 
 
 def assemble(cleaned: dict, index: dict) -> tuple[dict, dict]:
@@ -116,13 +247,31 @@ def assemble(cleaned: dict, index: dict) -> tuple[dict, dict]:
         evidence[e["id"]] = e
         return e["id"]
 
-    steps = [{**s, "sources": [P._source_view(i, index, ev) for i in s["sources"]]} for s in cleaned["steps"]]
-    waiting = sum(1 for s in steps if s["waits_on_client"])
-    out = {
-        "summary": cleaned["summary"],
-        "steps": steps,
-        "decision": {"state": "guide", "label": "Preparation guide",
-                     "reason": f"{len(steps)} step{'s' if len(steps) != 1 else ''}; {waiting} wait{'s' if waiting == 1 else ''} on information from the client."},
-    }
+    def view(sid: str) -> dict:
+        item = index[sid]
+        if item["kind"] == "lesson":  # an earlier correction: a reviewer point carried forward
+            lesson = item["lesson"]
+            return {"id": sid, "label": f"Earlier correction: {clip_words(lesson.get('note') or lesson.get('item', ''), 14)}", "evidence_id": None}
+        return P._source_view(sid, index, ev)
+
+    def with_views(v):
+        if isinstance(v, dict):
+            return {k: ([view(i) for i in x] if k == "sources" else with_views(x)) for k, x in v.items()}
+        if isinstance(v, list):
+            return [with_views(x) for x in v]
+        return v
+
+    out = with_views(cleaned)
+    events = out["events"]
+    suspected = sum(1 for e in events if e["status"] == "suspected")
+    open_checks = sum(1 for c in out["checklist"] if c["status"] == "open")
+    words = word_count(out)
+    parts = [f"{len(events)} significant event{'s' if len(events) != 1 else ''}" + (f" ({suspected} to confirm)" if suspected else ""),
+             f"{len(out['risks'])} priority risk{'s' if len(out['risks']) != 1 else ''}",
+             f"{open_checks} open check{'s' if open_checks != 1 else ''}"]
+    out["summary"] = "; ".join(filter(None, (out["snapshot"]["activities"], out["snapshot"]["period"])))
+    out["words"] = words
+    out["flags"] = ["longer_than_a_page_and_a_half"] if words > MAX_WORDS else []
+    out["decision"] = {"state": "guide", "label": "Preparation guide", "reason": "; ".join(parts) + "."}
     out["evidence"] = {k: {f: e[f] for f in ("file_name", "location", "quote", "drive_url")} for k, e in evidence.items()}
     return out, evidence

@@ -54,7 +54,14 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
       : 'Ask anything about this task'
 
   const guideLatest = guide?.latest
-  const guideSteps = guideLatest && 'steps' in (guideLatest.guide ?? {}) ? (guideLatest.guide as { steps: unknown[] }).steps.length : 0
+  const guideBody = (guideLatest?.guide ?? {}) as { format?: number; steps?: unknown[]; events?: { status: string }[] }
+  const guideSteps = guideBody.steps?.length ?? 0
+  const guideEvents = guideBody.events ?? []
+  const toConfirm = guideEvents.filter((e) => e.status === 'suspected').length
+  const guideWritten =
+    guideBody.format === 2
+      ? `${guideEvents.length} event alert${guideEvents.length === 1 ? '' : 's'}${toConfirm ? `, ${toConfirm} to confirm` : ''}`
+      : `${guideSteps} step${guideSteps === 1 ? '' : 's'}`
   const guideStatus = !guide
     ? ''
     : guideLatest?.status === 'running'
@@ -62,7 +69,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
       : guideLatest?.status === 'failed'
         ? 'Last run failed'
         : guideLatest
-          ? `${guideSteps} step${guideSteps === 1 ? '' : 's'}`
+          ? guideWritten
           : guide.has_precheck
             ? 'Ready to write'
             : 'Best after the pre-check'

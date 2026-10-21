@@ -37,6 +37,8 @@ def _lines(run: AIPrecheck) -> tuple[str, list[tuple[str, list[str]]]]:
         return f"{decision.get('label', run.readiness)} — {decision.get('reason', run.summary)}", sections
     if run.kind == AIPrecheck.Kind.GUIDE:
         g = run.guide or {}
+        if g.get("format") == 2:
+            return (g.get("decision") or {}).get("reason", ""), _guide_sections(g)
         steps = [f"{s.get('area', '')}: {s.get('step', '')}" + (" (waits on the client)" if s.get("waits_on_client") else "")
                  for s in g.get("steps") or []]
         return (g.get("summary") or (g.get("decision") or {}).get("reason", "")), [("Steps", steps)]
@@ -44,6 +46,40 @@ def _lines(run: AIPrecheck) -> tuple[str, list[tuple[str, list[str]]]]:
     findings = [f"{f.get('ref', '')} [{f.get('severity', '')}] {f.get('fs_line', '')}: {f.get('issue', '')}".strip() for f in r.get("findings") or []]
     resolved = [f"{x.get('ref', '')}: {x.get('reason', '')}" for x in r.get("resolved") or []]
     return (r.get("summary") or (r.get("decision") or {}).get("reason", "")), [("Open findings", findings), ("Resolved", resolved)]
+
+
+def _join(*parts: str) -> str:
+    return " ".join(p for p in parts if p)
+
+
+def _ev(item: dict) -> str:
+    return f" [{', '.join(item['events'])}]" if item.get("events") else ""
+
+
+def _guide_sections(g: dict) -> list[tuple[str, list[str]]]:
+    """The preparation guide's eight sections (AFIT's agreed structure, 21 Oct 2026). An event is
+    referred to by its id (E1, E2, ...) wherever it is followed through."""
+    snap = g.get("snapshot") or {}
+    snapshot = [f"{label}: {snap[k]}" for k, label in (("activities", "Business"), ("assets_and_funding", "Assets and funding"),
+                ("records", "Records available"), ("bookkeeping", "Bookkeeping"), ("period", "Period")) if snap.get(k)]
+    events = [_join(f"{e.get('id', '')} [{'Confirmed' if e.get('status') == 'confirmed' else 'Suspected — to confirm'}]",
+                    f"{e.get('event', '')} → {e.get('why_it_matters', '')} → {e.get('action', '')}",
+                    f"Effect: {e['effect']}" if e.get("effect") else "") for e in g.get("events") or []]
+    prior = [_join(f"{p.get('item', '')} —", p.get("follow_through", "")) for p in g.get("prior_year") or []]
+    risks = [_join(f"{r.get('area', '')}: {r.get('what_could_be_wrong', '')}", f"Examine: {r.get('examine', '')}",
+                   f"Evidence: {r.get('evidence', '')}") + _ev(r) for r in g.get("risks") or []]
+    sequence = [_join(f"{n}. {s.get('step', '')}", "" if s.get("can_start_now") else f"(waits on: {s.get('depends_on', '')})",
+                      f"Escalate: {s['escalate']}" if s.get("escalate") else "") + _ev(s) for n, s in enumerate(g.get("sequence") or [], start=1)]
+    judgments = [_join(j.get("judgment", ""), f"Evidence: {j.get('evidence', '')}", f"Reference: {j['reference']}" if j.get("reference") else "",
+                       "(manager approval)" if j.get("manager_approval") else "") + _ev(j) for j in g.get("judgments") or []]
+    q = g.get("queries") or {}
+    checklist = [f"[{ {'done': 'Done', 'na': 'N/A'}.get(c.get('status'), 'Open') }] {c.get('check', '')}" + _ev(c) for c in g.get("checklist") or []]
+    return [("1. Job snapshot", snapshot), ("2. Significant events and alerts", events), ("3. Prior-year findings and continuity", prior),
+            ("4. Priority risks", risks), ("5. Starting sequence", sequence), ("6. Judgments, assumptions and references", judgments),
+            ("7. Queries for the manager", [x.get("question", "") + _ev(x) for x in q.get("manager") or []]),
+            ("7. Questions for the client", [x.get("question", "") + _ev(x) for x in q.get("client") or []]),
+            ("7. Outstanding requests", [x.get("item", "") + _ev(x) for x in q.get("outstanding") or []]),
+            ("8. Completion and handover checklist", checklist)]
 
 
 def post_result(run: AIPrecheck) -> None:

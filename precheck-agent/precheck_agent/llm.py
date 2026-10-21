@@ -83,6 +83,35 @@ def demo_vision(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     return AIMessage(content=text, usage_metadata={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
 
 
+def demo_guide(body: str, by) -> AIMessage:
+    """Stand-in for the guide (demo mode and tests): the eight sections, with the first bank payee
+    raised as a suspected event and followed through to the sequence, a query and the checklist."""
+    banks, tb = by("B"), by("T")
+    payees = [ln.split(" | ") for ln in body.splitlines() if re.match(r"^B\d+\.\d+ \| ", ln)]
+    outstanding = [ln.split(" — ", 1)[-1] for ln in body.splitlines() if ln.startswith("Still requested from the client: ")]
+    first = payees[0] if payees else None
+    answer = {
+        "snapshot": {"activities": "Demo client.", "assets_and_funding": "As in last year's accounts.",
+                     "records": f"{len(banks)} bank export(s); last year's trial balance.", "bookkeeping": "Bank exports only.",
+                     "period": "Year to 31 March.", "sources": [p[0] for p in banks[:1]] + [p[0] for p in tb[:1]]},
+        "events": [{"id": "E1", "event": f"Payments to {first[1]}.", "status": "suspected", "why_it_matters": "May be a significant transaction.",
+                    "action": "Confirm what the payments were for.", "effect": "Not yet quantifiable.", "sources": [first[0]]}] if first else [],
+        "prior_year": [{"item": f"Closing balance: {p[1]}.", "kind": "balance", "follow_through": "Agree the opening balance.", "sources": [p[0]]}
+                       for p in tb[:2]],
+        "risks": [{"area": "Bank", "what_could_be_wrong": f"{p[1]} is not reconciled.", "examine": "The year-end balance.",
+                   "evidence": "The bank statement.", "events": [], "sources": [p[0]]} for p in banks[:3]],
+        "sequence": [{"step": f"Reconcile {p[1]} to its year-end balance.", "depends_on": "nothing", "can_start_now": True, "escalate": "",
+                      "events": ["E1"] if first and i == 0 else [], "sources": [p[0]]} for i, p in enumerate(banks[:3])],
+        "judgments": [],
+        "queries": {"manager": [], "client": [{"question": "What were the payments to the first payee for?", "events": ["E1"] if first else [], "sources": []}],
+                    "outstanding": [{"item": item, "events": [], "sources": []} for item in outstanding]},
+        "checklist": [{"check": "Significant events resolved.", "status": "open", "events": ["E1"] if first else []},
+                      {"check": "Bank accounts reconciled.", "status": "open", "events": []}],
+    }
+    text = json.dumps(answer)
+    return AIMessage(content=text, usage_metadata=_usage(body, text))
+
+
 def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     """Stand-in for the pre-check model (demo mode and tests): the type from keywords in the
     questionnaire, each bank account already provided by its export, and last year's larger
@@ -93,12 +122,7 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
     if "THIS YEAR'S DRAFT FINANCIAL STATEMENTS" in body:
         return demo_review(body, by)
     if "== THE LATEST PRE-CHECK'S RESULT ==" in body:
-        steps = [{"area": "Bank", "step": f"Reconcile {parts[1]} to its year-end balance.", "check": "Agree to the bank statement.",
-                  "waits_on_client": False, "sources": [parts[0]]} for parts in by("B")][:3]
-        steps += [{"area": "Opening balances", "step": f"Roll forward {parts[1]} from last year's accounts.", "check": "Agree to last year's signed statements.",
-                   "waits_on_client": False, "sources": [parts[0]]} for parts in by("T")][:3]
-        text = json.dumps({"summary": "Demo guide.", "steps": steps})
-        return AIMessage(content=text, usage_metadata=_usage(body, text))
+        return demo_guide(body, by)
     q_text = " ".join(" | ".join(parts[1:]) for parts in by("Q")).lower()
     btype = "residential_rental" if re.search(r"rent|tenant|property manager", q_text) else ("investment" if re.search(r"dividend|shares|fund", q_text) else "general")
     q_ids = [parts[0] for parts in by("Q")][:2]

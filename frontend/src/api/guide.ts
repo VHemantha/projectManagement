@@ -12,16 +12,60 @@ export interface GuideStep {
   flags: string[]
 }
 
+type Evidence = Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
+
+/** A guide written before 21 Oct 2026: a flat list of steps. Still shown as it was. */
 export interface GuideOutput {
   summary: string
   steps: GuideStep[]
   decision: { state: string; label: string; reason: string }
-  evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
+  evidence: Evidence
+  how?: string
+}
+
+/** Every item: the ids of the events (E1, E2, ...) it follows through, its sources, code's flags. */
+interface GuideItem {
+  events?: string[]
+  sources?: SourceRef[]
+  flags: string[]
+}
+
+export interface GuideEvent extends GuideItem {
+  id: string
+  event: string
+  status: 'confirmed' | 'suspected'
+  why_it_matters: string
+  action: string
+  effect: string
+  /** Where it is not yet followed through: "sequence", "checklist", "query". */
+  not_followed_through: string[]
+}
+
+/** The eight-section preparation guide (AFIT's agreed structure, 21 Oct 2026). */
+export interface GuideV2 {
+  format: 2
+  summary: string
+  decision: { state: string; label: string; reason: string }
+  snapshot: GuideItem & { activities: string; assets_and_funding: string; records: string; bookkeeping: string; period: string }
+  events: GuideEvent[]
+  prior_year: (GuideItem & { item: string; kind: 'error' | 'reviewer_point' | 'unresolved' | 'policy' | 'balance'; follow_through: string })[]
+  risks: (GuideItem & { area: string; what_could_be_wrong: string; examine: string; evidence: string })[]
+  sequence: (GuideItem & { step: string; depends_on: string; can_start_now: boolean; escalate: string })[]
+  judgments: (GuideItem & { judgment: string; evidence: string; manager_approval: boolean; reference: string })[]
+  queries: {
+    manager: (GuideItem & { question: string })[]
+    client: (GuideItem & { question: string })[]
+    outstanding: (GuideItem & { item: string })[]
+  }
+  checklist: (GuideItem & { check: string; status: 'done' | 'open' | 'na' })[]
+  words: number
+  flags: string[]
+  evidence: Evidence
   how?: string
 }
 
 export interface GuideState {
-  latest: (Run & { kind: string; guide: GuideOutput | Record<string, never> }) | null
+  latest: (Run & { kind: string; guide: GuideOutput | GuideV2 | Record<string, never> }) | null
   history: { run_id: string; status: string; created_at: string }[]
   has_precheck: boolean
 }

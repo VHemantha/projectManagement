@@ -515,7 +515,7 @@ def guide(state: State) -> dict:
         cache.set_value("guide", key, cleaned)
     output, evidence = G.assemble(cleaned, index)
     output["how"] = how
-    emit("judged", output["decision"]["reason"], steps=len(output["steps"]))
+    emit("judged", output["decision"]["reason"], steps=G.size(output))
     return {"guide": output, "evidence": evidence, "usage": usage}
 
 
@@ -680,12 +680,12 @@ def build_guide_final(state: State) -> dict:
                                  "counts": {"high": 0, "medium": 0, "low": 0}}}
     final = build_review_final(state)
     final.update(mode="guide", verdict="ready", readiness="Preparation guide", summary=(out["summary"] or out["decision"]["reason"])[:400],
-                 coverage={"addressed": 0, "total": len(out["steps"])}, counts={"high": 0, "medium": 0, "low": 0}, guide=out)
+                 coverage={"addressed": 0, "total": G.size(out)}, counts={"high": 0, "medium": 0, "low": 0}, guide=out)
     final.pop("review", None)
     final["trail"]["compared"] = {"label": "Pre-check result: " + ("used" if state["job"].get("last_precheck") else "none yet"), "detail": []}
     final["trail"]["judged"] = {"label": out["decision"]["reason"], "how": out.get("how", ""), "detail": []}
     final["trail"]["checked"] = {"label": "Figures checked against the documents", "detail": []}
-    final["trail"]["verified"] = {"label": f"{len(out.get('evidence', {}))} sources linked; {sum(1 for x in out['steps'] if x.get('flags'))} steps flagged",
+    final["trail"]["verified"] = {"label": f"{len(out.get('evidence', {}))} sources linked; {G.flagged(out)} items flagged",
                                   "evidence": len(out.get("evidence", {})), "detail": []}
     return final
 

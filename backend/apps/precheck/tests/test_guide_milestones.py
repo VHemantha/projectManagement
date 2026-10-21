@@ -88,6 +88,48 @@ def test_a_guide_follows_the_precheck_and_is_posted_on_the_task(agent):
     assert set(stamped) == {"precheck", "guide"} and stamped["guide"].auto and stamped["guide"].on == timezone.localdate()
 
 
+GUIDE_V2 = {
+    "format": 2, "decision": {"state": "guide", "label": "Preparation guide", "reason": "1 significant event (1 to confirm); 1 priority risk; 1 open check."},
+    "snapshot": {"activities": "Residential rental at 43 Te Wharo Drive.", "assets_and_funding": "One property, ASB loan.", "records": "ANZ export.",
+                 "bookkeeping": "Bank exports only.", "period": "Year to 31 March 2026.", "sources": [], "flags": []},
+    "events": [{"id": "E1", "event": "Large payment to ASB.", "status": "suspected", "why_it_matters": "May be a loan settlement.",
+                "action": "Confirm the closing loan balance and the source of the funds.", "effect": "Not yet quantifiable.", "sources": [], "flags": [],
+                "not_followed_through": []}],
+    "prior_year": [{"item": "Interest was split wrongly last year.", "kind": "reviewer_point", "follow_through": "Apply the corrected split.",
+                    "events": [], "sources": [], "flags": []}],
+    "risks": [{"area": "Loans", "what_could_be_wrong": "Loan balance misstated.", "examine": "ASB statements.", "evidence": "Annual loan summary.",
+               "events": ["E1"], "sources": [], "flags": []}],
+    "sequence": [{"step": "Reconcile the ANZ account.", "depends_on": "nothing", "can_start_now": True, "escalate": "", "events": [], "sources": [], "flags": []},
+                 {"step": "Reconcile the ASB loan.", "depends_on": "Annual loan summary", "can_start_now": False,
+                  "escalate": "If the loan was settled, tell the manager.", "events": ["E1"], "sources": [], "flags": []}],
+    "judgments": [{"judgment": "Repairs versus capital.", "evidence": "Invoices.", "manager_approval": True, "reference": "IR 264",
+                   "events": [], "sources": [], "flags": []}],
+    "queries": {"manager": [], "client": [{"question": "What was the payment to ASB for?", "events": ["E1"], "sources": [], "flags": []}],
+                "outstanding": [{"item": "Annual loan summary", "events": [], "sources": [], "flags": []}]},
+    "checklist": [{"check": "Loan settlement confirmed.", "status": "open", "events": ["E1"], "flags": []},
+                  {"check": "GST.", "status": "na", "events": [], "flags": []}],
+    "evidence": {}, "words": 120, "flags": [],
+}
+
+
+def test_the_eight_section_guide_is_posted_section_by_section(agent):
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    run = services.start_run(issue, pat, kind=AIPrecheck.Kind.GUIDE)
+    finish(run.run_id, mode="guide", guide=GUIDE_V2)
+    text = comment_text(Comment.objects.get(issue=issue))
+    assert "1 significant event (1 to confirm)" in text
+    for title in ("1. Job snapshot", "2. Significant events and alerts", "3. Prior-year findings and continuity", "4. Priority risks",
+                  "5. Starting sequence", "6. Judgments, assumptions and references", "7. Questions for the client",
+                  "7. Outstanding requests", "8. Completion and handover checklist"):
+        assert title in text
+    assert "7. Queries for the manager" not in text  # an empty section is left out
+    assert "E1 [Suspected — to confirm] Large payment to ASB. → May be a loan settlement. → Confirm the closing loan balance" in text
+    assert "2. Reconcile the ASB loan. (waits on: Annual loan summary) Escalate: If the loan was settled, tell the manager. [E1]" in text
+    assert "[Open] Loan settlement confirmed. [E1]" in text and "[N/A] GST." in text
+    assert "Repairs versus capital. Evidence: Invoices. Reference: IR 264 (manager approval)" in text
+
+
 def test_a_result_is_posted_once_and_a_failed_run_not_at_all(agent):
     pat = person("pat")
     issue = make_job(pat, "Smith", "SmithRent")

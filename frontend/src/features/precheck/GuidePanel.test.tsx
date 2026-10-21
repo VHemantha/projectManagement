@@ -50,6 +50,61 @@ describe('GuidePanel', () => {
     expect(screen.getByRole('button', { name: 'Write it again' })).toBeEnabled()
   })
 
+  it('shows the eight sections, each event as what happened → why it matters → what to do, followed through', () => {
+    const none = { flags: [] as string[] }
+    mocks.state = {
+      has_precheck: true, history: [],
+      latest: { status: 'complete', guide: {
+        format: 2, summary: '', words: 320, flags: [], evidence: GUIDE.evidence,
+        decision: { state: 'guide', label: 'Preparation guide', reason: '2 significant events (1 to confirm); 1 priority risk; 1 open check.' },
+        snapshot: { activities: 'Residential rental at 43 Te Wharo Drive.', assets_and_funding: 'One property, ASB loan.', records: 'ANZ export.',
+                    bookkeeping: 'Bank exports only.', period: 'Year to 31 March 2026.', sources: [], ...none },
+        events: [
+          { id: 'E1', event: 'Property acquired at 12 Kowhai Rd.', status: 'confirmed', why_it_matters: 'A new rental asset and loan.',
+            action: 'Check settlement, funding and GST.', effect: 'Fixed assets and borrowings up.', sources: [{ id: 'D1', label: 'Rates.pdf, page 1', evidence_id: 'E1' }],
+            not_followed_through: [], ...none },
+          { id: 'E2', event: 'Large payment to ASB.', status: 'suspected', why_it_matters: 'May be a loan settlement.', action: 'Confirm the loan balance.',
+            effect: '', sources: [], flags: ['not_followed_through'], not_followed_through: ['checklist'] },
+        ],
+        prior_year: [{ item: 'Interest split wrongly last year.', kind: 'reviewer_point', follow_through: 'Apply the corrected split.', events: [], sources: [], ...none }],
+        risks: [{ area: 'Loans', what_could_be_wrong: 'Loan balance misstated.', examine: 'ASB statements.', evidence: 'Annual loan summary.', events: ['E2'], sources: [], ...none }],
+        sequence: [
+          { step: 'Reconcile the ANZ account.', depends_on: 'nothing', can_start_now: true, escalate: '', events: [], sources: [], ...none },
+          { step: 'Reconcile the ASB loan.', depends_on: 'Annual loan summary', can_start_now: false, escalate: 'If settled, tell the manager.', events: ['E2'], sources: [], ...none },
+        ],
+        judgments: [{ judgment: 'Allocate the purchase price.', evidence: 'Settlement statement.', manager_approval: true, reference: 'IR 264', events: ['E1'], sources: [], ...none }],
+        queries: { manager: [], client: [{ question: 'What was the payment to ASB for?', events: ['E2'], ...none }],
+                   outstanding: [{ item: 'Annual loan summary', events: [], ...none }] },
+        checklist: [{ check: 'Property purchase recorded.', status: 'open', events: ['E1'], ...none }, { check: 'GST.', status: 'na', events: [], ...none }],
+      } },
+    }
+    render(<GuidePanel jobKey="SMITH-1" />)
+    const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
+    expect(titles).toEqual(['1. Job snapshot', '2. Significant events and alerts', '3. Prior-year findings and continuity', '4. Priority risks and material areas',
+      '5. Starting sequence', '6. Judgments, assumptions and references', '7. Internal and client queries', '8. Completion and handover checklist'])
+    const property = screen.getByRole('article', { name: /E1 Property acquired/ })
+    expect(property).toHaveTextContent('Confirmed')
+    expect(property).toHaveTextContent('What happened Property acquired at 12 Kowhai Rd.')
+    expect(property).toHaveTextContent('Why it matters A new rental asset and loan.')
+    expect(property).toHaveTextContent('What to do Check settlement, funding and GST.')
+    expect(property).toHaveTextContent('Effect on the figures Fixed assets and borrowings up.')
+    expect(within(property).getByRole('link', { name: /Rates\.pdf/ })).toHaveAttribute('href', 'https://drive.example/r')
+    const payment = screen.getByRole('article', { name: /E2 Large payment/ })
+    expect(payment).toHaveTextContent('Suspected — to confirm')
+    expect(payment).toHaveTextContent('Not followed through: no a checklist line')
+    const sequence = screen.getByRole('region', { name: 'Starting sequence' })
+    expect(sequence).toHaveTextContent('Can start now')
+    expect(sequence).toHaveTextContent('Waits on: Annual loan summary')
+    expect(sequence).toHaveTextContent('Escalate: If settled, tell the manager.')
+    expect(screen.getByRole('region', { name: 'Judgments, assumptions and references' })).toHaveTextContent('Manager approval')
+    const queries = screen.getByRole('region', { name: 'Internal and client queries' })
+    expect(within(queries).queryByText('For the manager')).not.toBeInTheDocument() // an empty list is left out
+    expect(queries).toHaveTextContent('What was the payment to ASB for?')
+    const checklist = screen.getByRole('region', { name: 'Completion and handover checklist' })
+    expect(checklist).toHaveTextContent('Open Property purchase recorded.')
+    expect(checklist).toHaveTextContent('N/A GST.')
+  })
+
   it('while it is being written, it can be stopped', () => {
     mocks.state = { has_precheck: true, history: [], latest: { run_id: 'g1', status: 'running', guide: {} } }
     render(<GuidePanel jobKey="SMITH-1" />)
