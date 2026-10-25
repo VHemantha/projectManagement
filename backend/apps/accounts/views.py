@@ -53,7 +53,7 @@ class LoginView(APIView):
             username=serializer.validated_data["email"],
             password=serializer.validated_data["password"],
         )
-        if user is None:
+        if user is None or user.is_agent:  # the coordination agent never signs in
             return Response({"detail": "Invalid email or password."}, status=status.HTTP_401_UNAUTHORIZED)
         return Response({"user": MeSerializer(user).data, "tokens": _tokens_for(user)})
 
@@ -61,7 +61,7 @@ class LoginView(APIView):
 class UserListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
     serializer_class = UserSerializer
-    queryset = User.objects.filter(is_active=True).order_by("display_name")
+    queryset = User.objects.filter(is_active=True, is_agent=False).order_by("display_name")
     filter_backends = []
     pagination_class = None
 

@@ -20,6 +20,9 @@ import { FiltersPage } from '@/features/search/FiltersPage'
 import { AllIssuesBoardPage } from '@/features/board/AllIssuesBoardPage'
 import { TeamsListPage } from '@/features/teams/TeamsListPage'
 import { ChatPage } from '@/features/chat/ChatPage'
+import { CoordinatorChatRedirect } from '@/features/coordinator/CoordinatorChatRedirect'
+import { CoordinatorConsolePage } from '@/features/coordinator/CoordinatorConsolePage'
+import { LeavePage } from '@/features/coordinator/LeavePage'
 import { TimeReportsPage } from '@/features/timesheets/TimeReportsPage'
 import { TimesheetApprovalInboxPage } from '@/features/timesheets/TimesheetApprovalInboxPage'
 import { TimesheetGridPage } from '@/features/timesheets/TimesheetGridPage'
@@ -62,6 +65,9 @@ export const router = createBrowserRouter([
           { path: '/filters', element: <FiltersPage /> },
           { path: '/dashboards', element: <DashboardHomePage /> },
           { path: '/chat', element: <ChatPage /> },
+          { path: '/coordinator', element: <CoordinatorChatRedirect /> },
+          { path: '/coordinator/console', element: <CoordinatorConsolePage /> },
+          { path: '/leave', element: <LeavePage /> },
           { path: '/timesheets', element: <TimesheetGridPage /> },
           { path: '/timesheets/review', element: <TimesheetApprovalInboxPage /> },
           { path: '/timesheets/reports', element: <TimeReportsPage /> },

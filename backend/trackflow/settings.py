@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "apps.daily_goals",
     "apps.live",
     "apps.precheck",
+    "apps.coordinator",
 ]
 
 MIDDLEWARE = [

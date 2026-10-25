@@ -5,6 +5,12 @@ from django.db import models
 class User(AbstractUser):
     """Custom user: email is the login identifier, plus Jira-profile-ish fields."""
 
+    class Role(models.TextChoices):
+        MEMBER = "member", "Member"
+        # The primary super admin (AFIT: the CEO). Full access everywhere, and the only person who
+        # may set the coordination agent's policies, communication intensity and pause.
+        CEO = "ceo", "CEO"
+
     email = models.EmailField(unique=True)
     display_name = models.CharField(max_length=150, blank=True)
     avatar = models.ImageField(upload_to="avatars/", null=True, blank=True)
@@ -13,13 +19,24 @@ class User(AbstractUser):
     # Desktop (OS) notifications for new direct messages, @mentions and bell notifications.
     # The browser must also allow them; this is the person's own on/off switch.
     desktop_notifications = models.BooleanField(default=True)
+    role = models.CharField(max_length=10, choices=Role.choices, default=Role.MEMBER)
+    # The coordination agent's own account (it writes in the Messages section). It cannot sign in
+    # and is left out of people lists.
+    is_agent = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
+    @property
+    def is_ceo(self) -> bool:
+        return self.role == self.Role.CEO
+
     def save(self, *args, **kwargs):
         if not self.display_name:
             self.display_name = self.get_full_name() or self.username
+        if self.role == self.Role.CEO:
+            # All access: every admin check in the app is the staff flag.
+            self.is_staff = self.is_superuser = True
         super().save(*args, **kwargs)
 
     def __str__(self):

@@ -26,7 +26,7 @@ class UserHierarchyView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        users = list(User.objects.filter(is_active=True).order_by("display_name", "id"))
+        users = list(User.objects.filter(is_active=True, is_agent=False).order_by("display_name", "id"))
         memberships = list(
             TeamMembership.objects.filter(user__is_active=True).select_related("team").order_by("team__name")
         )

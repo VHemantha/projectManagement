@@ -9,6 +9,8 @@ export interface CurrentUser {
   job_title: string
   avatar: string | null
   is_staff: boolean
+  /** "ceo": the primary super admin (full access; controls the coordination agent). */
+  role?: 'member' | 'ceo'
   /** Desktop notifications for new DMs, @mentions and bell notifications (own setting). */
   desktop_notifications?: boolean
 }

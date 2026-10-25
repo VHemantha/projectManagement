@@ -1,4 +1,6 @@
 import {
+  Bot,
+  CalendarDays,
   ChevronsLeft,
   ChevronsRight,
   Clock,
@@ -8,6 +10,7 @@ import {
   LayoutGrid,
   ListFilter,
   MessageSquare,
+  ShieldCheck,
   Users,
   UserRound,
 } from 'lucide-react'
@@ -16,6 +19,7 @@ import { Link, NavLink } from 'react-router-dom'
 import styles from './AppShell.module.css'
 import { ProjectSwitcher } from './ProjectSwitcher'
 import { Tooltip } from '@/design-system'
+import { useAuthStore } from '@/store/authStore'
 
 // Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
@@ -27,7 +31,10 @@ const NAV_ITEMS = [
   { to: '/filters', label: 'Filters', icon: ListFilter, tone: 'orange' },
   { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },
   { to: '/chat', label: 'Chat', icon: MessageSquare, tone: 'violet' },
+  // The AI project coordinator: everyone's private conversation with it, in Messages.
+  { to: '/coordinator', label: 'Coordinator', icon: Bot, tone: 'blue', end: true },
   { to: '/timesheets', label: 'Timesheets', icon: Clock, tone: 'orange' },
+  { to: '/leave', label: 'Leave', icon: CalendarDays, tone: 'green' },
   { to: '/apps', label: 'Apps', icon: Grid3x3, tone: 'teal' },
 ]
 
@@ -44,6 +51,8 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
   // Labels are shown whenever the rail is wide: on desktop when expanded, and on
   // mobile whenever the drawer is open (a drawer is always the full-width rail).
   const showLabels = expanded || drawerOpen
+  const isCeo = useAuthStore((s) => s.user?.role === 'ceo')
+  const items = isCeo ? [...NAV_ITEMS, { to: '/coordinator/console', label: 'CEO console', icon: ShieldCheck, tone: 'pink', end: false }] : NAV_ITEMS
 
   return (
     <aside
@@ -63,7 +72,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
         </Link>
       </Tooltip>
       <nav className={styles.sidebarNav}>
-        {NAV_ITEMS.map(({ to, label, icon: Icon, tone, end }) => (
+        {items.map(({ to, label, icon: Icon, tone, end }) => (
           // When collapsed the item is icon-only, so the tooltip names it; when
           // labels are visible the hint would be redundant, so it's switched off.
           <Tooltip key={to} label={showLabels ? '' : label} side="right">
