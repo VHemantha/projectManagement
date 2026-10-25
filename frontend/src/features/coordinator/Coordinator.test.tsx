@@ -42,6 +42,10 @@ vi.mock('@/api/coordinator', () => ({
   useAddHoliday: () => mutation(vi.fn()),
   useRemoveHoliday: () => mutation(vi.fn()),
   useAgentActions: () => ({ data: { actions: [] } }),
+  useCases: () => ({ data: { cases: [{ id: 1, issue: 'ABC-12', title: 'Client ABC year end', person: { id: 2, display_name: 'Pat' }, kind: 'prep_due',
+    kind_label: 'Preparation due soon', state: 'answered', state_label: 'Answered', due_date: '2026-11-05', revised_due: '2026-11-06', asked: 1,
+    last_asked_at: null, escalated_to: null, opened_at: '', closed_reason: '',
+    commitment: { eta_date: '2026-11-06', remaining_hours: 8, cause: 'Bookkeeping errors', status: 'open' } }] } }),
   useAudit: () => ({ data: { entries: [] } }),
 }))
 vi.mock('@/app/ProjectSwitcher', () => ({ ProjectSwitcher: () => null }))
@@ -80,6 +84,12 @@ describe('Coordinator console', () => {
     await userEvent.type(within(rules).getByRole('textbox', { name: 'Why' }), 'Busy season')
     await userEvent.click(within(rules).getByRole('button', { name: 'Save' }))
     expect(mocks.setPolicy).toHaveBeenCalledWith({ key: 'hours_tolerance_pct', value: 130, note: 'Busy season' }, expect.anything())
+
+    await userEvent.click(screen.getByRole('tab', { name: 'Follow-ups' }))
+    const followUps = screen.getByRole('region', { name: 'Follow-ups' })
+    expect(followUps).toHaveTextContent('ABC-12')
+    expect(followUps).toHaveTextContent('Said: 8h to go, finish 6 Nov — Bookkeeping errors')
+    expect(followUps).toHaveTextContent('Revised 6 Nov')
 
     await userEvent.click(screen.getByRole('tab', { name: 'Leave' }))
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }))

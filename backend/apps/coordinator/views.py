@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 
 from . import policies, services
-from .models import AgentAction, AgentPolicy, AuditEntry, CoordinatorSettings, LeaveRecord, PublicHoliday, WorkSchedule
+from .models import AgentAction, AgentCase, AgentPolicy, AuditEntry, CoordinatorSettings, LeaveRecord, PublicHoliday, WorkSchedule
 
 SETTINGS_FIELDS = ("paused", "shadow_mode", "timezone", "daily_cost_cap_usd")
 
@@ -148,6 +148,30 @@ class ActionsView(APIView):
         rows = AgentAction.objects.select_related("target", "issue")[:200]
         return Response({"actions": [{"id": a.id, "trigger": a.trigger, "target": _person(a.target), "issue": a.issue.key if a.issue else "",
                                       "reason": a.reason, "shadow": a.shadow, "created_at": a.created_at} for a in rows]})
+
+
+class CaseListView(APIView):
+    """GET /api/coordinator/cases/ — what the agent is following up now (?all=1: closed ones too) (CEO)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        services.require_ceo(request.user, "view follow-ups")
+        qs = AgentCase.objects.select_related("issue", "person", "escalated_to").prefetch_related("commitments")
+        if request.query_params.get("all") != "1":
+            qs = qs.exclude(state=AgentCase.State.RESOLVED)
+        rows = []
+        for c in qs[:300]:
+            last = max(c.commitments.all(), key=lambda x: x.created_at, default=None)
+            rows.append({
+                "id": c.id, "issue": c.issue.key, "title": c.issue.summary, "person": _person(c.person), "kind": c.kind,
+                "kind_label": c.get_kind_display(), "state": c.state, "state_label": c.get_state_display(), "due_date": c.due_date,
+                "revised_due": c.revised_due, "asked": c.asked, "last_asked_at": c.last_asked_at, "escalated_to": _person(c.escalated_to),
+                "opened_at": c.opened_at, "closed_reason": c.closed_reason,
+                "commitment": ({"eta_date": last.eta_date, "remaining_hours": last.remaining_hours, "cause": last.get_cause_display(),
+                                "status": last.status} if last else None),
+            })
+        return Response({"cases": rows})
 
 
 # --- leave, holidays and schedules ---------------------------------------------------------------

@@ -216,6 +216,13 @@ PRECHECK_SERVICE_TOKEN = env("PRECHECK_SERVICE_TOKEN", "dev-precheck-token")
 PRECHECK_STALE_RUN_MINUTES = int(env("PRECHECK_STALE_RUN_MINUTES", "50"))
 PRECHECK_STALE_QUESTION_MINUTES = int(env("PRECHECK_STALE_QUESTION_MINUTES", "10"))
 
+# The coordination agent. Its Claude key: set here, or read from the pre-check agent's settings file
+# (the key from the secret manager), so the secret is not copied into a second place.
+COORDINATOR_ANTHROPIC_API_KEY = env("COORDINATOR_ANTHROPIC_API_KEY", "") or env("ANTHROPIC_API_KEY", "")
+PRECHECK_ENV_FILE = env("PRECHECK_ENV_FILE", "/srv/trackflow/shared/precheck.env")
+# Replies in the coordinator's conversations run in a background thread (tests: inline).
+COORDINATOR_REPLY_ASYNC = env_bool("COORDINATOR_REPLY_ASYNC", True)
+
 # Email (invitations). Console by default: messages are printed to the server log. For real
 # delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values
 # (e.g. Amazon SES SMTP credentials).

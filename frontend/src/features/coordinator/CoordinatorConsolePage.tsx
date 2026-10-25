@@ -8,6 +8,7 @@ import {
   useAddHoliday,
   useAgentActions,
   useAudit,
+  useCases,
   useCoordinatorSettings,
   useDecideLeave,
   useHolidays,
@@ -48,6 +49,7 @@ export function CoordinatorConsolePage() {
       <Tabs defaultValue="controls">
         <TabsList aria-label="Coordinator console">
           <TabsTrigger value="controls">Controls</TabsTrigger>
+          <TabsTrigger value="cases">Follow-ups</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="leave">Leave</TabsTrigger>
           <TabsTrigger value="hours">Working hours</TabsTrigger>
@@ -56,6 +58,7 @@ export function CoordinatorConsolePage() {
           <TabsTrigger value="audit">Audit log</TabsTrigger>
         </TabsList>
         <TabsContent value="controls"><Controls /></TabsContent>
+        <TabsContent value="cases"><FollowUps /></TabsContent>
         <TabsContent value="rules"><Rules /></TabsContent>
         <TabsContent value="leave"><LeaveApprovals /></TabsContent>
         <TabsContent value="hours"><WorkingHours /></TabsContent>
@@ -122,6 +125,68 @@ function Controls() {
       </form>
       {update.isError && <p className={styles.error}>{extractErrorMessage(update.error)}</p>}
       {data.updated_by && <p className={styles.muted} style={{ marginTop: 8 }}>Last changed by {data.updated_by.display_name}, {when(data.updated_at)}.</p>}
+    </section>
+  )
+}
+
+const STATE_TONE: Record<string, string> = { asked: 'warning', answered: 'success', escalated: 'danger', resolved: '' }
+
+function FollowUps() {
+  const { data } = useCases()
+  if (!data) return <Skeleton height={80} />
+  return (
+    <section className={styles.card} aria-label="Follow-ups">
+      {data.cases.length === 0 ? (
+        <p className={styles.muted}>Nothing is being followed up right now.</p>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">Job</th>
+                <th scope="col">Person</th>
+                <th scope="col">Matter</th>
+                <th scope="col">Dates</th>
+                <th scope="col">State</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.cases.map((c) => (
+                <tr key={c.id}>
+                  <td>
+                    {c.issue}
+                    <small>{c.title}</small>
+                  </td>
+                  <td>{c.person.display_name}</td>
+                  <td>
+                    {c.kind_label}
+                    {c.commitment && (
+                      <small>
+                        Said: {c.commitment.remaining_hours != null ? `${c.commitment.remaining_hours}h to go, ` : ''}
+                        {c.commitment.eta_date ? `finish ${format(parseISO(c.commitment.eta_date), 'd MMM')}` : 'no date'}
+                        {c.commitment.cause !== 'None given' ? ` — ${c.commitment.cause}` : ''}
+                      </small>
+                    )}
+                  </td>
+                  <td>
+                    {c.due_date && `Due ${format(parseISO(c.due_date), 'd MMM')}`}
+                    {c.revised_due && <small>Revised {format(parseISO(c.revised_due), 'd MMM')}</small>}
+                  </td>
+                  <td>
+                    <span className={styles.chip} data-tone={STATE_TONE[c.state]}>
+                      {c.state_label}
+                    </span>
+                    <small>
+                      {c.asked} message{c.asked === 1 ? '' : 's'}
+                      {c.escalated_to && `, escalated to ${c.escalated_to.display_name}`}
+                    </small>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   )
 }

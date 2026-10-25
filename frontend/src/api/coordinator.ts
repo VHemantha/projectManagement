@@ -71,6 +71,25 @@ export interface AgentActionRow {
   created_at: string
 }
 
+export interface CaseRow {
+  id: number
+  issue: string
+  title: string
+  person: Person
+  kind: string
+  kind_label: string
+  state: 'asked' | 'answered' | 'escalated' | 'resolved'
+  state_label: string
+  due_date: string | null
+  revised_due: string | null
+  asked: number
+  last_asked_at: string | null
+  escalated_to: Person | null
+  opened_at: string
+  closed_reason: string
+  commitment: { eta_date: string | null; remaining_hours: number | null; cause: string; status: string } | null
+}
+
 export type LeaveKind = 'annual' | 'sick' | 'training' | 'other'
 
 export interface LeaveRow {
@@ -135,6 +154,10 @@ export function useSetPolicy() {
 
 export function useAudit() {
   return useQuery({ queryKey: ['coordinator', 'audit'], queryFn: () => get<{ entries: AuditRow[] }>('/coordinator/audit/') })
+}
+
+export function useCases() {
+  return useQuery({ queryKey: ['coordinator', 'cases'], queryFn: () => get<{ cases: CaseRow[] }>('/coordinator/cases/') })
 }
 
 export function useAgentActions() {

@@ -91,6 +91,10 @@ install -m 755 "$DEPLOY_DIR/backup_db.sh" /usr/local/bin/trackflow-backup
 install -m 755 "$DEPLOY_DIR/trackflow-manage.sh" /usr/local/bin/trackflow-manage
 echo '30 3 * * * root /usr/local/bin/trackflow-backup >> /var/log/trackflow-backup.log 2>&1' \
   > /etc/cron.d/trackflow-backup
+# The AI coordination agent's checks, every 15 minutes (it stays silent outside its messaging
+# window, and does nothing at all while the CEO has it paused).
+echo '*/15 * * * * root /usr/local/bin/trackflow-manage coordinator_tick >> /var/log/trackflow-coordinator.log 2>&1' \
+  > /etc/cron.d/trackflow-coordinator
 systemctl daemon-reload
 systemctl enable --quiet trackflow trackflow-ws
 

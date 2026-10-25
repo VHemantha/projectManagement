@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     ActionsView,
     AuditView,
+    CaseListView,
     HolidayListView,
     LeaveDetailView,
     LeaveListView,
@@ -18,6 +19,7 @@ urlpatterns = [
     path("policies/", PolicyListView.as_view(), name="coordinator-policies"),
     path("audit/", AuditView.as_view(), name="coordinator-audit"),
     path("actions/", ActionsView.as_view(), name="coordinator-actions"),
+    path("cases/", CaseListView.as_view(), name="coordinator-cases"),
     path("leave/", LeaveListView.as_view(), name="coordinator-leave"),
     path("leave/<int:pk>/", LeaveDetailView.as_view(), name="coordinator-leave-detail"),
     path("leave/<int:pk>/decide/", LeaveDetailView.as_view(), name="coordinator-leave-decide"),

@@ -78,7 +78,92 @@ class AgentAction(models.Model):
     reason = models.CharField(max_length=500, blank=True)
     message = models.ForeignKey("chat.Message", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     shadow = models.BooleanField(default=False)
+    cost_usd = models.FloatField(default=0)  # what any AI call for this action cost (the daily cap)
     detail = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class AgentCase(models.Model):
+    """One matter the agent is following up: a job, the person responsible, and what is at stake
+    (e.g. the pre-check is overdue). It keeps the original and any revised date apart, counts the
+    follow-ups, and says when to look again, so nobody is asked the same thing twice."""
+
+    class Kind(models.TextChoices):
+        URGENT_INACTIVE = "urgent_inactive", "Urgent job with no activity"
+        PRECHECK_DUE = "precheck_due", "Pre-check due soon"
+        PRECHECK_OVERDUE = "precheck_overdue", "Pre-check overdue"
+        PREP_DUE = "prep_due", "Preparation due soon"
+        PREP_OVERDUE = "prep_overdue", "Preparation overdue"
+        PROMISE_MISSED = "promise_missed", "Revised date missed"
+
+    class State(models.TextChoices):
+        ASKED = "asked", "Asked, waiting for a reply"
+        ANSWERED = "answered", "Answered"
+        ESCALATED = "escalated", "Escalated"
+        RESOLVED = "resolved", "Resolved"
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="agent_cases")
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="agent_cases")
+    kind = models.CharField(max_length=20, choices=Kind.choices)
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ASKED)
+    due_date = models.DateField(null=True, blank=True)  # the original date at stake
+    revised_due = models.DateField(null=True, blank=True)  # the date the person gave, kept apart
+    asked = models.PositiveIntegerField(default=0)  # messages sent about it, the first included
+    last_asked_at = models.DateTimeField(null=True, blank=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+    next_check_at = models.DateTimeField(null=True, blank=True)
+    escalated_to = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    opened_at = models.DateTimeField(auto_now_add=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    closed_reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        ordering = ["-opened_at", "-id"]
+        indexes = [models.Index(fields=["person", "state"]), models.Index(fields=["issue", "kind", "state"])]
+
+    @property
+    def is_open(self) -> bool:
+        return self.state != self.State.RESOLVED
+
+
+class Commitment(models.Model):
+    """What a person said in reply: hours still needed, the date they expect to finish, the cause of
+    any delay and whether they need help. Read from their own words; the figures that follow from
+    it (forecast hours against the budget) are worked out by code."""
+
+    class Cause(models.TextChoices):
+        NONE = "none", "None given"
+        CLIENT_DOCUMENTS = "client_documents", "Waiting for client documents"
+        BOOKKEEPING_ERRORS = "bookkeeping_errors", "Bookkeeping errors"
+        SCOPE_CHANGE = "scope_change", "Client scope change"
+        COMPLEXITY = "complexity", "More complex than expected"
+        REWORK = "rework", "Rework after review"
+        DEPENDENCY = "dependency", "Waiting on someone else"
+        WORKLOAD = "workload", "Other work"
+        PERSONAL = "personal", "Personal / leave"
+        OTHER = "other", "Other"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        KEPT = "kept", "Kept"
+        MISSED = "missed", "Missed"
+        SUPERSEDED = "superseded", "Replaced by a later one"
+
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="commitments")
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="commitments")
+    case = models.ForeignKey(AgentCase, null=True, blank=True, on_delete=models.SET_NULL, related_name="commitments")
+    eta_date = models.DateField(null=True, blank=True)
+    remaining_hours = models.FloatField(null=True, blank=True)
+    percent_complete = models.FloatField(null=True, blank=True)  # as claimed: checked against the job's record
+    cause = models.CharField(max_length=20, choices=Cause.choices, default=Cause.NONE)
+    blockers = models.CharField(max_length=300, blank=True)
+    needs_help = models.BooleanField(default=False)
+    source_message = models.ForeignKey("chat.Message", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
+    verified_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

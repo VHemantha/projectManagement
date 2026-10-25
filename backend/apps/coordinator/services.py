@@ -22,6 +22,10 @@ def is_ceo(user) -> bool:
     return bool(user and user.is_authenticated and getattr(user, "role", "") == User.Role.CEO)
 
 
+def ceo() -> User | None:
+    return User.objects.filter(role=User.Role.CEO, is_active=True).first()
+
+
 def audit(actor, action: str, target: str = "", *, allowed: bool = True, **detail) -> AuditEntry:
     return AuditEntry.objects.create(actor=actor if getattr(actor, "is_authenticated", False) else None, action=action[:60],
                                      target=target[:200], allowed=allowed, detail=detail)
