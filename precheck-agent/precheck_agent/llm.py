@@ -108,6 +108,7 @@ def demo_guide(body: str, by) -> AIMessage:
                    + [{"to": "outstanding", "text": item, "events": "", "sources": ""} for item in outstanding],
         "checklist": [{"check": "Significant events resolved.", "status": "open", "events": e1},
                       {"check": "Bank accounts reconciled.", "status": "open", "events": ""}],
+        "roll_forward": [{"item": f"Confirm the payments to {first[1]}.", "why": "Not resolved this year.", "sources": first[0]}] if first else [],
     }
     text = json.dumps(answer)
     return AIMessage(content=text, usage_metadata=_usage(body, text))

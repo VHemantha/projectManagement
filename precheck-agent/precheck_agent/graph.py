@@ -493,7 +493,7 @@ def guide(state: State) -> dict:
     s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
     emit("judged", "Writing the preparation guide", "running")
     _, _, body, index, _ = precheck_input(state)
-    body = G.with_precheck(body, job.get("last_precheck"))
+    body = G.with_precheck(body, job.get("last_precheck"), job.get("rolled_forward"), index)
     cache = StoreCache(store)
     key = G.cache_key(job["client_id"], state["job_id"], body, s)
     usage, how = [], "model"

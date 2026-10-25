@@ -58,6 +58,8 @@ export interface GuideV2 {
     outstanding: (GuideItem & { item: string })[]
   }
   checklist: (GuideItem & { check: string; status: 'done' | 'open' | 'na' })[]
+  /** This year's findings for next year's preparer (absent on guides before 24 Oct 2026). */
+  roll_forward?: (GuideItem & { item: string; why: string })[]
   words: number
   flags: string[]
   evidence: Evidence

@@ -108,6 +108,7 @@ GUIDE_V2 = {
                 "outstanding": [{"item": "Annual loan summary", "events": [], "sources": [], "flags": []}]},
     "checklist": [{"check": "Loan settlement confirmed.", "status": "open", "events": ["E1"], "flags": []},
                   {"check": "GST.", "status": "na", "events": [], "flags": []}],
+    "roll_forward": [{"item": "Agree the ASB loan to the annual summary.", "why": "Not received this year.", "sources": [], "flags": []}],
     "evidence": {}, "words": 120, "flags": [],
 }
 
@@ -119,11 +120,13 @@ def test_the_eight_section_guide_is_posted_section_by_section(agent):
     finish(run.run_id, mode="guide", guide=GUIDE_V2)
     text = comment_text(Comment.objects.get(issue=issue))
     assert "1 significant event (1 to confirm)" in text
-    for title in ("1. Job snapshot", "2. Significant events and alerts", "3. Prior-year findings and continuity", "4. Priority risks",
-                  "5. Starting sequence", "6. Judgments, assumptions and references", "7. Questions for the client",
-                  "7. Outstanding requests", "8. Completion and handover checklist"):
+    for title in ("1. Job snapshot", "2. Significant events and possible risk areas", "3. Prior-year findings and continuity", "4. Priority risks",
+                  "5. Starting sequence", "6. Judgments, assumptions and references", "7. Queries to be asked — for the client",
+                  "7. Queries to be asked — outstanding requests", "8. Completion and handover checklist", "8. To roll forward to next year"):
         assert title in text
-    assert "7. Queries for the manager" not in text  # an empty section is left out
+    assert "for the manager" not in text  # an empty section is left out
+    assert "FS preparation period: Year to 31 March 2026." in text
+    assert "Agree the ASB loan to the annual summary. — Not received this year." in text
     assert "E1 [Suspected — to confirm] Large payment to ASB. → May be a loan settlement. → Confirm the closing loan balance" in text
     assert "2. Reconcile the ASB loan. (waits on: Annual loan summary) Escalate: If the loan was settled, tell the manager. [E1]" in text
     assert "[Open] Loan settlement confirmed. [E1]" in text and "[N/A] GST." in text
@@ -180,3 +183,25 @@ def test_ask_keeps_where_each_point_came_from(agent):
     APIClient().post("/api/precheck/internal/events/", {"run_id": q["id"], "type": "ai_assistant.answered", "result": result}, format="json", **TOKEN)
     shown = api(pat).get(f"/api/precheck/jobs/{issue.key}/ask/").data["questions"][0]
     assert [p["basis"] for p in shown["points"]] == ["nz_standards_law", "general_knowledge"] and shown["beyond_nz"] and not shown["outside_job"]
+
+
+def test_this_years_findings_roll_forward_to_the_clients_next_guide(agent):
+    """The latest guide of the client's earlier task hands on its roll-forward list, the events it
+    could not confirm and the checks it left open; never from another client or a later task."""
+    pat = person("pat")
+    fy25 = make_job(pat, "Smith", "SmithRent", summary="FY25 accounts")
+    run = services.start_run(fy25, pat, kind=AIPrecheck.Kind.GUIDE)
+    finish(run.run_id, mode="guide", guide=GUIDE_V2)
+    fy26 = make_job(pat, "Smith", "SmithRent", summary="FY26 accounts")
+    other_client = make_job(pat, "Jones", "JonesRent")
+    rolled = services.job_payload(fy26)["rolled_forward"]
+    assert [(r["kind"], r["item"]) for r in rolled] == [
+        ("roll_forward", "Agree the ASB loan to the annual summary."),
+        ("open_event", "Large payment to ASB."),
+        ("open_check", "Loan settlement confirmed."),  # the N/A check is not handed on
+    ]
+    assert all(r["from"] == fy25.key and r["period"] == "Year to 31 March 2026." for r in rolled)
+    assert rolled[0]["why"] == "Not received this year."
+    assert services.job_payload(other_client)["rolled_forward"] == []  # never across clients
+    assert services.job_payload(fy25)["rolled_forward"] == []  # nothing from a later task
+

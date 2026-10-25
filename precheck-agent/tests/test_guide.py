@@ -24,7 +24,7 @@ def answer(**over) -> dict:
         "snapshot": {"activities": "Residential rental at 43 Te Wharo Drive.", "assets_and_funding": "One rental property funded by an ASB loan.",
                      "records": "ANZ bank export for the year; last year's statements.", "bookkeeping": "Bank exports only, no ledger.",
                      "period": "Year to 31 March 2026.", "sources": "B1, Z9"},
-        "events": [], "prior_year": [], "risks": [], "sequence": [], "judgments": [], "queries": [], "checklist": [],
+        "events": [], "prior_year": [], "risks": [], "sequence": [], "judgments": [], "queries": [], "checklist": [], "roll_forward": [],
     }
     base.update(over)
     return base
@@ -88,6 +88,36 @@ def test_code_checks_figures_confirmations_follow_through_and_repeated_queries(e
     assert guide["checklist"][1]["status"] == "open"  # an unknown status is read as open
     assert [s["id"] for s in guide["snapshot"]["sources"]] == ["B1"]  # Z9 does not exist
     assert guide["flags"] == [] and 0 < guide["words"] < 900
+
+
+def test_what_last_years_guide_rolled_forward_is_taken_up_this_year(env):
+    """This year's findings roll forward: next year's guide is given them (Y lines) and each one
+    reaches its prior-year section, by the model or, if it skips one, by code."""
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[])
+    env.pm.jobs["1"]["rolled_forward"] = [
+        {"from": "SMITH-FY25", "period": "Year ended 31 March 2025", "kind": "roll_forward", "item": "Agree the ASB loan to the annual summary.",
+         "why": "Was not received last year."},
+        {"from": "SMITH-FY25", "period": "Year ended 31 March 2025", "kind": "open_event", "item": "Large payment to Harcourts: possible property purchase."},
+    ]
+    env.precheck = llm.set_fake("precheck", scripted(answer(
+        snapshot={"activities": "Rental.", "assets_and_funding": "", "records": "", "bookkeeping": "", "period": "", "sources": ""},
+        prior_year=[{"item": "ASB loan not agreed last year.", "kind": "unresolved", "follow_through": "Agree it to this year's summary.", "sources": "Y1"}],
+        roll_forward=[{"item": "Confirm the property purchase date.", "why": "Rental income starts from it.", "sources": "B1"},
+                      {"item": "", "why": "empty", "sources": ""}],
+    )))
+    result = env.run("1", mode="guide")
+    body = env.precheck.calls[-1]["messages"][-1].content
+    assert "== ROLLED FORWARD FROM THE CLIENT'S EARLIER GUIDE" in body
+    assert "Y1 | from SMITH-FY25 (Year ended 31 March 2025) | handed on | Agree the ASB loan to the annual summary. | Was not received last year." in body
+    guide = result["guide"]
+    taken, added = guide["prior_year"]
+    assert taken["sources"][0]["id"] == "Y1" and taken["sources"][0]["label"].startswith("Rolled forward from SMITH-FY25")
+    # The model skipped Y2: code adds it, so nothing handed on is lost.
+    assert added["item"] == "Large payment to Harcourts: possible property purchase." and added["flags"] == ["added_by_code"]
+    assert added["sources"][0]["id"] == "Y2" and "confirm whether it is resolved" in added["follow_through"]
+    assert [r["item"] for r in guide["roll_forward"]] == ["Confirm the property purchase date."]  # the empty one is dropped
+    assert guide["snapshot"]["period"].startswith("Not established from the documents")  # the period is always stated
 
 
 def test_a_guide_longer_than_a_page_and_a_half_is_flagged(env):

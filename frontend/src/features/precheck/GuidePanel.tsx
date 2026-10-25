@@ -15,6 +15,7 @@ const FLAG_TEXT: Record<string, string> = {
   figure_not_in_documents: 'It has an amount not found in the documents (it may be calculated) — check it',
   confirmation_not_documented: 'The AI called this confirmed, but no document in the folder shows it — treat it as suspected',
   longer_than_a_page_and_a_half: 'This guide is longer than one and a half pages',
+  added_by_code: 'Rolled forward from the earlier guide but not taken up by the AI — settle it this year',
 }
 const MISSING_TEXT: Record<string, string> = { sequence: 'a step to deal with it', checklist: 'a checklist line', query: 'a question to confirm it' }
 const PRIOR_KIND: Record<string, string> = {
@@ -87,11 +88,11 @@ function EightSections({ guide }: { guide: GuideV2 }) {
         <dl className={styles.snapshot}>
           {(
             [
+              ['FS preparation period', s.period],
               ['Business', s.activities],
               ['Assets and funding', s.assets_and_funding],
               ['Records available', s.records],
               ['Bookkeeping', s.bookkeeping],
-              ['Period', s.period],
             ] as const
           )
             .filter(([, v]) => v)
@@ -106,7 +107,7 @@ function EightSections({ guide }: { guide: GuideV2 }) {
         <Flags flags={s.flags} />
       </Section>
 
-      <Section n={2} title="Significant events and alerts" empty={!guide.events.length && 'No significant events found in the documents.'}>
+      <Section n={2} title="Significant events and possible risk areas" empty={!guide.events.length && 'No significant events found in the documents.'}>
         {guide.events.map((e) => (
           <EventAlert key={e.id} e={e} evidence={ev} />
         ))}
@@ -192,7 +193,7 @@ function EightSections({ guide }: { guide: GuideV2 }) {
         </ul>
       </Section>
 
-      <Section n={7} title="Internal and client queries" empty={!(q.manager.length + q.client.length + q.outstanding.length) && 'No queries.'}>
+      <Section n={7} title="Queries to be asked" empty={!(q.manager.length + q.client.length + q.outstanding.length) && 'No queries.'}>
         {(
           [
             ['For the manager', q.manager.map((x) => ({ text: x.question, item: x }))],
@@ -227,6 +228,20 @@ function EightSections({ guide }: { guide: GuideV2 }) {
             </li>
           ))}
         </ul>
+        {(guide.roll_forward ?? []).length > 0 && (
+          <div className={styles.queryGroup}>
+            <h4 className={styles.subhead}>To roll forward to next year</h4>
+            <ul className={styles.list} aria-label="To roll forward to next year">
+              {(guide.roll_forward ?? []).map((r) => (
+                <li key={r.item}>
+                  {r.item}
+                  {r.why && <span className={styles.then}> — {r.why}</span>}
+                  <Flags flags={r.flags} />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </Section>
     </>
   )

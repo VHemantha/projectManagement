@@ -1,7 +1,9 @@
 """The preparation guide: after the pre-check, an eight-section briefing for the accountant preparing
 this year's financial statements (AFIT's agreed structure, 21 Oct 2026): job snapshot, significant
 events and alerts, prior-year continuity, priority risks, starting sequence, judgments, queries and
-a completion checklist, within one to one-and-a-half A4 pages.
+a completion checklist, within one to one-and-a-half A4 pages. What this year's guide hands on
+(its roll-forward list, events still to confirm, checks left open) reaches next year's guide for the
+same client, and code makes sure each one is taken up in its prior-year section.
 
 One Opus call. The input is the pre-check's own (every line with an id: questionnaire, last year's
 statements and trial balance, workpapers, this year's documents, bank exports and the general ledger
@@ -59,16 +61,17 @@ SCHEMA = _obj({
     "queries": {"type": "array", "items": _obj({
         "to": {"type": "string", "enum": QUERY_TO}, "text": _STR, "events": _IDS, "sources": _IDS})},
     "checklist": {"type": "array", "items": _obj({"check": _STR, "status": {"type": "string", "enum": CHECK_STATUSES}, "events": _IDS})},
+    "roll_forward": {"type": "array", "items": _obj({"item": _STR, "why": _STR, "sources": _IDS})},
 })
 
-ANSWER = """Answer in the JSON shape given: the eight sections of the preparation guide skill (snapshot, events, prior_year, risks, sequence, judgments, queries, checklist), within one to one-and-a-half A4 pages (about 500 to 800 words in all). Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; give "sources" as the ids each item rests on and "events" as the event ids it follows through (E1, E2, ...), each as one comma-separated string ("B1, G2.1"; "" for none); give every query with "to": manager, client or outstanding."""
+ANSWER = """Answer in the JSON shape given: the eight sections of the preparation guide skill (snapshot, events, prior_year, risks, sequence, judgments, queries, checklist), within one to one-and-a-half A4 pages (about 500 to 800 words in all). Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; give "sources" as the ids each item rests on and "events" as the event ids it follows through (E1, E2, ...), each as one comma-separated string ("B1, G2.1"; "" for none); give every query with "to": manager, client or outstanding; list in "roll_forward" what next year's preparer must pick up; take up every rolled-forward (Y) line in "prior_year"."""
 
 # Words kept per field: about half as much again as the skill asks for, so an answer that runs a
 # little long is kept whole rather than cut mid-sentence (the page limit is checked on the total).
 LIMITS = {"snapshot": 45, "event": 45, "why_it_matters": 40, "action": 55, "effect": 40, "item": 35, "follow_through": 35,
           "area": 8, "what_could_be_wrong": 35, "examine": 35, "evidence": 35, "step": 45, "depends_on": 20, "escalate": 30,
-          "judgment": 35, "reference": 25, "question": 45, "check": 30}
-MAX_ITEMS = {"events": 7, "prior_year": 6, "risks": 5, "sequence": 12, "judgments": 6, "manager": 6, "client": 8, "outstanding": 12, "checklist": 14}
+          "judgment": 35, "reference": 25, "question": 45, "check": 30, "why": 35}
+MAX_ITEMS = {"events": 7, "prior_year": 6, "risks": 5, "sequence": 12, "judgments": 6, "manager": 6, "client": 8, "outstanding": 12, "checklist": 14, "roll_forward": 8}
 
 
 def system_text() -> str:
@@ -79,10 +82,21 @@ def skill_version() -> str:
     return get_skill(SKILL).version
 
 
-def with_precheck(body: str, last: dict | None) -> str:
+def with_precheck(body: str, last: dict | None, rolled: list[dict] | None = None, index: dict | None = None) -> str:
     """The pre-check input with the pre-check's own result added: what is still requested (the
-    outstanding requests, and the steps that wait for them) and what it noted for the preparer."""
-    lines = ["\n== THE LATEST PRE-CHECK'S RESULT =="]
+    outstanding requests, and the steps that wait for them) and what it noted for the preparer;
+    and what the client's earlier guide handed on to this year (Y lines, added to `index`)."""
+    lines = []
+    if rolled:
+        lines.append("\n== ROLLED FORWARD FROM THE CLIENT'S EARLIER GUIDE (take up each one in prior_year) ==")
+        for n, r in enumerate(rolled[:20], start=1):
+            yid = f"Y{n}"
+            if index is not None:
+                index[yid] = {"kind": "rolled_forward", "row": r}
+            kind = {"roll_forward": "handed on", "open_event": "event not confirmed", "open_check": "check left open"}.get(r.get("kind"), "")
+            lines.append(f"{yid} | from {r.get('from', '')} ({r.get('period') or 'earlier year'}) | {kind} | {r.get('item', '')}"
+                         + (f" | {r['why']}" if r.get("why") else ""))
+    lines.append("\n== THE LATEST PRE-CHECK'S RESULT ==")
     if not last:
         lines.append("(no pre-check has finished for this task yet)")
     else:
@@ -192,6 +206,8 @@ def clean(raw: dict, index: dict, known_text: str) -> dict:
 
     snap = raw.get("snapshot") or {}
     snapshot = {f: text(snap.get(f), "snapshot") for f in ("activities", "assets_and_funding", "records", "bookkeeping", "period")}
+    if not snapshot["period"]:
+        snapshot["period"] = "Not established from the documents: confirm the balance date and the period to prepare."
     snapshot["sources"] = sources(snap.get("sources"))
     snapshot["flags"] = figures(snapshot, "activities", "assets_and_funding", "records", "bookkeeping", "period")
 
@@ -212,6 +228,18 @@ def clean(raw: dict, index: dict, known_text: str) -> dict:
     checklist = rows(raw.get("checklist"), MAX_ITEMS["checklist"], {"check": "check"},
                      lambda r: {"status": r.get("status") if r.get("status") in CHECK_STATUSES else "open"})
 
+    roll_forward = rows(raw.get("roll_forward"), MAX_ITEMS["roll_forward"], {"item": "item", "why": "why"})
+    for r in roll_forward:
+        r.pop("events", None)
+    # What the earlier guide handed on is never dropped: a Y line the answer did not take up is
+    # added to the prior-year section for the accountant to settle.
+    taken = {s for p in prior for s in p.get("sources", [])}
+    for yid, entry in index.items():
+        if entry["kind"] == "rolled_forward" and yid not in taken:
+            r = entry["row"]
+            prior.append({"item": text(r.get("item"), "item"), "follow_through": f"Rolled forward from {r.get('from', 'the earlier job')}: confirm whether it is resolved this year.",
+                          "kind": "unresolved", "events": [], "sources": [yid], "flags": ["added_by_code"]})
+
     # Every event is followed through: a step to deal with it, a line on the checklist, and for a
     # suspected event a question to confirm it.
     def mentions(items) -> set[str]:
@@ -226,7 +254,8 @@ def clean(raw: dict, index: dict, known_text: str) -> dict:
             e["flags"].append("not_followed_through")
 
     return {"format": FORMAT, "snapshot": snapshot, "events": events, "prior_year": prior, "risks": risks, "sequence": sequence,
-            "judgments": judgments, "queries": {"manager": manager, "client": client, "outstanding": outstanding}, "checklist": checklist}
+            "judgments": judgments, "queries": {"manager": manager, "client": client, "outstanding": outstanding}, "checklist": checklist,
+            "roll_forward": roll_forward}
 
 
 def word_count(guide: dict) -> int:
@@ -238,7 +267,7 @@ def word_count(guide: dict) -> int:
         if isinstance(v, list):
             return sum(walk(x) for x in v)
         return 0
-    return walk({k: guide[k] for k in ("snapshot", "events", "prior_year", "risks", "sequence", "judgments", "queries", "checklist")})
+    return walk({k: guide.get(k, []) for k in ("snapshot", "events", "prior_year", "risks", "sequence", "judgments", "queries", "checklist", "roll_forward")})
 
 
 def size(guide: dict) -> int:
@@ -246,14 +275,14 @@ def size(guide: dict) -> int:
     if guide.get("format") != FORMAT:
         return len(guide.get("steps", []))
     q = guide["queries"]
-    return sum(len(guide[k]) for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist")) + sum(len(v) for v in q.values())
+    return sum(len(guide.get(k, [])) for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist", "roll_forward")) + sum(len(v) for v in q.values())
 
 
 def flagged(guide: dict) -> int:
     """How many items code flagged (an amount not in the documents, an event not followed through...)."""
     if guide.get("format") != FORMAT:
         return sum(1 for s in guide.get("steps", []) if s.get("flags"))
-    items = [guide["snapshot"]] + [x for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist") for x in guide[k]]
+    items = [guide["snapshot"]] + [x for k in ("events", "prior_year", "risks", "sequence", "judgments", "checklist", "roll_forward") for x in guide.get(k, [])]
     return sum(1 for x in items + [q for v in guide["queries"].values() for q in v] if x.get("flags"))
 
 
@@ -268,6 +297,9 @@ def assemble(cleaned: dict, index: dict) -> tuple[dict, dict]:
 
     def view(sid: str) -> dict:
         item = index[sid]
+        if item["kind"] == "rolled_forward":
+            r = item["row"]
+            return {"id": sid, "label": f"Rolled forward from {r.get('from', 'an earlier job')}: {clip_words(r.get('item', ''), 14)}", "evidence_id": None}
         if item["kind"] == "lesson":  # an earlier correction: a reviewer point carried forward
             lesson = item["lesson"]
             return {"id": sid, "label": f"Earlier correction: {clip_words(lesson.get('note') or lesson.get('item', ''), 14)}", "evidence_id": None}

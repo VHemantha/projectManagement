@@ -52,6 +52,36 @@ def last_precheck(issue) -> dict | None:
             "preparer_notes": [{"text": n.get("text", "")} for n in p.get("preparer_notes") or []][:20]}
 
 
+MAX_ROLLED_FORWARD = 20
+
+
+def rolled_forward(issue) -> list[dict]:
+    """What the client's earlier guide handed on to this year: its roll-forward list, the events it
+    could not confirm and the checks it left open. From the latest guide of the same client's most
+    recent earlier task (never another client's); next year's guide must take up each one."""
+    from apps.issues.models import Issue
+
+    project = issue.project
+    scope = Issue.objects.filter(project__client_id=project.client_id) if project.client_id else Issue.objects.filter(project=project)
+    run = (AIPrecheck.objects.filter(issue__in=scope.exclude(pk=issue.pk).filter(created_at__lt=issue.created_at), kind=AIPrecheck.Kind.GUIDE,
+                                     status__in=[AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL])
+           .select_related("issue").order_by("-issue__created_at", "-created_at").first())
+    g = (run.guide or {}) if run else {}
+    if g.get("format") != 2:
+        return []
+    base = {"from": run.issue.key, "period": (g.get("snapshot") or {}).get("period", "")[:120]}
+    rows = [{**base, "kind": "roll_forward", "item": r.get("item", ""), "why": r.get("why", "")} for r in g.get("roll_forward") or []]
+    rows += [{**base, "kind": "open_event", "item": e.get("event", "")} for e in g.get("events") or [] if e.get("status") == "suspected"]
+    rows += [{**base, "kind": "open_check", "item": c.get("check", "")} for c in g.get("checklist") or [] if c.get("status") == "open"]
+    seen, out = set(), []
+    for r in rows:
+        key = r["item"].strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            out.append({**r, "item": r["item"][:300], **({"why": r["why"][:200]} if r.get("why") else {})})
+    return out[:MAX_ROLLED_FORWARD]
+
+
 def answer_dict(a) -> dict:
     return {"id": a.id, "question": a.question, "answer": a.answer, "answered_by": a.answered_by.display_name if a.answered_by else "",
             "answered_at": a.answered_at}
@@ -205,6 +235,8 @@ def job_payload(issue) -> dict:
         "previous_requests": previous_requests(issue),
         # For the preparation guide: what the latest pre-check found.
         "last_precheck": last_precheck(issue),
+        # For the preparation guide: what the client's earlier guide rolled forward to this year.
+        "rolled_forward": rolled_forward(issue),
         "accountant_answers": [{"question": a.question, "answer": a.answer} for a in issue.accountant_answers.all()[:60]],
         "lessons": lessons_for(issue),
         # For a review round: the preparer's assumptions and every finding with the reviewer's response.

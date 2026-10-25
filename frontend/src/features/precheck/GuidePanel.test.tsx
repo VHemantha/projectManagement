@@ -76,12 +76,14 @@ describe('GuidePanel', () => {
         queries: { manager: [], client: [{ question: 'What was the payment to ASB for?', events: ['E2'], ...none }],
                    outstanding: [{ item: 'Annual loan summary', events: [], ...none }] },
         checklist: [{ check: 'Property purchase recorded.', status: 'open', events: ['E1'], ...none }, { check: 'GST.', status: 'na', events: [], ...none }],
+        roll_forward: [{ item: 'Revisit the purchase price allocation.', why: 'It recurs each year.', sources: [], ...none }],
       } },
     }
     render(<GuidePanel jobKey="SMITH-1" />)
     const titles = screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)
-    expect(titles).toEqual(['1. Job snapshot', '2. Significant events and alerts', '3. Prior-year findings and continuity', '4. Priority risks and material areas',
-      '5. Starting sequence', '6. Judgments, assumptions and references', '7. Internal and client queries', '8. Completion and handover checklist'])
+    expect(titles).toEqual(['1. Job snapshot', '2. Significant events and possible risk areas', '3. Prior-year findings and continuity', '4. Priority risks and material areas',
+      '5. Starting sequence', '6. Judgments, assumptions and references', '7. Queries to be asked', '8. Completion and handover checklist'])
+    expect(screen.getByRole('region', { name: 'Job snapshot' })).toHaveTextContent('FS preparation periodYear to 31 March 2026.')
     const property = screen.getByRole('article', { name: /E1 Property acquired/ })
     expect(property).toHaveTextContent('Confirmed')
     expect(property).toHaveTextContent('What happened Property acquired at 12 Kowhai Rd.')
@@ -97,12 +99,13 @@ describe('GuidePanel', () => {
     expect(sequence).toHaveTextContent('Waits on: Annual loan summary')
     expect(sequence).toHaveTextContent('Escalate: If settled, tell the manager.')
     expect(screen.getByRole('region', { name: 'Judgments, assumptions and references' })).toHaveTextContent('Manager approval')
-    const queries = screen.getByRole('region', { name: 'Internal and client queries' })
+    const queries = screen.getByRole('region', { name: 'Queries to be asked' })
     expect(within(queries).queryByText('For the manager')).not.toBeInTheDocument() // an empty list is left out
     expect(queries).toHaveTextContent('What was the payment to ASB for?')
     const checklist = screen.getByRole('region', { name: 'Completion and handover checklist' })
     expect(checklist).toHaveTextContent('Open Property purchase recorded.')
     expect(checklist).toHaveTextContent('N/A GST.')
+    expect(within(checklist).getByRole('list', { name: 'To roll forward to next year' })).toHaveTextContent('Revisit the purchase price allocation. — It recurs each year.')
   })
 
   it('while it is being written, it can be stopped', () => {
