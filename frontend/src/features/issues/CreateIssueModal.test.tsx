@@ -62,11 +62,20 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(screen.getByLabelText('Assignee')).toHaveValue('6')
     expect(screen.getByText('In review')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText(/Job Name/), 'Rental property year end')
+    await userEvent.type(screen.getByLabelText('Group'), '  Rental properties ')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenCalledWith(
-      expect.objectContaining({ project: 'SMITH', summary: 'Rental property year end', status_id: 7, epic_id: 42, assignee_id: 6 }),
+      expect.objectContaining({ project: 'SMITH', summary: 'Rental property year end', group: 'Rental properties', status_id: 7, epic_id: 42, assignee_id: 6 }),
       expect.anything(),
     )
+  })
+
+  it('the group is optional', async () => {
+    mocks.defaults = { projectKey: 'SMITH' }
+    render(<CreateIssueModal />)
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ summary: 'GST return', group: '' }), expect.anything())
   })
 
   it("from a board across projects: the filters' workspace and sub-workspace, and the column's category", async () => {

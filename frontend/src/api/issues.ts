@@ -89,6 +89,8 @@ export interface CreateIssuePayload {
   project?: string
   client_id?: number
   summary: string
+  /** Free-text group the task belongs to. */
+  group?: string
   issue_type_id: number
   description?: Record<string, unknown> | null
   status_id?: number

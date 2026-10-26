@@ -1,5 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import { Eye, EyeOff } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import styles from './IssueView.module.css'
@@ -110,6 +111,13 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       </div>
 
       <div className={styles.panelRow}>
+        <label className={styles.panelLabel} htmlFor="task-group">
+          Group
+        </label>
+        <GroupInput key={issue.group ?? ''} value={issue.group ?? ''} onSave={(group) => updateIssue.mutate({ group })} />
+      </div>
+
+      <div className={styles.panelRow}>
         <span className={styles.panelLabel}>Story points</span>
         <input
           className={styles.panelSelect}
@@ -192,3 +200,27 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
     </div>
   )
 }
+
+/** The task's group: free text, saved when you leave the box or press Enter. */
+function GroupInput({ value, onSave }: { value: string; onSave: (group: string) => void }) {
+  const [draft, setDraft] = useState(value)
+  const save = () => {
+    const next = draft.trim()
+    if (next !== value) onSave(next)
+  }
+  return (
+    <input
+      id="task-group"
+      className={styles.panelSelect}
+      maxLength={100}
+      placeholder="None"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+    />
+  )
+}
+

@@ -268,3 +268,18 @@ def test_only_a_team_lead_or_above_sets_budgeted_time(api_client, project, task_
     project.save()
     TeamMembership.objects.create(team=team, user=other_user, role=TeamMembership.Role.LEAD)
     assert member.patch(f"/api/issues/{key}/", {"budgeted_hours": 20}, format="json").status_code == 200
+
+
+def test_a_task_can_be_given_a_group_when_created_and_changed_later(api_client, project, task_type):
+    resp = api_client.post(
+        "/api/issues/", {"project": "TST", "summary": "Rental year end", "group": "  Rental   properties ", "issue_type_id": task_type.id},
+        format="json",
+    )
+    assert resp.status_code == 201 and resp.data["group"] == "Rental properties"  # spaces tidied
+    key = resp.data["key"]
+    assert api_client.get("/api/issues/?project=TST").data["results"][0]["group"] == "Rental properties"
+    assert api_client.patch(f"/api/issues/{key}/", {"group": "Year-end 2026"}, format="json").data["group"] == "Year-end 2026"
+    change = IssueHistory.objects.get(issue__key=key, field_changed="group")
+    assert (change.old_value, change.new_value) == ("Rental properties", "Year-end 2026")
+    plain = api_client.post("/api/issues/", {"project": "TST", "summary": "GST", "issue_type_id": task_type.id}, format="json")
+    assert plain.data["group"] == ""  # optional

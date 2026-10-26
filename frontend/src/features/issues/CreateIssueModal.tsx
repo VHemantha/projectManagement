@@ -43,6 +43,7 @@ export function CreateIssueModal() {
 
   const [issueTypeId, setIssueTypeId] = useState<string>('')
   const [summary, setSummary] = useState('')
+  const [group, setGroup] = useState('')
   const [customSummary, setCustomSummary] = useState(false)
   const [description, setDescription] = useState<JSONContent | null>(null)
   const [assigneeId, setAssigneeId] = useState('')
@@ -136,6 +137,7 @@ export function CreateIssueModal() {
   }, [teamId, assigneeId, assigneeCandidates])
 
   const resetFields = () => {
+    setGroup('')
     setSummary('')
     setCustomSummary(false)
     setDescription(null)
@@ -166,6 +168,7 @@ export function CreateIssueModal() {
         ...(projectKey === CLIENT_JOBS ? { client_id: Number(clientId) } : { project: projectKey }),
         issue_type_id: Number(issueTypeId),
         summary: effectiveSummary,
+        group: group.trim(),
         description,
         assignee_id: assigneeId ? Number(assigneeId) : null,
         priority,
@@ -353,6 +356,15 @@ export function CreateIssueModal() {
               )}
             </div>
           )}
+
+          <Input
+            id="ci-group"
+            label="Group"
+            maxLength={100}
+            placeholder="e.g. Rental properties, Year-end 2026"
+            value={group}
+            onChange={(e) => setGroup(e.target.value)}
+          />
 
           <div className={styles.field}>
             <label className={styles.label}>Description</label>

@@ -41,6 +41,7 @@ def _display_value(field, value):
 
 HISTORY_TRACKED_FIELDS = [
     "summary",
+    "group",
     "status",
     "priority",
     "assignee",
@@ -180,6 +181,7 @@ class IssueListSerializer(serializers.ModelSerializer):
             "project_key",
             "project_name",
             "summary",
+            "group",
             "issue_type",
             "status",
             "priority",
@@ -287,6 +289,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "project_name",
             "client_id",
             "summary",
+            "group",
             "description",
             "issue_type",
             "issue_type_id",
@@ -374,6 +377,9 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             attrs = self._starting_status(attrs, category)
         self._check_budget(attrs)
         return attrs
+
+    def validate_group(self, value):
+        return " ".join(str(value or "").split())[:100]
 
     def _check_budget(self, attrs):
         """Budgeted time is set by a team lead and above only: it feeds the assignee's KPI."""

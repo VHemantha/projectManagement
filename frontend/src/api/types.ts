@@ -298,6 +298,8 @@ export interface IssueListItem {
   parent_id: number | null
   sprint: SprintMini | null
   story_points: number | null
+  /** A free-text group the task belongs to; empty when none. */
+  group?: string
   start_date: string | null
   due_date: string | null
   labels: Label[]
@@ -350,6 +352,8 @@ export interface IssueDetail {
   parent: IssueMini | null
   sprint: SprintMini | null
   story_points: number | null
+  /** A free-text group the task belongs to; empty when none. */
+  group?: string
   budgeted_hours: number | null
   /** Hours logged against the job in timesheets, and who logged them. */
   actual_hours: number

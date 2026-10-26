@@ -35,6 +35,8 @@ class Issue(models.Model):
     key = models.CharField(max_length=120, unique=True, editable=False)
     issue_type = models.ForeignKey("workflow.IssueType", on_delete=models.PROTECT, related_name="issues")
     summary = models.CharField(max_length=500)
+    # A free-text group the task belongs to (AFIT, 25 Oct 2026), set when the task is created.
+    group = models.CharField(max_length=100, blank=True, default="")
     description = models.JSONField(null=True, blank=True)
 
     status = models.ForeignKey("workflow.WorkflowStatus", on_delete=models.PROTECT, related_name="issues")

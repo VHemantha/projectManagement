@@ -18,6 +18,7 @@ const FIELD_LABELS: Record<string, string> = {
   parent: 'parent',
   sprint: 'sprint',
   story_points: 'story points',
+  group: 'group',
   due_date: 'due date',
   preparer: 'preparer',
   reviewer: 'reviewer',
