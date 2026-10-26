@@ -95,7 +95,7 @@ def test_column_rename_rules(lead, worker, project):
     url = f"/api/boards/{board.id}/columns/1/"
     assert client_for(worker).patch(url, {"name": "Next"}, format="json").status_code == 403
     assert client_for(lead).patch(url, {"name": ""}, format="json").status_code == 400
-    resp = client_for(lead).patch(url, {"name": "done"}, format="json")
+    resp = client_for(lead).patch(url, {"name": "complete"}, format="json")
     assert resp.status_code == 400
     assert "already has a column" in str(resp.data["name"][0])
     assert client_for(lead).patch(f"/api/boards/{board.id}/columns/99/", {"name": "X"}, format="json").status_code == 404
@@ -107,7 +107,7 @@ def test_column_whose_name_differs_from_its_status_keeps_the_status_name(lead, p
     board.save()
     resp = client_for(lead).patch(f"/api/boards/{board.id}/columns/1/", {"name": "Up next"}, format="json")
     assert resp.status_code == 200
-    assert project.workflow.statuses.filter(name="To do").exists()
+    assert project.workflow.statuses.filter(name="In Progress").exists()
 
 
 # ---- Labels ----------------------------------------------------------------------------------

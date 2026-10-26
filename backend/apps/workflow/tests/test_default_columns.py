@@ -45,19 +45,23 @@ def status_names_in_order(project):
     return list(project.workflow.statuses.order_by("order").values_list("name", flat=True))
 
 
-def test_new_workspace_gets_the_default_columns_and_new_jobs_start_in_backlog():
+STAGES = ["To Start", "In Progress", "Waiting for Info", "Sent to Client", "Internal Adjustments", "Client Adjustments", "Complete", "To be Archived"]
+
+
+def test_new_workspace_gets_the_default_columns_and_new_jobs_start_in_the_first():
     user = User.objects.create_user(username="u", email="u@example.com", password="x")
     client = APIClient()
     client.force_authenticate(user=user)
     assert client.post("/api/projects/", {"key": "Fresh", "name": "Fresh", "project_type": "kanban"}, format="json").status_code == 201
     project = Project.objects.get(key="Fresh")
-    assert column_names(project) == DEFAULT_COLUMNS
-    assert status_names_in_order(project) == DEFAULT_COLUMNS
-    assert project.workflow.statuses.get(name="Blocked").category == "in_progress"
+    assert column_names(project) == STAGES
+    assert status_names_in_order(project) == STAGES
+    assert project.workflow.statuses.get(name="Waiting for Info").category == "in_progress"
+    assert project.workflow.statuses.get(name="To be Archived").category == "done"
     task, _ = IssueType.objects.get_or_create(name="Task", project=None)
     resp = client.post("/api/issues/", {"project": "Fresh", "summary": "New job", "issue_type_id": task.id}, format="json")
     assert resp.status_code == 201, resp.data
-    assert resp.data["status"]["name"] == "Backlog"
+    assert resp.data["status"]["name"] == "To Start"
 
 
 def test_migration_adds_backlog_first_and_blocked_before_done_keeping_custom_columns_and_jobs():
@@ -107,7 +111,8 @@ def test_reordering_columns_reorders_statuses():
     client.post("/api/projects/", {"key": "Order", "name": "Order", "project_type": "kanban"}, format="json")
     board = Project.objects.get(key="Order").boards.first()
     columns = board.column_config
-    columns.insert(1, columns.pop(4))  # Blocked right after Backlog
+    columns.insert(1, columns.pop(4))  # Internal Adjustments right after To Start
     resp = client.patch(f"/api/boards/{board.id}/config/", {"column_config": columns}, format="json")
     assert resp.status_code == 200, resp.data
-    assert status_names_in_order(board.project) == ["Backlog", "Blocked", "To do", "In progress", "In review", "Done"]
+    assert status_names_in_order(board.project) == ["To Start", "Internal Adjustments", "In Progress", "Waiting for Info", "Sent to Client",
+                                                    "Client Adjustments", "Complete", "To be Archived"]

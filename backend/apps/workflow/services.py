@@ -1,20 +1,32 @@
 """Shared helpers for provisioning a project's default workflow + board.
 
 Used both by the `seed_demo` management command and by the Project create API,
-so a workspace made through the UI ends up with the same pipeline as the demo data:
-Backlog / To do / In progress / In review / Blocked / Done.
+so a workspace made through the UI ends up with the same pipeline as the demo data — AFIT's
+stages (26 Oct 2026): To Start / In Progress / Waiting for Info / Sent to Client / Internal
+Adjustments / Client Adjustments / Complete / To be Archived.
 """
 
 from .models import Board, Workflow, WorkflowStatus, WorkflowTransition
 
 # (name, category, column WIP limit), in board order.
 STATUS_DEFS = [
-    ("Backlog", "todo", None),
-    ("To do", "todo", None),
-    ("In progress", "in_progress", 5),
-    ("In review", "in_progress", 3),
-    ("Blocked", "in_progress", None),
-    ("Done", "done", None),
+    ("To Start", "todo", None),
+    ("In Progress", "in_progress", 5),
+    ("Waiting for Info", "in_progress", None),
+    ("Sent to Client", "in_progress", None),
+    ("Internal Adjustments", "in_progress", None),
+    ("Client Adjustments", "in_progress", None),
+    ("Complete", "done", None),
+    ("To be Archived", "done", None),
+]
+
+# The automatic "who has it now" moves for the default stages: adjustments go back to the
+# preparer (after the internal review, or the client's comments); a reopened job to its assignee.
+TRANSITION_DEFS = [
+    ("Start", "To Start", "In Progress", "no_change"),
+    ("Internal adjustments", None, "Internal Adjustments", "preparer"),
+    ("Client adjustments", None, "Client Adjustments", "preparer"),
+    ("Reopen", "Complete", "In Progress", "assignee"),
 ]
 
 
@@ -45,25 +57,13 @@ def create_default_board(project, statuses: dict[str, WorkflowStatus]) -> Board:
 
 
 def create_default_transitions(project, statuses: dict[str, WorkflowStatus]) -> None:
-    """Seeds the standard forward/backward moves for the default pipeline, with the
-    In Progress <-> In Review pair pre-wired to the addendum's current_responsible
-    auto-reassignment rule — otherwise the "Transition rules" settings table would start out
-    empty on every project and the feature would have nothing to demonstrate."""
-    workflow = statuses["To do"].workflow
-    defs = [
-        ("Plan", "Backlog", "To do", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Start progress", "To do", "In progress", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Send for review", "In progress", "In review", WorkflowTransition.ReassignRule.REVIEWER),
-        ("Request changes", "In review", "In progress", WorkflowTransition.ReassignRule.PREPARER),
-        ("Approve", "In review", "Done", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Reopen", "Done", "In progress", WorkflowTransition.ReassignRule.ASSIGNEE),
-        ("Block", "In progress", "Blocked", WorkflowTransition.ReassignRule.NO_CHANGE),
-        ("Unblock", "Blocked", "In progress", WorkflowTransition.ReassignRule.NO_CHANGE),
-    ]
-    for name, from_name, to_name, rule in defs:
+    """Seeds the default stages' automatic reassignment rules (transitions are not enforced:
+    any stage can move to any other; a matching rule only sets who has the job now)."""
+    workflow = statuses["To Start"].workflow
+    for name, from_name, to_name, rule in TRANSITION_DEFS:
         WorkflowTransition.objects.get_or_create(
             workflow=workflow,
-            from_status=statuses[from_name],
+            from_status=statuses[from_name] if from_name else None,
             to_status=statuses[to_name],
             defaults={"name": name, "set_current_responsible_to": rule},
         )

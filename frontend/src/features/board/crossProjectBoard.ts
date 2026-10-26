@@ -35,11 +35,31 @@ export function statusForCategory(
   return board.statuses.find((s) => s.category === category)?.id ?? null
 }
 
+/** Several projects' boards as one: a column per stage name (AFIT's stages are the same on every
+ * board), holding that stage's status from each project, in the first board's order; a stage
+ * only some projects have is added after. Null when there is nothing shared to go on. */
+export function mergeColumns(boards: (Board | undefined)[]): BoardColumn[] | null {
+  if (!boards.length || boards.some((b) => !b)) return null
+  const merged = new Map<string, BoardColumn>()
+  for (const board of boards as Board[]) {
+    for (const col of board.column_config) {
+      const key = col.name.trim().toLowerCase()
+      const existing = merged.get(key)
+      if (existing) existing.status_ids = [...existing.status_ids, ...col.status_ids]
+      else merged.set(key, { name: col.name, status_ids: [...col.status_ids], wip_limit: null, ...(col.color ? { color: col.color } : {}) })
+    }
+  }
+  const columns = [...merged.values()]
+  // Projects with nothing in common (each its own stage names): the shared categories read better.
+  const shared = columns.filter((c) => (boards as Board[]).every((b) => b.column_config.some((x) => x.name.trim().toLowerCase() === c.name.trim().toLowerCase())))
+  return shared.length ? columns : null
+}
+
 /** Board settings for views that aggregate issues across projects (Team, My Work, All issues),
  * so they match each project's own board:
  * - every card is drawn with its project's card fields and colour coding;
- * - when all cards come from one project, its real columns (names, colours, WIP limits,
- *   custom stages) are used; with several projects, columns are the shared status categories. */
+ * - one project's cards: its real columns (names, colours, WIP limits, custom stages); several
+ *   projects': a column per stage they share (AFIT's eight), else the shared status categories. */
 export function useCrossProjectBoard(issues: IssueListItem[]) {
   const projectKeys = useMemo(() => [...new Set(issues.map((i) => i.project_key))].sort(), [issues])
   const { boards, isLoading } = useProjectBoards(projectKeys)
@@ -51,19 +71,25 @@ export function useCrossProjectBoard(issues: IssueListItem[]) {
     return out
   }, [boards])
 
-  const columns: BoardColumn[] = single ? single.column_config : CATEGORY_COLUMNS
+  const merged = useMemo(() => (single ? null : mergeColumns(projectKeys.map((k) => boards[k]))), [single, projectKeys, boards])
+  const columns: BoardColumn[] = single ? single.column_config : (merged ?? CATEGORY_COLUMNS)
 
-  const resolveStatus = (issue: IssueListItem, column: BoardColumn): number | null =>
-    column.category
-      ? statusForCategory(issue, column.category, boards[issue.project_key])
-      : resolveDropStatusId(issue, column)
+  const resolveStatus = (issue: IssueListItem, column: BoardColumn): number | null => {
+    if (column.category) return statusForCategory(issue, column.category, boards[issue.project_key])
+    if (merged) {
+      // The stage's status in the card's own project.
+      if (column.status_ids.includes(issue.status.id)) return issue.status.id
+      const own = new Set((boards[issue.project_key]?.statuses ?? []).map((s) => s.id))
+      return column.status_ids.find((id) => own.has(id)) ?? null
+    }
+    return resolveDropStatusId(issue, column)
+  }
 
   return {
     columns,
     cardConfigByProject,
     resolveStatus,
-    // Only a single-project board waits for its settings (its columns depend on them). Mixed
-    // boards show category columns straight away and colour the cards as settings arrive.
-    isLoading: projectKeys.length === 1 && isLoading,
+    // The columns depend on the projects' board settings, so wait for them.
+    isLoading: projectKeys.length > 0 && isLoading,
   }
 }

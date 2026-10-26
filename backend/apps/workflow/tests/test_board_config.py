@@ -50,7 +50,7 @@ def member_client(member):
 def test_any_authenticated_user_can_read_board_config(member_client, board):
     resp = member_client.get(f"/api/boards/{board.id}/config/")
     assert resp.status_code == 200
-    assert len(resp.data["column_config"]) == 6
+    assert len(resp.data["column_config"]) == 8
 
 
 def test_non_admin_member_cannot_patch_board_config(member_client, board):
@@ -106,19 +106,19 @@ def test_workspace_admin_can_configure_board_without_being_project_lead(board):
 
 def test_default_transitions_are_provisioned_with_reassign_rules(project):
     transitions = project.workflow.transitions.all()
-    assert transitions.count() == 8
-    send_for_review = transitions.get(name="Send for review")
-    assert send_for_review.set_current_responsible_to == "reviewer"
+    assert transitions.count() == 4
+    adjustments = transitions.get(name="Internal adjustments")
+    assert adjustments.set_current_responsible_to == "preparer" and adjustments.from_status is None
 
 
 def test_workflow_transition_list_is_scoped_to_project(member_client, project):
     resp = member_client.get(f"/api/projects/{project.key}/workflow/transitions/")
     assert resp.status_code == 200
-    assert len(resp.data) == 8
+    assert len(resp.data) == 4
 
 
 def test_only_set_current_responsible_to_is_editable_on_a_transition(lead_client, project):
-    transition = project.workflow.transitions.get(name="Send for review")
+    transition = project.workflow.transitions.get(name="Internal adjustments")
     original_name = transition.name
     resp = lead_client.patch(
         f"/api/workflow-transitions/{transition.id}/",
@@ -132,7 +132,7 @@ def test_only_set_current_responsible_to_is_editable_on_a_transition(lead_client
 
 
 def test_non_admin_cannot_edit_transition_rules(member_client, project):
-    transition = project.workflow.transitions.get(name="Send for review")
+    transition = project.workflow.transitions.get(name="Internal adjustments")
     resp = member_client.patch(
         f"/api/workflow-transitions/{transition.id}/", {"set_current_responsible_to": "assignee"}, format="json"
     )
@@ -168,7 +168,7 @@ def test_new_column_creates_and_maps_a_new_status(lead_client, board, project):
 
 
 def test_new_column_cannot_duplicate_an_existing_status_name(lead_client, board):
-    config = board.column_config + [{"name": "in review", "status_ids": [], "new_status": {"category": "todo"}}]
+    config = board.column_config + [{"name": "sent to client", "status_ids": [], "new_status": {"category": "todo"}}]
     resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json")
     assert resp.status_code == 400
     assert "already exists" in str(resp.data)
@@ -183,12 +183,12 @@ def test_a_status_cannot_be_in_two_columns(lead_client, board):
 
 
 def test_removing_a_column_that_still_has_issues_is_rejected(lead_client, board, project):
-    in_review = project.workflow.statuses.get(name="In review")
-    _issue(project, in_review)
-    config = [c for c in board.column_config if in_review.id not in c["status_ids"]]
+    sent = project.workflow.statuses.get(name="Sent to Client")
+    _issue(project, sent)
+    config = [c for c in board.column_config if sent.id not in c["status_ids"]]
     resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json")
     assert resp.status_code == 400
-    assert "In review (1 task)" in str(resp.data)
+    assert "Sent to Client (1 task)" in str(resp.data)
 
 
 def test_column_color_must_be_hex(lead_client, board):
@@ -227,16 +227,16 @@ def test_card_colours_are_validated(lead_client, board, card_colors):
 
 
 def test_board_statuses_report_issue_counts(lead_client, project):
-    todo = project.workflow.statuses.get(name="To do")
+    todo = project.workflow.statuses.get(name="To Start")
     _issue(project, todo)
     resp = lead_client.get(f"/api/projects/{project.key}/board/")
     counts = {s["name"]: s["issue_count"] for s in resp.data["statuses"]}
-    assert counts["To do"] == 1
-    assert counts["Done"] == 0
+    assert counts["To Start"] == 1
+    assert counts["Complete"] == 0
 
 
 def test_unused_status_can_be_deleted_but_used_ones_cannot(lead_client, member_client, board, project):
-    in_review = project.workflow.statuses.get(name="In review")
+    in_review = project.workflow.statuses.get(name="Client Adjustments")
     url = f"/api/boards/{board.id}/statuses/{in_review.id}/"
 
     # Still on a column.
@@ -253,7 +253,7 @@ def test_unused_status_can_be_deleted_but_used_ones_cannot(lead_client, member_c
 
 
 def test_status_with_issues_cannot_be_deleted(lead_client, board, project):
-    todo = project.workflow.statuses.get(name="To do")
+    todo = project.workflow.statuses.get(name="To Start")
     _issue(project, todo)
     resp = lead_client.delete(f"/api/boards/{board.id}/statuses/{todo.id}/")
     assert resp.status_code == 400
@@ -264,12 +264,12 @@ def test_new_issues_start_in_the_first_board_column(lead_client, board, project)
     from apps.workflow.models import IssueType
 
     task, _ = IssueType.objects.get_or_create(name="Task", project=None)
-    # Put "In progress" first.
+    # Put "In Progress" first.
     cols = board.column_config
-    config = [cols[2], cols[0], cols[1], *cols[3:]]
+    config = [cols[1], cols[0], *cols[2:]]
     assert lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": config}, format="json").status_code == 200
     resp = lead_client.post(
         "/api/issues/", {"project": project.key, "summary": "Starts where?", "issue_type_id": task.id}, format="json"
     )
     assert resp.status_code == 201
-    assert resp.data["status"]["name"] == "In progress"
+    assert resp.data["status"]["name"] == "In Progress"

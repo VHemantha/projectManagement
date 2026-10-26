@@ -239,7 +239,7 @@ class Command(BaseCommand):
 
     def _seed_epics(self, project, issue_types, users, statuses):
         epics = []
-        todo_status = statuses["To do"]
+        todo_status = statuses["To Start"]
         member_users = list(users.values())
         for i, (name, description) in enumerate(EPIC_TOPICS.get(project.key, [])):
             existing = Issue.objects.filter(project=project, issue_type=issue_types["Epic"], epic_name=name).first()
@@ -383,9 +383,9 @@ class Command(BaseCommand):
         if not candidates:
             return
         transitions = [
-            ("status", "To do", "In progress"),
-            ("status", "In progress", "In review"),
-            ("status", "In review", "Done"),
+            ("status", "To Start", "In Progress"),
+            ("status", "In Progress", "Internal Adjustments"),
+            ("status", "Internal Adjustments", "Complete"),
             ("priority", "medium", "high"),
             ("assignee", "", ""),
         ]

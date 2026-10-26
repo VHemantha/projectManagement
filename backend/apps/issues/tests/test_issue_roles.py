@@ -49,7 +49,7 @@ def api_client(preparer):
 
 @pytest.fixture
 def issue(project, task_type, preparer, reviewer, assignee):
-    status = WorkflowStatus.objects.get(workflow__project=project, name="To do")
+    status = WorkflowStatus.objects.get(workflow__project=project, name="To Start")
     return Issue.objects.create(
         project=project, issue_type=task_type, summary="Do the thing", status=status,
         reporter=preparer, preparer=preparer, reviewer=reviewer, assignee=assignee,
@@ -80,23 +80,24 @@ def test_role_changes_are_recorded_in_issue_history(api_client, issue, reviewer)
     assert row.new_value == other.display_name
 
 
-def test_status_transition_with_matching_rule_auto_reassigns_current_responsible(api_client, project, issue, reviewer):
-    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In progress")
-    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In review")
-    issue.status = in_progress
-    issue.save(update_fields=["status"])
+def test_status_transition_with_matching_rule_auto_reassigns_current_responsible(api_client, project, issue, reviewer, preparer):
+    """Adjustments (after the internal review, or the client's comments) go back to the preparer."""
+    sent = WorkflowStatus.objects.get(workflow__project=project, name="Sent to Client")
+    adjustments = WorkflowStatus.objects.get(workflow__project=project, name="Client Adjustments")
+    issue.status, issue.current_responsible = sent, reviewer
+    issue.save(update_fields=["status", "current_responsible"])
 
-    resp = api_client.patch(f"/api/issues/{issue.key}/", {"status_id": in_review.id}, format="json")
+    resp = api_client.patch(f"/api/issues/{issue.key}/", {"status_id": adjustments.id}, format="json")
     assert resp.status_code == 200
-    assert resp.data["current_responsible"]["id"] == reviewer.id
+    assert resp.data["current_responsible"]["id"] == preparer.id
 
     history_row = IssueHistory.objects.filter(issue=issue, field_changed="current_responsible").latest("timestamp")
-    assert history_row.new_value == reviewer.display_name
+    assert history_row.new_value == preparer.display_name
 
 
 def test_status_transition_without_a_matching_rule_leaves_current_responsible_unchanged(api_client, project, issue):
-    todo = WorkflowStatus.objects.get(workflow__project=project, name="To do")
-    done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
+    todo = WorkflowStatus.objects.get(workflow__project=project, name="To Start")
+    done = WorkflowStatus.objects.get(workflow__project=project, name="Complete")
     # There's no seeded "To Do -> Done" transition row, so this should be a pure no-op on
     # current_responsible even though the status itself changes freely (unenforced).
     resp = api_client.patch(f"/api/issues/{issue.key}/", {"status_id": done.id}, format="json")
@@ -104,16 +105,16 @@ def test_status_transition_without_a_matching_rule_leaves_current_responsible_un
     assert resp.data["current_responsible"]["id"] == issue.preparer_id
 
 
-def test_move_action_also_applies_transition_reassignment(api_client, project, issue, reviewer):
-    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In progress")
-    in_review = WorkflowStatus.objects.get(workflow__project=project, name="In review")
-    issue.status = in_progress
-    issue.save(update_fields=["status"])
+def test_move_action_also_applies_transition_reassignment(api_client, project, issue, reviewer, preparer):
+    in_progress = WorkflowStatus.objects.get(workflow__project=project, name="In Progress")
+    adjustments = WorkflowStatus.objects.get(workflow__project=project, name="Internal Adjustments")
+    issue.status, issue.current_responsible = in_progress, reviewer
+    issue.save(update_fields=["status", "current_responsible"])
 
-    resp = api_client.post(f"/api/issues/{issue.key}/move/", {"status_id": in_review.id}, format="json")
+    resp = api_client.post(f"/api/issues/{issue.key}/move/", {"status_id": adjustments.id}, format="json")
     assert resp.status_code == 200
     issue.refresh_from_db()
-    assert issue.current_responsible_id == reviewer.id
+    assert issue.current_responsible_id == preparer.id
 
 
 def test_reviewer_and_current_responsible_filters(api_client, project, issue, reviewer):
