@@ -41,7 +41,6 @@ export function CreateIssueModal() {
   const epics = epicsPage?.results ?? []
   const createIssue = useCreateIssue()
 
-  const [issueTypeId, setIssueTypeId] = useState<string>('')
   const [summary, setSummary] = useState('')
   const [group, setGroup] = useState('')
   const [customSummary, setCustomSummary] = useState(false)
@@ -124,11 +123,9 @@ export function CreateIssueModal() {
     }
   }, [teamId, clientId, availableProjects, projectChoices, projectKey, clientJobsAllowed])
 
-  useEffect(() => {
-    if (issueTypes && issueTypes.length > 0 && !issueTypes.some((t) => String(t.id) === issueTypeId)) {
-      setIssueTypeId(String(issueTypes[0].id))
-    }
-  }, [issueTypes, issueTypeId])
+  // Every task is created as a "Task" (AFIT, 26 Oct 2026: no type to choose); the first type only
+  // if a project has none called Task.
+  const issueTypeId = String((issueTypes?.find((t) => t.name.toLowerCase() === 'task') ?? issueTypes?.[0])?.id ?? '')
 
   useEffect(() => {
     if (assigneeId && !assigneeCandidates.some((u) => String(u.id) === assigneeId)) {
@@ -246,7 +243,7 @@ export function CreateIssueModal() {
             </div>
           </div>
 
-          <div className={styles.row}>
+          <div className={styles.field}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-project">
                 Project
@@ -270,23 +267,6 @@ export function CreateIssueModal() {
                 {availableProjects.map((p) => (
                   <option key={p.key} value={p.key}>
                     {p.name} ({p.key})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.field}>
-              <label className={styles.label} htmlFor="ci-type">
-                Task type
-              </label>
-              <select
-                id="ci-type"
-                className={styles.select}
-                value={issueTypeId}
-                onChange={(e) => setIssueTypeId(e.target.value)}
-              >
-                {issueTypes?.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
                   </option>
                 ))}
               </select>

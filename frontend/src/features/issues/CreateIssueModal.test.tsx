@@ -38,7 +38,7 @@ vi.mock('@/api/teams', () => ({
 }))
 vi.mock('@/api/users', () => ({ useUsers: () => ({ data: USERS }) }))
 vi.mock('@/api/issues', () => ({
-  useIssueTypes: () => ({ data: [{ id: 1, name: 'Task' }] }),
+  useIssueTypes: () => ({ data: [{ id: 2, name: 'Story' }, { id: 1, name: 'Task' }] }),
   useIssues: () => ({ data: { results: [{ id: 42, summary: 'Year end 2026' }] } }),
   useCreateIssue: () => ({ mutate: mocks.create, isPending: false, isError: false, reset: vi.fn() }),
 }))
@@ -76,6 +76,15 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ summary: 'GST return', group: '' }), expect.anything())
+  })
+
+  it('creates every task as a Task, with no type to choose', async () => {
+    mocks.defaults = { projectKey: 'SMITH' }
+    render(<CreateIssueModal />)
+    expect(screen.queryByLabelText('Task type')).not.toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'Rental year end')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ issue_type_id: 1 }), expect.anything())
   })
 
   it("from a board across projects: the filters' workspace and sub-workspace, and the column's category", async () => {
