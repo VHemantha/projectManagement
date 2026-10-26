@@ -6,16 +6,29 @@ import styles from './AllIssuesBoardPage.module.css'
 import { useCrossProjectBoard } from './crossProjectBoard'
 import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
+import { TasksSummary } from './TasksSummary'
 import { useClients } from '@/api/clients'
 import { useIssues, useMoveIssue } from '@/api/issues'
 import { useTeams } from '@/api/teams'
+import { Tabs, TabsList, TabsTrigger } from '@/design-system'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
+import { type GroupByOption, IssueTable } from '@/features/tables/IssueTable'
 import { useUiStore } from '@/store/uiStore'
 
 const PAGE_SIZE = 300
 const NONE = 'none'
+const VIEWS = [
+  { id: 'kanban', label: 'Kanban' },
+  { id: 'tasks', label: 'Tasks' },
+  { id: 'summary', label: 'Summary' },
+] as const
+type View = (typeof VIEWS)[number]['id']
 
-/** Cross-project board in the Projects section: every project's tasks, narrowed by Workspace
+/** The tasks of the Projects section — on a Kanban, as a task list, or as a summary report —
+ * narrowed by Workspace and Sub-workspace. The Projects tree opens it filtered to the row clicked
+ * (a workspace, or a sub-workspace within its workspace).
+ *
+ * Cross-project board in the Projects section: every project's tasks, narrowed by Workspace
  * (a workspace's own + contributing projects; a top-level workspace also covers the workspaces
  * inside it) and by Sub-workspace. Cards and columns follow each project's own board settings (see
  * useCrossProjectBoard). The filters live in the URL (using the /api/issues/ filter
@@ -39,7 +52,18 @@ export function AllIssuesBoardPage() {
   const { data: clients } = useClients()
   const moveIssue = useMoveIssue()
   const [clientSettingsOpen, setClientSettingsOpen] = useState(false)
+  const [groupBy, setGroupBy] = useState<GroupByOption>('project')
   const selectedClient = clientId ? clients?.find((c) => String(c.id) === clientId) : undefined
+  const selectedTeam = teamId ? teams?.find((t) => String(t.id) === teamId) : undefined
+  const view: View = (VIEWS.find((v) => v.id === searchParams.get('view'))?.id ?? 'kanban') as View
+  const setView = (next: string) => {
+    const params = new URLSearchParams(searchParams)
+    if (next === 'kanban') params.delete('view')
+    else params.set('view', next)
+    setSearchParams(params, { replace: true })
+  }
+  // "Team 4 › RWCA": what the page is showing, from the filters.
+  const heading = [noTeam ? 'No workspace' : selectedTeam?.name, noClient ? 'No sub-workspace' : selectedClient?.name].filter(Boolean).join(' › ')
 
   // value: '' (any), NONE, or an id. Picking from a dropdown replaces everything the tree may
   // have set for that dimension, including exclude_sub_teams.
@@ -86,7 +110,16 @@ export function AllIssuesBoardPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1 className={styles.title}>All tasks board</h1>
+        <h1 className={styles.title}>{heading || 'All tasks'}</h1>
+        <Tabs value={view} onValueChange={setView}>
+          <TabsList aria-label="Views">
+            {VIEWS.map((v) => (
+              <TabsTrigger key={v.id} value={v.id}>
+                {v.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <div className={styles.filters}>
           <label className={styles.filter}>
             <span className={styles.filterLabel}>Workspace</span>
@@ -128,7 +161,7 @@ export function AllIssuesBoardPage() {
             </button>
           )}
           {filtersActive && (
-            <button type="button" className={styles.clear} onClick={() => setSearchParams({}, { replace: true })}>
+            <button type="button" className={styles.clear} onClick={() => setSearchParams(view === 'kanban' ? {} : { view }, { replace: true })}>
               Clear filters
             </button>
           )}
@@ -143,7 +176,27 @@ export function AllIssuesBoardPage() {
         </div>
       </div>
       <CreateClientDialog open={clientSettingsOpen} onOpenChange={setClientSettingsOpen} client={selectedClient} />
-      <div className={styles.board}>
+      {view === 'tasks' && (
+        <div className={styles.panel}>
+          <IssueTable
+            tableId="all-tasks"
+            selectable
+            issues={issues}
+            isLoading={isLoading}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            availableGroupBy={['none', 'project', 'status', 'assignee']}
+            showProjectColumn
+            emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
+          />
+        </div>
+      )}
+      {view === 'summary' && (
+        <div className={styles.panel}>
+          <TasksSummary issues={issues} isLoading={isLoading} />
+        </div>
+      )}
+      <div className={styles.board} hidden={view !== 'kanban'}>
         <KanbanBoard
           issues={issues}
           columns={board.columns}

@@ -55,3 +55,32 @@
   color: var(--tf-text-subtle);
   font-size: 13px;
 }
+
+/* The row whose content is open (e.g. the workspace or sub-workspace whose tasks are shown). */
+.selected {
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+  font-weight: 600;
+}
+.selected:hover {
+  background: var(--tf-primary-subtle);
+}
+
+/* The arrow of a row that also opens on a click: it expands or collapses on its own. */
+.chevronButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin: -2px;
+  padding: 0;
+  border: none;
+  border-radius: var(--tf-radius-sm);
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.chevronButton:hover {
+  background: var(--tf-surface-sunken);
+}

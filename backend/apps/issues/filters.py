@@ -45,8 +45,10 @@ class IssueFilter(django_filters.FilterSet):
         team_ids = [value]
         if not self.form.cleaned_data.get("exclude_sub_teams"):
             team_ids += Team.objects.filter(parent_id=value).values_list("id", flat=True)
+        # A workspace's tasks: its own and contributing projects, and every project of the
+        # sub-workspaces (clients) placed in it, as the Projects tree shows them.
         project_ids = Project.objects.filter(
-            Q(primary_team_id__in=team_ids) | Q(contributing_teams__id__in=team_ids)
+            Q(primary_team_id__in=team_ids) | Q(contributing_teams__id__in=team_ids) | Q(client__team_id__in=team_ids)
         ).values("id")
         return queryset.filter(project_id__in=project_ids)
 
@@ -55,7 +57,7 @@ class IssueFilter(django_filters.FilterSet):
             return queryset
         return queryset.filter(project__primary_team__isnull=True).exclude(
             project__contributing_teams__isnull=False
-        )
+        ).exclude(project__client__team__isnull=False)
 
     def filter_noop(self, queryset, name, value):
         # Read by filter_team via cleaned_data; filters nothing on its own.

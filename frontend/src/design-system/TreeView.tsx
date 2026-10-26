@@ -14,6 +14,11 @@ export interface TreeNode {
 interface TreeViewProps {
   nodes: TreeNode[]
   onLeafClick: (node: TreeNode) => void
+  /** When given, a row with children opens (this is called) and expands on a click; its arrow
+   * alone expands or collapses it. Without it, clicking such a row only expands or collapses. */
+  onBranchClick?: (node: TreeNode) => void
+  /** The row shown as selected (e.g. the one whose tasks are open). */
+  selectedId?: string | null
   /** Filters by label (case-insensitive) and auto-expands every branch on the path to a match,
    * rather than hiding non-matching siblings outright — keeps surrounding structure visible. */
   filterQuery?: string
@@ -42,7 +47,16 @@ function collectExpandIds(nodes: TreeNode[], query: string, acc: Set<string>) {
 
 /** Simple hand-rolled recursive tree — indentation + chevron-to-expand, matching this app's
  * dense information-first style rather than pulling in a third-party tree-view library. */
-export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, renderActions, emptyMessage = 'Nothing here yet.' }: TreeViewProps) {
+export function TreeView({
+  nodes,
+  onLeafClick,
+  onBranchClick,
+  selectedId,
+  filterQuery,
+  renderIcon,
+  renderActions,
+  emptyMessage = 'Nothing here yet.',
+}: TreeViewProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const query = filterQuery?.trim().toLowerCase() ?? ''
 
@@ -61,22 +75,46 @@ export function TreeView({ nodes, onLeafClick, filterQuery, renderIcon, renderAc
       return next
     })
   }
+  const expand = (id: string) => setExpanded((prev) => (prev.has(id) ? prev : new Set(prev).add(id)))
 
   const renderNode = (node: TreeNode, depth: number): ReactNode => {
     if (query && !nodeMatches(node, query)) return null
     const hasChildren = (node.children?.length ?? 0) > 0
     const isExpanded = hasChildren && (expanded.has(node.id) || forceExpanded.has(node.id))
     const actions = renderActions?.(node)
+    const selected = selectedId === node.id
+    const onRow = () => {
+      if (!hasChildren) onLeafClick(node)
+      else if (onBranchClick) {
+        onBranchClick(node)
+        expand(node.id)
+      } else toggle(node.id)
+    }
+    const Chevron = isExpanded ? ChevronDown : ChevronRight
 
     return (
       <div key={node.id}>
         <div
-          className={styles.row}
+          className={`${styles.row} ${selected ? styles.selected : ''}`}
           style={{ paddingLeft: 8 + depth * 18 }}
-          onClick={() => (hasChildren ? toggle(node.id) : onLeafClick(node))}
+          aria-current={selected ? 'true' : undefined}
+          onClick={onRow}
         >
-          {hasChildren ? (
-            isExpanded ? <ChevronDown size={14} className={styles.chevron} /> : <ChevronRight size={14} className={styles.chevron} />
+          {hasChildren && onBranchClick ? (
+            <button
+              type="button"
+              className={styles.chevronButton}
+              aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${node.label}`}
+              aria-expanded={isExpanded}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggle(node.id)
+              }}
+            >
+              <Chevron size={14} className={styles.chevron} />
+            </button>
+          ) : hasChildren ? (
+            <Chevron size={14} className={styles.chevron} />
           ) : (
             <span className={styles.chevronSpacer} />
           )}

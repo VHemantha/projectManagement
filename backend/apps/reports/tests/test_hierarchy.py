@@ -35,7 +35,9 @@ def by_label(nodes):
     return {n["label"]: n for n in nodes}
 
 
-def test_tree_is_workspace_then_sub_workspace_then_project(api, user):
+def test_tree_is_workspace_then_sub_workspace_and_stops_there(api, user):
+    """AFIT, 26 Oct 2026: the tree ends at the sub-workspace (client). Each row opens its tasks:
+    a workspace filtered by itself, a sub-workspace by its workspace and itself."""
     org = Organization.get_solo()
     team1 = Team.objects.create(organization=org, name="Team 1")
     Team.objects.create(organization=org, name="Team 2")
@@ -52,24 +54,55 @@ def test_tree_is_workspace_then_sub_workspace_then_project(api, user):
     tree = by_label(nodes)
     assert list(tree) == ["Team 1", "Team 2", "No workspace"]
     ws = tree["Team 1"]
-    assert ws["type"] == "workspace" and ws["team_id"] == team1.id
+    assert ws["type"] == "workspace" and ws["team_id"] == team1.id and ws["board_query"] == {"team": team1.id}
     subs = by_label(ws["children"])
     assert list(subs) == ["Acme", "RWCA", "No sub-workspace"]
     assert subs["RWCA"]["type"] == "sub_workspace" and subs["RWCA"]["client_id"] == rwca.id
-    assert subs["RWCA"]["board_query"] == {"client": rwca.id}
-    michael = subs["RWCA"]["children"]
-    assert [(p["type"], p["label"], p["project_key"]) for p in michael] == [("project", "Michael Group", "Michael")]  # archived left out
-    assert [p["label"] for p in subs["Acme"]["children"]] == ["Tasks without a project"]
-    assert subs["Acme"]["children"][0]["is_client_tasks"] is True
-    assert [p["label"] for p in subs["No sub-workspace"]["children"]] == ["Internal tools"]
+    assert subs["RWCA"]["board_query"] == {"team": team1.id, "client": rwca.id}
+    assert all(s["children"] == [] for s in subs.values())  # no projects below a sub-workspace
+    assert subs["RWCA"]["project_count"] == 1  # the archived one is left out
     assert subs["No sub-workspace"]["board_query"] == {"team": team1.id, "exclude_sub_teams": True, "no_client": True}
     assert tree["Team 2"]["children"] == []
     # Nothing is unreachable: an unplaced sub-workspace and a project with neither.
+    assert tree["No workspace"]["board_query"] == {"no_team": True}
     unplaced = by_label(tree["No workspace"]["children"])
     assert list(unplaced) == ["Floating Ltd", "No sub-workspace"]
-    assert [p["label"] for p in unplaced["No sub-workspace"]["children"]] == ["Lost project"]
+    assert unplaced["Floating Ltd"]["board_query"] == {"client": floating.id}
     # The automatic task list joined its sub-workspace's workspace.
     assert Project.objects.get(client=acme, is_client_workspace=True).primary_team == team1
+
+
+def test_a_workspace_shows_every_task_of_its_sub_workspaces(api, user):
+    """A sub-workspace's projects belong to its workspace even when a project's own team is
+    another or none, so the workspace's and the sub-workspace's views show them."""
+    from apps.issues.models import Issue
+    from apps.workflow.models import IssueType
+
+    org = Organization.get_solo()
+    team1, team2 = Team.objects.create(organization=org, name="Team 1"), Team.objects.create(organization=org, name="Team 2")
+    rwca = Client.objects.create(organization=org, name="RWCA", team=team1)
+    task, _ = IssueType.objects.get_or_create(name="Task", project=None, defaults={"is_subtask": False})
+    elsewhere = project("Hedwig", user, name="Hedwig Group", client=rwca, primary_team=team2)
+    loose = get_or_create_client_workspace(rwca, user)
+    loose.primary_team = None
+    loose.save()
+    other = project("Other", user, name="Other work", primary_team=team2)
+    from apps.workflow.services import provision_project_defaults
+
+    for p in (elsewhere, loose, other):
+        if not hasattr(p, "workflow"):
+            provision_project_defaults(p)
+
+    def add(p, summary):
+        return api.post("/api/issues/", {"project": p.key, "summary": summary, "issue_type_id": task.id}, format="json").data["key"]
+
+    hedwig, unfiled, mine = add(elsewhere, "Hedwig year end"), add(loose, "Loose task"), add(other, "Team 2 job")
+    keys = lambda q: {i["key"] for i in api.get("/api/issues/", q).data["results"]}  # noqa: E731
+    assert keys({"team": team1.id}) == {hedwig, unfiled}
+    assert keys({"team": team1.id, "client": rwca.id}) == {hedwig, unfiled}
+    assert keys({"team": team2.id}) == {hedwig, mine}  # still a team-2 project too
+    assert mine not in keys({"no_team": True}) and unfiled not in keys({"no_team": True})
+    assert Issue.objects.count() == 3
 
 
 def test_sub_workspaces_belong_to_a_workspace_and_projects_follow(api, user):

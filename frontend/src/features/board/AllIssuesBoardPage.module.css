@@ -75,3 +75,11 @@
   flex: 1;
   min-height: 0;
 }
+
+/* The task list and the summary: scroll inside the page like the board does. */
+.panel {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--tf-space-4) var(--tf-space-4);
+}

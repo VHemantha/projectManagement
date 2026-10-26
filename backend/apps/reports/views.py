@@ -168,15 +168,16 @@ def _project_node(project: Project) -> dict:
 
 
 def _sub_workspace_node(node_id: str, label: str, projects: list, board_query: dict, client_id=None) -> dict:
-    """Real projects first (by name); the automatic list of loose tasks last."""
-    projects = sorted(projects, key=lambda p: (p.is_client_workspace, p.name.lower()))
+    """A sub-workspace is the end of the tree (AFIT, 26 Oct 2026): it opens its tasks, filtered by
+    its workspace and itself, on the Kanban, task list and summary; its projects are not listed."""
     return {
         "id": node_id,
         "type": "sub_workspace",
         "label": label,
         "client_id": client_id,
         "board_query": board_query,
-        "children": [_project_node(p) for p in projects],
+        "project_count": len(projects),
+        "children": [],
     }
 
 
@@ -204,8 +205,11 @@ def _tree_by_hierarchy():
     def branch(team_id) -> list[dict]:
         prefix = f"ws-{team_id or 'none'}"
         team_query = {"team": team_id, "exclude_sub_teams": True} if team_id else {"no_team": True}
+        # A sub-workspace's tasks are filtered by its workspace and itself; one outside any
+        # workspace by itself only.
         children = [
-            _sub_workspace_node(f"{prefix}-sub-{c.id}", c.name, by_client.get(c.id, []), {"client": c.id}, c.id)
+            _sub_workspace_node(f"{prefix}-sub-{c.id}", c.name, by_client.get(c.id, []),
+                                {"team": team_id, "client": c.id} if team_id else {"client": c.id}, c.id)
             for c in clients_by_team.get(team_id, [])
         ]
         if loose_by_team.get(team_id):
@@ -215,12 +219,13 @@ def _tree_by_hierarchy():
         return children
 
     nodes = [
-        {"id": f"ws-{team.id}", "type": "workspace", "label": team.name, "team_id": team.id, "children": branch(team.id)}
+        {"id": f"ws-{team.id}", "type": "workspace", "label": team.name, "team_id": team.id, "board_query": {"team": team.id},
+         "children": branch(team.id)}
         for team in Team.objects.all().order_by("name")
     ]
     unplaced = branch(None)
     if unplaced:
-        nodes.append({"id": "ws-none", "type": "workspace", "label": NO_TEAM_LABEL, "children": unplaced})
+        nodes.append({"id": "ws-none", "type": "workspace", "label": NO_TEAM_LABEL, "board_query": {"no_team": True}, "children": unplaced})
     return nodes
 
 
