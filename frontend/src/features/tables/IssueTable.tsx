@@ -250,14 +250,14 @@ function buildColumns(
     }),
     helper.accessor((row) => row.assignee?.display_name ?? '', {
       id: 'assignee',
-      header: 'Assignee',
+      header: 'Team Lead',
       size: 170,
       sortFn: 'alphanumeric',
       cell: (ctx) => <AssigneeCell issue={ctx.row.original} />,
     }),
     helper.accessor((row) => row.preparer?.display_name ?? '', {
       id: 'preparer',
-      header: 'Preparer',
+      header: 'Accountant',
       size: 170,
       sortFn: 'alphanumeric',
       cell: (ctx) => <RoleCell issue={ctx.row.original} field="preparer" patchKey="preparer_id" />,
@@ -271,7 +271,7 @@ function buildColumns(
     }),
     helper.accessor((row) => row.current_responsible?.display_name ?? '', {
       id: 'current_responsible',
-      header: 'Current responsible',
+      header: 'Currently Responsible',
       size: 180,
       sortFn: 'alphanumeric',
       cell: (ctx) => <RoleCell issue={ctx.row.original} field="current_responsible" patchKey="current_responsible_id" />,
@@ -379,10 +379,10 @@ function groupRows(rows: Row<typeof issueTableFeatures, IssueListItem>[], groupB
 const GROUP_LABELS: Record<GroupByOption, string> = {
   none: 'No grouping',
   status: 'Group by status',
-  assignee: 'Group by assignee',
+  assignee: 'Group by team lead',
   project: 'Group by project',
   reviewer: 'Group by reviewer',
-  current_responsible: 'Group by current responsible',
+  current_responsible: 'Group by currently responsible',
 }
 
 export function IssueTable({

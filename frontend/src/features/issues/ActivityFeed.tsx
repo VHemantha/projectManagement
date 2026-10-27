@@ -13,16 +13,17 @@ const FIELD_LABELS: Record<string, string> = {
   summary: 'summary',
   status: 'status',
   priority: 'priority',
-  assignee: 'assignee',
+  assignee: 'team lead',
   epic: 'epic',
   parent: 'parent',
   sprint: 'sprint',
   story_points: 'story points',
   group: 'group',
   due_date: 'due date',
-  preparer: 'preparer',
+  preparer: 'accountant',
   reviewer: 'reviewer',
-  current_responsible: 'current responsible',
+  current_responsible: 'currently responsible',
+  estimated_hours: 'estimated hours',
 }
 
 function HistoryLine({ entry }: { entry: { user: { display_name: string } | null; field_changed: string; old_value: string; new_value: string } }) {

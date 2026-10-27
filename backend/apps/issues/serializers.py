@@ -52,6 +52,7 @@ HISTORY_TRACKED_FIELDS = [
     "parent",
     "sprint",
     "story_points",
+    "estimated_hours",
     "due_date",
     "is_archived",
 ]
@@ -198,6 +199,7 @@ class IssueListSerializer(serializers.ModelSerializer):
             "due_date",
             "labels",
             "budgeted_hours",
+            "estimated_hours",
             "actual_hours",
             "allocated_value",
             "value_currency",
@@ -317,6 +319,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "sprint_id",
             "story_points",
             "budgeted_hours",
+            "estimated_hours",
             "actual_hours",
             "time_by_user",
             "allocated_value",
@@ -377,6 +380,11 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             attrs = self._starting_status(attrs, category)
         self._check_budget(attrs)
         return attrs
+
+    def validate_estimated_hours(self, value):
+        if value is not None and not 0 <= value <= 10000:
+            raise serializers.ValidationError("Give the estimated hours as a number from 0 to 10,000.")
+        return value
 
     def validate_group(self, value):
         return " ".join(str(value or "").split())[:100]

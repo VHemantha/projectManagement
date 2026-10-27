@@ -304,6 +304,8 @@ export interface IssueListItem {
   due_date: string | null
   labels: Label[]
   budgeted_hours: number | null
+  /** The accountant's own estimate (anyone may set it); not the budget. */
+  estimated_hours?: number | null
   /** Hours logged against the job in timesheets. */
   actual_hours: number
   /** The job's value (decimal string) in its project's currency. */
@@ -355,6 +357,8 @@ export interface IssueDetail {
   /** A free-text group the task belongs to; empty when none. */
   group?: string
   budgeted_hours: number | null
+  /** The accountant's own estimate (anyone may set it); not the budget. */
+  estimated_hours?: number | null
   /** Hours logged against the job in timesheets, and who logged them. */
   actual_hours: number
   time_by_user: { user_id: number; display_name: string; hours: number }[]

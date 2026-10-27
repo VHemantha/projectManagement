@@ -59,7 +59,7 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(screen.getByLabelText('Sub-workspace')).toHaveValue('12')
     expect(screen.getByLabelText('Project')).toHaveValue('SMITH')
     expect(screen.getByLabelText('Epic')).toHaveValue('42')
-    expect(screen.getByLabelText('Assignee')).toHaveValue('6')
+    expect(screen.getByLabelText('Team Lead')).toHaveValue('6')
     expect(screen.getByText('In review')).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText(/Job Name/), 'Rental property year end')
     await userEvent.type(screen.getByLabelText('Group'), '  Rental properties ')

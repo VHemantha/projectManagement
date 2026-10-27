@@ -283,3 +283,13 @@ def test_a_task_can_be_given_a_group_when_created_and_changed_later(api_client, 
     assert (change.old_value, change.new_value) == ("Rental properties", "Year-end 2026")
     plain = api_client.post("/api/issues/", {"project": "TST", "summary": "GST", "issue_type_id": task_type.id}, format="json")
     assert plain.data["group"] == ""  # optional
+
+
+def test_anyone_can_record_estimated_hours_apart_from_the_budget(api_client, project, task_type):
+    key = api_client.post("/api/issues/", {"project": "TST", "summary": "Estimate me", "issue_type_id": task_type.id}, format="json").data["key"]
+    resp = api_client.patch(f"/api/issues/{key}/", {"estimated_hours": 12.5}, format="json")
+    assert resp.status_code == 200 and resp.data["estimated_hours"] == 12.5 and resp.data["budgeted_hours"] is None
+    assert api_client.get("/api/issues/?project=TST").data["results"][0]["estimated_hours"] == 12.5
+    assert IssueHistory.objects.filter(issue__key=key, field_changed="estimated_hours", new_value="12.5").exists()
+    assert api_client.patch(f"/api/issues/{key}/", {"estimated_hours": -1}, format="json").status_code == 400
+    assert api_client.patch(f"/api/issues/{key}/", {"estimated_hours": None}, format="json").data["estimated_hours"] is None

@@ -114,7 +114,7 @@ export function IssueFilterPanel({ issues, filters, onChange }: IssueFilterPanel
 
       {assignees.length > 0 && (
         <div className={styles.group}>
-          <div className={styles.groupTitle}>Assignee</div>
+          <div className={styles.groupTitle}>Team Lead</div>
           {assignees.map(([id, name]) => (
             <label key={id} className={styles.option}>
               <input

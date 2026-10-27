@@ -95,7 +95,7 @@ export interface CreateContext {
 const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
   none: 'No swimlanes',
   epic: 'Swimlanes: Epic',
-  assignee: 'Swimlanes: Assignee',
+  assignee: 'Swimlanes: Team Lead',
   project: 'Swimlanes: Project',
   parent: 'Swimlanes: Parent',
 }

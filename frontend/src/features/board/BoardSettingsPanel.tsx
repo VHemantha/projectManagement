@@ -43,10 +43,10 @@ const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'epic_tag', label: 'Epic tag' },
   { key: 'story_points', label: 'Story points' },
   { key: 'priority', label: 'Priority' },
-  { key: 'assignee', label: 'Assignee avatar' },
+  { key: 'assignee', label: 'Team Lead avatar' },
   { key: 'due_date', label: 'Due date' },
   { key: 'labels', label: 'Labels' },
-  { key: 'current_responsible', label: 'Current responsible' },
+  { key: 'current_responsible', label: 'Currently Responsible' },
   { key: 'time_logged', label: 'Time logged vs budget' },
   { key: 'job_value', label: 'Task value' },
 ]

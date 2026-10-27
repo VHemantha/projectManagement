@@ -354,7 +354,7 @@ export function CreateIssueModal() {
           <div className={styles.row}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-assignee">
-                Assignee
+                Team Lead
               </label>
               <select
                 id="ci-assignee"

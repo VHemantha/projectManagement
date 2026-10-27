@@ -82,6 +82,9 @@ class Issue(models.Model):
     # project-level Project.budgeted_hours/job_value. Both nullable — most teams only set the
     # project-level figures and never touch these.
     budgeted_hours = models.FloatField(null=True, blank=True)
+    # The accountant's own estimate of the hours the task needs (anyone may set it), kept apart from
+    # the budget above, which only a team lead or above sets and which feeds the KPI.
+    estimated_hours = models.FloatField(null=True, blank=True)
     allocated_value = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     original_estimate = models.DurationField(null=True, blank=True)
     time_spent = models.DurationField(null=True, blank=True)

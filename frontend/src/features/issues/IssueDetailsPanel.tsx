@@ -1,7 +1,6 @@
 import { formatDistanceToNow } from 'date-fns'
 import { Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 
 import styles from './IssueView.module.css'
 import { RolePicker } from './RolePicker'
@@ -11,7 +10,7 @@ import { useToggleWatch, useUpdateIssue } from '@/api/issues'
 import { useTeam } from '@/api/teams'
 import type { IssueDetail, Priority } from '@/api/types'
 import { useUsers } from '@/api/users'
-import { Avatar, PriorityIcon } from '@/design-system'
+import { PriorityIcon } from '@/design-system'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
@@ -54,24 +53,16 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       </div>
 
       <RolePicker
-        label="Assignee"
+        label="Team Lead"
         value={issue.assignee}
         users={assigneeCandidates}
         onChange={(id) => updateIssue.mutate({ assignee_id: id })}
       />
 
-      <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Reporter</span>
-        <Link to={`/people/${issue.reporter.id}`} className={styles.assigneeRow} style={{ textDecoration: 'none', color: 'inherit' }}>
-          <Avatar name={issue.reporter.display_name} src={issue.reporter.avatar} size={24} />
-          <span style={{ fontSize: 13 }}>{issue.reporter.display_name}</span>
-        </Link>
-      </div>
-
       <div className={styles.divider} />
 
       <RolePicker
-        label="Preparer"
+        label="Accountant"
         value={issue.preparer}
         users={users}
         onChange={(id) => updateIssue.mutate({ preparer_id: id })}
@@ -85,7 +76,7 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
         emptyLabel="Unset"
       />
       <RolePicker
-        label="Current responsible"
+        label="Currently Responsible"
         value={issue.current_responsible}
         users={users}
         onChange={(id) => updateIssue.mutate({ current_responsible_id: id })}
@@ -127,6 +118,17 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
           onChange={(e) =>
             updateIssue.mutate({ story_points: e.target.value ? Number(e.target.value) : null })
           }
+        />
+      </div>
+
+      <div className={styles.panelRow}>
+        <label className={styles.panelLabel} htmlFor="task-estimate">
+          Estimated Hours
+        </label>
+        <HoursInput
+          key={issue.estimated_hours ?? 'none'}
+          value={issue.estimated_hours ?? null}
+          onSave={(estimated_hours) => updateIssue.mutate({ estimated_hours })}
         />
       </div>
 
@@ -224,3 +226,29 @@ function GroupInput({ value, onSave }: { value: string; onSave: (group: string) 
   )
 }
 
+/** The accountant's estimate of the hours the task needs: anyone may set it (the budget, under
+ * Time tracking, is the team lead's). Saved when you leave the box or press Enter. */
+function HoursInput({ value, onSave }: { value: number | null; onSave: (hours: number | null) => void }) {
+  const [draft, setDraft] = useState(value === null ? '' : String(value))
+  const save = () => {
+    const next = draft.trim() === '' ? null : Number(draft)
+    if (next !== null && (Number.isNaN(next) || next < 0)) return setDraft(value === null ? '' : String(value))
+    if (next !== value) onSave(next)
+  }
+  return (
+    <input
+      id="task-estimate"
+      className={styles.panelSelect}
+      type="number"
+      min={0}
+      step={0.25}
+      placeholder="Not estimated"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+      }}
+    />
+  )
+}
