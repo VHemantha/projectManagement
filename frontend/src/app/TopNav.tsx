@@ -1,4 +1,5 @@
-import { HelpCircle, Menu, Plus, Search } from 'lucide-react'
+import { FileUp, HelpCircle, Menu, Plus, Search } from 'lucide-react'
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import styles from './AppShell.module.css'
@@ -6,6 +7,7 @@ import { GlobalTimerWidget } from './GlobalTimerWidget'
 import { useLogout } from '@/api/auth'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { useAuthStore } from '@/store/authStore'
+import { ImportTasksDialog } from '@/features/issues/ImportTasksDialog'
 import { pageDefaults } from '@/features/issues/pageDefaults'
 import { useUiStore } from '@/store/uiStore'
 import {
@@ -24,6 +26,17 @@ interface TopNavProps {
   onOpenDrawer: () => void
 }
 
+/** "Download current tasks" from the page being looked at: its project, workspace or sub-workspace. */
+function exportParams(pathname: string, search: string): Record<string, string | number | boolean> {
+  const d = pageDefaults(pathname, search)
+  return {
+    no_parent: true,
+    ...(d.projectKey ? { project: d.projectKey } : {}),
+    ...(d.teamId ? { team: d.teamId } : {}),
+    ...(d.clientId ? { client: d.clientId } : {}),
+  }
+}
+
 export function TopNav({ onOpenDrawer }: TopNavProps) {
   const user = useAuthStore((s) => s.user)
   const logout = useLogout()
@@ -31,6 +44,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
   const openCreateIssue = useUiStore((s) => s.openCreateIssue)
   const location = useLocation()
   const toggleQuickSearch = useUiStore((s) => s.toggleQuickSearch)
+  const [importOpen, setImportOpen] = useState(false)
 
   return (
     <header className={styles.topnav}>
@@ -51,6 +65,17 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
             </span>
           </button>
         </Tooltip>
+        <Tooltip label="Add or update tasks in bulk from a CSV file">
+          <button className={styles.iconBtn} style={{ width: 'auto', padding: '0 10px', display: 'flex', gap: 4 }} onClick={() => setImportOpen(true)}>
+            <FileUp size={16} />
+            <span className={styles.createLabel} style={{ fontSize: 14 }}>
+              Bulk import
+            </span>
+          </button>
+        </Tooltip>
+        {importOpen && (
+          <ImportTasksDialog open={importOpen} onOpenChange={setImportOpen} exportParams={exportParams(location.pathname, location.search)} />
+        )}
       </div>
 
       <div className={styles.topnavSearch}>

@@ -96,6 +96,38 @@ class IssueViewSet(viewsets.ModelViewSet):
         dates = stages.stage_dates(start)
         return Response({"start": start, "stages": [{"name": n, "due_date": dates[n]} for n in stages.SUBTASKS]})
 
+    @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
+    def import_csv(self, request):
+        """POST /api/issues/import/ (file, commit=false|true) — tasks in bulk from the CSV template.
+        Without commit it only checks the file; with commit it saves every row, or none if any
+        row has a problem."""
+        from . import csv_import
+
+        upload = request.FILES.get("file")
+        if upload is None:
+            return Response({"detail": "Choose a CSV file to upload."}, status=400)
+        try:
+            rows = csv_import.read_rows(upload.read(csv_import.MAX_BYTES + 1))
+        except csv_import.FileProblem as e:
+            return Response({"detail": str(e)}, status=400)
+        commit = str(request.data.get("commit", "")).lower() in ("1", "true", "yes")
+        result = csv_import.import_rows(rows, request, commit=commit)
+        return Response(result)
+
+    @action(detail=False, methods=["get"], url_path="export")
+    def export_csv(self, request):
+        """GET /api/issues/export/?<the list's filters> — those tasks as the CSV template, to edit
+        and upload again."""
+        from django.http import HttpResponse
+
+        from . import csv_import
+
+        ids = list(self.filter_queryset(Issue.objects.filter(is_archived=False)).values_list("id", flat=True)[:5000])
+        issues = Issue.objects.filter(id__in=ids).order_by("project__key", "rank")
+        response = HttpResponse(csv_import.export_csv(issues), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = f'attachment; filename="tasks-{timezone.localdate():%Y-%m-%d}.csv"'
+        return response
+
     @action(detail=False, methods=["post"], url_path="archive")
     def bulk_archive(self, request):
         """POST /api/issues/archive/ {"keys": [...], "archived": true|false} — archive or restore

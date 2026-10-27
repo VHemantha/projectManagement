@@ -382,3 +382,55 @@ export function useBulkArchive() {
     },
   })
 }
+
+/** One row of a bulk CSV upload, as the server checked it. */
+export interface ImportRowResult {
+  row: number
+  key: string
+  summary: string
+  action: 'create' | 'update' | 'unchanged'
+  /** Problems by column; empty when the row is fine. */
+  errors: Record<string, string>
+}
+
+export interface ImportResult {
+  rows: number
+  failed: number
+  create: number
+  update: number
+  unchanged: number
+  /** False after a check, or when any row had a problem (then nothing was saved). */
+  imported: boolean
+  results: ImportRowResult[]
+}
+
+/** Tasks in bulk from the CSV template: `commit: false` only checks the file. */
+export function useImportTasks() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ file, commit }: { file: File; commit: boolean }) => {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('commit', commit ? 'true' : 'false')
+      const { data } = await apiClient.post<ImportResult>('/issues/import/', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      return data
+    },
+    onSuccess: (data) => {
+      if (!data.imported) return
+      for (const key of ['issues', 'issue', 'projects', 'clients']) queryClient.invalidateQueries({ queryKey: [key] })
+    },
+  })
+}
+
+/** The tasks matching `params`, downloaded in the template's format to edit and upload again. */
+export async function downloadTasksCsv(params: Record<string, string | number | boolean>) {
+  const { data } = await apiClient.get<Blob>('/issues/export/', { params, responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `tasks-${new Date().toISOString().slice(0, 10)}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+}
