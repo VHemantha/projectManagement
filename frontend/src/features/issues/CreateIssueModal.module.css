@@ -95,3 +95,14 @@
 .linkButton:hover {
   text-decoration: underline;
 }
+
+/* The standard sub-tasks and their due dates. */
+.stageList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

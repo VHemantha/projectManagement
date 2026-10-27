@@ -1,0 +1,72 @@
+.lead {
+  margin: 0 0 var(--tf-space-2);
+  color: var(--tf-text-secondary);
+}
+.muted {
+  margin: 0;
+  color: var(--tf-text-subtle);
+  font-size: var(--tf-font-size-sm);
+}
+.total {
+  margin: 0 0 var(--tf-space-3);
+  font-size: var(--tf-font-size-base);
+  color: var(--tf-text);
+}
+.person + .person {
+  margin-top: var(--tf-space-3);
+}
+.name {
+  margin: 0 0 4px;
+  font-size: var(--tf-font-size-base);
+  font-weight: 600;
+  color: var(--tf-text);
+  display: flex;
+  justify-content: space-between;
+}
+.hours {
+  font-variant-numeric: tabular-nums;
+}
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--tf-font-size-sm);
+}
+.table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  vertical-align: top;
+  color: var(--tf-text);
+}
+.date {
+  white-space: nowrap;
+  color: var(--tf-text-secondary);
+}
+.num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.tag {
+  margin-left: 6px;
+  border-radius: var(--tf-radius-full);
+  padding: 0 6px;
+  font-size: 11px;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+}
+/* The figure that opens the breakup: looks like the figure, underlines on hover. */
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.link:hover {
+  color: var(--tf-text-link);
+  text-decoration-style: solid;
+}

@@ -84,6 +84,18 @@ class IssueViewSet(viewsets.ModelViewSet):
         self.check_object_permissions(self.request, obj)
         return obj
 
+    @action(detail=False, methods=["get"], url_path="stage-dates")
+    def stage_dates(self, request):
+        """GET /api/issues/stage-dates/?start=YYYY-MM-DD — when the standard sub-tasks of a task
+        starting then would be due (the create form shows them and pre-fills the due date)."""
+        from django.utils.dateparse import parse_date
+
+        from . import stages
+
+        start = parse_date(request.query_params.get("start") or "") or stages.today()
+        dates = stages.stage_dates(start)
+        return Response({"start": start, "stages": [{"name": n, "due_date": dates[n]} for n in stages.SUBTASKS]})
+
     @action(detail=False, methods=["post"], url_path="archive")
     def bulk_archive(self, request):
         """POST /api/issues/archive/ {"keys": [...], "archived": true|false} — archive or restore

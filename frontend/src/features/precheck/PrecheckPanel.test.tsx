@@ -117,15 +117,18 @@ describe('PrecheckPanel states', () => {
     const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
     await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     expect(screen.getByLabelText('The team has working IRD access for this entity')).toHaveValue('no')
-    await userEvent.type(screen.getByLabelText('Financial year ends'), '2026-06-30')
+    expect(screen.queryByLabelText(/Financial year starts/)).not.toBeInTheDocument() // the year end is enough
+    await userEvent.type(screen.getByLabelText('Financial year end'), '2026-06-30')
+    await userEvent.selectOptions(screen.getByLabelText('Entity type'), 'ltc')
     await userEvent.selectOptions(screen.getByLabelText("Xero holds the full year's bank transactions"), 'yes')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save without running' }))
     expect(mocks.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ settings: { year_start: '', year_end: '2026-06-30', xero_complete: 'yes', ird_access: 'no', related_records: '' } }),
+      expect.objectContaining({ settings: { entity_type: 'ltc', year_start: '', year_end: '2026-06-30', xero_complete: 'yes', ird_access: 'no', related_records: '' } }),
       expect.anything(),
     )
     await userEvent.selectOptions(screen.getByLabelText(/Pre-check type/), 'residential_rental')
     expect(screen.queryByText(/Accountant-confirmed settings/)).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Entity type')).toBeInTheDocument() // every kind of task has one
     unmount()
   })
 
@@ -142,17 +145,31 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByText(/Residential rental: properties, managers, loans/)).toBeInTheDocument()
     // Where the key documents are: optional; left empty, the pre-check finds them.
     await userEvent.type(screen.getByLabelText("Last year's workpapers"), ' Smith.zip/2025/Workpapers ')
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Run in AI Agent' }))
     expect(mocks.save).toHaveBeenCalledWith(
       {
         drive_folder_url: 'https://drive.google.com/drive/folders/xyz',
         direction_items: ['Agree bank', 'Check accruals'],
         precheck_type: 'residential_rental',
         key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers', draft_fs: '', general_ledger: '' },
-        settings: { year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' },
+        settings: { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' },
       },
       expect.anything(),
     )
+  })
+
+  it('"Run in AI Agent" saves the setup and then runs the pre-check; "Save without running" only saves', async () => {
+    mocks.save.mockImplementation((_body: unknown, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.())
+    mocks.start.mockClear()
+    mocks.data = panel(null, { ...setup, drive_folder_url: '', drive_folder_id: '', direction_items: [], missing: ['drive_folder'], ready: false })
+    const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
+    await userEvent.type(screen.getByLabelText(/Google Drive folder link/), 'https://drive.google.com/drive/folders/xyz')
+    await userEvent.click(screen.getByRole('button', { name: 'Save without running' }))
+    expect(mocks.start).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Run in AI Agent' }))
+    expect(mocks.start).toHaveBeenCalledTimes(1)
+    mocks.save.mockReset()
+    unmount()
   })
 
   it('the setup line says which key documents were placed on the card, and the form shows them', async () => {

@@ -180,7 +180,12 @@ export interface KeyPaths {
 
 export type YesNoUnknown = 'yes' | 'no' | ''
 
+export type EntityType = '' | 'trust' | 'close_company' | 'ltc' | 'sole_trader' | 'partnership' | 'body_corporate'
+
 export interface AccountantSettings {
+  /** Who the client is (AFIT, 27 Oct 2026); empty when not set. */
+  entity_type?: EntityType
+  /** Optional: the year end is enough. */
   year_start: string
   year_end: string
   xero_complete: YesNoUnknown
@@ -219,6 +224,7 @@ export interface PrecheckSetup {
   /** Which kind of pre-check: a type other than general adds the firm's standard checklist. */
   precheck_type: PrecheckType
   precheck_types: { value: PrecheckType; label: string }[]
+  entity_types?: { value: EntityType; label: string }[]
   key_paths?: KeyPaths
   /** Settings the accountant confirmed (general business and investment). */
   settings?: AccountantSettings

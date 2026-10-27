@@ -171,3 +171,17 @@ def test_accountant_settings_and_answers_reach_the_agent():
     assert payload["settings"] == {"year_start": "2025-07-01", "year_end": "2026-06-30", "xero_complete": "yes", "ird_access": "no"}
     assert payload["accountant_answers"] == [{"question": "Is a dividend intended this year?", "answer": "No."}]
     assert payload["previous_requests"] and all(r["item"] for r in payload["previous_requests"])
+
+
+def test_the_entity_type_is_set_on_the_task_and_the_year_end_is_enough():
+    """AFIT, 27 Oct 2026: Trust, Close Company, LTC, Sole Trader, Partnership or Body Corporate; a year
+    end without a start is fine."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    url = f"/api/precheck/jobs/{issue.key}/setup/"
+    r = api(pat).put(url, {"settings": {"entity_type": "ltc", "year_end": "2026-03-31"}}, format="json")
+    assert r.status_code == 200 and r.data["settings"]["entity_type"] == "ltc" and r.data["settings"]["year_start"] == ""
+    assert [t["label"] for t in r.data["entity_types"]] == ["Trust", "Close Company", "LTC", "Sole Trader", "Partnership", "Body Corporate"]
+    bad = api(pat).put(url, {"settings": {"entity_type": "company"}}, format="json")
+    assert bad.status_code == 400 and "Choose the entity type" in str(bad.data)
+    assert services.job_payload(Issue.objects.get(pk=issue.pk))["settings"] == {"entity_type": "ltc", "year_end": "2026-03-31"}

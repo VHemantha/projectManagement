@@ -11,6 +11,7 @@ import type { CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueList
 import { Avatar, IssueKey, IssueTypeIcon, PriorityIcon } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
+import { TimesheetBreakdownLink } from '@/features/issues/TimesheetBreakdown'
 
 // Field-key -> render-fn lookup for the configurable meta-right row (Section 1 of the board
 // customization addendum). A card_fields value with no entry here renders nothing — harmless,
@@ -64,9 +65,9 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
   // Actual time from timesheets vs the job's budget ("3.5h / 8h"), red once over budget.
   time_logged: (issue) =>
     (issue.actual_hours > 0 || issue.budgeted_hours != null) && (
+      <TimesheetBreakdownLink key="time_logged" issueId={issue.id} issueKey={issue.key} title={issue.summary}>
       <span
-        key="time_logged"
-        title="Actual time (timesheets) / budget"
+        title="Actual time (timesheets) / budget — click for the timesheet breakup"
         style={{
           fontSize: 11,
           fontWeight: 600,
@@ -79,12 +80,13 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
         {Number(issue.actual_hours.toFixed(1))}h
         {issue.budgeted_hours != null && ` / ${issue.budgeted_hours}h`}
       </span>
+      </TimesheetBreakdownLink>
     ),
   // "linked_issue_count" is listed in CardFieldKey for forward-compat but has no renderer yet
   // (IssueListItem doesn't carry that data); it renders as a no-op via the lookup miss above.
 }
 
-const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee', 'job_value']
+const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee', 'job_value', 'time_logged']
 
 export function BoardCard({
   issue,

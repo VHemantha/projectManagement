@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import styles from './TimeTracking.module.css'
+import { TimesheetBreakdownLink } from './TimesheetBreakdown'
 import { useUpdateIssue } from '@/api/issues'
 import type { IssueDetail } from '@/api/types'
 
@@ -19,8 +20,12 @@ export function TimeTracking({ issue }: { issue: IssueDetail }) {
     <div className={styles.box} data-testid="time-tracking">
       <div className={styles.figures}>
         <div>
-          <div className={styles.value}>{fmt(actual)}</div>
-          <div className={styles.caption}>Actual (timesheets)</div>
+          <div className={styles.value}>
+            <TimesheetBreakdownLink issueId={issue.id} issueKey={issue.key} title={issue.summary} label="Actual time: open the timesheet breakup">
+              {fmt(actual)}
+            </TimesheetBreakdownLink>
+          </div>
+          <div className={styles.caption}>Actual (timesheets) — click for the breakup</div>
         </div>
         <label className={styles.budget}>
           <input

@@ -45,6 +45,7 @@ import {
   type Finding,
   type JobPrecheck,
   type AccountantSettings,
+  type EntityType,
   type KeyPaths,
   type YesNoUnknown,
   type PrecheckSetup,
@@ -205,6 +206,7 @@ function SetupForm({
   onDone?: () => void
 }) {
   const save = useSavePrecheckSetup(jobKey)
+  const run = useRunPrecheck(jobKey)
   const draft = useDraftDirections(jobKey)
   const aiItems = setup.direction_items.filter((i) => i.origin === 'ai')
   const [folder, setFolder] = useState(setup.drive_folder_url)
@@ -214,13 +216,23 @@ function SetupForm({
   const [confirmed, setConfirmed] = useState<AccountantSettings>({ ...NO_SETTINGS, ...setup.settings })
   const lines = items.split('\n').map((l) => l.trim()).filter(Boolean)
 
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
+  // "Run in AI Agent": save the setup, then run the pre-check, which reads the folder into the
+  // knowledge store (AFIT, 27 Oct 2026). "Save without running" only saves.
+  const saveSetup = (thenRun: boolean) => {
     const keyPaths = Object.fromEntries(Object.entries(paths).map(([role, p]) => [role, p.trim()])) as unknown as KeyPaths
     save.mutate(
       { drive_folder_url: folder.trim(), direction_items: lines, precheck_type: precheckType, key_paths: keyPaths, settings: confirmed },
-      { onSuccess: () => onDone?.() },
+      {
+        onSuccess: () => {
+          if (thenRun) run.mutate()
+          onDone?.()
+        },
+      },
     )
+  }
+  const submit = (e: FormEvent) => {
+    e.preventDefault()
+    saveSetup(true)
   }
 
   return (
@@ -258,6 +270,23 @@ function SetupForm({
         </select>
         <small>{TYPE_HINTS[precheckType]}</small>
       </label>
+      <div className={styles.settingsGrid}>
+        <label className={styles.field}>
+          <span>Entity type</span>
+          <select value={confirmed.entity_type ?? ''} onChange={(e) => setConfirmed({ ...confirmed, entity_type: e.target.value as EntityType })}>
+            <option value="">Not set</option>
+            {(setup.entity_types ?? ENTITY_TYPES).map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={styles.field}>
+          <span>Financial year end</span>
+          <input type="date" value={confirmed.year_end} onChange={(e) => setConfirmed({ ...confirmed, year_end: e.target.value })} />
+        </label>
+      </div>
       {precheckType !== 'residential_rental' && <AccountantSettingsFields value={confirmed} onChange={setConfirmed} />}
       <fieldset className={styles.keyPaths}>
         <legend>
@@ -313,14 +342,18 @@ function SetupForm({
         </div>
       )}
       {aiItems.length > 0 && <DraftedList items={aiItems} />}
-      {save.isError && (
+      {(save.isError || run.isError) && (
         <div role="alert" className={styles.notice} data-tone="danger">
-          {extractErrorMessage(save.error)}
+          {extractErrorMessage(save.isError ? save.error : run.error)}
         </div>
       )}
       <div className={styles.actionsRow}>
-        <Button type="submit" variant="primary" size="sm" disabled={save.isPending || !folder.trim()}>
-          {save.isPending ? 'Saving…' : 'Save'}
+        <Button type="submit" variant="primary" size="sm" disabled={save.isPending || run.isPending || !folder.trim()}>
+          <Sparkles size={14} aria-hidden="true" />
+          {save.isPending ? 'Saving…' : run.isPending ? 'Starting…' : 'Run in AI Agent'}
+        </Button>
+        <Button type="button" variant="secondary" size="sm" disabled={save.isPending || !folder.trim()} onClick={() => saveSetup(false)}>
+          Save without running
         </Button>
         {onDone && (
           <Button type="button" variant="subtle" size="sm" onClick={onDone}>
@@ -354,7 +387,16 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
   )
 }
 
-const NO_SETTINGS: AccountantSettings = { year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' }
+const NO_SETTINGS: AccountantSettings = { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' }
+
+const ENTITY_TYPES: { value: EntityType; label: string }[] = [
+  { value: 'trust', label: 'Trust' },
+  { value: 'close_company', label: 'Close Company' },
+  { value: 'ltc', label: 'LTC' },
+  { value: 'sole_trader', label: 'Sole Trader' },
+  { value: 'partnership', label: 'Partnership' },
+  { value: 'body_corporate', label: 'Body Corporate' },
+]
 
 const YES_NO_FIELDS: { key: 'xero_complete' | 'ird_access' | 'related_records'; label: string }[] = [
   { key: 'xero_complete', label: "Xero holds the full year's bank transactions" },
@@ -368,16 +410,6 @@ function AccountantSettingsFields({ value, onChange }: { value: AccountantSettin
   return (
     <fieldset className={styles.keyPaths}>
       <legend>Accountant-confirmed settings (general business and investment; optional)</legend>
-      <div className={styles.settingsGrid}>
-        <label className={styles.field}>
-          <span>Financial year starts</span>
-          <input type="date" value={value.year_start} onChange={(e) => onChange({ ...value, year_start: e.target.value })} />
-        </label>
-        <label className={styles.field}>
-          <span>Financial year ends</span>
-          <input type="date" value={value.year_end} onChange={(e) => onChange({ ...value, year_end: e.target.value })} />
-        </label>
-      </div>
       {YES_NO_FIELDS.map(({ key, label }) => (
         <label key={key} className={styles.field}>
           <span>{label}</span>

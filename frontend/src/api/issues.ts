@@ -14,6 +14,16 @@ import type {
   RecentActivityEntry,
 } from './types'
 
+/** When the standard sub-tasks of a task starting today would be due (working days, holidays). */
+export function useStageDates(enabled = true) {
+  return useQuery({
+    queryKey: ['stage-dates'],
+    enabled,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => (await apiClient.get<{ start: string; stages: { name: string; due_date: string | null }[] }>('/issues/stage-dates/')).data,
+  })
+}
+
 export function useIssueTypes(projectKey?: string, includeSubtasks = true) {
   return useQuery({
     queryKey: ['issue-types', projectKey ?? '', includeSubtasks],
@@ -91,6 +101,8 @@ export interface CreateIssuePayload {
   summary: string
   /** Free-text group the task belongs to. */
   group?: string
+  /** Also add the standard sub-tasks (Pre-check, Preparation, Internal Review, Client Review). */
+  default_subtasks?: boolean
   issue_type_id: number
   description?: Record<string, unknown> | null
   status_id?: number

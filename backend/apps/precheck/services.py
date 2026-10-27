@@ -32,7 +32,10 @@ def client_scope(issue) -> str:
     return f"client-{project.client_id}" if project.client_id else f"workspace-{project.id}"
 
 
-SETTING_KEYS = ("year_start", "year_end", "xero_complete", "ird_access", "related_records")
+SETTING_KEYS = ("entity_type", "year_start", "year_end", "xero_complete", "ird_access", "related_records")
+# The entity types AFIT sets on a task (27 Oct 2026).
+ENTITY_TYPES = [("trust", "Trust"), ("close_company", "Close Company"), ("ltc", "LTC"), ("sole_trader", "Sole Trader"),
+                ("partnership", "Partnership"), ("body_corporate", "Body Corporate")]
 
 
 def previous_requests(issue) -> list[dict]:
@@ -108,6 +111,7 @@ def setup_for(issue) -> dict:
         "precheck_type": folder.precheck_type if folder else "auto",
         "key_paths": {role: (folder.key_paths or {}).get(role, "") if folder else "" for role in CARD_PATH_ROLES},
         "settings": {k: (folder.accountant_settings or {}).get(k, "") if folder else "" for k in SETTING_KEYS},
+        "entity_types": [{"value": v, "label": label} for v, label in ENTITY_TYPES],
         "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES],
         "direction_items": [{"id": i.ref, "text": i.text, "origin": i.origin, "reason": i.reason, "basis": i.basis} for i in items],
         "missing": missing,

@@ -1,10 +1,11 @@
+import { format, parseISO } from 'date-fns'
 import type { JSONContent } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 
 import styles from './CreateIssueModal.module.css'
 import { useClients } from '@/api/clients'
 import { extractErrorMessage } from '@/api/errors'
-import { useCreateIssue, useIssueTypes, useIssues } from '@/api/issues'
+import { useCreateIssue, useIssueTypes, useIssues, useStageDates } from '@/api/issues'
 import { useProject, useProjects } from '@/api/projects'
 import { useTeam, useTeams } from '@/api/teams'
 import type { Priority } from '@/api/types'
@@ -49,6 +50,8 @@ export function CreateIssueModal() {
   const [priority, setPriority] = useState<Priority>('medium')
   const [storyPoints, setStoryPoints] = useState('')
   const [dueDate, setDueDate] = useState('')
+  // The standard sub-tasks (AFIT, 27 Oct 2026), on by default.
+  const [withStages, setWithStages] = useState(true)
   const [epicId, setEpicId] = useState('')
   const [labelIds, setLabelIds] = useState<number[]>([])
   const [createAnother, setCreateAnother] = useState(false)
@@ -142,6 +145,7 @@ export function CreateIssueModal() {
     setPriority('medium')
     setStoryPoints('')
     setDueDate('')
+    setWithStages(true)
     setEpicId('')
     setLabelIds([])
   }
@@ -157,9 +161,13 @@ export function CreateIssueModal() {
     createIssue.reset()
   }
 
+  const { data: stageDates } = useStageDates(open && withStages)
+  const reviewDate = stageDates?.stages.find((s) => s.name === 'Internal Review')?.due_date ?? ''
+  const dueTooEarly = withStages && !!dueDate && !!reviewDate && dueDate < reviewDate
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing) return
+    if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing || dueTooEarly) return
     createIssue.mutate(
       {
         ...(projectKey === CLIENT_JOBS ? { client_id: Number(clientId) } : { project: projectKey }),
@@ -170,7 +178,8 @@ export function CreateIssueModal() {
         assignee_id: assigneeId ? Number(assigneeId) : null,
         priority,
         story_points: storyPoints ? Number(storyPoints) : null,
-        due_date: dueDate || null,
+        due_date: dueDate || (withStages ? reviewDate : '') || null,
+        default_subtasks: withStages,
         epic_id: epicId ? Number(epicId) : null,
         label_ids: selectedLabelIds,
         // The column it was created from. The server keeps it only if it is one of the chosen
@@ -402,9 +411,31 @@ export function CreateIssueModal() {
               id="ci-due"
               label="Due date"
               type="date"
-              value={dueDate}
+              value={dueDate || (withStages ? reviewDate : '')}
+              min={withStages ? reviewDate || undefined : undefined}
               onChange={(e) => setDueDate(e.target.value)}
             />
+          </div>
+          {dueTooEarly && (
+            <p className={styles.fieldHint} role="alert">
+              The due date can&apos;t be before the internal review ({format(parseISO(reviewDate), 'EEE d MMM')}).
+            </p>
+          )}
+
+          <div className={styles.field}>
+            <label className={styles.checkboxLabel}>
+              <input type="checkbox" checked={withStages} onChange={(e) => setWithStages(e.target.checked)} />
+              Add the standard sub-tasks
+            </label>
+            {withStages && stageDates && (
+              <ul className={styles.stageList} aria-label="Standard sub-tasks">
+                {stageDates.stages.map((s) => (
+                  <li key={s.name}>
+                    <strong>{s.name}</strong> — {s.due_date ? `due ${format(parseISO(s.due_date), 'EEE d MMM')}` : 'once the client advises'}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {epics.length > 0 && (

@@ -132,6 +132,9 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
                    "reason, and request what you can already see is needed.")
     out.append(f"TASK: client {job.get('client_name') or ''}; task {job.get('title') or ''}; this year {key['this_year']}; "
                f"last year {key['last_year']}; business nature fixed by AFIT: {TYPES[fixed] if fixed else 'no — decide it'}")
+    entity = ENTITY_TYPES.get(str((job.get("settings") or {}).get("entity_type") or ""))
+    if entity:  # every kind of task: who the client is shapes the rules that apply
+        out.append(f"ENTITY TYPE (confirmed by AFIT): {entity}")
     if fixed != "residential_rental":  # the general business and investment briefs; rental rules are unchanged
         settings_line = accountant_settings(job.get("settings") or {})
         if settings_line:
@@ -238,13 +241,18 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
 
 
 YES_NO = {"yes": "yes", "no": "no"}
+# The entity types AFIT sets on a task (27 Oct 2026).
+ENTITY_TYPES = {"trust": "Trust", "close_company": "Close company", "ltc": "Look-through company (LTC)", "sole_trader": "Sole trader",
+                "partnership": "Partnership", "body_corporate": "Body corporate"}
 
 
 def accountant_settings(s: dict) -> str:
     """The settings the accountant confirmed on the task card, as one line for the model."""
     parts = []
-    if s.get("year_start") or s.get("year_end"):
-        parts.append(f"financial year {s.get('year_start') or '?'} to {s.get('year_end') or '?'}")
+    if s.get("year_start") and s.get("year_end"):
+        parts.append(f"financial year {s['year_start']} to {s['year_end']}")
+    elif s.get("year_end"):  # the year end is enough (AFIT, 27 Oct 2026)
+        parts.append(f"financial year ending {s['year_end']}")
     for key, label in (("xero_complete", "Xero holds the full year's bank transactions"),
                        ("ird_access", "the team has working IRD access for this entity"),
                        ("related_records", "related entities' records are held internally")):

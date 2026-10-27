@@ -18,6 +18,7 @@ from apps.workflow.models import IssueType, WorkflowStatus, WorkflowTransition
 from apps.workflow.serializers import IssueTypeSerializer, WorkflowStatusSerializer
 
 from .models import Attachment, Comment, Issue, IssueHistory, IssueLink, Watcher
+from . import stages
 from .rank import rank_after
 
 FIELD_DISPLAY_ATTR = {
@@ -278,6 +279,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         source="fix_versions", queryset=Version.objects.all(), many=True, write_only=True, required=False
     )
     subtasks = IssueMiniSerializer(many=True, read_only=True)
+    # On create: also add the standard sub-tasks (Pre-check, Preparation, Internal Review, Client Review).
+    default_subtasks = serializers.BooleanField(write_only=True, required=False, default=False)
     watcher_count = serializers.IntegerField(source="watchers.count", read_only=True)
     is_watching = serializers.SerializerMethodField()
     can_set_budget = serializers.SerializerMethodField()
@@ -334,6 +337,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "fix_versions",
             "fix_version_ids",
             "subtasks",
+            "default_subtasks",
             "watcher_count",
             "is_watching",
             "can_set_budget",
@@ -379,7 +383,34 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         if self.instance is None:
             attrs = self._starting_status(attrs, category)
         self._check_budget(attrs)
+        self._check_stage_dates(attrs)
         return attrs
+
+    def _check_stage_dates(self, attrs):
+        """A task's due date may not be before its internal review (AFIT, 27 Oct 2026); a new task
+        with the standard sub-tasks and no due date is due on its internal review."""
+        instance = self.instance
+        if instance is None:
+            if not attrs.get("default_subtasks") or attrs.get("parent"):
+                return
+            review = stages.stage_dates(attrs.get("start_date"))[stages.INTERNAL_REVIEW]
+            if not attrs.get("due_date"):
+                attrs["due_date"] = review
+        elif instance.parent_id and instance.summary.strip().lower() == stages.INTERNAL_REVIEW.lower() and "due_date" in attrs:
+            # The internal review itself moves: not past the task's due date.
+            due, review = instance.parent.due_date, attrs["due_date"]
+            if due and review and review > due:
+                raise serializers.ValidationError(
+                    {"due_date": f"The internal review can't be after the task's due date ({due:%a %d %b %Y})."})
+            return
+        else:
+            if "due_date" not in attrs:
+                return
+            sub = stages.internal_review_of(instance)
+            review = sub.due_date if sub else None
+        due = attrs.get("due_date")
+        if due and review and due < review:
+            raise serializers.ValidationError({"due_date": f"The due date can't be before the internal review ({review:%a %d %b %Y})."})
 
     def validate_estimated_hours(self, value):
         if value is not None and not 0 <= value <= 10000:
@@ -466,7 +497,11 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         last = Issue.objects.filter(project=project).order_by("-rank").first()
         if last:
             validated_data["rank"] = rank_after(last.rank)
-        return super().create(validated_data)
+        with_stages = validated_data.pop("default_subtasks", False)
+        issue = super().create(validated_data)
+        if with_stages and issue.parent_id is None and not issue.issue_type.is_subtask:
+            stages.create_default_subtasks(issue)
+        return issue
 
     @transaction.atomic
     def update(self, instance, validated_data):

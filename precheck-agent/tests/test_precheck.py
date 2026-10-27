@@ -378,3 +378,22 @@ def test_rental_tasks_keep_their_rules_and_get_no_settings_line(env):
     env.run("1")
     body = env.precheck.calls[0]["messages"][-1].content
     assert "ACCOUNTANT-CONFIRMED SETTINGS" not in body
+
+
+def test_the_entity_type_and_a_year_end_alone_reach_the_model(env):
+    """AFIT, 27 Oct 2026: the entity type is set on the task (for every kind of task, rental too), and
+    the year end is enough."""
+    ready_folder(env)
+    env.pm.add_job("1", "client-s", "smith", direction=[], precheck_type="residential_rental")
+    env.pm.jobs["1"]["settings"] = {"entity_type": "trust", "year_end": "2026-03-31"}
+    env.run("1")
+    body = env.precheck.calls[-1]["messages"][-1].content
+    assert "ENTITY TYPE (confirmed by AFIT): Trust" in body
+    assert "ACCOUNTANT-CONFIRMED SETTINGS" not in body  # rental rules unchanged
+    env.pm.add_job("2", "client-g", "smith", direction=[], precheck_type="general")
+    env.pm.jobs["2"]["settings"] = {"entity_type": "ltc", "year_end": "2026-03-31"}
+    env.run("2")
+    body = env.precheck.calls[-1]["messages"][-1].content
+    assert "ENTITY TYPE (confirmed by AFIT): Look-through company (LTC)" in body
+    assert "ACCOUNTANT-CONFIRMED SETTINGS (authoritative): financial year ending 2026-03-31" in body
+

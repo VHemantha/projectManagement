@@ -131,7 +131,7 @@ def _settings_problem(raw) -> str:
     from datetime import date
 
     if not isinstance(raw, dict) or set(raw) - set(services.SETTING_KEYS):
-        return "Give the financial year, Xero completeness, IRD access and related records."
+        return "Give the entity type, the financial year, Xero completeness, IRD access and related records."
     dates = {}
     for k in ("year_start", "year_end"):
         if raw.get(k):
@@ -144,6 +144,8 @@ def _settings_problem(raw) -> str:
     for k in ("xero_complete", "ird_access", "related_records"):
         if raw.get(k) not in (None, "", "yes", "no"):
             return "Answer yes, no or leave it unknown."
+    if raw.get("entity_type") not in (None, "", *(v for v, _ in services.ENTITY_TYPES)):
+        return "Choose the entity type: " + ", ".join(label for _, label in services.ENTITY_TYPES) + "."
     return ""
 
 

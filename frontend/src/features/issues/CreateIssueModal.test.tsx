@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -39,6 +39,9 @@ vi.mock('@/api/teams', () => ({
 vi.mock('@/api/users', () => ({ useUsers: () => ({ data: USERS }) }))
 vi.mock('@/api/issues', () => ({
   useIssueTypes: () => ({ data: [{ id: 2, name: 'Story' }, { id: 1, name: 'Task' }] }),
+  useStageDates: () => ({ data: { start: '2026-11-02', stages: [
+    { name: 'Pre-check', due_date: '2026-11-05' }, { name: 'Preparation', due_date: '2026-11-12' },
+    { name: 'Internal Review', due_date: '2026-11-13' }, { name: 'Client Review', due_date: null }] } }),
   useIssues: () => ({ data: { results: [{ id: 42, summary: 'Year end 2026' }] } }),
   useCreateIssue: () => ({ mutate: mocks.create, isPending: false, isError: false, reset: vi.fn() }),
 }))
@@ -76,6 +79,34 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ summary: 'GST return', group: '' }), expect.anything())
+  })
+
+  it('adds the standard sub-tasks with their dates, due on the internal review unless later', async () => {
+    mocks.defaults = { projectKey: 'SMITH' }
+    render(<CreateIssueModal />)
+    const list = screen.getByRole('list', { name: 'Standard sub-tasks' })
+    expect(list).toHaveTextContent('Pre-check — due Thu 5 Nov')
+    expect(list).toHaveTextContent('Preparation — due Thu 12 Nov')
+    expect(list).toHaveTextContent('Internal Review — due Fri 13 Nov')
+    expect(list).toHaveTextContent('Client Review — once the client advises')
+    expect(screen.getByLabelText('Due date')).toHaveValue('2026-11-13')
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'Smith FY26')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ default_subtasks: true, due_date: '2026-11-13' }), expect.anything())
+  })
+
+  it("won't create a task due before its internal review, and can leave the sub-tasks out", async () => {
+    mocks.defaults = { projectKey: 'SMITH' }
+    mocks.create.mockClear()
+    render(<CreateIssueModal />)
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'Smith FY26')
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-11-10' } })
+    expect(screen.getByRole('alert')).toHaveTextContent("can't be before the internal review (Fri 13 Nov)")
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Add the standard sub-tasks' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ default_subtasks: false, due_date: '2026-11-10' }), expect.anything())
   })
 
   it('creates every task as a Task, with no type to choose', async () => {

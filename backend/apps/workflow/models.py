@@ -78,8 +78,9 @@ class WorkflowTransition(models.Model):
 
 
 def _default_card_fields():
-    # Cards show the job's value by default so it can be entered right on the board.
-    return ["epic_tag", "story_points", "priority", "assignee", "job_value"]
+    # Cards show the job's value by default so it can be entered right on the board, and the time
+    # logged, which opens the task's timesheet breakup (AFIT, 27 Oct 2026).
+    return ["epic_tag", "story_points", "priority", "assignee", "job_value", "time_logged"]
 
 
 class Board(models.Model):
