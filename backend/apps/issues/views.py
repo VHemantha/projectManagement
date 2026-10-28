@@ -1,3 +1,5 @@
+import logging
+
 from django.db.models import DurationField, OuterRef, Subquery, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -29,6 +31,7 @@ from .serializers import (
 )
 
 KEY_LOOKUP_REGEX = r"[A-Za-z0-9]+-\d+"
+logger = logging.getLogger(__name__)
 
 
 class IssueViewSet(viewsets.ModelViewSet):
@@ -83,6 +86,17 @@ class IssueViewSet(viewsets.ModelViewSet):
         obj = get_object_or_404(self.get_queryset(), pk=issue.pk)
         self.check_object_permissions(self.request, obj)
         return obj
+
+    def destroy(self, request, *args, **kwargs):
+        """DELETE /api/issues/<key>/ — permanent, with its sub-tasks (team lead and above)."""
+        from apps.projects.permissions import can_delete_task
+
+        issue = self.get_object()
+        if not can_delete_task(request.user, issue.project):
+            return Response({"detail": "Only a team lead or above can delete a task."}, status=status.HTTP_403_FORBIDDEN)
+        logger.info("%s deleted %s (%s) and %s sub-task(s)", request.user.email, issue.key, issue.summary, issue.subtasks.count())
+        issue.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["get"], url_path="stage-dates")
     def stage_dates(self, request):

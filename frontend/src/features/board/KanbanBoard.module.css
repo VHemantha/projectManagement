@@ -182,6 +182,32 @@
   top: 6px;
   right: 6px;
   display: none;
+  align-items: center;
+  gap: 2px;
+}
+/* The card's "…" menu (Delete task), beside the timer. */
+.cardMenu {
+  display: inline-flex;
+}
+.cardMenuButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+.cardMenuButton:hover,
+.cardMenuButton[data-state='open'] {
+  background: var(--tf-surface-hover);
+  color: var(--tf-text);
+}
+.card:has(.cardMenuButton[data-state='open']) .cardTimerBtn {
+  display: flex;
 }
 .card:hover .cardTimerBtn {
   display: flex;

@@ -433,3 +433,18 @@ export async function downloadTasksCsv(params: Record<string, string | number | 
   link.click()
   URL.revokeObjectURL(url)
 }
+
+/** Delete a task permanently, with its sub-tasks (team lead and above). */
+export function useDeleteIssue() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (key: string) => {
+      await apiClient.delete(`/issues/${key}/`)
+      return key
+    },
+    onSuccess: (key) => {
+      queryClient.removeQueries({ queryKey: ['issue', key] })
+      for (const k of ['issues', 'projects', 'reports']) queryClient.invalidateQueries({ queryKey: [k] })
+    },
+  })
+}

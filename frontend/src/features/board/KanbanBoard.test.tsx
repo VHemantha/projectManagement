@@ -5,13 +5,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { KanbanBoard } from './KanbanBoard'
 import type { BoardColumn, IssueListItem } from '@/api/types'
 
+const { deleteMutate, openIssueModal } = vi.hoisted(() => ({ deleteMutate: vi.fn(), openIssueModal: vi.fn() }))
+vi.mock('@/api/issues', () => ({
+  useDeleteIssue: () => ({ mutate: deleteMutate, reset: () => {}, isPending: false, isError: false }),
+}))
+
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (s: { user: null }) => unknown) => selector({ user: null }),
 }))
 
 vi.mock('@/store/uiStore', () => ({
   useUiStore: (selector: (s: { openIssueModal: () => void }) => unknown) =>
-    selector({ openIssueModal: vi.fn() }),
+    selector({ openIssueModal }),
 }))
 
 vi.mock('@/api/timesheets', () => ({
@@ -215,5 +220,26 @@ describe('Card face (AFIT, 28 Oct 2026)', () => {
     expect(card).not.toHaveTextContent('TRK-1')
     expect(card).not.toHaveTextContent('3h')
     expect(screen.getByText('Jones FY26').closest('[role="button"]')).toHaveTextContent('No deadline')
+  })
+})
+
+describe('Deleting a task from its card (AFIT, 28 Oct 2026)', () => {
+  it('is offered only to those who may delete, and asks first', async () => {
+    deleteMutate.mockClear()
+    openIssueModal.mockClear()
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', summary: 'Smith FY26', can_delete: true }),
+      makeIssue({ id: 2, key: 'TRK-2', summary: 'Jones FY26', can_delete: false }),
+    ]
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'More actions for Jones FY26' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for Smith FY26' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Delete task/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this task?' })
+    expect(dialog).toHaveTextContent("Smith FY26 (TRK-1) will be deleted permanently")
+    expect(deleteMutate).not.toHaveBeenCalled()
+    await userEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
+    expect(deleteMutate).toHaveBeenCalledWith('TRK-1', expect.anything())
+    expect(openIssueModal).not.toHaveBeenCalled() // the card did not open
   })
 })

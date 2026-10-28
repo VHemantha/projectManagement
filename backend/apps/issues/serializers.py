@@ -11,7 +11,7 @@ from apps.notifications.models import Notification
 from apps.notifications.services import notify, notify_many
 from apps.projects.keys import resolve_project
 from apps.projects.models import Component, Label, Project, Version
-from apps.projects.permissions import can_set_budget
+from apps.projects.permissions import can_delete_task, can_set_budget
 from apps.sprints.models import Sprint
 from apps.teams.models import TeamMembership
 from apps.workflow.models import IssueType, WorkflowStatus, WorkflowTransition
@@ -170,9 +170,21 @@ class IssueListSerializer(serializers.ModelSerializer):
     actual_hours = serializers.SerializerMethodField()
     # The job's value is shown (and edited) on cards in its project's currency.
     value_currency = serializers.CharField(source="project.job_value_currency", read_only=True)
+    # Whether the viewer may delete it (cards offer Delete only then).
+    can_delete = serializers.SerializerMethodField()
 
     def get_actual_hours(self, obj):
         return actual_hours_of(obj)
+
+    def get_can_delete(self, obj):
+        request = self.context.get("request")
+        if not request:
+            return False
+        # Once per project per list, not per task.
+        cache = self.context.setdefault("_can_delete_by_project", {})
+        if obj.project_id not in cache:
+            cache[obj.project_id] = can_delete_task(request.user, obj.project)
+        return cache[obj.project_id]
 
     class Meta:
         model = Issue
@@ -207,6 +219,7 @@ class IssueListSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "resolved_at",
+            "can_delete",
         ]
 
 

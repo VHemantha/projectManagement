@@ -267,7 +267,8 @@ def test_job_value_is_listed_and_editable(api, task_type):
     assert api.get("/api/issues/", {"project": "Val"}).data["results"][0]["allocated_value"] is None
 
 
-def test_new_boards_show_job_value_on_cards(api):
+def test_new_boards_do_not_show_job_value_on_cards(api):
+    """AFIT, 28 Oct 2026: the value is set on the task, not shown on cards."""
     project = _project(api, "Card")
     board = api.get(f"/api/projects/{project['key']}/board/").data
-    assert "job_value" in board["card_fields"]
+    assert "job_value" not in board["card_fields"]

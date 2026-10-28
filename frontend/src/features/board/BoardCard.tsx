@@ -4,6 +4,7 @@ import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { Calendar } from 'lucide-react'
 import type { ReactNode } from 'react'
 
+import { CardMenu } from './CardMenu'
 import { cardAccentColor, withAlpha } from './cardColors'
 import styles from './KanbanBoard.module.css'
 import { useRunningTimer } from '@/api/timesheets'
@@ -119,6 +120,7 @@ export function BoardCard({
     >
       <span className={styles.cardTimerBtn} style={isRunningHere ? { display: 'flex' } : undefined}>
         <TimerButton issueId={issue.id} size="sm" />
+        <CardMenu issue={issue} />
       </span>
       {cardFields.includes('epic_tag') && issue.epic && (
         <span className={styles.cardEpicTag} style={{ background: issue.epic.epic_color }}>

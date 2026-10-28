@@ -314,6 +314,8 @@ export interface IssueListItem {
   created_at: string
   updated_at: string
   resolved_at: string | null
+  /** Whether the viewer may delete it (team lead and above). */
+  can_delete?: boolean
 }
 
 export interface BurndownData {
