@@ -5,11 +5,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { KanbanBoard } from './KanbanBoard'
 import type { BoardColumn, IssueListItem } from '@/api/types'
 
-const { patchMutate } = vi.hoisted(() => ({ patchMutate: vi.fn() }))
-vi.mock('@/api/issues', () => ({
-  usePatchIssueField: () => ({ mutate: patchMutate }),
-}))
-
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (s: { user: null }) => unknown) => selector({ user: null }),
 }))
@@ -122,17 +117,14 @@ describe('KanbanBoard', () => {
     expect(cardOf('OPS card').style.borderLeft).toBe('')
   })
 
-  it('shows the task value on cards and edits it in place', async () => {
+  it('does not show the task value on cards (AFIT, 28 Oct 2026)', () => {
     const issues = [
       makeIssue({ id: 1, key: 'TRK-1', summary: 'Valued', allocated_value: '1200.00', value_currency: 'GBP' }),
       makeIssue({ id: 2, key: 'TRK-2', summary: 'Unvalued' }),
     ]
     render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
-    expect(screen.getByRole('button', { name: /Task value GBP 1,200/ })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Add task value for TRK-2' }))
-    const input = screen.getByRole('spinbutton', { name: 'Task value for TRK-2' })
-    await userEvent.type(input, '350{Enter}')
-    expect(patchMutate).toHaveBeenCalledWith({ key: 'TRK-2', patch: { allocated_value: '350' } })
+    expect(screen.queryByText(/1,200/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /task value/i })).not.toBeInTheDocument()
   })
 
   it('filters cards by priority and label from the toolbar, keeping the columns', async () => {

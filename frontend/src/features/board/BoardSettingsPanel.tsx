@@ -44,7 +44,6 @@ const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'assignee', label: 'Team Lead avatar' },
   { key: 'labels', label: 'Labels' },
   { key: 'current_responsible', label: 'Currently Responsible' },
-  { key: 'job_value', label: 'Task value' },
 ]
 
 const CATEGORY_OPTIONS: { value: WorkflowStatus['category']; label: string }[] = [

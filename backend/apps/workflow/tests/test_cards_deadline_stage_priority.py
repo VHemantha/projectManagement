@@ -27,5 +27,18 @@ def test_existing_boards_lose_the_removed_and_now_built_in_fields():
     assert board.card_fields == ["epic_tag", "assignee", "labels", "job_value"]
 
 
+def test_the_value_comes_off_every_card():
+    """AFIT, 28 Oct 2026: the task's value is no longer shown on cards."""
+    lead = User.objects.create_user(username="lead", email="lead@example.com", password="x")
+    project = Project.objects.create(organization=Organization.get_solo(), key="RWCA", name="RWCA", lead=lead)
+    provision_project_defaults(project)
+    board = project.boards.first()
+    board.card_fields = ["epic_tag", "job_value", "assignee"]
+    board.save()
+    import_module("apps.workflow.migrations.0010_cards_without_value").remove_value(django_apps, None)
+    board.refresh_from_db()
+    assert board.card_fields == ["epic_tag", "assignee"]
+
+
 def test_new_boards_have_no_story_points_or_time():
-    assert Board._meta.get_field("card_fields").default() == ["epic_tag", "assignee", "job_value"]
+    assert Board._meta.get_field("card_fields").default() == ["epic_tag", "assignee"]

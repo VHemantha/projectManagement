@@ -79,8 +79,8 @@ class WorkflowTransition(models.Model):
 
 def _default_card_fields():
     # Every card shows the deadline, stage and priority (AFIT, 28 Oct 2026); these are the optional
-    # extras. Cards show the job's value by default so it can be entered right on the board.
-    return ["epic_tag", "assignee", "job_value"]
+    # extras. The task's value is no longer on cards (it's set on the task).
+    return ["epic_tag", "assignee"]
 
 
 class Board(models.Model):
@@ -116,7 +116,7 @@ class Board(models.Model):
         default="none",
     )
     # ordered list of the optional field keys ("epic_tag", "assignee", "labels",
-    # "current_responsible", "job_value") rendered on card faces.
+    # "current_responsible") rendered on card faces.
     card_fields = models.JSONField(default=_default_card_fields)
     card_color_rule = models.CharField(max_length=20, choices=CardColorRule.choices, default=CardColorRule.NONE)
     # Per-rule colour overrides, e.g. {"priority": {"high": "#e5493a"}, "issue_type": {"3": "#36b37e"},
