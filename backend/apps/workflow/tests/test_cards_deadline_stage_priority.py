@@ -42,3 +42,12 @@ def test_the_value_comes_off_every_card():
 
 def test_new_boards_have_no_story_points_or_time():
     assert Board._meta.get_field("card_fields").default() == ["epic_tag", "assignee"]
+
+
+def test_boards_lose_their_swimlanes():
+    lead = User.objects.create_user(username="lead", email="lead@example.com", password="x")
+    project = Project.objects.create(organization=Organization.get_solo(), key="RWCA", name="RWCA", lead=lead)
+    provision_project_defaults(project)
+    project.boards.update(swimlane_mode="epic")
+    import_module("apps.workflow.migrations.0011_boards_without_swimlanes").no_swimlanes(django_apps, None)
+    assert set(Board.objects.values_list("swimlane_mode", flat=True)) == {"none"}

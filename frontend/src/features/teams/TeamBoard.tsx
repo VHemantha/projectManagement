@@ -29,8 +29,6 @@ export function TeamBoard({ team }: { team: TeamDetail }) {
       columns={board.columns}
       cardConfigByProject={board.cardConfigByProject}
       isLoading={isLoading || board.isLoading}
-      defaultSwimlaneMode="project"
-      availableSwimlanes={['none', 'project', 'assignee']}
       emptyMessage="No tasks assigned to this workspace's members."
       onMoveIssue={({ issue, column, beforeId, afterId }) => {
         const statusId = board.resolveStatus(issue, column)

@@ -6,7 +6,6 @@ import { defaultsFromColumn } from './createFromBoard'
 import { BoardSettingsPanel } from './BoardSettingsPanel'
 import { KanbanBoard } from './KanbanBoard'
 import { resolveDropStatusId } from './laneUtils'
-import type { SwimlaneMode } from './laneUtils'
 import { useRenameColumn } from '@/api/boards'
 import { useIssues, useMoveIssue } from '@/api/issues'
 import { useProjectBoard } from '@/api/projects'
@@ -68,7 +67,6 @@ export function ProjectBoardPage() {
         issues={issuesPage?.results ?? []}
         columns={board?.column_config ?? []}
         isLoading={boardLoading || issuesLoading}
-        defaultSwimlaneMode={(board?.swimlane_mode as SwimlaneMode) ?? 'none'}
         cardFields={board?.card_fields}
         cardColorRule={board?.card_color_rule}
         cardColors={board?.card_colors}

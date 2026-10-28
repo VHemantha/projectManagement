@@ -12,8 +12,8 @@ import { DEFAULT_TAB } from '@/features/projects/workspaceTabs'
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
   workspaces: 'Workspaces',
-  projects: 'Projects',
-  'all-issues': 'All tasks board',
+  projects: 'Kanban board',
+  'all-issues': 'All tasks',
   people: 'People',
   filters: 'Filters',
   dashboards: 'Dashboards',

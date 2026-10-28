@@ -36,7 +36,6 @@ export function EpicBoardPage() {
           cardColors={board?.card_colors}
           cardColorStyle={board?.card_color_style}
           isLoading={boardLoading || issuesLoading}
-          availableSwimlanes={['none', 'assignee']}
           emptyMessage="No tasks under this epic yet."
           onCreateIssue={(ctx) => openCreateIssue({ ...defaultsFromColumn(ctx), projectKey: epic.project, epicId: epic.id })}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {

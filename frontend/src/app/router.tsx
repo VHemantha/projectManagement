@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { Navigate, createBrowserRouter } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
 import { LegacyTeamsRedirect, LegacyWorkspacesRedirect, WorkspaceRoute } from './LegacyRedirects'
@@ -13,7 +13,6 @@ import { IssueDetailPage } from '@/features/issues/IssueDetailPage'
 import { PeopleDirectoryPage } from '@/features/people/PeopleDirectoryPage'
 import { UserWorkloadPage } from '@/features/people/UserWorkloadPage'
 import { ProjectLayout, WorkspaceSectionRedirect } from '@/features/projects/ProjectLayout'
-import { ProjectsListPage } from '@/features/projects/ProjectsListPage'
 import { ProjectsSectionLayout } from '@/features/projects/ProjectsSectionLayout'
 import { DashboardHomePage } from '@/features/dashboard/DashboardHomePage'
 import { FiltersPage } from '@/features/search/FiltersPage'
@@ -45,7 +44,8 @@ export const router = createBrowserRouter([
             path: '/projects',
             element: <ProjectsSectionLayout />,
             children: [
-              { index: true, element: <ProjectsListPage /> },
+              // No projects list (AFIT, 28 Oct 2026): the whole organisation's Kanban instead.
+              { index: true, element: <Navigate to="/projects/all-issues" replace /> },
               // Hyphenated on purpose: project keys are letters/digits only, so this can never
               // shadow a real project's /projects/:key route.
               { path: 'all-issues', element: <AllIssuesBoardPage /> },

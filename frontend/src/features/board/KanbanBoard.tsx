@@ -55,9 +55,6 @@ interface KanbanBoardProps {
   issues: IssueListItem[]
   columns: BoardColumn[]
   isLoading?: boolean
-  defaultSwimlaneMode?: SwimlaneMode
-  showSwimlanePicker?: boolean
-  availableSwimlanes?: SwimlaneMode[]
   /** When set, column names can be renamed in place (double-click); index is the column's
    * position in `columns`. */
   onRenameColumn?: (index: number, name: string) => Promise<unknown>
@@ -92,13 +89,8 @@ export interface CreateContext {
   swimlaneMode: SwimlaneMode
 }
 
-const SWIMLANE_LABELS: Record<SwimlaneMode, string> = {
-  none: 'No swimlanes',
-  epic: 'Swimlanes: Epic',
-  assignee: 'Swimlanes: Team Lead',
-  project: 'Swimlanes: Project',
-  parent: 'Swimlanes: Parent',
-}
+// Boards have no swimlanes (AFIT, 28 Oct 2026): one lane, every task in its stage's column.
+const SWIMLANE_MODE: SwimlaneMode = 'none'
 
 function containerKey(laneId: string, columnIndex: number) {
   return `${laneId}::${columnIndex}`
@@ -108,9 +100,6 @@ export function KanbanBoard({
   issues,
   columns,
   isLoading,
-  defaultSwimlaneMode = 'none',
-  showSwimlanePicker = true,
-  availableSwimlanes = ['none', 'epic', 'assignee'],
   toolbarExtra,
   cardFields,
   cardColorRule,
@@ -123,7 +112,6 @@ export function KanbanBoard({
   onCreateIssue,
 }: KanbanBoardProps) {
   const currentUser = useAuthStore((s) => s.user)
-  const [swimlaneMode, setSwimlaneMode] = useState<SwimlaneMode>(defaultSwimlaneMode)
   const [filters, setFilters] = useState<BoardFilters>(NO_FILTERS)
   const setFilter = <K extends keyof BoardFilters>(key: K, value: BoardFilters[K]) =>
     setFilters((prev) => ({ ...prev, [key]: value }))
@@ -140,21 +128,13 @@ export function KanbanBoard({
     [cardConfigByProject, cardFields, cardColorRule, cardColors, cardColorStyle],
   )
 
-  // Board settings can now persist a swimlane_mode server-side; when that saved default
-  // changes (e.g. after editing it in Configure Board), adopt it as the new baseline. The
-  // picker below still lets a viewer locally override it for their own session without
-  // writing anything back.
-  useEffect(() => {
-    setSwimlaneMode(defaultSwimlaneMode)
-  }, [defaultSwimlaneMode])
-
   const filteredIssues = useMemo(
     () => filterIssues(issues, filters, currentUser?.id),
     [issues, filters, currentUser],
   )
   const labels = useMemo(() => labelOptions(issues), [issues])
 
-  const lanes = useMemo(() => computeLanes(filteredIssues, swimlaneMode), [filteredIssues, swimlaneMode])
+  const lanes = useMemo(() => computeLanes(filteredIssues, SWIMLANE_MODE), [filteredIssues])
 
   const assignees = useMemo(() => {
     const map = new Map<number, IssueListItem['assignee']>()
@@ -325,21 +305,7 @@ export function KanbanBoard({
             Clear filters
           </button>
         )}
-        {showSwimlanePicker && (
-          <select
-            className={styles.select}
-            style={{ marginLeft: 'auto' }}
-            value={swimlaneMode}
-            onChange={(e) => setSwimlaneMode(e.target.value as SwimlaneMode)}
-          >
-            {availableSwimlanes.map((mode) => (
-              <option key={mode} value={mode}>
-                {SWIMLANE_LABELS[mode]}
-              </option>
-            ))}
-          </select>
-        )}
-        {toolbarExtra}
+        {toolbarExtra && <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8 }}>{toolbarExtra}</span>}
       </div>
 
       <div className={styles.scrollArea}>
@@ -361,7 +327,7 @@ export function KanbanBoard({
               issuesById={issuesById}
               configFor={configFor}
               onRenameColumn={onRenameColumn}
-              onCreate={onCreateIssue && ((column) => onCreateIssue({ column, lane, swimlaneMode }))}
+              onCreate={onCreateIssue && ((column) => onCreateIssue({ column, lane, swimlaneMode: SWIMLANE_MODE }))}
             />
           ))}
           <DragOverlay>

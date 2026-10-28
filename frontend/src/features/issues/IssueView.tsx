@@ -262,7 +262,7 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           shown instead, so this is skipped there to avoid a duplicate trail. */}
       {isModal && (
         <div className={styles.breadcrumb}>
-          <Link to="/projects">Projects</Link> / <Link to={`/projects/${issue.project}`}>{issue.project}</Link> /{' '}
+          <Link to="/projects">Kanban board</Link> / <Link to={`/projects/${issue.project}`}>{issue.project}</Link> /{' '}
           <IssueKey value={issue.key} />
           <div className={styles.headerActions} style={{ marginLeft: 'auto' }}>
             <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={onClose}>

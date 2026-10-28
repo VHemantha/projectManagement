@@ -202,8 +202,6 @@ export function AllIssuesBoardPage() {
           columns={board.columns}
           cardConfigByProject={board.cardConfigByProject}
           isLoading={isLoading || board.isLoading}
-          defaultSwimlaneMode="project"
-          availableSwimlanes={['none', 'project', 'assignee']}
           emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
           onCreateIssue={(ctx) => openCreateIssue({ ...filterDefaults, ...defaultsFromColumn(ctx) })}
           onMoveIssue={({ issue, column, beforeId, afterId }) => {

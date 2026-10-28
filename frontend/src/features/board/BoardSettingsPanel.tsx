@@ -73,7 +73,7 @@ function toPayloadColumn({ uid: _uid, ...col }: EditableColumn): BoardColumn {
   return { ...col, new_status: col.new_status ?? { category: 'in_progress' } }
 }
 
-/** The editable board settings — columns (with new stages), swimlanes, card fields and colour
+/** The editable board settings — columns (with new stages), card fields and colour
  * coding. Used inline in Project settings -> Board and inside the board's Configure dialog. */
 export function BoardSettingsForm({
   board,
@@ -87,7 +87,6 @@ export function BoardSettingsForm({
   onCancel?: () => void
 }) {
   const [columns, setColumns] = useState<EditableColumn[]>(() => board.column_config.map(withUid))
-  const [swimlaneMode, setSwimlaneMode] = useState(board.swimlane_mode)
   const [cardFields, setCardFields] = useState<CardFieldKey[]>(board.card_fields)
   const [cardColorRule, setCardColorRule] = useState<CardColorRule>(board.card_color_rule)
   const [cardColorStyle, setCardColorStyle] = useState<CardColorStyle>(board.card_color_style ?? 'stripe')
@@ -185,7 +184,7 @@ export function BoardSettingsForm({
     updateConfig.mutate(
       {
         column_config: columns.map(toPayloadColumn),
-        swimlane_mode: swimlaneMode,
+        swimlane_mode: 'none', // boards have no swimlanes (AFIT, 28 Oct 2026)
         card_fields: cardFields,
         card_color_rule: cardColorRule,
         card_color_style: cardColorStyle,
@@ -245,19 +244,6 @@ export function BoardSettingsForm({
           </div>
         </Section>
       )}
-
-      <Section title="Swimlanes">
-        <select
-          className={styles.select}
-          value={swimlaneMode}
-          onChange={(e) => setSwimlaneMode(e.target.value as Board['swimlane_mode'])}
-        >
-          <option value="none">None</option>
-          <option value="epic">By epic</option>
-          <option value="assignee">By assignee</option>
-          <option value="parent">By parent</option>
-        </select>
-      </Section>
 
       <Section title="Card fields">
         <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tf-text-subtle)' }}>

@@ -24,9 +24,10 @@ import { useAuthStore } from '@/store/authStore'
 // Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
   { to: '/', label: 'Your work', icon: UserRound, tone: 'violet', end: true },
-  // The hierarchy, top down: Workspaces hold sub-workspaces, which hold projects.
+  // The hierarchy, top down: Workspaces hold sub-workspaces, which hold the tasks. The Kanban
+  // board is the whole organisation's, filtered from its workspace tree.
   { to: '/workspaces', label: 'Workspaces', icon: Users, tone: 'teal' },
-  { to: '/projects', label: 'Projects', icon: LayoutGrid, tone: 'blue' },
+  { to: '/projects', label: 'Kanban board', icon: LayoutGrid, tone: 'blue' },
   { to: '/people', label: 'People', icon: Contact, tone: 'pink' },
   { to: '/filters', label: 'Filters', icon: ListFilter, tone: 'orange' },
   { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },

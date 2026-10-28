@@ -122,8 +122,8 @@ export function ProjectsSectionLayout() {
               <ChevronsRight size={18} />
             </button>
           </Tooltip>
-          <Tooltip label="All tasks board" side="right">
-            <NavLink to="/projects/all-issues" className={rail.button} aria-label="All tasks board">
+          <Tooltip label="All tasks — whole organisation" side="right">
+            <NavLink to="/projects/all-issues" className={rail.button} aria-label="All tasks — whole organisation">
               <LayoutGrid size={18} />
             </NavLink>
           </Tooltip>
@@ -155,7 +155,7 @@ export function ProjectsSectionLayout() {
       ) : (
         <aside className={styles.sidebar} aria-label="Projects panel">
           <div className={styles.sidebarHeader}>
-            <span className={styles.sidebarTitle}>Projects</span>
+            <span className={styles.sidebarTitle}>Workspaces</span>
             <div style={{ display: 'flex', gap: 6 }}>
               <Tooltip label="Collapse panel" side="bottom">
                 <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse projects panel">
@@ -169,7 +169,7 @@ export function ProjectsSectionLayout() {
             to="/projects/all-issues"
             className={({ isActive }) => `${styles.allIssuesLink} ${isActive ? styles.allIssuesLinkActive : ''}`}
           >
-            <LayoutGrid size={14} /> All tasks board
+            <LayoutGrid size={14} /> All tasks — whole organisation
           </NavLink>
 
           <div className={styles.hierarchyHint} aria-hidden="true">

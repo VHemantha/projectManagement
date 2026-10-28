@@ -31,8 +31,6 @@ export function MyWorkPage() {
       columns={board.columns}
       cardConfigByProject={board.cardConfigByProject}
       isLoading={isLoading || board.isLoading}
-      defaultSwimlaneMode="project"
-      availableSwimlanes={['none', 'project']}
       emptyMessage="Nothing assigned to you yet."
       // My work: the new task is mine.
       onCreateIssue={(ctx) => openCreateIssue({ ...defaultsFromColumn(ctx), assigneeId: currentUser?.id })}

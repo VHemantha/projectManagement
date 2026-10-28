@@ -171,22 +171,16 @@ describe('KanbanBoard', () => {
     expect(screen.getByText('3 / 2')).toBeInTheDocument()
   })
 
-  it('groups cards into swimlanes when a swimlane mode is set', () => {
+  it('has no swimlanes and no swimlane picker (AFIT, 28 Oct 2026)', () => {
     const issues = [
       makeIssue({ id: 1, project_key: 'TRK', summary: 'TRK issue' }),
       makeIssue({ id: 2, project_key: 'OPS', summary: 'OPS issue' }),
     ]
-    render(
-      <KanbanBoard
-        issues={issues}
-        columns={columns}
-        onMoveIssue={vi.fn()}
-        defaultSwimlaneMode="project"
-        availableSwimlanes={['none', 'project']}
-      />,
-    )
-    expect(screen.getByText(/OPS \(1\)/)).toBeInTheDocument()
-    expect(screen.getByText(/TRK \(1\)/)).toBeInTheDocument()
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.getByText('TRK issue')).toBeInTheDocument()
+    expect(screen.getByText('OPS issue')).toBeInTheDocument()
+    expect(screen.queryByText(/OPS \(1\)/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /swimlanes/i })).not.toBeInTheDocument()
   })
 
   it('creates a task from a column: the page is told which column and swimlane', async () => {
