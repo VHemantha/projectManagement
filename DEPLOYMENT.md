@@ -226,19 +226,23 @@ exit
 **People → Invite people**, and the invitation email carries a single-use link that expires
 after 7 days. Out of the box the server only *logs* emails (`sudo journalctl -u trackflow`);
 the People page shows each new link so you can copy it to the person yourself. To send real
-email, add an SMTP provider (e.g. Amazon SES: verify a sender address or domain, create SMTP
-credentials, and leave the SES sandbox to email arbitrary addresses) to
-`/srv/trackflow/shared/.env`, then `sudo systemctl restart trackflow`:
+email, add the mailbox's SMTP settings to `/srv/trackflow/shared/.env`, then
+`sudo systemctl restart trackflow`. AFIT sends from pm@afitconnect.com (SSL on port 465):
 
 ```
 EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
-EMAIL_HOST=email-smtp.<region>.amazonaws.com
-EMAIL_PORT=587
-EMAIL_HOST_USER=<SES SMTP username>
-EMAIL_HOST_PASSWORD=<SES SMTP password>
-DEFAULT_FROM_EMAIL=TrackFlow <no-reply@yourdomain.com>
-FRONTEND_URL=https://<your CloudFront domain>
+EMAIL_HOST=mail.afitconnect.com
+EMAIL_PORT=465
+EMAIL_USE_SSL=true
+EMAIL_USE_TLS=false
+EMAIL_HOST_USER=pm@afitconnect.com
+EMAIL_HOST_PASSWORD='<the mailbox password>'
+DEFAULT_FROM_EMAIL="Project Manager | AFIT Connect <pm@afitconnect.com>"
+FRONTEND_URL=https://<the app's address>
 ```
+
+Check it with `sudo trackflow-manage sendtestemail you@example.com`. (Amazon SES works the same
+way: `EMAIL_HOST=email-smtp.<region>.amazonaws.com`, port 587, `EMAIL_USE_TLS=true`.)
 
 ## 9. Deploy the frontend
 

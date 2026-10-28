@@ -225,13 +225,18 @@ COORDINATOR_REPLY_ASYNC = env_bool("COORDINATOR_REPLY_ASYNC", True)
 
 # Email (invitations). Console by default: messages are printed to the server log. For real
 # delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values
-# (e.g. Amazon SES SMTP credentials).
+# (e.g. AFIT's own mailbox: mail.afitconnect.com on port 465 with EMAIL_USE_SSL=true). The
+# password lives only in the server's .env.
 EMAIL_BACKEND = env("EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(env("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", "")
-EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+# Port 465 is SSL from the first byte; 587 upgrades with STARTTLS. Only one can be on.
+EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", EMAIL_PORT == 465)
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", not EMAIL_USE_SSL)
+# Don't hold an admin's "Invite" click for minutes if the mail server doesn't answer.
+EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "20"))
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Loca <no-reply@trackflow.local>")
 # Base URL of the web app for links in emails (invitations). Empty: use the admin's browser origin.
 FRONTEND_URL = env("FRONTEND_URL", "")
