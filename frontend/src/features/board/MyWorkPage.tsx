@@ -4,10 +4,17 @@ import { useCrossProjectBoard } from './crossProjectBoard'
 import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { useIssues, useMoveIssue } from '@/api/issues'
+import { CeoDashboard } from '@/features/dashboard/CeoDashboard'
 import { useAuthStore } from '@/store/authStore'
 import { useUiStore } from '@/store/uiStore'
 
+/** Home: the tasks assigned to you; for the CEO, the organisation overview (AFIT, 28 Oct 2026). */
 export function MyWorkPage() {
+  const isCeo = useAuthStore((s) => s.user?.role === 'ceo')
+  return isCeo ? <CeoDashboard /> : <AssignedToMe />
+}
+
+function AssignedToMe() {
   const currentUser = useAuthStore((s) => s.user)
   const moveIssue = useMoveIssue()
   const openCreateIssue = useUiStore((s) => s.openCreateIssue)

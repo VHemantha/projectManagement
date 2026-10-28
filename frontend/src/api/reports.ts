@@ -74,3 +74,38 @@ export function useBudgetVsActual(projectKey?: string) {
     },
   })
 }
+
+/** The CEO's organisation dashboard (GET /api/reports/ceo-dashboard/; CEO only). */
+export interface CeoDashboard {
+  as_of: string
+  totals: {
+    open: number
+    overdue: number
+    due_this_week: number
+    completed_30_days: number
+    hours_this_month: number
+    timesheets_to_approve: number
+  }
+  stages: { stage: string; tasks: number }[]
+  workspaces: { workspace: string; open: number; overdue: number; on_time: number; completed_30: number }[]
+  sub_workspaces: { sub_workspace: string; open: number }[]
+  workload: { person: string; open: number; overdue: number; on_time: number }[]
+  priorities: { priority: string; tasks: number }[]
+  /** Weeks start on Monday (YYYY-MM-DD), oldest first. */
+  flow: { week: string; created: number; completed: number }[]
+  hours: { week: string; billable: number; non_billable: number }[]
+  over_budget: { key: string; summary: string; budgeted: number; actual: number; team_lead: string }[]
+  prechecks: { result: string; runs: number }[]
+  follow_ups: { waiting: number; answered: number; escalated: number }
+  commitments_90_days: { kept: number; missed: number }
+  on_leave_today: string[]
+}
+
+export function useCeoDashboard(enabled = true) {
+  return useQuery({
+    queryKey: ['reports', 'ceo-dashboard'],
+    queryFn: async () => (await apiClient.get<CeoDashboard>('/reports/ceo-dashboard/')).data,
+    enabled,
+    staleTime: 60_000,
+  })
+}

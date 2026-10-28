@@ -53,7 +53,13 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
   // mobile whenever the drawer is open (a drawer is always the full-width rail).
   const showLabels = expanded || drawerOpen
   const isCeo = useAuthStore((s) => s.user?.role === 'ceo')
-  const items = isCeo ? [...NAV_ITEMS, { to: '/coordinator/console', label: 'CEO console', icon: ShieldCheck, tone: 'pink', end: false }] : NAV_ITEMS
+  // The CEO's home is the organisation overview, not their own assigned tasks.
+  const items = isCeo
+    ? [
+        ...NAV_ITEMS.map((item) => (item.to === '/' ? { ...item, label: 'Overview' } : item)),
+        { to: '/coordinator/console', label: 'CEO console', icon: ShieldCheck, tone: 'pink', end: false },
+      ]
+    : NAV_ITEMS
 
   return (
     <aside
