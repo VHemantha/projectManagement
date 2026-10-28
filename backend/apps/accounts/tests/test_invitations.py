@@ -142,3 +142,23 @@ def test_a_failed_email_still_returns_the_link(admin_client, settings, monkeypat
     data = send(admin_client)
     assert data["email_sent"] is False
     assert "invite=" in data["invite_url"]
+
+
+def test_sign_up_locks_only_the_invitation_row(monkeypatch):
+    """PostgreSQL refuses FOR UPDATE on the optional team/inviter joined in by select_related
+    ("nullable side of an outer join"), so every sign-up failed with a server error (28 Oct 2026).
+    SQLite ignores the lock, so check the query asks for the invitation's own row only."""
+    from django.db.models import QuerySet
+
+    from apps.accounts.invitations import find_usable_invitation
+
+    seen = []
+    first = QuerySet.first
+
+    def spy(self):
+        seen.append(self.query)
+        return first(self)
+
+    monkeypatch.setattr(QuerySet, "first", spy)
+    find_usable_invitation("some-token", lock=True)
+    assert seen[0].select_for_update and seen[0].select_for_update_of == ("self",)

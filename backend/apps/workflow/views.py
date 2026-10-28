@@ -99,7 +99,7 @@ class BoardColumnView(APIView):
 
     @transaction.atomic
     def patch(self, request, pk, index):
-        board = get_object_or_404(Board.objects.select_for_update().select_related("project__workflow"), pk=pk)
+        board = get_object_or_404(Board.objects.select_for_update(of=("self",)).select_related("project__workflow"), pk=pk)
         if not _can_configure_board(request.user, board):
             raise PermissionDenied("Only a project admin/lead or an organisation admin can configure this board.")
         columns = list(board.column_config or [])

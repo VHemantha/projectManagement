@@ -177,7 +177,10 @@ def find_usable_invitation(token: str | None, *, lock: bool = False) -> tuple[In
         return None, "Sign-up is by invitation only. Ask an admin to invite you."
     qs = Invitation.objects.select_related("team", "invited_by")
     if lock:
-        qs = qs.select_for_update()
+        # Only the invitation's own row: PostgreSQL can't lock the optional team/inviter that
+        # select_related joins in ("FOR UPDATE cannot be applied to the nullable side of an outer
+        # join"), which made every sign-up fail with a server error.
+        qs = qs.select_for_update(of=("self",))
     invitation = qs.filter(token_hash=hash_token(token)).first()
     if invitation is None:
         return None, "This invitation link isn't valid. It may have been replaced by a newer one."
