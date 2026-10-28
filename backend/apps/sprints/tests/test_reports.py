@@ -58,19 +58,19 @@ def test_burndown_computes_remaining_from_resolved_issues(api_client, project, t
 
     Issue.objects.create(
         project=project, issue_type=task_type, summary="Open", status=todo, reporter=user,
-        sprint=sprint, story_points=5,
+        sprint=sprint,
     )
     Issue.objects.create(
         project=project, issue_type=task_type, summary="Resolved", status=done, reporter=user,
-        sprint=sprint, story_points=3, resolved_at=timezone.now() - timedelta(days=1),
+        sprint=sprint, resolved_at=timezone.now() - timedelta(days=1),
     )
 
     resp = api_client.get(f"/api/sprints/{sprint.id}/burndown/")
     assert resp.status_code == 200
-    assert resp.data["total_points"] == 8
-    # remaining should drop to 5 (8 - 3) once we reach the resolution day, then hold
-    assert resp.data["remaining"][0] == 8
-    assert 5 in resp.data["remaining"]
+    assert resp.data["total_points"] == 2  # tasks, not story points (removed)
+    # remaining drops to 1 once we reach the resolution day, then holds
+    assert resp.data["remaining"][0] == 2
+    assert 1 in resp.data["remaining"]
 
 
 def test_velocity_reports_committed_and_completed_points(api_client, project, task_type, user):
@@ -81,18 +81,18 @@ def test_velocity_reports_committed_and_completed_points(api_client, project, ta
     done = WorkflowStatus.objects.get(workflow__project=project, name="Done")
     Issue.objects.create(
         project=project, issue_type=task_type, summary="Done one", status=done, reporter=user,
-        sprint=sprint, story_points=5,
+        sprint=sprint,
     )
     Issue.objects.create(
         project=project, issue_type=task_type, summary="Not done", status=todo, reporter=user,
-        sprint=sprint, story_points=2,
+        sprint=sprint,
     )
 
     resp = api_client.get("/api/projects/RPT/velocity/")
     assert resp.status_code == 200
     row = next(r for r in resp.data if r["sprint"] == "S1")
-    assert row["committed"] == 7
-    assert row["completed"] == 5
+    assert row["committed"] == 2  # tasks
+    assert row["completed"] == 1
 
 
 def test_recent_activity_lists_across_projects(api_client, project, task_type, user):

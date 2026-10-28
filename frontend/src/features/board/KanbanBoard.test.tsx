@@ -56,7 +56,6 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     epic: null,
     parent_id: null,
     sprint: null,
-    story_points: null,
     start_date: null,
     due_date: null,
     labels: [],
@@ -87,9 +86,10 @@ describe('KanbanBoard', () => {
     ]
     render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
 
-    expect(screen.getByText('To Do')).toBeInTheDocument()
+    // Column titles, and each card's stage (AFIT, 28 Oct 2026: every card shows its stage).
+    expect(screen.getAllByText('To Do')).toHaveLength(2)
     expect(screen.getByText('In Progress')).toBeInTheDocument()
-    expect(screen.getByText('Done')).toBeInTheDocument()
+    expect(screen.getAllByText('Done')).toHaveLength(2)
     expect(screen.getByText('Fix the login flow')).toBeInTheDocument()
     expect(screen.getByText('Ship the dashboard')).toBeInTheDocument()
   })
@@ -212,3 +212,22 @@ describe('KanbanBoard', () => {
   })
 })
 
+
+describe('Card face (AFIT, 28 Oct 2026)', () => {
+  it('shows the stage, priority and deadline, and no task code, time or story points', () => {
+    const issues = [
+      makeIssue({ id: 1, key: 'TRK-1', summary: 'Smith FY26', priority: 'high', due_date: '2020-01-31', actual_hours: 3, budgeted_hours: 8,
+        status: { id: 1, name: 'To Do', category: 'todo', order: 0 } }),
+      makeIssue({ id: 2, key: 'TRK-2', summary: 'Jones FY26', status: { id: 3, name: 'Done', category: 'done', order: 2 } }),
+    ]
+    render(<KanbanBoard issues={issues} columns={columns} onMoveIssue={vi.fn()} />)
+    const card = screen.getByText('Smith FY26').closest('[role="button"]') as HTMLElement
+    expect(card).toHaveTextContent('To Do')
+    expect(card).toHaveTextContent('High')
+    expect(card).toHaveTextContent('31 Jan')
+    expect(screen.getByTitle('Deadline Fri 31 Jan 2020 (overdue)')).toBeInTheDocument()
+    expect(card).not.toHaveTextContent('TRK-1')
+    expect(card).not.toHaveTextContent('3h')
+    expect(screen.getByText('Jones FY26').closest('[role="button"]')).toHaveTextContent('No deadline')
+  })
+})

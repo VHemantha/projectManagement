@@ -56,7 +56,6 @@ function ClientForm({
   const [teamId, setTeamId] = useState(String(client ? (client.team_id ?? '') : (defaultTeamId ?? '')))
   const [contactName, setContactName] = useState(client?.primary_contact_name ?? '')
   const [contactEmail, setContactEmail] = useState(client?.primary_contact_email ?? '')
-  const [requiresProjects, setRequiresProjects] = useState(client?.requires_projects ?? false)
   const { data: teams } = useTeams()
   const createClient = useCreateClient()
   const updateClient = useUpdateClient()
@@ -70,7 +69,6 @@ function ClientForm({
       team_id: teamId ? Number(teamId) : null,
       primary_contact_name: contactName.trim(),
       primary_contact_email: contactEmail.trim(),
-      requires_projects: requiresProjects,
     }
     if (client) {
       updateClient.mutate({ id: client.id, ...payload }, { onSuccess: onDone })
@@ -121,21 +119,6 @@ function ClientForm({
         value={contactEmail}
         onChange={(e) => setContactEmail(e.target.value)}
       />
-      <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13 }}>
-        <input
-          type="checkbox"
-          checked={requiresProjects}
-          onChange={(e) => setRequiresProjects(e.target.checked)}
-          style={{ marginTop: 2 }}
-        />
-        <span>
-          <strong>Requires projects</strong>
-          <br />
-          <span style={{ color: 'var(--tf-text-subtle)' }}>
-            When off, tasks can be added to this sub-workspace directly, without creating a project first.
-          </span>
-        </span>
-      </label>
       {mutation.isError && (
         <div role="alert" style={{ color: 'var(--tf-danger)', fontSize: 13 }}>
           {extractErrorMessage(mutation.error)}

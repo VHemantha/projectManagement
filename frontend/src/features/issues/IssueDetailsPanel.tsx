@@ -109,19 +109,6 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
       </div>
 
       <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Story points</span>
-        <input
-          className={styles.panelSelect}
-          type="number"
-          min={0}
-          value={issue.story_points ?? ''}
-          onChange={(e) =>
-            updateIssue.mutate({ story_points: e.target.value ? Number(e.target.value) : null })
-          }
-        />
-      </div>
-
-      <div className={styles.panelRow}>
         <label className={styles.panelLabel} htmlFor="task-estimate">
           Estimated Hours
         </label>

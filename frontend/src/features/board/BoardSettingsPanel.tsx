@@ -41,13 +41,9 @@ import { CATEGORY_LABELS } from '@/lib/text'
 
 const CARD_FIELD_OPTIONS: { key: CardFieldKey; label: string }[] = [
   { key: 'epic_tag', label: 'Epic tag' },
-  { key: 'story_points', label: 'Story points' },
-  { key: 'priority', label: 'Priority' },
   { key: 'assignee', label: 'Team Lead avatar' },
-  { key: 'due_date', label: 'Due date' },
   { key: 'labels', label: 'Labels' },
   { key: 'current_responsible', label: 'Currently Responsible' },
-  { key: 'time_logged', label: 'Time logged vs budget' },
   { key: 'job_value', label: 'Task value' },
 ]
 
@@ -265,6 +261,9 @@ export function BoardSettingsForm({
       </Section>
 
       <Section title="Card fields">
+        <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tf-text-subtle)' }}>
+          Every card shows its stage, priority and deadline. Add any of these as well:
+        </p>
         <div className={styles.checkGrid}>
           {CARD_FIELD_OPTIONS.map((opt) => (
             <label key={opt.key} className={styles.check}>

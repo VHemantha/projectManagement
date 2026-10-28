@@ -136,7 +136,6 @@ export interface BoardColumn {
 
 export type CardFieldKey =
   | 'epic_tag'
-  | 'story_points'
   | 'priority'
   | 'assignee'
   | 'labels'
@@ -297,7 +296,6 @@ export interface IssueListItem {
   epic: EpicMini | null
   parent_id: number | null
   sprint: SprintMini | null
-  story_points: number | null
   /** A free-text group the task belongs to; empty when none. */
   group?: string
   start_date: string | null
@@ -353,7 +351,6 @@ export interface IssueDetail {
   epic_color: string
   parent: IssueMini | null
   sprint: SprintMini | null
-  story_points: number | null
   /** A free-text group the task belongs to; empty when none. */
   group?: string
   budgeted_hours: number | null

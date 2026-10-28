@@ -60,7 +60,7 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     render(<CreateIssueModal />)
     expect(screen.getByLabelText('Workspace')).toHaveValue('3')
     expect(screen.getByLabelText('Sub-workspace')).toHaveValue('12')
-    expect(screen.getByLabelText('Project')).toHaveValue('SMITH')
+    expect(screen.getByLabelText('Project (optional)')).toHaveValue('SMITH')
     expect(screen.getByLabelText('Epic')).toHaveValue('42')
     expect(screen.getByLabelText('Team Lead')).toHaveValue('6')
     expect(screen.getByText('In review')).toBeInTheDocument()
@@ -118,16 +118,36 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ issue_type_id: 1 }), expect.anything())
   })
 
-  it("from a board across projects: the filters' workspace and sub-workspace, and the column's category", async () => {
+  it("from a board across projects: the filters' workspace and sub-workspace, no project, and the column's category", async () => {
     mocks.defaults = { teamId: 4, clientId: 20, statusCategory: 'in_progress', columnName: 'In progress' }
     render(<CreateIssueModal />)
     expect(screen.getByLabelText('Workspace')).toHaveValue('4')
     expect(screen.getByLabelText('Sub-workspace')).toHaveValue('20')
-    expect(screen.getByLabelText('Project')).toHaveValue('JONES')
+    // A task needs only its sub-workspace (AFIT, 28 Oct 2026), even one once set to require projects.
+    expect(screen.getByLabelText('Project (optional)')).toHaveDisplayValue('No project — Jones Ltd tasks')
     await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
-    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ project: 'JONES', status_category: 'in_progress' }), expect.anything())
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ client_id: 20, status_category: 'in_progress' }), expect.anything())
+    expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('project')
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('status_id')
+  })
+
+  it('a project in the sub-workspace can still be chosen', async () => {
+    mocks.defaults = { clientId: 20 }
+    render(<CreateIssueModal />)
+    await userEvent.selectOptions(screen.getByLabelText('Project (optional)'), 'JONES')
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ project: 'JONES' }), expect.anything())
+  })
+
+  it('needs a sub-workspace when no project is chosen', async () => {
+    mocks.defaults = {}
+    render(<CreateIssueModal />)
+    expect(screen.getByText(/Choose the sub-workspace the task is for/)).toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText(/Job Name/), 'GST return')
+    expect(screen.getByRole('button', { name: 'Create' })).toBeDisabled()
+    expect(screen.queryByLabelText('Story points')).not.toBeInTheDocument()
   })
 
   it('the person can drop the column and start in the first one', async () => {

@@ -90,15 +90,16 @@ class SprintCompleteView(APIView):
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def sprint_burndown(request, pk=None):
-    """Simplified burndown: total scope is this sprint's current story-point sum
-    (issues moved out after the fact aren't retroactively tracked — there's no
-    daily snapshot table), remaining is scope minus points resolved by each day."""
+    """Simplified burndown: total scope is the number of tasks in the sprint now (story points
+    were removed, AFIT 28 Oct 2026; tasks moved out after the fact aren't retroactively tracked —
+    there's no daily snapshot table), remaining is scope minus tasks resolved by each day.
+    `total_points` keeps its name for the client."""
     sprint = get_object_or_404(Sprint, pk=pk)
     if not sprint.start_date or not sprint.end_date:
         return Response({"detail": "Sprint has no start/end date yet."}, status=400)
 
     issues = list(Issue.objects.filter(sprint=sprint))
-    total_points = sum(i.story_points or 0 for i in issues)
+    total_points = len(issues)
 
     end = sprint.end_date
     if sprint.state == Sprint.State.ACTIVE:
@@ -111,11 +112,7 @@ def sprint_burndown(request, pk=None):
         dates.append(day.isoformat())
         ideal.append(round(total_points * (1 - day_offset / max(num_days - 1, 1)), 1))
         if day <= end:
-            resolved_by_day = sum(
-                i.story_points or 0
-                for i in issues
-                if i.resolved_at and i.resolved_at.date() <= day
-            )
+            resolved_by_day = sum(1 for i in issues if i.resolved_at and i.resolved_at.date() <= day)
             remaining.append(round(total_points - resolved_by_day, 1))
         else:
             remaining.append(None)
@@ -132,8 +129,8 @@ def velocity(request, project_key=None):
     rows = []
     for sprint in reversed(closed_sprints):
         issues = list(Issue.objects.filter(sprint=sprint))
-        committed = sum(i.story_points or 0 for i in issues)
-        completed = sum(i.story_points or 0 for i in issues if i.status.category == "done")
+        committed = len(issues)
+        completed = sum(1 for i in issues if i.status.category == "done")
         rows.append({"sprint": sprint.name, "committed": committed, "completed": completed})
 
     return Response(rows)

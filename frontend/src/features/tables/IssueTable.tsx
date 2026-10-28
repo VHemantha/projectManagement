@@ -282,12 +282,6 @@ function buildColumns(
       sortFn: 'alphanumeric',
       cell: (ctx) => <PriorityCell issue={ctx.row.original} />,
     }),
-    helper.accessor('story_points', {
-      header: 'Points',
-      size: 70,
-      sortFn: 'alphanumeric',
-      cell: (ctx) => ctx.getValue() ?? '—',
-    }),
     helper.accessor('due_date', {
       header: 'Due',
       size: 100,

@@ -21,7 +21,6 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     epic: null,
     parent_id: null,
     sprint: null,
-    story_points: null,
     start_date: null,
     due_date: null,
     labels: [],

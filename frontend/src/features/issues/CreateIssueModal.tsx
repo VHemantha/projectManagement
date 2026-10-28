@@ -15,8 +15,8 @@ import { useUiStore } from '@/store/uiStore'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 const CUSTOM_SUMMARY = '__custom__'
-// Project choice meaning "no project: add the task to the sub-workspace's own list of tasks"
-// (for sub-workspaces that don't require projects).
+// Project choice meaning "no project: add the task to the sub-workspace's own list of tasks". A
+// task needs only its sub-workspace; the project is optional (AFIT, 28 Oct 2026).
 const CLIENT_JOBS = '__client_jobs__'
 
 export function CreateIssueModal() {
@@ -32,7 +32,7 @@ export function CreateIssueModal() {
   const [clientId, setClientId] = useState('')
   const [projectKey, setProjectKey] = useState<string>('')
   const selectedClient = clientId ? (clients ?? []).find((c) => String(c.id) === clientId) : undefined
-  const clientJobsAllowed = !!selectedClient && !selectedClient.requires_projects
+  const clientJobsAllowed = !!selectedClient
   const lookupKey = projectKey === CLIENT_JOBS ? (selectedClient?.workspace_project_key ?? '') : projectKey
   const { data: project } = useProject(lookupKey || undefined)
   const { data: issueTypes } = useIssueTypes(lookupKey || undefined, false)
@@ -48,7 +48,6 @@ export function CreateIssueModal() {
   const [description, setDescription] = useState<JSONContent | null>(null)
   const [assigneeId, setAssigneeId] = useState('')
   const [priority, setPriority] = useState<Priority>('medium')
-  const [storyPoints, setStoryPoints] = useState('')
   const [dueDate, setDueDate] = useState('')
   // The standard sub-tasks (AFIT, 27 Oct 2026), on by default.
   const [withStages, setWithStages] = useState(true)
@@ -111,19 +110,20 @@ export function CreateIssueModal() {
     const team = project ? project.primary_team?.id : (defaults.teamId ?? client?.team_id ?? undefined)
     setTeamId(team != null ? String(team) : '')
     setClientId(client ? String(client.id) : '')
-    if (project?.is_client_workspace && client && !client.requires_projects) setProjectKey(CLIENT_JOBS)
+    if (project?.is_client_workspace && client) setProjectKey(CLIENT_JOBS)
     else if (project) setProjectKey(project.key)
-    else setProjectKey((projects.find((p) => !p.is_client_workspace) ?? projects[0])?.key ?? '')
+    else setProjectKey(client ? CLIENT_JOBS : '')
     if (defaults.epicId) setEpicId(String(defaults.epicId))
     if (defaults.assigneeId) setAssigneeId(String(defaults.assigneeId))
     setStartColumn(defaults.statusId || defaults.statusCategory ? defaults : null)
   }, [open, projects, clients, defaults])
 
   useEffect(() => {
-    if (!projectChoices.includes(projectKey)) {
-      // Prefer a real project; with none, a client that doesn't need projects gets its job list.
-      setProjectKey(availableProjects[0]?.key ?? (clientJobsAllowed ? CLIENT_JOBS : ''))
-    }
+    // A sub-workspace's own task list unless a project is picked; a project from another
+    // sub-workspace is dropped. (An empty choice is left alone until a sub-workspace is chosen,
+    // so the page's project, set in the same render, isn't overwritten.)
+    if (projectKey && !projectChoices.includes(projectKey)) setProjectKey(clientJobsAllowed ? CLIENT_JOBS : '')
+    else if (!projectKey && clientJobsAllowed) setProjectKey(CLIENT_JOBS)
   }, [teamId, clientId, availableProjects, projectChoices, projectKey, clientJobsAllowed])
 
   // Every task is created as a "Task" (AFIT, 26 Oct 2026: no type to choose); the first type only
@@ -143,7 +143,6 @@ export function CreateIssueModal() {
     setDescription(null)
     setAssigneeId('')
     setPriority('medium')
-    setStoryPoints('')
     setDueDate('')
     setWithStages(true)
     setEpicId('')
@@ -177,7 +176,6 @@ export function CreateIssueModal() {
         description,
         assignee_id: assigneeId ? Number(assigneeId) : null,
         priority,
-        story_points: storyPoints ? Number(storyPoints) : null,
         due_date: dueDate || (withStages ? reviewDate : '') || null,
         default_subtasks: withStages,
         epic_id: epicId ? Number(epicId) : null,
@@ -255,7 +253,7 @@ export function CreateIssueModal() {
           <div className={styles.field}>
             <div className={styles.field}>
               <label className={styles.label} htmlFor="ci-project">
-                Project
+                Project (optional)
               </label>
               <select
                 id="ci-project"
@@ -263,15 +261,10 @@ export function CreateIssueModal() {
                 value={projectKey}
                 onChange={(e) => setProjectKey(e.target.value)}
               >
-                {clientJobsAllowed && (
+                {clientJobsAllowed ? (
                   <option value={CLIENT_JOBS}>No project — {selectedClient!.name} tasks</option>
-                )}
-                {projectChoices.length === 0 && (
-                  <option value="">
-                    {selectedClient?.requires_projects
-                      ? `${selectedClient.name} needs a project — create one first`
-                      : 'No project in this workspace/sub-workspace yet'}
-                  </option>
+                ) : (
+                  <option value="">No project — choose the sub-workspace above</option>
                 )}
                 {availableProjects.map((p) => (
                   <option key={p.key} value={p.key}>
@@ -281,6 +274,10 @@ export function CreateIssueModal() {
               </select>
             </div>
           </div>
+
+          {!projectKey && (
+            <p className={styles.fieldHint}>Choose the sub-workspace the task is for (a project is optional).</p>
+          )}
 
           {startColumn && (
             <p className={styles.fieldHint}>
@@ -399,14 +396,6 @@ export function CreateIssueModal() {
           </div>
 
           <div className={styles.row}>
-            <Input
-              id="ci-points"
-              label="Story points"
-              type="number"
-              min={0}
-              value={storyPoints}
-              onChange={(e) => setStoryPoints(e.target.value)}
-            />
             <Input
               id="ci-due"
               label="Due date"

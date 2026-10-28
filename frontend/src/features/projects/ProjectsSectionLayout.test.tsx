@@ -35,10 +35,6 @@ const tree: NavTreeNode[] = [
 vi.mock("@/api/reports", () => ({
   useNavTree: () => ({ data: tree, isLoading: false }),
 }));
-vi.mock("./CreateProjectDialog", () => ({
-  CreateProjectDialog: (props: { open: boolean; defaultClientId?: number }) =>
-    props.open ? <div role="dialog">Create project in {props.defaultClientId ?? "nowhere"}</div> : null,
-}));
 vi.mock("./CreateClientDialog", () => ({
   CreateClientDialog: (props: { open: boolean; defaultTeamId?: number }) =>
     props.open ? <div role="dialog">New sub-workspace in {props.defaultTeamId ?? "nowhere"}</div> : null,
@@ -108,12 +104,15 @@ describe("Projects tree: Workspace > Sub-workspace, each opening its tasks", () 
     expect(screen.queryByText("RWCA")).not.toBeInTheDocument();
   });
 
-  it("adds a sub-workspace to a workspace and a project to a sub-workspace from their rows", async () => {
+  it("adds a sub-workspace to a workspace from its row; projects can't be created", async () => {
     renderTree();
     await userEvent.click(screen.getByRole("button", { name: "New sub-workspace in Team 4" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("New sub-workspace in 4");
     expect(screen.getByTestId("where")).not.toHaveTextContent("all-issues"); // the row's button does not open it
     await userEvent.keyboard("{Escape}");
+    await userEvent.click(screen.getByText("Team 4"));
+    expect(screen.queryByRole("button", { name: /New project/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Create/ })).not.toBeInTheDocument();
   });
 
   it("finds a sub-workspace by name", async () => {
@@ -121,7 +120,5 @@ describe("Projects tree: Workspace > Sub-workspace, each opening its tasks", () 
     await userEvent.type(screen.getByRole("textbox", { name: "Search workspaces and sub-workspaces" }), "acme");
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(screen.queryByText("RWCA")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "New project in Acme" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent("Create project in 6");
   });
 });

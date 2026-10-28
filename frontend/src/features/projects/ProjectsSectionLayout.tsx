@@ -3,7 +3,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ExternalLink,
-  FolderPlus,
   LayoutGrid,
   Plus,
   Search,
@@ -15,16 +14,15 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import styles from './ProjectsSectionLayout.module.css'
 import { CreateClientDialog } from './CreateClientDialog'
-import { CreateProjectDialog } from './CreateProjectDialog'
 import { type NavTreeNode, useNavTree } from '@/api/reports'
 import rail from '@/app/SideRail.module.css'
 import { Button, Skeleton, Tooltip, TreeView, type TreeNode } from '@/design-system'
 import { usePanel } from '@/store/sidebarStore'
 
-/** Where a new project or sub-workspace goes when it is started from a row of the tree. */
+/** Where a new sub-workspace goes when it is started from a row of the tree. Projects are no
+ * longer created from the app (AFIT, 28 Oct 2026): a task needs only its sub-workspace. */
 interface Placement {
   teamId?: number
-  clientId?: number
 }
 
 const TASKS_PATH = '/projects/all-issues'
@@ -76,7 +74,6 @@ function nodeIcon(node: TreeNode): ReactNode {
 export function ProjectsSectionLayout() {
   const navigate = useNavigate()
   const [treeSearch, setTreeSearch] = useState('')
-  const [createProject, setCreateProject] = useState<Placement | null>(null)
   const [createSubWorkspace, setCreateSubWorkspace] = useState<Placement | null>(null)
   const { data: rawNodes, isLoading } = useNavTree('hierarchy')
   const treeNodes = useMemo(() => trimmed(rawNodes ?? []), [rawNodes])
@@ -113,24 +110,6 @@ export function ProjectsSectionLayout() {
         </>
       )
     }
-    if (n.type === 'sub_workspace') {
-      return (
-        <>
-          {typeof n.client_id === 'number' && (
-            <Tooltip label={`New project in ${n.label}`} side="bottom">
-              <button
-                type="button"
-                className={styles.rowAction}
-                aria-label={`New project in ${n.label}`}
-                onClick={() => setCreateProject({ clientId: n.client_id ?? undefined })}
-              >
-                <Plus size={13} />
-              </button>
-            </Tooltip>
-          )}
-        </>
-      )
-    }
     return null
   }
 
@@ -141,11 +120,6 @@ export function ProjectsSectionLayout() {
           <Tooltip label="Expand projects panel" side="right">
             <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Expand projects panel">
               <ChevronsRight size={18} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Create project" side="right">
-            <button type="button" className={rail.button} onClick={() => setCreateProject({})} aria-label="Create project">
-              <FolderPlus size={18} />
             </button>
           </Tooltip>
           <Tooltip label="All tasks board" side="right">
@@ -183,9 +157,6 @@ export function ProjectsSectionLayout() {
           <div className={styles.sidebarHeader}>
             <span className={styles.sidebarTitle}>Projects</span>
             <div style={{ display: 'flex', gap: 6 }}>
-              <Button variant="primary" size="sm" onClick={() => setCreateProject({})}>
-                <Plus size={14} /> Create
-              </Button>
               <Tooltip label="Collapse panel" side="bottom">
                 <button type="button" className={rail.toggle} onClick={panel.toggle} aria-label="Collapse projects panel">
                   <ChevronsLeft size={18} />
@@ -247,12 +218,6 @@ export function ProjectsSectionLayout() {
         <Outlet />
       </div>
 
-      <CreateProjectDialog
-        open={createProject !== null}
-        onOpenChange={(open) => !open && setCreateProject(null)}
-        defaultTeamId={createProject?.teamId}
-        defaultClientId={createProject?.clientId}
-      />
       <CreateClientDialog
         open={createSubWorkspace !== null}
         onOpenChange={(open) => !open && setCreateSubWorkspace(null)}

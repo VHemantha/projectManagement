@@ -52,7 +52,6 @@ HISTORY_TRACKED_FIELDS = [
     "epic",
     "parent",
     "sprint",
-    "story_points",
     "estimated_hours",
     "due_date",
     "is_archived",
@@ -195,7 +194,6 @@ class IssueListSerializer(serializers.ModelSerializer):
             "epic",
             "parent_id",
             "sprint",
-            "story_points",
             "start_date",
             "due_date",
             "labels",
@@ -320,7 +318,6 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "parent_id",
             "sprint",
             "sprint_id",
-            "story_points",
             "budgeted_hours",
             "estimated_hours",
             "actual_hours",
@@ -374,10 +371,6 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         if self.instance is None and not attrs.get("project"):
             if client is None:
                 raise serializers.ValidationError({"project": "Choose a project, or a sub-workspace to add the task to."})
-            if client.requires_projects:
-                raise serializers.ValidationError(
-                    {"project": f"Tasks in {client.name} must belong to one of its projects — choose a project."}
-                )
             attrs["project"] = get_or_create_client_workspace(client, self.context["request"].user)
         category = attrs.pop("status_category", None)
         if self.instance is None:

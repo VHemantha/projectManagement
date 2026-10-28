@@ -156,19 +156,6 @@
   flex-shrink: 0;
 }
 
-.points {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--tf-text-subtle);
-  background: var(--tf-surface-hover);
-  border-radius: var(--tf-radius-full);
-  min-width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 4px;
-}
 
 .quickAdd {
   padding: var(--tf-space-2) var(--tf-space-4);

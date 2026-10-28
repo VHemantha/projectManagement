@@ -1,5 +1,6 @@
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { Calendar } from 'lucide-react'
 import type { ReactNode } from 'react'
 
@@ -8,23 +9,39 @@ import { cardAccentColor, withAlpha } from './cardColors'
 import styles from './KanbanBoard.module.css'
 import { useRunningTimer } from '@/api/timesheets'
 import type { CardColorRule, CardColors, CardColorStyle, CardFieldKey, IssueListItem } from '@/api/types'
-import { Avatar, IssueKey, IssueTypeIcon, PriorityIcon } from '@/design-system'
+import { Avatar, PriorityIcon, StatusBadge } from '@/design-system'
 import { TimerButton } from '@/features/timesheets/TimerButton'
 import { useUiStore } from '@/store/uiStore'
-import { TimesheetBreakdownLink } from '@/features/issues/TimesheetBreakdown'
 
-// Field-key -> render-fn lookup for the configurable meta-right row (Section 1 of the board
-// customization addendum). A card_fields value with no entry here renders nothing — harmless,
-// and lets the type list new keys (e.g. "current_responsible", "time_logged") ahead of the
-// backend/data support landing for them, without this file needing to know about that yet.
+const PRIORITY_LABELS: Record<IssueListItem['priority'], string> = {
+  highest: 'Highest', high: 'High', medium: 'Medium', low: 'Low', lowest: 'Lowest',
+}
+
+/** The deadline: red once past (unless the task is finished), amber within two days. */
+function Deadline({ issue }: { issue: IssueListItem }) {
+  if (!issue.due_date) {
+    return <span className={styles.cardDeadline} style={{ color: 'var(--tf-text-subtle)' }}>No deadline</span>
+  }
+  const due = parseISO(issue.due_date)
+  const days = differenceInCalendarDays(due, new Date())
+  const finished = issue.status.category === 'done'
+  const color = finished ? 'var(--tf-text-subtle)' : days < 0 ? 'var(--tf-danger)' : days <= 2 ? 'var(--tf-warning)' : 'var(--tf-text-secondary)'
+  return (
+    <span
+      className={styles.cardDeadline}
+      style={{ color, fontWeight: !finished && days < 0 ? 600 : undefined }}
+      title={`Deadline ${format(due, 'EEE d MMM yyyy')}${!finished && days < 0 ? ' (overdue)' : ''}`}
+    >
+      <Calendar size={11} aria-hidden="true" />
+      {format(due, 'd MMM')}
+    </span>
+  )
+}
+
+// Field-key -> render-fn lookup for the optional meta-right row (the board's card_fields). The
+// deadline, stage and priority are on every card (AFIT, 28 Oct 2026); a card_fields value with no
+// entry here (e.g. the old "story_points" or "time_logged") renders nothing.
 const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) => ReactNode>> = {
-  story_points: (issue) =>
-    issue.story_points != null && (
-      <span key="story_points" style={{ fontSize: 11, color: 'var(--tf-text-subtle)', fontWeight: 600 }}>
-        {issue.story_points}
-      </span>
-    ),
-  priority: (issue) => <PriorityIcon key="priority" priority={issue.priority} size={13} />,
   assignee: (issue) => (
     <Avatar
       key="assignee"
@@ -33,17 +50,6 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
       size={22}
     />
   ),
-  due_date: (issue) =>
-    issue.due_date && (
-      <span
-        key="due_date"
-        title={issue.due_date}
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, color: 'var(--tf-text-subtle)' }}
-      >
-        <Calendar size={11} />
-        {new Date(issue.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-      </span>
-    ),
   labels: (issue) =>
     issue.labels.length > 0 && (
       <span key="labels" style={{ display: 'inline-flex', gap: 3 }}>
@@ -62,31 +68,11 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
         <Avatar name={issue.current_responsible.display_name} src={issue.current_responsible.avatar} size={18} />
       </span>
     ),
-  // Actual time from timesheets vs the job's budget ("3.5h / 8h"), red once over budget.
-  time_logged: (issue) =>
-    (issue.actual_hours > 0 || issue.budgeted_hours != null) && (
-      <TimesheetBreakdownLink key="time_logged" issueId={issue.id} issueKey={issue.key} title={issue.summary}>
-      <span
-        title="Actual time (timesheets) / budget — click for the timesheet breakup"
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color:
-            issue.budgeted_hours != null && issue.actual_hours > issue.budgeted_hours
-              ? 'var(--tf-danger)'
-              : 'var(--tf-text-subtle)',
-        }}
-      >
-        {Number(issue.actual_hours.toFixed(1))}h
-        {issue.budgeted_hours != null && ` / ${issue.budgeted_hours}h`}
-      </span>
-      </TimesheetBreakdownLink>
-    ),
   // "linked_issue_count" is listed in CardFieldKey for forward-compat but has no renderer yet
   // (IssueListItem doesn't carry that data); it renders as a no-op via the lookup miss above.
 }
 
-const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'story_points', 'priority', 'assignee', 'job_value', 'time_logged']
+const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'assignee', 'job_value']
 
 export function BoardCard({
   issue,
@@ -146,10 +132,14 @@ export function BoardCard({
       </div>
       {cardFields.includes('job_value') && <CardValue issue={issue} />}
       <div className={styles.cardFooter}>
-        <IssueTypeIcon typeName={issue.issue_type.name} size={13} />
-        <span className={styles.cardKey}>
-          <IssueKey value={issue.key} />
+        <span className={styles.cardStage} title="Stage">
+          <StatusBadge label={issue.status.name} category={issue.status.category} />
         </span>
+        <span className={styles.cardPriority} title={`Priority: ${PRIORITY_LABELS[issue.priority]}`}>
+          <PriorityIcon priority={issue.priority} size={12} />
+          {PRIORITY_LABELS[issue.priority]}
+        </span>
+        <Deadline issue={issue} />
         <div className={styles.cardMetaRight}>
           {metaFields.map((field) => META_FIELD_RENDERERS[field]?.(issue) ?? null)}
         </div>

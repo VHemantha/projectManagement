@@ -122,12 +122,12 @@ def test_job_for_a_client_without_projects_goes_to_its_job_list(api, task_type):
     assert acme_row["project_count"] == 0  # the automatic job list isn't counted as a project
 
 
-def test_a_client_that_requires_projects_rejects_project_less_jobs(api, task_type):
+def test_tasks_never_need_a_project(api, task_type):
+    """AFIT, 28 Oct 2026: a task needs only its sub-workspace, even one once set to require projects."""
     rwca = Client.objects.create(organization=Organization.get_solo(), name="RWCA", requires_projects=True)
     resp = api.post("/api/issues/", {"client_id": rwca.id, "summary": "x", "issue_type_id": task_type.id}, format="json")
-    assert resp.status_code == 400
-    assert "must belong to one of its projects" in str(resp.data)
-    assert not Project.objects.filter(client=rwca).exists()
+    assert resp.status_code == 201, resp.data
+    assert Project.objects.get(key=resp.data["project"]).client == rwca
 
 
 def test_a_job_needs_a_project_or_a_client(api, task_type):

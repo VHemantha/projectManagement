@@ -28,7 +28,7 @@ vi.mock('@/api/teams', () => ({ useTeam: () => ({ data: undefined }) }))
 const pat = { id: 2, display_name: 'Pat', avatar: null }
 const issue = {
   key: 'RWCA-1', project: 'RWCA', status: { id: 1, name: 'To Start', category: 'todo' }, priority: 'medium', assignee: pat, reporter: pat,
-  preparer: pat, reviewer: null, current_responsible: pat, story_points: null, budgeted_hours: 10, estimated_hours: null, actual_hours: 2,
+  preparer: pat, reviewer: null, current_responsible: pat, budgeted_hours: 10, estimated_hours: null, actual_hours: 2,
   time_by_user: [], group: '', due_date: null, labels: [], is_watching: false, watcher_count: 0, allocated_value: null,
   created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
 } as unknown as IssueDetail

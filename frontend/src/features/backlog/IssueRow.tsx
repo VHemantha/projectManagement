@@ -45,7 +45,6 @@ export function IssueRow({ issue }: { issue: IssueListItem }) {
           </span>
         ))}
         <PriorityIcon priority={issue.priority} size={14} />
-        {issue.story_points != null && <span className={styles.points}>{issue.story_points}</span>}
         <Avatar name={issue.assignee?.display_name ?? 'Unassigned'} src={issue.assignee?.avatar} size={24} />
       </div>
     </div>

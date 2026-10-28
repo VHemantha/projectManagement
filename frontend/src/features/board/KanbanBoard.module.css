@@ -215,12 +215,26 @@
 
 .cardFooter {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
-.cardKey {
+/* Every card: stage, priority and deadline (AFIT, 28 Oct 2026). */
+.cardStage {
+  display: inline-flex;
+  max-width: 100%;
   font-size: 11px;
+}
+
+.cardPriority,
+.cardDeadline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--tf-text-secondary);
+  white-space: nowrap;
 }
 
 .cardMetaRight {

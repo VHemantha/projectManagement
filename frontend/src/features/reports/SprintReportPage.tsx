@@ -94,7 +94,7 @@ export function SprintReportPage() {
                 </div>
                 <div className={styles.legend}>
                   <span className={styles.legendItem}>
-                    <span className={styles.swatch} style={{ background: 'var(--tf-primary)' }} /> Remaining points
+                    <span className={styles.swatch} style={{ background: 'var(--tf-primary)' }} /> Remaining tasks
                   </span>
                   <span className={styles.legendItem}>
                     <span className={styles.swatch} style={{ background: 'var(--tf-text-subtle)' }} /> Ideal burn
@@ -107,7 +107,7 @@ export function SprintReportPage() {
       </div>
 
       <div className={styles.card}>
-        <div className={styles.cardTitle}>Velocity</div>
+        <div className={styles.cardTitle}>Velocity (tasks)</div>
         {!velocity || velocity.length === 0 ? (
           <div className={styles.empty}>No closed sprints yet.</div>
         ) : (

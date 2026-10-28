@@ -65,7 +65,6 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     epic: null,
     parent_id: null,
     sprint: null,
-    story_points: null,
     start_date: null,
     due_date: null,
     labels: [],
@@ -93,7 +92,7 @@ describe('IssueTable', () => {
   it('lists every labelled column in the Columns menu, including field-name columns', async () => {
     render(<IssueTable tableId="menu-test" issues={[makeIssue({ id: 1, key: 'TRK-1', summary: 'x' })]} />)
     await userEvent.click(screen.getByRole('button', { name: /Columns/ }))
-    for (const label of ['Key', 'Summary', 'Status', 'Priority', 'Points', 'Due', 'Actual']) {
+    for (const label of ['Key', 'Summary', 'Status', 'Priority', 'Due', 'Actual']) {
       expect(await screen.findByRole('checkbox', { name: label })).toBeInTheDocument()
     }
   })

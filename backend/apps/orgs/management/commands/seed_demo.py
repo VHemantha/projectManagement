@@ -332,7 +332,6 @@ class Command(BaseCommand):
                 status=status, priority=random.choice(PRIORITIES),
                 assignee=assignee, reporter=random.choice(member_users),
                 epic=epic, sprint=sprint,
-                story_points=random.choice([None, 1, 2, 3, 5, 8]),
                 due_date=timezone.now().date() + timedelta(days=random.randint(-10, 30)) if random.random() < 0.3 else None,
                 resolved_at=resolved_at,
                 rank=rank,

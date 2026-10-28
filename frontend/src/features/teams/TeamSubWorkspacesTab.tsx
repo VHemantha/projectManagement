@@ -8,7 +8,6 @@ import { useProjects } from '@/api/projects'
 import type { TeamDetail } from '@/api/types'
 import { Button } from '@/design-system'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
-import { CreateProjectDialog } from '@/features/projects/CreateProjectDialog'
 
 /** A workspace's sub-workspaces, each with its projects: the next two levels of
  * Workspace > Sub-workspace > Project > Task, with a way to add to each. */
@@ -17,7 +16,6 @@ export function TeamSubWorkspacesTab({ team }: { team: TeamDetail }) {
   const { data: projects } = useProjects()
   const [newSubWorkspace, setNewSubWorkspace] = useState(false)
   const [editing, setEditing] = useState<ClientItem | undefined>()
-  const [newProjectIn, setNewProjectIn] = useState<number | null>(null)
 
   const mine = (clients ?? []).filter((c) => c.team_id === team.id)
   const projectsOf = (clientId: number) =>
@@ -29,7 +27,7 @@ export function TeamSubWorkspacesTab({ team }: { team: TeamDetail }) {
     <div className={styles.page}>
       <div className={styles.header}>
         <p className={styles.hint}>
-          Sub-workspaces in {team.name}, and the projects in each. A task belongs to a project.
+          Sub-workspaces in {team.name}, and the tasks and projects in each. A task needs only its sub-workspace.
         </p>
         <Button variant="primary" size="sm" onClick={() => setNewSubWorkspace(true)}>
           <Plus size={14} /> New sub-workspace
@@ -49,18 +47,14 @@ export function TeamSubWorkspacesTab({ team }: { team: TeamDetail }) {
                   <Link to={`/projects/all-issues?client=${client.id}`} className={styles.cardTitle}>
                     {client.name}
                   </Link>
-                  {client.requires_projects && <span className={styles.badge}>Requires projects</span>}
                   <span className={styles.cardActions}>
-                    <Button variant="subtle" size="sm" onClick={() => setNewProjectIn(client.id)}>
-                      <Plus size={13} /> Project
-                    </Button>
                     <Button variant="subtle" size="sm" aria-label={`${client.name} settings`} onClick={() => setEditing(client)}>
                       <Settings size={13} />
                     </Button>
                   </span>
                 </div>
                 {own.length === 0 ? (
-                  <div className={styles.noProjects}>No projects yet.</div>
+                  <div className={styles.noProjects}>No tasks yet.</div>
                 ) : (
                   <ul className={styles.projects}>
                     {own.map((p) => (
@@ -84,12 +78,6 @@ export function TeamSubWorkspacesTab({ team }: { team: TeamDetail }) {
 
       <CreateClientDialog open={newSubWorkspace} onOpenChange={setNewSubWorkspace} defaultTeamId={team.id} />
       <CreateClientDialog open={!!editing} onOpenChange={(open) => !open && setEditing(undefined)} client={editing} />
-      <CreateProjectDialog
-        open={newProjectIn !== null}
-        onOpenChange={(open) => !open && setNewProjectIn(null)}
-        defaultClientId={newProjectIn ?? undefined}
-        defaultTeamId={team.id}
-      />
     </div>
   )
 }
