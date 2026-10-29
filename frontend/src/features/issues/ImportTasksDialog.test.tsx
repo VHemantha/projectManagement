@@ -43,6 +43,17 @@ describe('Bulk import tasks', () => {
     expect(mocks.exported).toEqual({ no_parent: true, project: 'RWCA' })
   })
 
+  it('the column guide says what is required, and each type and format', async () => {
+    render(<ImportTasksDialog open onOpenChange={() => {}} exportParams={{}} />)
+    await userEvent.click(screen.getByText(/What goes in each column/))
+    const guide = screen.getByRole('table', { name: 'Columns' })
+    const required = within(guide).getAllByRole('row').filter((r) => r.textContent?.includes('Required for a new task'))
+    expect(required.map((r) => within(r).getByRole('rowheader').textContent)).toEqual(['Sub-workspace', 'Job Name', 'Group', 'Accountant'])
+    expect(within(guide).getByRole('row', { name: /Start Date/ })).toHaveTextContent('DateYYYY-MM-DD (e.g. 2026-11-02) or DD/MM/YYYY (e.g. 02/11/2026). Empty: today.')
+    expect(within(guide).getByRole('row', { name: /Due Date/ })).toHaveTextContent('Empty: 5 days after the start date.')
+    expect(within(guide).getByRole('row', { name: /Project Key/ })).toHaveTextContent('Optional')
+  })
+
   it('shows the problems by row and does not import until the file is right', async () => {
     mocks.calls = []
     mocks.next = [result({

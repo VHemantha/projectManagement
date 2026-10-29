@@ -5,12 +5,17 @@ A row with no Task Key adds a task; a row with a Task Key updates that task, and
 leaves its value as it is ("-" clears it). Every row goes through the same serializer as the task
 form, so the budget, due-date and permission rules, history and notifications all apply.
 
+A new task needs its sub-workspace, job name, group and accountant; the project is optional (without
+one the task goes in the sub-workspace's own list). A blank start date is today and a blank due
+date 5 days after the start (AFIT, 29 Oct 2026). The template's second and third rows say, for each
+column, whether it is required and its type and format; rows starting with "#" are skipped.
+
 The whole file is checked before anything is saved: if any row has a problem, nothing is
 imported and every problem is reported with its row number.
 """
 import csv
 import io
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 from django.db.models import Q
@@ -19,17 +24,36 @@ from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.notifications.inbox import plain_text
 from apps.projects.keys import resolve_project
-from apps.projects.models import Label
+from apps.projects.models import Label, Project
 from apps.workflow.models import IssueType
 
 from .models import Issue
 
-COLUMNS = [
-    "Task Key", "Project Key", "Sub-workspace", "Job Name", "Group", "Status", "Priority",
-    "Team Lead", "Accountant", "Reviewer", "Currently Responsible",
-    "Start Date", "Due Date", "Estimated Hours", "Budgeted Hours", "Labels", "Description",
-    "Add Standard Sub-tasks",
-]
+# Column: (required for a new task, type, format and default). The template's guide rows.
+SPEC = {
+    "Task Key": ("Optional", "Text", "Leave empty to add a new task; a task key (e.g. RWCA-12) updates that task"),
+    "Sub-workspace": ("Required", "Text", "The sub-workspace's name exactly as it shows in the app"),
+    "Job Name": ("Required", "Text", "Up to 500 characters"),
+    "Group": ("Required", "Text", "Up to 100 characters"),
+    "Accountant": ("Required", "Person", "Email address, or the name as it shows in the app"),
+    "Project Key": ("Optional", "Text", "A project of that sub-workspace (e.g. RWCA); empty: the sub-workspace's own task list"),
+    "Status": ("Optional", "Stage", "To Start, In Progress, Waiting for Info, Sent to Client, Internal Adjustments, Client Adjustments, "
+                                    "Complete or To be Archived; empty: To Start"),
+    "Priority": ("Optional", "Choice", "Highest, High, Medium, Low or Lowest; empty: Medium"),
+    "Team Lead": ("Optional", "Person", "Email address, or the name as it shows in the app"),
+    "Reviewer": ("Optional", "Person", "Email address, or the name as it shows in the app"),
+    "Currently Responsible": ("Optional", "Person", "Email address, or the name; empty: the accountant"),
+    "Start Date": ("Optional", "Date", "YYYY-MM-DD (e.g. 2026-11-02) or DD/MM/YYYY (e.g. 02/11/2026); empty: today"),
+    "Due Date": ("Optional", "Date", "YYYY-MM-DD or DD/MM/YYYY; empty: 5 days after the start date"),
+    "Estimated Hours": ("Optional", "Number", "Hours, a point for decimals (e.g. 6.5); 0 to 10000"),
+    "Budgeted Hours": ("Optional", "Number", "Hours, a point for decimals (e.g. 8); set by a team lead or above"),
+    "Labels": ("Optional", "List", "The project's existing labels, separated by ; (e.g. GST; Urgent)"),
+    "Description": ("Optional", "Text", "Plain text"),
+    "Add Standard Sub-tasks": ("Optional", "Yes/No", "yes adds Pre-check, Preparation, Internal Review and Client Review; empty: no"),
+}
+COLUMNS = list(SPEC)
+REQUIRED = [c for c, (need, _, _) in SPEC.items() if need == "Required"]
+DUE_AFTER_START_DAYS = 5
 PEOPLE = {"Team Lead": "assignee_id", "Accountant": "preparer_id", "Reviewer": "reviewer_id", "Currently Responsible": "current_responsible_id"}
 CLEAR = "-"
 MAX_ROWS = 1000
@@ -66,8 +90,8 @@ def read_rows(data: bytes) -> list[dict]:
         raise FileProblem("The file needs a Job Name column (or a Task Key column to update tasks).")
     rows = []
     for number, cells in enumerate(reader, start=2):
-        if not any(c.strip() for c in cells):
-            continue
+        if not any(c.strip() for c in cells) or (cells and cells[0].strip().startswith("#")):
+            continue  # empty, or one of the template's guide rows
         rows.append({"_row": number, **{n: (c or "").strip() for n, c in zip(names, cells) if n}})
         if len(rows) > MAX_ROWS:
             raise FileProblem(f"The file has more than {MAX_ROWS} tasks. Split it into smaller files.")
@@ -151,27 +175,35 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
 
     project_key, client_name = cell("Project Key"), cell("Sub-workspace")
     if creating:
+        for column in REQUIRED:
+            if cell(column) in ("", CLEAR):
+                problems[column] = f"{column} is required for a new task."
+        client = None
+        if client_name:
+            found = list(Client.objects.filter(name__iexact=client_name)[:2])
+            if not found:
+                problems["Sub-workspace"] = f"No sub-workspace called “{client_name}”."
+            elif len(found) > 1:
+                problems["Sub-workspace"] = f"More than one sub-workspace is called “{client_name}”. Rename one in the app, or give the project key."
+            else:
+                client = found[0]
         if project_key:
             project = resolve_project(project_key)
             if project is None:
                 problems["Project Key"] = f"No project with the key “{project_key}”."
+            elif client is not None and project.client_id != client.id:
+                problems["Project Key"] = f"{project.key} isn't in the sub-workspace {client.name}."
             else:
                 data["project"] = project.key
-        elif client_name:
-            client = Client.objects.filter(name__iexact=client_name).first()
-            if client is None:
-                problems["Sub-workspace"] = f"No sub-workspace called “{client_name}”."
-            else:
-                data["client_id"] = client.id
-        else:
-            problems["Project Key"] = "Give the project key (or the sub-workspace) the task belongs to."
+        elif client is not None:
+            # The sub-workspace's own task list (made with the first task if it doesn't exist yet).
+            data["client_id"] = client.id
+            project = Project.objects.filter(client=client, is_client_workspace=True).first()
         task_type = IssueType.objects.filter(name__iexact="Task", project__isnull=True).first() or IssueType.objects.filter(name__iexact="Task").first()
         if task_type is None:
             problems["Job Name"] = "The app has no Task type set up."
         else:
             data["issue_type_id"] = task_type.id
-        if not cell("Job Name"):
-            problems["Job Name"] = "Give the task a job name."
     elif project_key and resolve_project(project_key) != issue.project:
         problems["Project Key"] = f"{issue.key} is in {issue.project.key}; a task can't be moved to another project from a file."
 
@@ -190,16 +222,22 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
     text("Job Name", "summary", 500)
     text("Group", "group", 100)
 
-    # A status or labels need the project; for a new task in a sub-workspace's own list (no
-    # project yet) the stage and labels are left to the defaults.
+    # A stage is one of the project's; a sub-workspace's own list this file makes has the standard
+    # stages, so there the stage is set by name once the list exists.
     if value := cell("Status"):
         if project is not None:
             try:
                 data["status_id"] = lookups.status(project, value).id
             except ValueError as e:
                 problems["Status"] = str(e)
-        elif "Project Key" not in problems:
-            problems["Status"] = "Give the project key to set the stage."
+        elif creating and "client_id" in data:
+            from apps.workflow.services import STATUS_DEFS
+
+            names = {name.lower(): name for name, _, _ in STATUS_DEFS}
+            if value.lower() in names:
+                data["_stage"] = names[value.lower()]
+            else:
+                problems["Status"] = f"“{value}” isn't a stage. Use one of: {', '.join(names.values())}."
 
     if value := cell("Priority"):
         choices = {c.lower(): c for c, _ in Issue.Priority.choices} | {label.lower(): c for c, label in Issue.Priority.choices}
@@ -227,6 +265,17 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
                 data[field] = parse_date(value).isoformat()
             except ValueError as e:
                 problems[column] = str(e)
+    if creating and "Start Date" not in problems and "Due Date" not in problems:
+        from . import stages
+
+        start = date.fromisoformat(data["start_date"]) if data.get("start_date") else stages.today()
+        data["start_date"] = start.isoformat()
+        if not data.get("due_date"):
+            due = start + timedelta(days=DUE_AFTER_START_DAYS)
+            if cell("Add Standard Sub-tasks").lower() in YES:
+                # Never before the internal review that the standard sub-tasks bring.
+                due = max(due, stages.stage_dates(start)[stages.INTERNAL_REVIEW])
+            data["due_date"] = due.isoformat()
 
     for column, field in (("Estimated Hours", "estimated_hours"), ("Budgeted Hours", "budgeted_hours")):
         value = cell(column)
@@ -247,7 +296,7 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
             except ValueError as e:
                 problems["Labels"] = str(e)
         elif "Project Key" not in problems:
-            problems["Labels"] = "Give the project key to add labels."
+            problems["Labels"] = "This sub-workspace has no labels yet: leave Labels empty, or give a project key."
 
     if value := cell("Description"):
         data["description"] = None if value == CLEAR else text_doc(value.replace("\\n", "\n"))
@@ -301,6 +350,16 @@ def import_rows(rows: list[dict], request, *, commit: bool) -> dict:
     """Check every row; with commit and no problems, save them all (all or nothing)."""
     from .serializers import IssueDetailSerializer
 
+    with transaction.atomic():
+        # Checking may make a sub-workspace's task list (the serializer does, for a task without a
+        # project); nothing stays unless the file is imported.
+        summary = _check_and_save(rows, request, commit=commit, serializer_class=IssueDetailSerializer)
+        if not summary["imported"]:
+            transaction.set_rollback(True)
+    return summary
+
+
+def _check_and_save(rows: list[dict], request, *, commit: bool, serializer_class) -> dict:
     lookups = Lookups()
     results, checked, seen = [], [], {}
     for row in rows:
@@ -320,12 +379,13 @@ def import_rows(rows: list[dict], request, *, commit: bool) -> dict:
         if not result["errors"]:
             data, problems = _payload(row, issue, lookups)
             result["errors"].update(problems)
+            stage = data.pop("_stage", None)
             if issue is not None and not problems:
                 data = _changes(issue, data)
             if not problems:
-                serializer = IssueDetailSerializer(instance=issue, data=data, partial=issue is not None, context={"request": request})
+                serializer = serializer_class(instance=issue, data=data, partial=issue is not None, context={"request": request})
                 if serializer.is_valid():
-                    checked.append((result, serializer))
+                    checked.append((result, serializer, stage))
                     if issue is not None and not data:
                         result["action"] = "unchanged"
                 else:
@@ -341,10 +401,15 @@ def import_rows(rows: list[dict], request, *, commit: bool) -> dict:
         "imported": False, "results": results,
     }
     if commit and not failed:
-        with transaction.atomic():
-            for result, serializer in checked:
-                if result["action"] != "unchanged":
-                    result["key"] = serializer.save().key
+        for result, serializer, stage in checked:
+            if result["action"] != "unchanged":
+                saved = serializer.save()
+                if stage:  # the stage of a task in a sub-workspace's own list, now it exists
+                    status = saved.project.workflow.statuses.filter(name__iexact=stage).first()
+                    if status and status.pk != saved.status_id:
+                        saved.status = status
+                        saved.save(update_fields=["status"])
+                result["key"] = saved.key
         summary["imported"] = True
     return summary
 
@@ -359,15 +424,34 @@ def export_csv(issues) -> str:
     writer = csv.writer(out)
     writer.writerow(COLUMNS)
     for issue in issues.select_related("project__client", "status", "assignee", "preparer", "reviewer", "current_responsible").prefetch_related("labels"):
-        writer.writerow([
-            issue.key, issue.project.key, issue.project.client.name if issue.project.client_id else "", issue.summary, issue.group,
-            issue.status.name, issue.get_priority_display(),
-            _person(issue.assignee), _person(issue.preparer), _person(issue.reviewer), _person(issue.current_responsible),
-            issue.start_date.isoformat() if issue.start_date else "", issue.due_date.isoformat() if issue.due_date else "",
-            "" if issue.estimated_hours is None else f"{issue.estimated_hours:g}",
-            "" if issue.budgeted_hours is None else f"{issue.budgeted_hours:g}",
-            "; ".join(label.name for label in issue.labels.all()),
-            doc_text(issue.description),
-            "",
-        ])
-    return "﻿" + out.getvalue()  # Excel reads it as UTF-8
+        project = issue.project
+        row = {
+            "Task Key": issue.key,
+            "Sub-workspace": project.client.name if project.client_id else "",
+            "Job Name": issue.summary, "Group": issue.group, "Accountant": _person(issue.preparer),
+            # A task in a sub-workspace's own list has no project of its own.
+            "Project Key": "" if project.is_client_workspace else project.key,
+            "Status": issue.status.name, "Priority": issue.get_priority_display(),
+            "Team Lead": _person(issue.assignee), "Reviewer": _person(issue.reviewer), "Currently Responsible": _person(issue.current_responsible),
+            "Start Date": issue.start_date.isoformat() if issue.start_date else "",
+            "Due Date": issue.due_date.isoformat() if issue.due_date else "",
+            "Estimated Hours": "" if issue.estimated_hours is None else f"{issue.estimated_hours:g}",
+            "Budgeted Hours": "" if issue.budgeted_hours is None else f"{issue.budgeted_hours:g}",
+            "Labels": "; ".join(label.name for label in issue.labels.all()),
+            "Description": doc_text(issue.description), "Add Standard Sub-tasks": "",
+        }
+        writer.writerow([row[c] for c in COLUMNS])
+    return "\ufeff" + out.getvalue()  # Excel reads it as UTF-8
+
+
+def template_csv() -> str:
+    """The standard template: the headings, then a row saying which are required for a new task
+    and a row with each column's type and format (both start with "#", so an upload skips them)."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\r\n")
+    writer.writerow(COLUMNS)
+    need = ["Required for a new task" if SPEC[c][0] == "Required" else "Optional" for c in COLUMNS]
+    kind = [f"{SPEC[c][1]}: {SPEC[c][2]}" for c in COLUMNS]
+    writer.writerow([f"# {need[0]} (this row and the next are a guide: leave them in or delete them)"] + need[1:])
+    writer.writerow([f"# {kind[0]}"] + kind[1:])
+    return "\ufeff" + out.getvalue()

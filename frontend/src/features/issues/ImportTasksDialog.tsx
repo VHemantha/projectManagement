@@ -9,20 +9,25 @@ import { Button, Dialog, DialogContent } from '@/design-system'
 /** The standard template, served with the app's files from the cloud. */
 export const TEMPLATE_URL = '/templates/tasks-import-template.csv'
 
-const GUIDE: [string, string][] = [
-  ['Task Key', 'Empty to add a new task. A key (e.g. RWCA-12) updates that task.'],
-  ['Project Key', 'The project the new task goes in, e.g. RWCA. Or give the Sub-workspace instead.'],
-  ['Sub-workspace', 'For a sub-workspace without projects: its name.'],
-  ['Job Name', 'Required for a new task.'],
-  ['Group', 'Free text.'],
-  ['Status', 'A stage: To Start, In Progress, Waiting for Info, Sent to Client, Internal Adjustments, Client Adjustments, Complete, To be Archived.'],
-  ['Priority', 'Highest, High, Medium, Low or Lowest.'],
-  ['Team Lead, Accountant, Reviewer, Currently Responsible', 'An email address, or the name as it shows in the app.'],
-  ['Start Date, Due Date', '2026-11-30 or 30/11/2026.'],
-  ['Estimated Hours, Budgeted Hours', 'Numbers. Only a team lead or above can set budgeted hours.'],
-  ['Labels', "The project's labels, separated by ; (semicolons)."],
-  ['Description', 'Plain text.'],
-  ['Add Standard Sub-tasks', 'yes adds Pre-check, Preparation, Internal Review and Client Review to a new task.'],
+// The same guide as the template's second and third rows (backend csv_import.SPEC).
+const GUIDE: { column: string; required: boolean; type: string; format: string }[] = [
+  { column: 'Task Key', required: false, type: 'Text', format: 'Leave empty to add a new task; a task key (e.g. RWCA-12) updates that task.' },
+  { column: 'Sub-workspace', required: true, type: 'Text', format: "The sub-workspace's name exactly as it shows in the app." },
+  { column: 'Job Name', required: true, type: 'Text', format: 'Up to 500 characters.' },
+  { column: 'Group', required: true, type: 'Text', format: 'Up to 100 characters.' },
+  { column: 'Accountant', required: true, type: 'Person', format: 'Email address, or the name as it shows in the app.' },
+  { column: 'Project Key', required: false, type: 'Text', format: "A project of that sub-workspace (e.g. RWCA). Empty: the sub-workspace's own task list." },
+  { column: 'Status', required: false, type: 'Stage', format: 'To Start, In Progress, Waiting for Info, Sent to Client, Internal Adjustments, Client Adjustments, Complete or To be Archived. Empty: To Start.' },
+  { column: 'Priority', required: false, type: 'Choice', format: 'Highest, High, Medium, Low or Lowest. Empty: Medium.' },
+  { column: 'Team Lead, Reviewer', required: false, type: 'Person', format: 'Email address, or the name as it shows in the app.' },
+  { column: 'Currently Responsible', required: false, type: 'Person', format: 'Email address, or the name. Empty: the accountant.' },
+  { column: 'Start Date', required: false, type: 'Date', format: 'YYYY-MM-DD (e.g. 2026-11-02) or DD/MM/YYYY (e.g. 02/11/2026). Empty: today.' },
+  { column: 'Due Date', required: false, type: 'Date', format: 'YYYY-MM-DD or DD/MM/YYYY. Empty: 5 days after the start date.' },
+  { column: 'Estimated Hours', required: false, type: 'Number', format: 'Hours, with a point for decimals (e.g. 6.5); 0 to 10000.' },
+  { column: 'Budgeted Hours', required: false, type: 'Number', format: 'Hours, with a point for decimals (e.g. 8). Set by a team lead or above.' },
+  { column: 'Labels', required: false, type: 'List', format: "The project's existing labels, separated by ; (e.g. GST; Urgent)." },
+  { column: 'Description', required: false, type: 'Text', format: 'Plain text.' },
+  { column: 'Add Standard Sub-tasks', required: false, type: 'Yes/No', format: 'yes adds Pre-check, Preparation, Internal Review and Client Review. Empty: no.' },
 ]
 
 function counts(r: ImportResult) {
@@ -108,7 +113,11 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
                   </button>
                 </div>
               </li>
-              <li>Fill in one task per row (Excel or Google Sheets), and save it as CSV. An empty cell keeps the task's value; - clears it.</li>
+              <li>
+                Fill in one task per row (Excel or Google Sheets) and save it as CSV. A new task needs its <strong>Sub-workspace, Job Name, Group and
+                Accountant</strong>; the rest is optional. When updating a task, an empty cell keeps its value and - clears it. The template&apos;s two
+                rows starting with # are a guide and are skipped.
+              </li>
               <li>
                 Choose the file and check it. Nothing is saved until every row is right.
                 <label className={styles.file}>
@@ -129,13 +138,23 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
             </ol>
 
             <details className={styles.guide}>
-              <summary>What goes in each column</summary>
-              <table className={styles.table}>
+              <summary>What goes in each column (required, type and format)</summary>
+              <table className={styles.table} aria-label="Columns">
+                <thead>
+                  <tr>
+                    <th>Column</th>
+                    <th>Required</th>
+                    <th>Type</th>
+                    <th>Format and default</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {GUIDE.map(([col, help]) => (
-                    <tr key={col}>
-                      <th scope="row">{col}</th>
-                      <td>{help}</td>
+                  {GUIDE.map((g) => (
+                    <tr key={g.column}>
+                      <th scope="row">{g.column}</th>
+                      <td>{g.required ? <strong>Required for a new task</strong> : 'Optional'}</td>
+                      <td>{g.type}</td>
+                      <td>{g.format}</td>
                     </tr>
                   ))}
                 </tbody>
