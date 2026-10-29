@@ -125,17 +125,27 @@ export interface Lesson {
   scope_label?: string
   status: 'active' | 'pending' | 'disabled'
   kind: LessonKind
-  /** Where the correction came from. */
-  source?: 'precheck' | 'review' | 'ask'
+  /** Where the correction came from ("library": the AI rules page, not a task). */
+  source?: 'precheck' | 'review' | 'ask' | 'library'
   /** The rule the AI drafted from the correction (null until drafted). */
   rule?: { title: string; when: string; do: string; why: string } | null
   drafting?: '' | 'drafting' | 'drafted' | 'failed'
+  /** The type of check it is for ("" every type), and an entity type ("" any). */
   precheck_type: string
+  precheck_type_label?: string
+  entity_type?: string
+  entity_label?: string
   item: string
   note: string
   created_by: string
   created_at: string
   task: string
+}
+
+/** What a lesson or rule is for: a type of check and, optionally, an entity type. */
+export interface RuleTargets {
+  precheck_type?: string
+  entity_type?: string
 }
 
 export interface Run extends RunSummary {
@@ -321,7 +331,7 @@ export function useLessons(jobKey: string) {
 export function useTeachLesson(jobKey: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: { kind: LessonKind; item: string; note: string; firm_wide: boolean }) =>
+    mutationFn: async (payload: { kind: LessonKind; item: string; note: string; firm_wide: boolean } & RuleTargets) =>
       (await apiClient.post<Lesson>(`/precheck/jobs/${jobKey}/lessons/`, payload)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'lessons'] }),
   })
@@ -347,5 +357,40 @@ export function useSetDisposition(jobKey: string) {
       queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] })
       queryClient.invalidateQueries({ queryKey: ['precheck-run'] })
     },
+  })
+}
+
+export interface RuleLibrary {
+  lessons: Lesson[]
+  can_approve: boolean
+  precheck_types: { value: string; label: string }[]
+  entity_types: { value: string; label: string }[]
+}
+
+/** The AI rules: every lesson that applies beyond one client (leads and admins: all of them). */
+export function useRuleLibrary(filters: { q?: string; type?: string; status?: string }) {
+  return useQuery({
+    queryKey: ['precheck', 'rules', filters],
+    queryFn: async () => (await apiClient.get<RuleLibrary>('/precheck/lessons/', { params: filters })).data,
+  })
+}
+
+/** A rule for a type of check, not from any task: active from a lead or admin, else waiting for one. */
+export function useAddRule() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { kind: LessonKind; item: string; note: string } & RuleTargets) =>
+      (await apiClient.post<Lesson>('/precheck/lessons/', payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck'] }),
+  })
+}
+
+/** Approve a rule, or switch one off, from the AI rules page. */
+export function useSetRuleStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: number; status: 'active' | 'disabled' }) =>
+      (await apiClient.patch<Lesson>(`/precheck/lessons/${id}/`, { status })).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck'] }),
   })
 }

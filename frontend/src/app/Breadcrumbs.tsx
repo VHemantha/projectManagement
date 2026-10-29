@@ -17,6 +17,7 @@ const STATIC_LABELS: Record<string, string> = {
   people: 'People',
   filters: 'Filters',
   dashboards: 'Dashboards',
+  'ai-rules': 'AI rules',
   chat: 'Chat',
   timesheets: 'Timesheets',
   apps: 'Apps',

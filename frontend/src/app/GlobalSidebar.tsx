@@ -5,6 +5,7 @@ import {
   ChevronsRight,
   Clock,
   Contact,
+  GraduationCap,
   Grid3x3,
   LayoutDashboard,
   LayoutGrid,
@@ -34,6 +35,8 @@ const NAV_ITEMS = [
   { to: '/chat', label: 'Chat', icon: MessageSquare, tone: 'violet' },
   // The AI project coordinator: everyone's private conversation with it, in Messages.
   { to: '/coordinator', label: 'Coordinator', icon: Bot, tone: 'blue', end: true },
+  // What the pre-check agent has been taught, and a place to teach it more.
+  { to: '/ai-rules', label: 'AI rules', icon: GraduationCap, tone: 'teal' },
   { to: '/timesheets', label: 'Timesheets', icon: Clock, tone: 'orange' },
   { to: '/leave', label: 'Leave', icon: CalendarDays, tone: 'green' },
   { to: '/apps', label: 'Apps', icon: Grid3x3, tone: 'teal' },

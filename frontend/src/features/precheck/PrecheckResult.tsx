@@ -2,6 +2,7 @@ import { AlertTriangle, Check, ChevronDown, ExternalLink, GraduationCap, Mail, X
 import { useState } from 'react'
 
 import styles from './PrecheckResult.module.css'
+import { CHECK_TYPES, RULE_ENTITY_TYPES } from './ruleOptions'
 import { extractErrorMessage } from '@/api/errors'
 import {
   type AccountantAnswer,
@@ -51,19 +52,21 @@ function Sources({ sources, output }: { sources: SourceRef[]; output: PrecheckOu
   )
 }
 
-/** Teach the pre-check from a correction. It applies to this client at once; for every client of
- * this business nature it waits for a lead or admin (unless one is teaching it). */
+/** Teach the pre-check from a correction or something it missed. It applies to this client at once;
+ * for every client it waits for a lead or admin (unless one is teaching it). The type of check (and
+ * entity type) it is for decides which later pre-checks are given it (AFIT, 29 Oct 2026). */
 function TeachForm({
   jobKey,
   item,
   kind: initialKind,
-  natureLabel,
+  natureType,
   onDone,
 }: {
   jobKey: string
   item: string
   kind: LessonKind
-  natureLabel: string
+  /** The business nature this run worked to: the type of check offered first. */
+  natureType: string
   onDone: () => void
 }) {
   const teach = useTeachLesson(jobKey)
@@ -71,12 +74,16 @@ function TeachForm({
   const [itemText, setItemText] = useState(item)
   const [note, setNote] = useState('')
   const [firmWide, setFirmWide] = useState(false)
+  const [checkType, setCheckType] = useState(CHECK_TYPES.some((t) => t.value === natureType) ? natureType : '')
+  const [entity, setEntity] = useState('')
+  const typeLabel = CHECK_TYPES.find((t) => t.value === checkType)?.label ?? 'Every type of check'
+
   return (
     <form
       className={styles.teach}
       onSubmit={(e) => {
         e.preventDefault()
-        teach.mutate({ kind, item: itemText, note, firm_wide: firmWide }, { onSuccess: onDone })
+        teach.mutate({ kind, item: itemText, note, firm_wide: firmWide, precheck_type: checkType, entity_type: entity }, { onSuccess: onDone })
       }}
     >
       <label>
@@ -102,9 +109,32 @@ function TeachForm({
           placeholder="e.g. Not needed when every property is run by a property manager: no home office is claimed."
         />
       </label>
+      <label>
+        <span>Type of check it is for</span>
+        <select value={checkType} onChange={(e) => setCheckType(e.target.value)} aria-label="Type of check">
+          {CHECK_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>Entity type</span>
+        <select value={entity} onChange={(e) => setEntity(e.target.value)} aria-label="Entity type">
+          {RULE_ENTITY_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className={styles.check}>
         <input type="checkbox" checked={firmWide} onChange={(e) => setFirmWide(e.target.checked)} />
-        <span>Apply to all {natureLabel.toLowerCase()} clients (a lead or admin approves it first)</span>
+        <span>
+          Apply to every client: {checkType ? `each ${typeLabel.toLowerCase()} check` : 'every check'}
+          {entity ? ` of a ${RULE_ENTITY_TYPES.find((t) => t.value === entity)?.label}` : ''} (a lead or admin approves it first)
+        </span>
       </label>
       {teach.isError && (
         <div role="alert" className={styles.error}>
@@ -127,13 +157,11 @@ function ItemRow({
   item,
   output,
   jobKey,
-  natureLabel,
   teachAs,
 }: {
   item: PrecheckItem
   output: PrecheckOutput
   jobKey: string
-  natureLabel: string
   teachAs: LessonKind
 }) {
   const [teaching, setTeaching] = useState(false)
@@ -169,7 +197,7 @@ function ItemRow({
           jobKey={jobKey}
           item={item.item}
           kind={teachAs}
-          natureLabel={natureLabel}
+          natureType={output.business_nature?.type ?? ''}
           onDone={() => {
             setTeaching(false)
             setTaught(true)
@@ -186,7 +214,7 @@ function grouped(items: PrecheckItem[]): [string, PrecheckItem[]][] {
   return [...groups.entries()]
 }
 
-function ItemList(props: { items: PrecheckItem[]; output: PrecheckOutput; jobKey: string; natureLabel: string; teachAs: LessonKind }) {
+function ItemList(props: { items: PrecheckItem[]; output: PrecheckOutput; jobKey: string; teachAs: LessonKind }) {
   return (
     <>
       {grouped(props.items).map(([group, rows]) => (
@@ -255,7 +283,6 @@ export function PendingLessons({ jobKey }: { jobKey: string }) {
  * every item still needed (with its reason and sources), and the email to send. */
 export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
   const nature = output.business_nature
-  const natureLabel = nature?.label ?? 'similar'
   const [missedOpen, setMissedOpen] = useState(false)
   return (
     <div className={styles.result}>
@@ -309,11 +336,11 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
             </button>
           )}
         </div>
-        {missedOpen && <TeachForm jobKey={jobKey} item="" kind="missed" natureLabel={natureLabel} onDone={() => setMissedOpen(false)} />}
+        {missedOpen && <TeachForm jobKey={jobKey} item="" kind="missed" natureType={nature?.type ?? ''} onDone={() => setMissedOpen(false)} />}
         {output.requests.length === 0 ? (
           <p className={styles.muted}>Nothing to request.</p>
         ) : (
-          <ItemList items={output.requests} output={output} jobKey={jobKey} natureLabel={natureLabel} teachAs="not_needed" />
+          <ItemList items={output.requests} output={output} jobKey={jobKey} teachAs="not_needed" />
         )}
       </section>
 
@@ -322,7 +349,7 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
           <summary>
             <ChevronDown size={14} aria-hidden="true" /> Already provided ({output.provided.length})
           </summary>
-          <ItemList items={output.provided} output={output} jobKey={jobKey} natureLabel={natureLabel} teachAs="wrong_reason" />
+          <ItemList items={output.provided} output={output} jobKey={jobKey} teachAs="wrong_reason" />
         </details>
       )}
       {output.not_needed.length > 0 && (
@@ -330,7 +357,7 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
           <summary>
             <ChevronDown size={14} aria-hidden="true" /> Not needed ({output.not_needed.length})
           </summary>
-          <ItemList items={output.not_needed} output={output} jobKey={jobKey} natureLabel={natureLabel} teachAs="wrong_reason" />
+          <ItemList items={output.not_needed} output={output} jobKey={jobKey} teachAs="wrong_reason" />
         </details>
       )}
 

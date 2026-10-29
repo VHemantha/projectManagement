@@ -174,12 +174,16 @@ def history_for(issue) -> dict:
     }
 
 
-MAX_LESSONS = 40
+MAX_LESSONS = 40  # in one run's prompt (the agent picks them by fit)
+# How many lessons a task can be offered for the agent to choose from: every one of this client's,
+# then the wider ones that fit its type of check and entity type.
+MAX_LESSON_CANDIDATES = 300
 
 
 def lesson_dict(lesson) -> dict:
     return {"id": lesson.id, "scope": lesson.scope, "scope_label": lesson.get_scope_display(), "status": lesson.status, "kind": lesson.kind,
-            "precheck_type": lesson.precheck_type, "item": lesson.item, "note": lesson.note, "source": lesson.source,
+            "precheck_type": lesson.precheck_type, "precheck_type_label": dict(PRECHECK_TYPES).get(lesson.precheck_type, "Every type of check"),
+            "entity_type": lesson.entity_type, "entity_label": dict(ENTITY_TYPES).get(lesson.entity_type, "Any entity"), "item": lesson.item, "note": lesson.note, "source": lesson.source,
             "rule": {"title": lesson.rule_title, "when": lesson.rule_when, "do": lesson.rule_do, "why": lesson.rule_why} if lesson.rule_do else None,
             "drafting": lesson.drafting, "client_scope": lesson.client_scope, "project_scope": lesson.project_scope, "team_scope": lesson.team_scope,
             "created_by": lesson.created_by.display_name if lesson.created_by else "",
@@ -187,20 +191,57 @@ def lesson_dict(lesson) -> dict:
 
 
 def lessons_for(issue) -> list[dict]:
-    """The lessons a pre-check of this task applies: this client's own, firm-wide ones a lead or
-    admin approved, and firm-wide ones from this client still waiting (they apply here at once)."""
+    """The lessons a pre-check of this task may apply: this client's own (also those still waiting
+    to apply more widely), and the project's, workspace's and firm-wide ones a lead or admin
+    approved. Wider ones must fit the task: its type of check, when the task fixes one, and its
+    entity type, when set ("" on a lesson means any). The agent then picks, by meaning, the ones
+    that bear on this job (AFIT, 29 Oct 2026): so a rule taught once is found the next time the
+    same kind of check comes up, however many lessons there are."""
     from django.db.models import Q
 
     from .models import PrecheckLesson
 
     mine, team = client_scope(issue), team_scope(issue)
-    wider = Q(scope="project", project_scope=f"project-{issue.project_id}", status="active") | Q(scope="firm", status="active")
+    setup = setup_for(issue)
+    nature = setup["precheck_type"] if setup["precheck_type"] != "auto" else ""
+    if not nature:  # decided by the AI: what its last run found (none yet: every type, picked by meaning)
+        last = issue.prechecks.filter(status__in=["complete", "partial"]).exclude(precheck_type__in=["", "auto"]).order_by("-created_at").first()
+        nature = last.precheck_type if last else ""
+    entity = setup["settings"].get("entity_type", "")
+    fits = Q(entity_type="") | Q(entity_type=entity) if entity else Q(entity_type="")
+    if nature:
+        fits &= Q(precheck_type="") | Q(precheck_type=nature)
+    wider = Q(scope="project", project_scope=f"project-{issue.project_id}") | Q(scope="firm")
     if team:
-        wider |= Q(scope="team", team_scope=team, status="active")
+        wider |= Q(scope="team", team_scope=team)
     qs = PrecheckLesson.objects.filter(
-        Q(client_scope=mine, status__in=["active", "pending"]) | wider
-    ).exclude(status="disabled").select_related("created_by", "issue").order_by("-created_at")[:MAX_LESSONS]
-    return [lesson_dict(lesson) for lesson in qs]
+        Q(client_scope=mine, status__in=["active", "pending"]) | (wider & fits & Q(status="active"))
+    ).exclude(status="disabled").select_related("created_by", "issue").order_by("-created_at")[:MAX_LESSON_CANDIDATES]
+    own = [lesson for lesson in qs if lesson.client_scope == mine]
+    return [lesson_dict(lesson) for lesson in own + [lesson for lesson in qs if lesson.client_scope != mine]]
+
+
+def can_add_rules(user) -> bool:
+    """Who may add an AI rule for every client, or approve one: an organisation admin (the CEO
+    included) or a lead of any workspace. Anyone else may propose one; it waits for them."""
+    from apps.teams.models import TeamMembership
+
+    return bool(user and user.is_authenticated and (user.is_staff or TeamMembership.objects.filter(user=user, role="lead").exists()))
+
+
+def add_rule(user, *, kind: str, item: str, note: str, precheck_type: str = "", entity_type: str = ""):
+    """A rule for a type of check, not from any one task (the AI rules page): firm-wide, active at
+    once from a lead or admin, else waiting for one. The AI drafts it as a rule like any lesson."""
+    from .models import PrecheckLesson
+
+    approver = can_add_rules(user)
+    lesson = PrecheckLesson.objects.create(
+        client_scope="", scope="firm", status="active" if approver else "pending", kind=kind, item=item[:300], note=note[:1000],
+        precheck_type=precheck_type, entity_type=entity_type, created_by=user, source="library",
+        decided_by=user if approver else None, decided_at=timezone.now() if approver else None,
+    )
+    draft_rule(lesson)
+    return lesson
 
 
 def can_approve_lessons(user, issue) -> bool:
@@ -620,7 +661,8 @@ def serialize_run(run: AIPrecheck, full: bool = True) -> dict:
 LESSON_SCOPES = ("client", "project", "team", "firm")
 
 
-def teach(issue, user, *, kind: str, item: str, note: str, scope: str = "client", source: str = "precheck", finding=None, run=None):
+def teach(issue, user, *, kind: str, item: str, note: str, scope: str = "client", source: str = "precheck", finding=None, run=None,
+          precheck_type: str | None = None, entity_type: str = ""):
     """A correction becomes a lesson: active at once for this client; for the project, the team or
     the firm it waits for a lead or an admin (unless one is teaching it). The AI then drafts it as
     a rule in the background; until then the note itself applies."""
@@ -633,7 +675,8 @@ def teach(issue, user, *, kind: str, item: str, note: str, scope: str = "client"
     lesson = PrecheckLesson.objects.create(
         client_scope=client_scope(issue), project_scope=f"project-{issue.project_id}", team_scope=team_scope(issue),
         scope=scope, status="active" if (not wide or approver) else "pending", kind=kind, item=item[:300], note=note[:1000],
-        precheck_type=(latest.precheck_type if latest else "") or "", issue=issue, run=latest, created_by=user, source=source,
+        precheck_type=precheck_type if precheck_type is not None else ((latest.precheck_type if latest else "") or ""),
+        entity_type=entity_type, issue=issue, run=latest, created_by=user, source=source,
         finding=finding, decided_by=user if wide and approver else None, decided_at=timezone.now() if wide and approver else None,
     )
     draft_rule(lesson)
@@ -644,7 +687,7 @@ def draft_rule(lesson) -> None:
     """Ask the agent to draft the lesson as a rule (when / do / why). Best-effort: if the agent is
     not reachable, the lesson's own note applies and the rule can be drafted later."""
     finding = lesson.finding
-    body = {"lesson_id": lesson.id, "job_id": str(lesson.issue_id), "kind": lesson.kind, "item": lesson.item, "note": lesson.note,
+    body = {"lesson_id": lesson.id, "job_id": str(lesson.issue_id or ""), "kind": lesson.kind, "item": lesson.item, "note": lesson.note,
             "source": lesson.source, "scope": lesson.scope, "nature": lesson.precheck_type,
             "context": {"fs_line": finding.fs_line, "issue": finding.text, "why": finding.why} if finding else {}}
     try:

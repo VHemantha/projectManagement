@@ -292,8 +292,10 @@ class InternalEventView(APIView):
 class JobLessonsView(APIView):
     """GET /api/precheck/jobs/<key>/lessons/ — the lessons this task's pre-check applies, and
     (for a lead or admin) firm-wide lessons waiting for approval.
-    POST — teach the pre-check from a correction: {kind, item, note, firm_wide}. It applies to this
-    client at once; firm-wide it waits for a lead or admin, unless one is making it."""
+    POST — teach the pre-check from a correction or something it missed: {kind, item, note, scope,
+    precheck_type, entity_type}. It applies to this client at once; wider it waits for a lead or
+    admin, unless one is making it. precheck_type is the type of check it is for ("" every type;
+    left out: the type of this task's last run)."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -320,7 +322,69 @@ class JobLessonsView(APIView):
         scope = str(request.data.get("scope") or ("firm" if request.data.get("firm_wide") else "client"))
         if scope not in services.LESSON_SCOPES:
             return Response({"scope": ["Choose this client, this project, the workspace or the firm."]}, status=status.HTTP_400_BAD_REQUEST)
-        lesson = services.teach(issue, request.user, kind=kind, item=item, note=note, scope=scope, source=str(request.data.get("source") or "precheck"))
+        targets, problem = _rule_targets(request.data)
+        if problem:
+            return Response(problem, status=status.HTTP_400_BAD_REQUEST)
+        lesson = services.teach(issue, request.user, kind=kind, item=item, note=note, scope=scope, source=str(request.data.get("source") or "precheck"),
+                                **targets)
+        return Response(services.lesson_dict(lesson), status=status.HTTP_201_CREATED)
+
+
+def _rule_targets(data) -> tuple[dict, dict | None]:
+    """The type of check and entity type a lesson is for, from a request; ({}, None) if not given."""
+    out = {}
+    if "precheck_type" in data:
+        value = str(data.get("precheck_type") or "")
+        if value not in {v for v, _ in PRECHECK_TYPES if v != "auto"} | {""}:
+            return {}, {"precheck_type": ["Choose a type of check, or every type."]}
+        out["precheck_type"] = value
+    value = str(data.get("entity_type") or "")
+    if value and value not in {v for v, _ in services.ENTITY_TYPES}:
+        return {}, {"entity_type": ["Choose an entity type, or any."]}
+    out["entity_type"] = value
+    return out, None
+
+
+class LessonLibraryView(APIView):
+    """GET /api/precheck/lessons/?q=&type=&status= — the AI rules: every lesson that applies beyond
+    one client (and, for a lead or admin, every client's own too).
+    POST {kind, item, note, precheck_type, entity_type} — a rule for a type of check, not from any
+    task: active at once from a lead or admin, else waiting for one (AFIT, 29 Oct 2026)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Q
+
+        can_approve = services.can_add_rules(request.user)
+        qs = PrecheckLesson.objects.select_related("created_by", "issue")
+        if not can_approve:  # a client's own lessons are about that client: leads and admins only
+            qs = qs.exclude(scope="client")
+        if q := " ".join(str(request.query_params.get("q") or "").split()):
+            qs = qs.filter(Q(note__icontains=q) | Q(item__icontains=q) | Q(rule_title__icontains=q) | Q(rule_do__icontains=q) | Q(rule_when__icontains=q))
+        if (kind := request.query_params.get("type")) is not None and kind != "all":
+            qs = qs.filter(precheck_type=kind)
+        if (wanted := request.query_params.get("status")) in PrecheckLesson.Status.values:
+            qs = qs.filter(status=wanted)
+        return Response({
+            "lessons": [services.lesson_dict(lesson) for lesson in qs[:300]],
+            "can_approve": can_approve,
+            "precheck_types": [{"value": v, "label": label} for v, label in PRECHECK_TYPES if v != "auto"],
+            "entity_types": [{"value": v, "label": label} for v, label in services.ENTITY_TYPES],
+        })
+
+    def post(self, request):
+        kind = str(request.data.get("kind") or "missed")
+        note = " ".join(str(request.data.get("note") or "").split())
+        item = " ".join(str(request.data.get("item") or "").split())[:300]
+        if kind not in PrecheckLesson.Kind.values:
+            return Response({"kind": ["Choose not needed, wrong reason, missed item or other."]}, status=status.HTTP_400_BAD_REQUEST)
+        if len(note) < 5:
+            return Response({"note": ["Say in a few words what the AI should check or do."]}, status=status.HTTP_400_BAD_REQUEST)
+        targets, problem = _rule_targets({"precheck_type": "", **request.data})
+        if problem:
+            return Response(problem, status=status.HTTP_400_BAD_REQUEST)
+        lesson = services.add_rule(request.user, kind=kind, item=item, note=note, **targets)
         return Response(services.lesson_dict(lesson), status=status.HTTP_201_CREATED)
 
 
@@ -332,10 +396,15 @@ class LessonDetailView(APIView):
 
     def patch(self, request, pk):
         lesson = get_object_or_404(PrecheckLesson.objects.select_related("issue__project", "created_by"), pk=pk)
-        if lesson.issue is None or not services.can_open_job(request.user, lesson.issue):
+        if lesson.issue is None:  # a rule from the AI rules page
+            if not (services.can_add_rules(request.user) or lesson.created_by_id == request.user.id):
+                raise PermissionDenied("You can't change this rule.")
+            approver = services.can_add_rules(request.user)
+        elif not services.can_open_job(request.user, lesson.issue):
             raise PermissionDenied("You can't change this lesson.")
+        else:
+            approver = services.can_approve_lessons(request.user, lesson.issue) or services.can_add_rules(request.user)
         wanted = request.data.get("status")
-        approver = services.can_approve_lessons(request.user, lesson.issue)
         if wanted == "active":
             if not approver:
                 raise PermissionDenied("Only a lead or an admin can approve a lesson for all clients.")

@@ -31,6 +31,7 @@ from .budget import budget_for, cost_usd, empty_usage
 from .classify import classify, classify_email
 from .knowledge import Scope, get_knowledge
 from . import guide as G
+from . import learn
 from . import review as RV
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
@@ -449,8 +450,10 @@ def precheck_input(state: State) -> tuple[list[dict], dict, str, dict, str]:
         for r in state["rule_results"] if r["passed"] is False
     ]
     fixed = job.get("precheck_type") if job.get("precheck_type") in P.TYPES else ""
+    # The lessons that fit this job best, not the latest ones (AFIT, 29 Oct 2026).
+    lessons = learn.select(job.get("lessons", []), job, docs, nature=fixed)
     body, index = P.fit_input(lambda caps: P.build_input(job, state["key"], docs, state["files"], state["periods"], facts,
-                                                         job.get("lessons", []), s, caps), s)
+                                                         lessons, s, caps), s)
     return docs, facts, body, index, fixed
 
 
@@ -458,6 +461,9 @@ def precheck(state: State) -> dict:
     s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
     emit("judged", "Pre-checking: reading the questionnaire, last year's accounts and workpapers", "running")
     docs, facts, body, index, fixed = precheck_input(state)
+    if offered := len(job.get("lessons") or []):
+        applied = sum(1 for v in index.values() if v.get("kind") == "lesson")
+        emit("judged", f"Checking against {applied} learned rules that fit this job (of {offered})", "done", rules=applied)
     cache = StoreCache(store)
     key = P.cache_key(job["client_id"], state["job_id"], body, s)
     usage, how = [], "model"

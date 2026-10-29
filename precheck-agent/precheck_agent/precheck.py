@@ -229,12 +229,16 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
              for a in job.get("accountant_answers") or []], 60)
     section("DIRECTION NOTE (the firm's instructions for this task)", "N",
             [(i["text"], {"kind": "direction", "text": i["text"]}) for i in job.get("direction_items", [])], 40)
-    out.append("\n== LESSONS FROM EARLIER CORRECTIONS (apply each one that fits) ==")
+    out.append("\n== LESSONS FROM EARLIER CORRECTIONS AND AFIT'S RULES (apply each one whose situation fits this job; "
+               "a \"missed\" one is something to check for and request when it applies) ==")
     for lesson in lessons[:40]:
         lid = f"L{lesson['id']}"
         index[lid] = {"kind": "lesson", "lesson": lesson}
         scope = lesson.get("scope", "client")
-        where = f"all {TYPES.get(lesson.get('precheck_type'), 'clients')}" if scope == "firm" else {"project": "this project", "team": "this workspace"}.get(scope, "this client")
+        kind_of_check = TYPES.get(lesson.get("precheck_type"), "")
+        where = f"all {kind_of_check or 'clients'}" if scope == "firm" else {"project": "this project", "team": "this workspace"}.get(scope, "this client")
+        if lesson.get("entity_type"):
+            where += f", {lesson.get('entity_label') or lesson['entity_type']} only"
         out.append(f"{lid} | {where} | {lesson.get('kind', '')} | item: {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
     out.append("\n" + ANSWER)
     return "\n".join(out), index

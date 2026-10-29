@@ -9,9 +9,16 @@ the project, the team, the firm) is decided by people, not by the AI.
 
 Each active lesson is also kept in the knowledge store as a "skill" entry tagged with where it came
 from and how widely it applies, so a question finds the rules that bear on it.
+
+A pre-check is given the lessons that fit its job (AFIT, 29 Oct 2026): the PM application sends every
+lesson that may apply, and `select` keeps this client's own and then the wider rules closest in
+meaning to the job (its documents, questionnaire and task), so a rule taught once is applied the
+next time that kind of check comes up, however many rules the firm has.
 """
+import hashlib
 import json
 
+import numpy as np
 from langchain_core.messages import HumanMessage
 
 from .budget import usage_from_message
@@ -80,3 +87,64 @@ def remember(lessons: list[dict]) -> None:
         origin = Scope(team=lesson.get("team_scope", ""), vendor=lesson.get("client_scope", ""), project=lesson.get("project_scope", ""), task="lesson")
         kn.put(origin, "skill", [{"id": f"lesson:{lesson['id']}", "text": text, "embedding": vec,
                                   "meta": {"lesson_id": int(lesson["id"]), "applies": lesson.get("scope", "client"), "status": lesson.get("status", "")}}])
+
+
+# --- choosing the lessons for a run ----------------------------------------------------------------
+
+MAX_IN_RUN = 40  # lessons in one pre-check's input
+MAX_OWN = 25  # of those, at most this many of the client's own (the most recent)
+_vectors: dict[str, np.ndarray] = {}  # lesson text -> vector, so a rule is embedded once per process
+
+
+def _embed_cached(texts: list[str]) -> np.ndarray:
+    keys = [hashlib.sha1(t.encode()).hexdigest() for t in texts]
+    missing = [(k, t) for k, t in zip(keys, texts) if k not in _vectors]
+    if missing:
+        if len(_vectors) > 5000:
+            _vectors.clear()
+        for (k, _), vec in zip(missing, get_embedder().embed([t for _, t in missing])):
+            _vectors[k] = vec
+    return np.array([_vectors[k] for k in keys])
+
+
+def rule_words(lesson: dict) -> str:
+    """What a lesson is about, for matching it to a job: its rule's title and situation, the item
+    and the note."""
+    rule = lesson.get("rule") or {}
+    return " ".join(x for x in (rule.get("title", ""), rule.get("when", ""), lesson.get("item", ""), rule.get("do", ""), lesson.get("note", "")) if x)
+
+
+def job_profile(job: dict, docs: list[dict]) -> str:
+    """The job in words: the task, its settings, its documents' names and kinds, and the start of
+    the questionnaire (where the client says what they have)."""
+    parts = [job.get("title", ""), job.get("client_name", "")]
+    parts += [f"{k}: {v}" for k, v in (job.get("settings") or {}).items()]
+    parts += [i.get("text", "") for i in job.get("direction_items") or []][:20]
+    parts += [f"{d['file'].get('name', '')} ({d['file'].get('document_class', '')})" for d in docs][:80]
+    for d in docs:
+        if d["file"].get("document_class") == "questionnaire":
+            parts.append(" ".join(b.get("text", "") for b in (d.get("parsed") or {}).get("blocks", [])[:120])[:4000])
+            break
+    return clip_words(" ".join(p for p in parts if p), 900)
+
+
+def select(lessons: list[dict], job: dict, docs: list[dict], nature: str = "", limit: int = MAX_IN_RUN) -> list[dict]:
+    """The lessons this run applies: the client's own first (most recent), then the wider rules
+    ranked by how close they are in meaning to the job, a rule for this run's type of check before
+    one for another type. Each chosen lesson carries its `match` score."""
+    if len(lessons) <= limit:
+        return lessons
+    client = job.get("client_id", "")
+    own = [l for l in lessons if l.get("client_scope") == client][:MAX_OWN]
+    rest = [l for l in lessons if l not in own]
+    if not rest:
+        return own[:limit]
+    vectors = _embed_cached([job_profile(job, docs)] + [rule_words(l) for l in rest])
+    scores = vectors[1:] @ vectors[0]
+    ranked = []
+    for lesson, score in zip(rest, scores):
+        kind = lesson.get("precheck_type", "")
+        bonus = 0.1 if nature and kind == nature else (-0.2 if nature and kind and kind != nature else 0.0)
+        ranked.append((float(score) + bonus, lesson))
+    ranked.sort(key=lambda pair: -pair[0])
+    return own + [{**lesson, "match": round(score, 3)} for score, lesson in ranked[: limit - len(own)]]

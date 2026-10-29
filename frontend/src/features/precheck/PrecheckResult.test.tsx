@@ -67,10 +67,14 @@ describe('PrecheckResult', () => {
     expect(screen.getByLabelText('What was wrong')).toHaveValue('not_needed')
     expect(screen.getByRole('button', { name: 'Save lesson' })).toBeDisabled()
     await userEvent.type(screen.getByLabelText(/What the pre-check should do instead/), 'Standalone house: there is no body corporate.')
-    await userEvent.click(screen.getByLabelText(/Apply to all residential rental clients/))
+    // The type of check it is for starts at this run's business nature (AFIT, 29 Oct 2026).
+    expect(screen.getByLabelText('Type of check')).toHaveValue('residential_rental')
+    await userEvent.selectOptions(screen.getByLabelText('Entity type'), 'trust')
+    await userEvent.click(screen.getByLabelText(/Apply to every client: each residential rental check of a Trust/))
     await userEvent.click(screen.getByRole('button', { name: 'Save lesson' }))
     expect(mocks.teach).toHaveBeenCalledWith(
-      { kind: 'not_needed', item: 'Body corporate levy invoice', note: 'Standalone house: there is no body corporate.', firm_wide: true },
+      { kind: 'not_needed', item: 'Body corporate levy invoice', note: 'Standalone house: there is no body corporate.', firm_wide: true,
+        precheck_type: 'residential_rental', entity_type: 'trust' },
       expect.anything(),
     )
     await userEvent.click(screen.getByRole('button', { name: 'Something was missed' }))

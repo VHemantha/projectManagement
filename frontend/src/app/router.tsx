@@ -22,6 +22,7 @@ import { ChatPage } from '@/features/chat/ChatPage'
 import { CoordinatorChatRedirect } from '@/features/coordinator/CoordinatorChatRedirect'
 import { CoordinatorConsolePage } from '@/features/coordinator/CoordinatorConsolePage'
 import { LeavePage } from '@/features/coordinator/LeavePage'
+import { AiRulesPage } from '@/features/precheck/AiRulesPage'
 import { TimeReportsPage } from '@/features/timesheets/TimeReportsPage'
 import { TimesheetApprovalInboxPage } from '@/features/timesheets/TimesheetApprovalInboxPage'
 import { TimesheetGridPage } from '@/features/timesheets/TimesheetGridPage'
@@ -67,6 +68,7 @@ export const router = createBrowserRouter([
           { path: '/chat', element: <ChatPage /> },
           { path: '/coordinator', element: <CoordinatorChatRedirect /> },
           { path: '/coordinator/console', element: <CoordinatorConsolePage /> },
+          { path: '/ai-rules', element: <AiRulesPage /> },
           { path: '/leave', element: <LeavePage /> },
           { path: '/timesheets', element: <TimesheetGridPage /> },
           { path: '/timesheets/review', element: <TimesheetApprovalInboxPage /> },

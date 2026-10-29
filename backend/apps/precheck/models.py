@@ -235,7 +235,11 @@ class PrecheckLesson(models.Model):
     team (workspace) or every client of that business nature - needs a lead or an admin to approve
     it (AFIT, 5 Oct 2026). Since 12 Oct 2026 lessons also come from the review (a finding closed as
     not an issue, a wrong reason, something the AI missed), and the AI drafts each one as a rule
-    (when it applies, what to do, why): a learned skill the pre-check, the review and Ask apply."""
+    (when it applies, what to do, why): a learned skill the pre-check, the review and Ask apply.
+
+    Since 29 Oct 2026 a lesson names the type of check it is for (and optionally the entity type),
+    rules can be added for a type of check without a task (the AI rules page), and each run is given
+    the lessons that fit it best rather than the latest ones."""
 
     class Scope(models.TextChoices):
         CLIENT = "client", "This client"
@@ -257,7 +261,8 @@ class PrecheckLesson(models.Model):
     client_scope = models.CharField(max_length=100)  # the client (or workspace) it came from
     project_scope = models.CharField(max_length=40, blank=True)  # "project-<id>" it came from
     team_scope = models.CharField(max_length=40, blank=True)  # "team-<id>" it came from
-    source = models.CharField(max_length=10, choices=[("precheck", "Pre-check"), ("review", "Review"), ("ask", "Ask")], default="precheck")
+    source = models.CharField(max_length=10, choices=[("precheck", "Pre-check"), ("review", "Review"), ("ask", "Ask"), ("library", "AI rules")],
+                              default="precheck")
     finding = models.ForeignKey("ReviewFinding", null=True, blank=True, on_delete=models.SET_NULL, related_name="lessons")
     # The rule the AI drafted from the correction; empty until drafted (the note applies meanwhile).
     rule_title = models.CharField(max_length=200, blank=True)
@@ -268,7 +273,11 @@ class PrecheckLesson(models.Model):
     scope = models.CharField(max_length=10, choices=Scope.choices, default=Scope.CLIENT)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.ACTIVE)
     kind = models.CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)
-    precheck_type = models.CharField(max_length=30, blank=True)  # business nature of the run it came from
+    # The type of check it is for: a business nature ("residential_rental" …), or "" for every type.
+    # Taken from the run it came from unless the person chose one (AFIT, 29 Oct 2026).
+    precheck_type = models.CharField(max_length=30, blank=True)
+    # And, optionally, one entity type (a trust, an LTC …); "" for any.
+    entity_type = models.CharField(max_length=20, blank=True, default="")
     item = models.CharField(max_length=300, blank=True)
     note = models.TextField(max_length=1000)
     issue = models.ForeignKey("issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="precheck_lessons")

@@ -397,3 +397,21 @@ def test_the_entity_type_and_a_year_end_alone_reach_the_model(env):
     assert "ENTITY TYPE (confirmed by AFIT): Look-through company (LTC)" in body
     assert "ACCOUNTANT-CONFIRMED SETTINGS (authoritative): financial year ending 2026-03-31" in body
 
+
+
+def test_a_rule_for_this_kind_of_check_reaches_the_model_among_many(env):
+    """AFIT, 29 Oct 2026: something the AI missed, taught once as a rule, is checked the next time
+    that kind of job comes up, however many other rules the firm has."""
+    ready_folder(env)
+    noise = [{"id": 100 + i, "scope": "firm", "status": "active", "precheck_type": "general", "kind": "other", "item": f"Cafe stock count {i}",
+              "note": f"For cafes and retail shops ask for the year-end stock count sheet {i} and payroll summaries.", "client_scope": ""} for i in range(80)]
+    taught = {"id": 7, "scope": "firm", "status": "active", "precheck_type": "residential_rental", "entity_type": "", "kind": "missed",
+              "item": "Rental property insurance", "client_scope": "",
+              "note": "For each rental property ask for the landlord insurance policy schedule and the property manager annual statement."}
+    env.pm.add_job("1", "client-s", "smith", direction=[], lessons=noise[:40] + [taught] + noise[40:])
+    env.run("1")
+    body = env.precheck.calls[0]["messages"][-1].content
+    assert "L7 | all Residential rental | missed | item: Rental property insurance" in body
+    assert body.count("\nL1") <= 40  # one run reads at most 40 lessons
+    labels = [e["label"] for e in env.pm.events if e.get("type") == "ai_precheck.progress"]
+    assert any(label.startswith("Checking against 40 learned rules that fit this job (of 81)") for label in labels)
