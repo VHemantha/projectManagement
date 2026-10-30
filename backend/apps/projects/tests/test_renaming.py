@@ -101,13 +101,17 @@ def test_column_rename_rules(lead, worker, project):
     assert client_for(lead).patch(f"/api/boards/{board.id}/columns/99/", {"name": "X"}, format="json").status_code == 404
 
 
-def test_column_whose_name_differs_from_its_status_keeps_the_status_name(lead, project):
+def test_a_column_whose_name_differed_from_its_stage_gives_the_stage_its_new_name(lead, project):
+    """AFIT, 29 Oct 2026: cards showed the old stage name after such a column was renamed."""
     board = project.boards.first()
     board.column_config[1]["name"] = "Ready"
     board.save()
+    status_id = board.column_config[1]["status_ids"][0]
     resp = client_for(lead).patch(f"/api/boards/{board.id}/columns/1/", {"name": "Up next"}, format="json")
     assert resp.status_code == 200
-    assert project.workflow.statuses.filter(name="In Progress").exists()
+    assert project.workflow.statuses.get(pk=status_id).name == "Up next"
+    back = client_for(lead).patch(f"/api/boards/{board.id}/columns/1/", {"name": "In Progress"}, format="json")
+    assert back.status_code == 200 and project.workflow.statuses.get(pk=status_id).name == "In Progress"
 
 
 # ---- Labels ----------------------------------------------------------------------------------

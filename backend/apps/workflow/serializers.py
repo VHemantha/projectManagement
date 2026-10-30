@@ -5,7 +5,7 @@ from django.db.models import Count, Max
 from rest_framework import serializers
 
 from .models import Board, IssueType, WorkflowStatus, WorkflowTransition
-from .services import sync_status_order
+from .services import sync_status_names, sync_status_order
 
 HEX_COLOR = re.compile(r"^#[0-9a-fA-F]{6}$")
 STATUS_NAME_MAX = WorkflowStatus._meta.get_field("name").max_length
@@ -177,6 +177,10 @@ class BoardConfigSerializer(serializers.ModelSerializer):
         board = super().update(instance, validated_data)
         if columns is not None:
             sync_status_order(board)
+            if sync_status_names(board):  # a renamed column's stage takes its name
+                from apps.live.broadcast import notify
+
+                notify("issues", project=board.project.key)
         return board
 
 

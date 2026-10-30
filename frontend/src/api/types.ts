@@ -137,6 +137,7 @@ export interface BoardColumn {
 export type CardFieldKey =
   | 'epic_tag'
   | 'priority'
+  | 'accountant'
   | 'assignee'
   | 'labels'
   | 'due_date'

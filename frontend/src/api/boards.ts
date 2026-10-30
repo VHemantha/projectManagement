@@ -26,6 +26,8 @@ export function useUpdateBoardConfig(boardId: number | undefined, projectKey: st
       // The live board reads column_config/swimlane_mode/card_fields off the project-board
       // endpoint, not the config endpoint — invalidate that too so the board re-renders.
       if (projectKey) queryClient.invalidateQueries({ queryKey: ['projects', projectKey, 'board'] })
+      // A renamed single-stage column renames its stage: cards show stage names.
+      queryClient.invalidateQueries({ queryKey: ['issues'] })
     },
   })
 }

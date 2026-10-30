@@ -42,13 +42,16 @@ function Deadline({ issue }: { issue: IssueListItem }) {
 // deadline, stage and priority are on every card (AFIT, 28 Oct 2026); a card_fields value with no
 // entry here (e.g. the old "story_points" or "time_logged") renders nothing.
 const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) => ReactNode>> = {
+  // The person badge: the Accountant (AFIT, 29 Oct 2026); the Team Lead's is optional.
+  accountant: (issue) => (
+    <span key="accountant" title={`Accountant: ${issue.preparer?.display_name ?? 'none yet'}`}>
+      <Avatar name={issue.preparer?.display_name ?? 'No accountant'} src={issue.preparer?.avatar} size={22} />
+    </span>
+  ),
   assignee: (issue) => (
-    <Avatar
-      key="assignee"
-      name={issue.assignee?.display_name ?? 'Unassigned'}
-      src={issue.assignee?.avatar}
-      size={22}
-    />
+    <span key="assignee" title={`Team Lead: ${issue.assignee?.display_name ?? 'none yet'}`}>
+      <Avatar name={issue.assignee?.display_name ?? 'Unassigned'} src={issue.assignee?.avatar} size={22} />
+    </span>
   ),
   labels: (issue) =>
     issue.labels.length > 0 && (
@@ -72,7 +75,7 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
   // (IssueListItem doesn't carry that data); it renders as a no-op via the lookup miss above.
 }
 
-const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'assignee']
+const DEFAULT_CARD_FIELDS: CardFieldKey[] = ['epic_tag', 'accountant']
 
 export function BoardCard({
   issue,

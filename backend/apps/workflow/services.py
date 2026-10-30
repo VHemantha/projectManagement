@@ -89,6 +89,37 @@ def sync_status_order(board: Board) -> None:
         WorkflowStatus.objects.bulk_update(changed, ["order"])
 
 
+def stage_name_changes(columns: list[dict], statuses) -> list[tuple]:
+    """(status, new name) for each column that holds a single status named otherwise: that status
+    is the column's stage, so it takes the column's name (AFIT, 29 Oct 2026: a renamed column left
+    its cards showing the old stage name). A name another status of the workflow already has is
+    left alone, and so is a column with several statuses (its cards show each one's own name)."""
+    by_id = {s.id: s for s in statuses}
+    taken = {s.name.lower(): s.id for s in statuses}
+    changes = []
+    for col in columns or []:
+        ids = col.get("status_ids") or []
+        name = str(col.get("name") or "").strip()
+        status = by_id.get(ids[0]) if len(ids) == 1 else None
+        if status is None or not name or status.name == name:
+            continue
+        if taken.get(name.lower(), status.id) != status.id:
+            continue
+        taken.pop(status.name.lower(), None)
+        taken[name.lower()] = status.id
+        changes.append((status, name))
+    return changes
+
+
+def sync_status_names(board: Board) -> list:
+    """Give each single-status column's status the column's name; the statuses renamed."""
+    changes = stage_name_changes(board.column_config, list(board.project.workflow.statuses.all()))
+    for status, name in changes:
+        status.name = name
+        status.save(update_fields=["name"])
+    return [status for status, _ in changes]
+
+
 def provision_project_defaults(project) -> Board:
     statuses = create_default_workflow(project)
     create_default_transitions(project, statuses)

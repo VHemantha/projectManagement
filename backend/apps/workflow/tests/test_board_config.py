@@ -273,3 +273,46 @@ def test_new_issues_start_in_the_first_board_column(lead_client, board, project)
     )
     assert resp.status_code == 201
     assert resp.data["status"]["name"] == "In Progress"
+
+
+# --- a column's stage takes the column's name; cards show the Accountant (AFIT, 29 Oct 2026) ------
+
+def test_renaming_columns_in_the_board_settings_renames_their_stages(lead_client, board, project):
+    columns = [dict(c) for c in board.column_config]
+    columns[2]["name"] = "With Accountant"
+    columns[3]["name"] = "Info Requested"
+    resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": columns}, format="json")
+    assert resp.status_code == 200, resp.data
+    names = {s.id: s.name for s in project.workflow.statuses.all()}
+    assert names[columns[2]["status_ids"][0]] == "With Accountant"
+    assert names[columns[3]["status_ids"][0]] == "Info Requested"
+
+
+def test_a_column_with_several_stages_or_a_taken_name_leaves_the_stages_alone(lead_client, board, project):
+    columns = [dict(c) for c in board.column_config]
+    merged = columns[1]["status_ids"] + columns[2]["status_ids"]
+    columns = [columns[0], {**columns[1], "name": "Working", "status_ids": merged}] + columns[3:]
+    columns[0] = {**columns[0], "name": "Complete"}  # another stage is already called that
+    columns = [c if c["name"] != "Complete" or c is columns[0] else {**c, "name": "Done and dusted"} for c in columns]
+    resp = lead_client.patch(f"/api/boards/{board.id}/config/", {"column_config": columns}, format="json")
+    assert resp.status_code == 200, resp.data
+    names = {s.id: s.name for s in project.workflow.statuses.all()}
+    assert [names[i] for i in merged] == ["In Progress", "Waiting for Info"]  # several: each keeps its own
+    assert names[columns[0]["status_ids"][0]] == "To Start"  # "Complete" is another stage's name
+
+
+def test_existing_boards_are_put_right_and_show_the_accountant(board, project):
+    from importlib import import_module
+
+    from django.apps import apps as django_apps
+
+    columns = [dict(c) for c in board.column_config]
+    columns[3]["name"] = "Awaiting Client"  # renamed before this fix: the stage kept its old name
+    board.column_config = columns
+    board.card_fields = ["epic_tag", "assignee", "labels"]
+    board.save()
+    import_module("apps.workflow.migrations.0012_stage_names_and_accountant_badge").forwards(django_apps, None)
+    board.refresh_from_db()
+    assert project.workflow.statuses.get(pk=columns[3]["status_ids"][0]).name == "Awaiting Client"
+    assert board.card_fields == ["epic_tag", "accountant", "labels"]
+    assert Board._meta.get_field("card_fields").default() == ["epic_tag", "accountant"]

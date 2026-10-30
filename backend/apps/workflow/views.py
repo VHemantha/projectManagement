@@ -10,6 +10,7 @@ from apps.projects.permissions import can_manage_project
 from trackflow.naming import clean_name
 
 from .models import Board, IssueType, Workflow, WorkflowStatus, WorkflowTransition
+from .services import sync_status_names
 from .serializers import (
     BoardConfigSerializer,
     IssueTypeSerializer,
@@ -91,9 +92,9 @@ class BoardStatusDetailView(APIView):
 class BoardColumnView(APIView):
     """PATCH /api/boards/<id>/columns/<index>/ {"name": ...} — rename one column in place.
 
-    Column names are unique on a board (ignoring case). When the column holds a single status
-    that carries the column's old name, that status is renamed too, so cards, status pickers
-    and filters show the new name."""
+    Column names are unique on a board (ignoring case). When the column holds a single status,
+    that status (the column's stage) takes the new name too, whatever it was called, so cards,
+    status pickers and filters show the column's name."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -111,30 +112,19 @@ class BoardColumnView(APIView):
             return Response({"name": exc.detail}, status=status.HTTP_400_BAD_REQUEST)
 
         column = dict(columns[index])
-        old_name = column.get("name", "")
         if any(i != index and str(c.get("name", "")).lower() == name.lower() for i, c in enumerate(columns)):
             return Response({"name": [f"This board already has a column called '{name}'."]}, status=status.HTTP_400_BAD_REQUEST)
 
         workflow = board.project.workflow
         status_ids = column.get("status_ids") or []
-        renamed_status = None
-        if len(status_ids) == 1:
-            wf_status = WorkflowStatus.objects.filter(pk=status_ids[0], workflow=workflow).first()
-            if wf_status and wf_status.name.lower() == str(old_name).lower() and wf_status.name != name:
-                if workflow.statuses.exclude(pk=wf_status.pk).filter(name__iexact=name).exists():
-                    return Response(
-                        {"name": [f"A status called '{name}' already exists in this project."]},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-                wf_status.name = name
-                wf_status.save(update_fields=["name"])
-                renamed_status = wf_status
+        if len(status_ids) == 1 and workflow.statuses.exclude(pk=status_ids[0]).filter(name__iexact=name).exists():
+            return Response({"name": [f"A status called '{name}' already exists in this project."]}, status=status.HTTP_400_BAD_REQUEST)
 
         column["name"] = name
         columns[index] = column
         board.column_config = columns
         board.save(update_fields=["column_config"])
-        if renamed_status is not None:
+        if sync_status_names(board):
             notify("issues", project=board.project.key)  # cards and job lists show status names
         return Response(BoardConfigSerializer(board).data)
 

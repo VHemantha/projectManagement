@@ -41,7 +41,7 @@ def test_the_value_comes_off_every_card():
 
 
 def test_new_boards_have_no_story_points_or_time():
-    assert Board._meta.get_field("card_fields").default() == ["epic_tag", "assignee"]
+    assert Board._meta.get_field("card_fields").default() == ["epic_tag", "accountant"]  # the Accountant's badge (29 Oct 2026)
 
 
 def test_boards_lose_their_swimlanes():

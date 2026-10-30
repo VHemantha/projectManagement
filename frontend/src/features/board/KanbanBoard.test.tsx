@@ -243,3 +243,13 @@ describe('Deleting a task from its card (AFIT, 28 Oct 2026)', () => {
     expect(openIssueModal).not.toHaveBeenCalled() // the card did not open
   })
 })
+
+describe('Card person badge (AFIT, 29 Oct 2026)', () => {
+  it("shows the Accountant's badge by default, not the Team Lead's", () => {
+    const ann = { id: 5, email: 'ann@example.com', username: 'ann', display_name: 'Ann Accountant', avatar: null }
+    const tom = { id: 6, email: 'tom@example.com', username: 'tom', display_name: 'Tom Lead', avatar: null }
+    render(<KanbanBoard issues={[makeIssue({ id: 1, summary: 'Smith FY26', preparer: ann, assignee: tom } as never)]} columns={columns} onMoveIssue={vi.fn()} />)
+    expect(screen.getByTitle('Accountant: Ann Accountant')).toBeInTheDocument()
+    expect(screen.queryByTitle('Team Lead: Tom Lead')).not.toBeInTheDocument()
+  })
+})
