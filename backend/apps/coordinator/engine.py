@@ -13,7 +13,7 @@ from datetime import datetime, time, timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from . import calendar, policies, services
+from . import advice, calendar, policies, services
 from .facts import URGENT, has_activity, job_facts, leads_for, local_now, open_jobs, responsible, tz, within_window, working_days_late
 from .models import AgentAction, AgentCase, Commitment, CoordinatorSettings
 from .texts import ask_text, escalation_text, group_for_person, shadow_digest
@@ -88,7 +88,7 @@ def tick(now: datetime | None = None) -> dict:
     now = now or timezone.now()
     today = local_now(now).date()
     sending = within_window(now)
-    outbox: dict = defaultdict(list)  # person -> [(case, text)]
+    outbox: dict = defaultdict(list)  # person -> [(case, text, cost of the advice)]
     escalations: dict = defaultdict(list)  # lead or CEO -> [(case, text)]
     live = set()
     for issue in open_jobs():
@@ -103,7 +103,9 @@ def tick(now: datetime | None = None) -> dict:
             live.add(case.pk)
             action = decide(case, now) if sending else ""
             if action == "ask":
-                outbox[person].append((case, ask_text(case, f, today, follow_up=case.asked > 0)))
+                # With a few next steps from what the agent knows of the job (AFIT, 31 Oct 2026).
+                steps, cost = advice.steps_for(issue, case.get_kind_display())
+                outbox[person].append((case, ask_text(case, f, today, follow_up=case.asked > 0) + advice.as_text(steps), cost))
             elif action == "escalate":
                 target = (leads_for(issue, exclude=person) or [services.ceo()])[0]
                 if target is not None:
@@ -116,7 +118,10 @@ def tick(now: datetime | None = None) -> dict:
     from .briefing import send_if_due
 
     briefing = send_if_due(now)
-    return {"cases_open": len(live), "closed": closed, **sent, "briefing": briefing, "sending": sending}
+    from . import ratings_report
+
+    ratings = ratings_report.send_if_due(now)
+    return {"cases_open": len(live), "closed": closed, **sent, "briefing": briefing, "ratings": ratings, "sending": sending}
 
 
 def _close(case: AgentCase, reason: str, now) -> None:
@@ -145,17 +150,17 @@ def deliver(outbox: dict, escalations: dict, now, *, shadow: bool) -> dict:
     shadow mode nothing goes to staff: the CEO gets one digest of what would have been sent."""
     digest = []
     for person, items in outbox.items():
-        text = group_for_person(person, [t for _, t in items])
+        text = group_for_person(person, [t for _, t, _ in items])
         message = None if shadow else services.post_as_agent(services.conversation_for(person), text)
         digest.append((person, text))
-        for case, _ in items:
+        for case, _, cost in items:
             case.asked += 1
             case.last_asked_at = now
             if case.state == S.ANSWERED:
                 case.state = S.ASKED
             case.save(update_fields=["asked", "last_asked_at", "state"])
             AgentAction.objects.create(trigger=case.kind, target=person, issue=case.issue, reason=f"{case.get_kind_display()} — message {case.asked}",
-                                       message=message, shadow=shadow)
+                                       message=message, shadow=shadow, cost_usd=cost)
     for lead, items in escalations.items():
         text = group_for_person(lead, [t for _, t in items], escalation=True)
         message = None if shadow else services.post_as_agent(services.conversation_for(lead), text)

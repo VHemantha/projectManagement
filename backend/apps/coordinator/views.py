@@ -301,3 +301,44 @@ class ScheduleView(APIView):
                                                                      "updated_by": request.user})
         services.audit(request.user, "change schedule", person.display_name, hours=hours)
         return Response({"user": _person(person), "hours": hours, "note": str(request.data.get("note") or "")[:200]})
+
+
+# --- employee ratings (CEO only) ------------------------------------------------------------------
+
+class RatingsView(APIView):
+    """GET /api/coordinator/ratings/?days=90 — each person's KPIs and rating, how the rating is worked
+    out, the change since the last weekly rating and the trend (CEO only; refusals are logged)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from . import kpi
+        from .models import KpiSnapshot
+
+        services.require_ceo(request.user, "view employee ratings")
+        try:
+            days = int(request.query_params.get("days") or 0) or None
+        except ValueError:
+            return Response({"days": ["Give the period as a number of days."]}, status=status.HTTP_400_BAD_REQUEST)
+        if days is not None and not 14 <= days <= 365:
+            return Response({"days": ["Between 14 and 365 days."]}, status=status.HTTP_400_BAD_REQUEST)
+        rows = kpi.ratings(days=days)
+        start, end = kpi.period(days=days)
+        before = kpi.previous_scores(end)
+        history: dict[int, list] = {}
+        for s in KpiSnapshot.objects.order_by("-period_end")[:2000]:
+            if len(history.setdefault(s.person_id, [])) < 12:
+                history[s.person_id].append({"date": s.period_end, "score": s.score})
+        for r in rows:
+            pid = r["person"]["id"]
+            r["previous_score"] = before.get(pid)
+            r["history"] = history.get(pid, [])[::-1]
+        return Response({
+            "period": {"from": start, "to": end},
+            "formula": {
+                "weights": [{"key": k, "label": label, "weight": kpi.weights()[k]} for k, label in kpi.METRICS],
+                "bands": [{"from": floor, "label": label} for floor, label in kpi.BANDS],
+                "min_items": int(policies.resolve("kpi_min_items")), "min_coverage_pct": int(kpi.MIN_COVERAGE * 100),
+            },
+            "people": rows,
+        })

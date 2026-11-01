@@ -221,3 +221,23 @@ class PublicHoliday(models.Model):
 
     class Meta:
         ordering = ["date"]
+
+
+class KpiSnapshot(models.Model):
+    """One person's rating for a period, as the agent worked it out (AFIT, 31 Oct 2026): kept every
+    week so the CEO can see the trend. Each KPI's score, how much data it had, and the weights used
+    are stored with it, so a later change to the weights never rewrites an old rating."""
+
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="kpi_snapshots")
+    period_start = models.DateField()
+    period_end = models.DateField()
+    score = models.FloatField(null=True, blank=True)  # 0-100; null: not enough data
+    rating = models.CharField(max_length=30)
+    metrics = models.JSONField(default=list)  # [{key, label, score, n, detail, weight, counted}]
+    weights = models.JSONField(default=dict)
+    reasons = models.JSONField(default=dict)  # causes given for delays in the period: {cause label: count}
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-period_end", "person_id"]
+        constraints = [models.UniqueConstraint(fields=["person", "period_end"], name="one_kpi_snapshot_per_person_per_day")]

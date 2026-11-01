@@ -3,6 +3,7 @@ import { type FormEvent, useState } from 'react'
 
 import styles from './Coordinator.module.css'
 import { leaveDays } from './leaveText'
+import { RatingsTab } from './RatingsTab'
 import {
   type RuleInfo,
   useAddHoliday,
@@ -50,6 +51,7 @@ export function CoordinatorConsolePage() {
         <TabsList aria-label="Coordinator console">
           <TabsTrigger value="controls">Controls</TabsTrigger>
           <TabsTrigger value="cases">Follow-ups</TabsTrigger>
+          <TabsTrigger value="ratings">Ratings</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="leave">Leave</TabsTrigger>
           <TabsTrigger value="hours">Working hours</TabsTrigger>
@@ -59,6 +61,7 @@ export function CoordinatorConsolePage() {
         </TabsList>
         <TabsContent value="controls"><Controls /></TabsContent>
         <TabsContent value="cases"><FollowUps /></TabsContent>
+        <TabsContent value="ratings"><RatingsTab /></TabsContent>
         <TabsContent value="rules"><Rules /></TabsContent>
         <TabsContent value="leave"><LeaveApprovals /></TabsContent>
         <TabsContent value="hours"><WorkingHours /></TabsContent>

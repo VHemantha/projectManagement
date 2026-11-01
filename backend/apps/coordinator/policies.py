@@ -58,6 +58,20 @@ RULES = [
     Rule("communication", "Communication intensity", "normal", "choice",
          "Quiet: only risks and deadlines. Normal: as the rules say. Close: earlier and more frequent checks. "
          "Critical risk alerts are never suppressed.", choices=("quiet", "normal", "close")),
+    # The employee rating (AFIT, 31 Oct 2026): each KPI scores 0-100; the rating is their weighted
+    # average over the KPIs with enough data. Weights are relative (they need not add up to 100).
+    Rule("kpi_period_days", "Ratings: period (days)", 90, "number", "Each rating looks back this many days.", 14, 365),
+    Rule("kpi_min_items", "Ratings: least data for a KPI", 3, "number",
+         "A KPI counts only with at least this many tasks (or follow-ups, or dates given).", 1, 50),
+    Rule("kpi_weight_on_time", "Weight: tasks finished by their due date", 25, "number", "Finished tasks whose finish date is on or before the due date.", 0, 100),
+    Rule("kpi_weight_precheck", "Weight: pre-checks done on time", 15, "number", "Pre-checks done by their target date.", 0, 100),
+    Rule("kpi_weight_promises", "Weight: revised dates kept", 15, "number", "Dates the person gave the agent that the job record shows were met.", 0, 100),
+    Rule("kpi_weight_response", "Weight: answering follow-ups", 10, "number", "Follow-ups answered without being escalated to the team lead.", 0, 100),
+    Rule("kpi_weight_budget", "Weight: within the hours budget", 15, "number", "Finished tasks within the budgeted hours (and the tolerance).", 0, 100),
+    Rule("kpi_weight_quality", "Weight: right first time", 15, "number", "Finished tasks that never went back for internal adjustments.", 0, 100),
+    Rule("kpi_weight_timesheet", "Weight: timesheets complete", 5, "number", "Working days with at least the minimum hours recorded.", 0, 100),
+    Rule("kpi_report_time", "Weekly ratings report to the CEO (local time, Mondays)", "08:30", "time",
+         "On the first working day of each week the CEO gets the ratings and what changed."),
 ]
 BY_KEY = {r.key: r for r in RULES}
 SCOPE_ORDER = [AgentPolicy.Scope.JOB, AgentPolicy.Scope.PERSON, AgentPolicy.Scope.CLIENT, AgentPolicy.Scope.TEAM, AgentPolicy.Scope.COMPANY]

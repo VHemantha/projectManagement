@@ -23,7 +23,11 @@ def facts(today=None) -> dict:
     missed = [c for c in cases if c.kind == AgentCase.Kind.PROMISE_MISSED]
     waiting = [c for c in cases if c.state == AgentCase.State.ASKED and c.asked > 0]
     jobs = list(open_jobs())
-    return {"today": today, "open_jobs": len(jobs), "unassigned": sum(1 for j in jobs if responsible(j) is None),
+    since = calendar.previous_working_day(today) or today
+    # The reasons people gave the agent since the last working day (AFIT, 31 Oct 2026).
+    reasons = list(Commitment.objects.filter(created_at__date__gte=since).exclude(cause=Commitment.Cause.NONE)
+                   .select_related("issue", "person").order_by("cause", "-created_at")[:20])
+    return {"today": today, "open_jobs": len(jobs), "unassigned": sum(1 for j in jobs if responsible(j) is None), "reasons": reasons,
             "overdue": overdue, "due_soon": due_soon, "escalated": escalated, "missed": missed, "waiting": waiting,
             "kept_yesterday": Commitment.objects.filter(status=Commitment.Status.KEPT, verified_at__date__gte=calendar.previous_working_day(today) or today).count()}
 
@@ -34,12 +38,18 @@ def _line(c: AgentCase) -> str:
     return f"{c.issue.key} {c.issue.summary[:60]} ({client}) — {c.person.display_name}; {c.get_kind_display().lower()}, due {c.due_date:%d %b}{extra}"
 
 
+def _reason(c) -> str:
+    when = f"; new date {c.eta_date:%d %b}" if c.eta_date else ""
+    return f"{c.issue.key} — {c.person.display_name}: {c.get_cause_display().lower()}{(' — ' + c.blockers) if c.blockers else ''}{when}"
+
+
 def compose(f: dict) -> tuple[str, float]:
     sections = [("Overdue", f["overdue"]), ("Due in the next days", f["due_soon"]), ("Escalated to a team lead", f["escalated"]),
                 ("Revised dates missed", f["missed"]), ("Waiting for a reply", f["waiting"])]
     facts_text = "\n".join([f"Today: {f['today']:%A %d %B %Y}. Open jobs: {f['open_jobs']} ({f['unassigned']} with nobody responsible). "
                             f"Promises kept since the last working day: {f['kept_yesterday']}."]
-                           + [f"{title} ({len(items)}): " + "; ".join(_line(c) for c in items[:15]) for title, items in sections if items])
+                           + [f"{title} ({len(items)}): " + "; ".join(_line(c) for c in items[:15]) for title, items in sections if items]
+                           + (["Reasons given: " + "; ".join(_reason(c) for c in f["reasons"])] if f.get("reasons") else []))
     cost_usd = 0.0
     try:
         answer, cost_usd = llm.structured(SYSTEM, [{"role": "user", "content": facts_text}], SCHEMA, max_tokens=600)
@@ -55,6 +65,8 @@ def compose(f: dict) -> tuple[str, float]:
         if items:
             body.append(f"{title} ({len(items)}):\n" + "\n".join(f"• {_line(c)}" for c in items[:15])
                         + (f"\n…and {len(items) - 15} more" if len(items) > 15 else ""))
+    if f.get("reasons"):
+        body.append(f"Reasons given since the last working day ({len(f['reasons'])}):\n" + "\n".join(f"• {_reason(c)}" for c in f["reasons"]))
     if f["unassigned"]:
         body.append(f"{f['unassigned']} open job{'s have' if f['unassigned'] != 1 else ' has'} nobody responsible, so I can't follow them up.")
     return "\n\n".join(body), cost_usd

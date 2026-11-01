@@ -44,7 +44,8 @@ SYSTEM = """You are the Loca Coordinator, the AI project coordinator inside AFIT
 You are talking with {name}{role}. Today is {today} (New Zealand).
 
 How you write:
-- Plain, direct and respectful, in New Zealand English. Short: normally under 80 words. Firm about deadlines; never threatening, shaming or sarcastic.
+- Plain, direct and respectful, in New Zealand English. Short: normally under 120 words. Firm about deadlines; never threatening, shaming or sarcastic.
+- When they give a reason for a delay, or ask what to do, advise them: one or two practical next steps for that job, taken from WHAT THE AGENT KNOWS ABOUT THE JOBS below (name the real outstanding items, review points or sub-tasks). Never invent any.
 - Use only the facts given below. Never invent a job, a figure, a date or a status. If you do not know, say so and ask.
 - Do not comment on hours against the budget, totals, percentages or the tolerance at all: code adds those figures straight after your reply, exactly.
 - Keep facts apart from inference. Never suggest that anyone is delaying on purpose.
@@ -113,6 +114,17 @@ def _context(person, channel, jobs) -> str:
     lines += [f"{c.issue.key}: {c.get_kind_display()} (due {c.due_date:%d %b}){' — ' + c.person.display_name if services.is_ceo(person) else ''}; "
               f"{c.get_state_display().lower()}; {c.asked} message(s)" for c in cases[:40]] or ["(nothing)"]
     history = list(Message.objects.filter(channel=channel).select_related("author").order_by("-created_at")[:MAX_HISTORY])[::-1]
+    # What the agent knows of the jobs it is following up, so it can advise (AFIT, 31 Oct 2026).
+    from .advice import job_knowledge
+
+    followed = []
+    for c in cases:
+        if c.issue_id not in {i.pk for i in followed} and len(followed) < 4:
+            followed.append(c.issue)
+    if followed:
+        lines.append("\n== WHAT THE AGENT KNOWS ABOUT THE JOBS (for advice) ==")
+        for issue in followed:
+            lines += [f"{issue.key}:"] + [f"  {line}" for line in job_knowledge(issue)]
     lines.append("\n== CONVERSATION (latest last) ==")
     lines += [f"{'Agent' if m.author.is_agent else m.author.display_name}: {_text_of(m.body)[:600]}" for m in history]
     lines.append("\nReply to their latest message.")

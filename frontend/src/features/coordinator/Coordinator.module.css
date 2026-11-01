@@ -154,3 +154,92 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+
+/* --- Ratings tab (AFIT, 31 Oct 2026) --- */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-2);
+}
+.inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.linkButton {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--tf-text-link);
+  cursor: pointer;
+  text-align: left;
+}
+.linkButton:hover {
+  text-decoration: underline;
+}
+.score {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.formula {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: var(--tf-space-2) 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--tf-font-size-sm);
+}
+.kpis {
+  list-style: none;
+  margin: 0 0 var(--tf-space-2);
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.kpi {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 2fr) 48px;
+  align-items: center;
+  gap: 2px 10px;
+}
+.kpi[data-counted='false'] {
+  opacity: 0.6;
+}
+.kpiLabel {
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text);
+}
+.kpiBar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--tf-surface-sunken);
+  overflow: hidden;
+}
+.kpiBar > span {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: #2a78d6;
+}
+.kpiScore {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kpiDetail {
+  grid-column: 1 / -1;
+  color: var(--tf-text-subtle);
+}

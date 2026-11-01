@@ -232,3 +232,46 @@ export function useSetSchedule() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['coordinator', 'schedules'] }),
   })
 }
+
+/** One KPI of a person's rating: a share from 0 to 100 over the period. */
+export interface KpiMetric {
+  key: string
+  label: string
+  score: number | null
+  n: number
+  detail: string
+  weight: number
+  counted: boolean
+  note: string
+}
+
+export interface PersonRating {
+  person: { id: number; display_name: string }
+  period: { from: string; to: string }
+  score: number | null
+  rating: string
+  metrics: KpiMetric[]
+  reasons: Record<string, number>
+  finished_tasks: number
+  previous_score: number | null
+  history: { date: string; score: number | null }[]
+}
+
+export interface Ratings {
+  period: { from: string; to: string }
+  formula: {
+    weights: { key: string; label: string; weight: number }[]
+    bands: { from: number; label: string }[]
+    min_items: number
+    min_coverage_pct: number
+  }
+  people: PersonRating[]
+}
+
+/** Each person's KPIs and rating, worked out by the coordinator (CEO only). */
+export function useRatings(days?: number) {
+  return useQuery({
+    queryKey: ['coordinator', 'ratings', days ?? 'default'],
+    queryFn: () => get<Ratings>(`/coordinator/ratings/${days ? `?days=${days}` : ''}`),
+  })
+}
