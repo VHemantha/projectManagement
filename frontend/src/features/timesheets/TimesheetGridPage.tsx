@@ -178,9 +178,11 @@ export function TimesheetGridPage() {
                 const dateStr = format(d, 'yyyy-MM-dd')
                 const list = row.entriesByDate.get(dateStr)
                 const hours = hoursFor(list)
+                const loggedBy = [...new Set((list ?? []).filter((e) => e.logged_by).map((e) => e.logged_by!.display_name))]
                 return (
                   <td key={dateStr}>
                     <div
+                      title={loggedBy.length ? `Logged for you by ${loggedBy.join(', ')}` : undefined}
                       className={`${styles.cell} ${!hours ? styles.empty : ''} ${isLocked ? styles.locked : ''}`}
                       onClick={() => openCell(dateStr, row.issueId, list)}
                     >

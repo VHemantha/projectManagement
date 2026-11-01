@@ -463,6 +463,8 @@ export type TimeEntryCreatedVia = 'timer' | 'manual' | 'chat_command'
 export interface TimeEntry {
   id: number
   user: User
+  /** Who entered it, when someone else logged it on the person's behalf. */
+  logged_by: User | null
   issue: IssueMini | null
   project: number | null
   project_key: string | null

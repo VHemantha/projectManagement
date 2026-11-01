@@ -8,14 +8,13 @@ import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { TasksSummary } from './TasksSummary'
 import { useClients } from '@/api/clients'
-import { useIssues, useMoveIssue } from '@/api/issues'
+import { useAllIssues, useMoveIssue } from '@/api/issues'
 import { useTeams } from '@/api/teams'
 import { Tabs, TabsList, TabsTrigger } from '@/design-system'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
 import { type GroupByOption, IssueTable } from '@/features/tables/IssueTable'
 import { useUiStore } from '@/store/uiStore'
 
-const PAGE_SIZE = 300
 const NONE = 'none'
 const VIEWS = [
   { id: 'kanban', label: 'Kanban' },
@@ -77,12 +76,12 @@ export function AllIssuesBoardPage() {
     setSearchParams(next, { replace: true })
   }
 
-  const { data: issuesPage, isLoading } = useIssues({
+  // Every task (not the first few hundred): the task list pages through them.
+  const { data: issuesPage, isLoading } = useAllIssues({
     ...(noTeam ? { no_team: true } : teamId ? { team: Number(teamId), exclude_sub_teams: excludeSubTeams || undefined } : {}),
     ...(noClient ? { no_client: true } : clientId ? { client: Number(clientId) } : {}),
     no_parent: true,
     exclude_type: 'Epic',
-    page_size: PAGE_SIZE,
     ordering: 'rank',
   })
   const issues = useMemo(() => issuesPage?.results ?? [], [issuesPage])

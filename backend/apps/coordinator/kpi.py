@@ -11,6 +11,8 @@ Every KPI is worked out by code from the job records over the rating period, as 
     Budget       finished tasks with a budget whose hours stayed within it (and the tolerance)
     Quality      finished tasks that never went back to Internal Adjustments
     Timesheets   working days (leave and holidays excluded) with the minimum hours recorded
+    Plans        morning-plan items for past days that were done (a team lead's "not done" overrules
+                 the person's own tick; an item carried over or not done counts against)
 
     Rating = sum(weight x KPI score) / sum(weight), over the KPIs with enough data
 
@@ -36,6 +38,7 @@ METRICS = [
     ("budget", "Within the hours budget"),
     ("quality", "Right first time"),
     ("timesheet", "Timesheets complete"),
+    ("plans", "Morning plans kept"),
 ]
 BANDS = [(85, "Excellent"), (70, "Good"), (55, "Needs improvement"), (0, "At risk")]
 NOT_ENOUGH = "Not enough data"
@@ -161,6 +164,16 @@ def timesheet(person, start: date, end: date) -> Metric:
     return Metric("timesheet", dict(METRICS)["timesheet"], good, total, f"{good} of {total} working days with at least {minimum:g}h recorded")
 
 
+def plans(person, start: date, end: date) -> Metric:
+    """The person's morning plans (AFIT, 1 Nov 2026): items for days before today that were done."""
+    from apps.daily_goals.models import DailyGoal
+
+    end = min(end, _local(timezone.now()) - timedelta(days=1))
+    rows = list(DailyGoal.objects.filter(user=person, date__gte=start, date__lte=end).values_list("status", "lead_check"))
+    good = sum(1 for status, check in rows if status == DailyGoal.Status.ACHIEVED and check != DailyGoal.LeadCheck.NOT_DONE)
+    return Metric("plans", dict(METRICS)["plans"], good, len(rows), f"{good} of {len(rows)} morning-plan items done on the day")
+
+
 def reasons(person, start: date, end: date) -> dict[str, int]:
     """The causes the person gave the agent for delays in the period, most often first."""
     from .models import Commitment
@@ -176,7 +189,7 @@ def rate(person, start: date, end: date) -> dict:
     minimum = int(policies.resolve("kpi_min_items"))
     w = weights()
     found = [on_time(finished), precheck(person, start, end), promises(person, start, end), response(person, start, end),
-             budget(finished), quality(finished), timesheet(person, start, end)]
+             budget(finished), quality(finished), timesheet(person, start, end), plans(person, start, end)]
     rows, total_w, used_w, weighted = [], sum(w.values()), 0.0, 0.0
     for m in found:
         least = 5 if m.key == "timesheet" else minimum

@@ -2,6 +2,9 @@ from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
+
+from apps.accounts.models import User
 
 from apps.accounts.serializers import UserSerializer
 from apps.issues.models import Issue
@@ -18,6 +21,12 @@ class TimeEntryTagSerializer(serializers.ModelSerializer):
 
 class TimeEntrySerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
+    # Logging for someone else (a tick in the Log time form): who the time is for. Only a lead of
+    # one of the person's workspaces, or an organisation admin, may (AFIT, 1 Nov 2026).
+    user_id = serializers.PrimaryKeyRelatedField(
+        source="for_user", queryset=User.objects.filter(is_active=True, is_agent=False), write_only=True, required=False,
+    )
+    logged_by = UserSerializer(read_only=True)
     issue = IssueMiniSerializer(read_only=True)
     issue_id = serializers.PrimaryKeyRelatedField(
         source="issue", queryset=Issue.objects.all(), write_only=True, required=False, allow_null=True,
@@ -38,6 +47,8 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "user",
+            "user_id",
+            "logged_by",
             "issue",
             "issue_id",
             "project",
@@ -78,12 +89,28 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         self._pop_duration(validated_data)
-        validated_data["user"] = request.user
+        person = validated_data.pop("for_user", None) or request.user
         validated_data.setdefault("work_date", timezone.now().date())
+        if person.id != request.user.id:
+            from apps.teams.leads import leads
+
+            if not leads(request.user, person):
+                raise PermissionDenied("You can log time for someone else only if you lead one of their workspaces.")
+            closed = Timesheet.objects.filter(
+                user=person, period_start__lte=validated_data["work_date"], period_end__gte=validated_data["work_date"],
+                status__in=[Timesheet.Status.SUBMITTED, Timesheet.Status.APPROVED],
+            ).exists()
+            if closed:
+                raise serializers.ValidationError(
+                    {"work_date": f"{person.display_name}'s timesheet for that week is already submitted."}
+                )
+            validated_data["logged_by"] = request.user
+        validated_data["user"] = person
         validated_data.setdefault("created_via", TimeEntry.CreatedVia.MANUAL)
         return super().create(validated_data)
 
     def update(self, instance, validated_data):
+        validated_data.pop("for_user", None)  # an entry stays with the person it is for
         self._pop_duration(validated_data)
         return super().update(instance, validated_data)
 

@@ -21,6 +21,10 @@ class DailyGoal(models.Model):
         "issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="daily_goals"
     )
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.PLANNED)
+    # The morning plan (AFIT, 1 Nov 2026): the hours set aside for it today, and the day the job is
+    # to be finished ("ABC Ltd Preparation, 7h today, completion tomorrow").
+    planned_hours = models.FloatField(null=True, blank=True)
+    complete_by = models.DateField(null=True, blank=True)
     # The "why not" note is what makes the team-leader rollup useful instead of just a checkbox.
     note = models.CharField(max_length=500, blank=True)
     order = models.PositiveIntegerField(default=0)
@@ -29,6 +33,18 @@ class DailyGoal(models.Model):
     carried_over_from = models.ForeignKey(
         "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="carried_over_to"
     )
+    # The team lead's check of the day's result: confirmed, or not done after all. The rating's
+    # "morning plans kept" KPI follows the lead's word over the person's own tick.
+    class LeadCheck(models.TextChoices):
+        NONE = "", "Not checked"
+        CONFIRMED = "confirmed", "Confirmed"
+        NOT_DONE = "not_done", "Not done"
+
+    lead_check = models.CharField(max_length=10, choices=LeadCheck.choices, default=LeadCheck.NONE, blank=True)
+    checked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+    checked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

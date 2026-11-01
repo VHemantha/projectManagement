@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from './client'
-import type { Paginated, TimeEntry, Timesheet } from './types'
+import type { Paginated, TimeEntry, Timesheet, User } from './types'
 import { useAuthStore } from '@/store/authStore'
 
 const RUNNING_TIMER_KEY = ['time-entries', 'running']
@@ -72,6 +72,8 @@ export function useTimeEntries(params: TimeEntryQueryParams, enabled = true) {
 }
 
 export interface ManualTimeEntryPayload {
+  /** Someone else's id, to log the time on their behalf (a lead, for a person they lead). */
+  user_id?: number
   issue_id?: number | null
   description?: string
   work_date: string
@@ -114,6 +116,18 @@ export function useDeleteTimeEntry() {
       await apiClient.delete(`/time-entries/${id}/`)
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['time-entries'] }),
+  })
+}
+
+/** The people this user may log time for: those they lead (everyone, for an admin). */
+export function useOnBehalfPeople(enabled = true) {
+  return useQuery({
+    queryKey: ['time-entries', 'on-behalf-people'],
+    enabled,
+    queryFn: async () => {
+      const { data } = await apiClient.get<User[]>('/time-entries/on-behalf-people/')
+      return data
+    },
   })
 }
 

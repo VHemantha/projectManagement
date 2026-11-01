@@ -23,6 +23,11 @@ class TimeEntry(models.Model):
         CHAT_COMMAND = "chat_command", "Chat command"
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="time_entries")
+    # Set when someone else entered it on the person's behalf (e.g. a team lead, while the person
+    # is away); empty when the person logged it themselves (AFIT, 1 Nov 2026).
+    logged_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
     issue = models.ForeignKey(
         "issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="time_entries"
     )

@@ -8,7 +8,7 @@ import {
 } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { format, subDays } from 'date-fns'
+import { format, parseISO, subDays } from 'date-fns'
 import { Check, ChevronRight, Plus, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
@@ -20,6 +20,8 @@ import {
   useDailyGoalsRange,
   useUpdateDailyGoal,
 } from '@/api/dailyGoals'
+import { useIssues } from '@/api/issues'
+import { completionLabel } from '@/lib/plans'
 import { IssueKey } from '@/design-system'
 import { useUiStore } from '@/store/uiStore'
 
@@ -33,6 +35,135 @@ function dayColor(goals: DailyGoal[]): string {
   if (notAchieved > 0) return 'var(--tf-danger)'
   if (achieved === goals.length) return 'var(--tf-success)'
   return 'var(--tf-border)'
+}
+
+/** One line under a plan item: the hours for the day, the completion date, and what the task's
+ * record and the team lead say. */
+export function PlanMeta({ goal }: { goal: DailyGoal }) {
+  const parts: string[] = []
+  if (goal.planned_hours != null) parts.push(`${Number(goal.planned_hours.toFixed(2))} hr${goal.planned_hours === 1 ? '' : 's'} today`)
+  if (goal.complete_by) parts.push(completionLabel(goal.complete_by, goal.date))
+  const overdue = goal.complete_by && !goal.task_done && goal.linked_issue && goal.complete_by < format(new Date(), 'yyyy-MM-dd')
+  if (!parts.length && !goal.task_done && !goal.lead_check) return null
+  return (
+    <div style={{ fontSize: 11, color: 'var(--tf-text-subtle)', marginTop: 2, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {parts.length > 0 && <span>{parts.join(' · ')}</span>}
+      {goal.task_done && <span style={{ color: 'var(--tf-success)' }}>Task finished {format(parseISO(goal.task_done), 'd MMM')}</span>}
+      {overdue && <span style={{ color: 'var(--tf-danger)' }}>Completion date passed</span>}
+      {goal.lead_check === 'confirmed' && <span style={{ color: 'var(--tf-success)' }}>Checked by {goal.checked_by?.display_name ?? 'team lead'}</span>}
+      {goal.lead_check === 'not_done' && <span style={{ color: 'var(--tf-danger)' }}>Team lead: not done</span>}
+    </div>
+  )
+}
+
+/** Add an item to the day's plan: what (or a task), the hours for today, and the completion date. */
+function PlanItemForm({ date }: { date: string }) {
+  const createGoal = useCreateDailyGoal()
+  const [text, setText] = useState('')
+  const [hours, setHours] = useState('')
+  const [completeBy, setCompleteBy] = useState(date)
+  const [taskSearch, setTaskSearch] = useState('')
+  const [task, setTask] = useState<{ id: number; key: string; summary: string } | null>(null)
+  const { data: found } = useIssues({ search: taskSearch, no_parent: true, page_size: 6 }, taskSearch.trim().length >= 2)
+
+  const add = () => {
+    if (!text.trim() && !task) return
+    createGoal.mutate(
+      {
+        date,
+        text: text.trim(),
+        linked_issue_id: task?.id ?? null,
+        planned_hours: hours ? Number(hours) : null,
+        complete_by: completeBy || null,
+      },
+      {
+        onSuccess: () => {
+          setText('')
+          setHours('')
+          setTask(null)
+          setTaskSearch('')
+          setCompleteBy(date)
+        },
+      },
+    )
+  }
+  const field = { fontSize: 13, height: 30, border: '1px solid var(--tf-border)', borderRadius: 4, padding: '0 8px' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }} aria-label="Add to the plan" role="group">
+      <input
+        aria-label="What will you do?"
+        placeholder={task ? 'Leave blank to use the task' : 'What will you do? e.g. ABC Ltd Preparation'}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && add()}
+        style={field}
+      />
+      {task ? (
+        <div style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <IssueKey value={task.key} /> {task.summary}
+          <button type="button" onClick={() => setTask(null)} style={{ fontSize: 11, marginLeft: 'auto' }}>
+            Remove task
+          </button>
+        </div>
+      ) : (
+        <div style={{ position: 'relative' }}>
+          <input
+            aria-label="Task (optional)"
+            placeholder="Link a task (optional): search by key or name"
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+            style={{ ...field, width: '100%', boxSizing: 'border-box' }}
+          />
+          {taskSearch.trim().length >= 2 && (found?.results.length ?? 0) > 0 && (
+            <div role="listbox" style={{ border: '1px solid var(--tf-border)', borderRadius: 4, marginTop: 2, background: 'var(--tf-surface)' }}>
+              {found!.results.map((r) => (
+                <div
+                  key={r.id}
+                  role="option"
+                  aria-selected={false}
+                  style={{ padding: '4px 8px', cursor: 'pointer', fontSize: 12 }}
+                  onClick={() => {
+                    setTask({ id: r.id, key: r.key, summary: r.summary })
+                    setTaskSearch('')
+                  }}
+                >
+                  {r.key} — {r.summary}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          Hours today
+          <input
+            type="number"
+            min="0.25"
+            max="24"
+            step="0.25"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            style={{ ...field, width: 70 }}
+          />
+        </label>
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
+          Completion
+          <input type="date" min={date} value={completeBy} onChange={(e) => setCompleteBy(e.target.value)} style={field} />
+        </label>
+        <button
+          type="button"
+          onClick={add}
+          aria-label="Add to plan"
+          disabled={createGoal.isPending || (!text.trim() && !task)}
+          style={{ border: '1px solid var(--tf-border)', borderRadius: 4, background: 'var(--tf-surface)', cursor: 'pointer', padding: '0 8px', height: 30, marginLeft: 'auto' }}
+        >
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function GoalRow({ goal }: { goal: DailyGoal }) {
@@ -80,6 +211,7 @@ function GoalRow({ goal }: { goal: DailyGoal }) {
             </span>
           )}
         </div>
+        <PlanMeta goal={goal} />
         {goal.status === 'not_achieved' && goal.note && (
           <div style={{ fontSize: 11, color: 'var(--tf-danger)', marginTop: 2 }}>{goal.note}</div>
         )}
@@ -127,10 +259,8 @@ export function DailyGoalsWidget() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const rangeStart = format(subDays(new Date(), STRIP_DAYS - 1), 'yyyy-MM-dd')
   const [viewDate, setViewDate] = useState(today)
-  const [draft, setDraft] = useState('')
 
   const { data: rangeGoals } = useDailyGoalsRange(rangeStart, today)
-  const createGoal = useCreateDailyGoal()
   const updateGoal = useUpdateDailyGoal()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
@@ -153,12 +283,6 @@ export function DailyGoalsWidget() {
     (g) => g.status === 'planned' || g.status === 'in_progress',
   )
 
-  const handleAdd = () => {
-    if (!draft.trim()) return
-    createGoal.mutate({ date: viewDate, text: draft.trim() })
-    setDraft('')
-  }
-
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -177,7 +301,7 @@ export function DailyGoalsWidget() {
   return (
     <div className={styles.card}>
       <div className={styles.cardTitle}>
-        Today&apos;s goals {viewDate !== today && <span style={{ fontWeight: 400, color: 'var(--tf-text-subtle)' }}>— {viewDate}</span>}
+        Morning plan {viewDate !== today && <span style={{ fontWeight: 400, color: 'var(--tf-text-subtle)' }}>— {viewDate}</span>}
       </div>
 
       {unmarkedYesterday.length > 0 && viewDate === today && (
@@ -199,7 +323,7 @@ export function DailyGoalsWidget() {
       )}
 
       {viewGoals.length === 0 ? (
-        <div className={styles.empty}>No goals set for this day yet.</div>
+        <div className={styles.empty}>Nothing planned for this day yet.</div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={viewGoals.map((g) => g.id)} strategy={verticalListSortingStrategy}>
@@ -211,22 +335,14 @@ export function DailyGoalsWidget() {
       )}
 
       {viewDate === today && (
-        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-          <input
-            placeholder="Add a goal for today…"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            style={{ flex: 1, fontSize: 13, height: 30, border: '1px solid var(--tf-border)', borderRadius: 4, padding: '0 8px' }}
-          />
-          <button
-            type="button"
-            onClick={handleAdd}
-            style={{ border: '1px solid var(--tf-border)', borderRadius: 4, background: 'var(--tf-surface)', cursor: 'pointer', padding: '0 8px' }}
-          >
-            <Plus size={14} />
-          </button>
-        </div>
+        <>
+          {viewGoals.some((g) => g.planned_hours) && (
+            <div style={{ fontSize: 12, color: 'var(--tf-text-subtle)', marginTop: 6 }}>
+              {Number(viewGoals.reduce((s, g) => s + (g.planned_hours ?? 0), 0).toFixed(2))} hrs planned today
+            </div>
+          )}
+          <PlanItemForm date={today} />
+        </>
       )}
 
       <div style={{ display: 'flex', gap: 4, marginTop: 12 }}>

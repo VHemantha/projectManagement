@@ -9,9 +9,11 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.serializers import UserSerializer
 from apps.notifications.models import Notification
 from apps.notifications.services import notify
 from apps.projects.models import Project
+from apps.teams.leads import led_people
 
 from .filters import TimeEntryFilter
 from .models import BillableRate, TimeEntry, Timesheet
@@ -34,7 +36,7 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
     serializer_class = TimeEntrySerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_class = TimeEntryFilter
-    queryset = TimeEntry.objects.select_related("user", "issue", "project").prefetch_related("tags")
+    queryset = TimeEntry.objects.select_related("user", "logged_by", "issue", "project").prefetch_related("tags")
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -44,15 +46,23 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
         return qs.order_by("-work_date", "-started_at")
 
     def perform_create(self, serializer):
-        serializer.save()
+        entry = serializer.save()
+        if entry.logged_by_id:
+            # Tell the person their time was entered for them.
+            notify(entry.user, Notification.Verb.WATCHING_UPDATED, actor=self.request.user, target_issue=entry.issue)
+
+    @staticmethod
+    def _may_change(entry, user) -> bool:
+        # The person's own entries, and those someone logged on their behalf (by that someone).
+        return user.id in (entry.user_id, entry.logged_by_id)
 
     def perform_update(self, serializer):
-        if serializer.instance.user_id != self.request.user.id:
+        if not self._may_change(serializer.instance, self.request.user):
             raise PermissionDenied("You can only edit your own time entries.")
         serializer.save()
 
     def perform_destroy(self, instance):
-        if instance.user_id != self.request.user.id:
+        if not self._may_change(instance, self.request.user):
             raise PermissionDenied("You can only delete your own time entries.")
         if instance.locked:
             raise ValidationError("This entry is locked (part of a submitted timesheet).")
@@ -92,6 +102,11 @@ class TimeEntryViewSet(viewsets.ModelViewSet):
             return Response(TimeEntrySerializer(entry).data)
         _stop_entry(entry)
         return Response(TimeEntrySerializer(entry).data)
+
+    @action(detail=False, methods=["get"], url_path="on-behalf-people")
+    def on_behalf_people(self, request):
+        """The people this user may log time for: those they lead (everyone, for an admin)."""
+        return Response(UserSerializer(led_people(request.user), many=True).data)
 
     @action(detail=False, methods=["get"])
     def running(self, request):

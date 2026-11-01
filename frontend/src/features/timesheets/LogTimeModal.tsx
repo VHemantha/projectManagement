@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
-import { useCreateTimeEntry, useUpdateTimeEntry } from '@/api/timesheets'
+import { extractErrorMessage } from '@/api/errors'
+import { useCreateTimeEntry, useOnBehalfPeople, useUpdateTimeEntry } from '@/api/timesheets'
 import { useIssues } from '@/api/issues'
 import type { TimeEntry } from '@/api/types'
 import { Button, Dialog, DialogContent, Input } from '@/design-system'
@@ -28,6 +29,11 @@ export function LogTimeModal({
   const [billable, setBillable] = useState(true)
   const [issueSearch, setIssueSearch] = useState('')
   const [issueId, setIssueId] = useState<number | null>(defaultIssueId ?? null)
+  // Logging for someone else, e.g. a team lead entering the time of a person who is away
+  // (AFIT, 1 Nov 2026). Offered only to those who lead someone.
+  const [onBehalf, setOnBehalf] = useState(false)
+  const [personId, setPersonId] = useState('')
+  const { data: people } = useOnBehalfPeople(open && !existingEntry)
   const { data: issueResults } = useIssues({ project: projectKey, search: issueSearch, page_size: 6 }, issueSearch.length >= 2)
   const createEntry = useCreateTimeEntry()
   const updateEntry = useUpdateTimeEntry()
@@ -40,6 +46,8 @@ export function LogTimeModal({
       setBillable(existingEntry?.is_billable ?? true)
       setIssueId(existingEntry?.issue?.id ?? defaultIssueId ?? null)
       setIssueSearch('')
+      setOnBehalf(false)
+      setPersonId('')
     }
   }, [open, existingEntry, defaultDate, defaultIssueId])
 
@@ -47,6 +55,7 @@ export function LogTimeModal({
     e.preventDefault()
     const hoursNum = Number(hours)
     if (!hoursNum || hoursNum <= 0) return
+    if (onBehalf && !personId) return
 
     if (existingEntry) {
       updateEntry.mutate(
@@ -55,18 +64,52 @@ export function LogTimeModal({
       )
     } else {
       createEntry.mutate(
-        { issue_id: issueId, hours: hoursNum, description, is_billable: billable, work_date: workDate },
+        {
+          issue_id: issueId,
+          hours: hoursNum,
+          description,
+          is_billable: billable,
+          work_date: workDate,
+          ...(onBehalf && personId ? { user_id: Number(personId) } : {}),
+        },
         { onSuccess: () => onOpenChange(false) },
       )
     }
   }
 
   const isPending = createEntry.isPending || updateEntry.isPending
+  const error = createEntry.error ?? updateEntry.error
+  const canLogForOthers = !existingEntry && (people?.length ?? 0) > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent title={existingEntry ? 'Edit time entry' : 'Log time'} maxWidth={420}>
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {canLogForOthers && (
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                <input type="checkbox" checked={onBehalf} onChange={(e) => setOnBehalf(e.target.checked)} />
+                Log for someone else (e.g. someone who is away)
+              </label>
+              {onBehalf && (
+                <select
+                  aria-label="Person"
+                  required
+                  value={personId}
+                  onChange={(e) => setPersonId(e.target.value)}
+                  style={{ width: '100%', height: 36, borderRadius: 4, border: '2px solid var(--tf-border)', padding: '0 8px', marginTop: 6 }}
+                >
+                  <option value="">Choose the person…</option>
+                  {people?.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.display_name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+
           {!existingEntry && (
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Task (optional)</label>
@@ -127,11 +170,17 @@ export function LogTimeModal({
             Billable
           </label>
 
+          {error && (
+            <p role="alert" style={{ margin: 0, fontSize: 12, color: 'var(--tf-danger)' }}>
+              {extractErrorMessage(error, 'The time could not be saved.')}
+            </p>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <Button type="button" variant="subtle" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={!hours || isPending}>
+            <Button type="submit" variant="primary" disabled={!hours || isPending || (onBehalf && !personId)}>
               {isPending ? 'Saving…' : 'Save'}
             </Button>
           </div>

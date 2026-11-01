@@ -16,7 +16,7 @@ const issue = (over: Partial<IssueListItem>) =>
 const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown>, issues: [] as unknown[] }))
 
 vi.mock('@/api/issues', () => ({
-  useIssues: (q: Record<string, unknown>) => {
+  useAllIssues: (q: Record<string, unknown>) => {
     mocks.query = q
     return { data: { results: mocks.issues, count: mocks.issues.length }, isLoading: false }
   },

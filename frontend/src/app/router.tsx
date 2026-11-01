@@ -15,6 +15,7 @@ import { UserWorkloadPage } from '@/features/people/UserWorkloadPage'
 import { ProjectLayout, WorkspaceSectionRedirect } from '@/features/projects/ProjectLayout'
 import { ProjectsSectionLayout } from '@/features/projects/ProjectsSectionLayout'
 import { DashboardHomePage } from '@/features/dashboard/DashboardHomePage'
+import { MorningPlansPage } from '@/features/dashboard/MorningPlansPage'
 import { FiltersPage } from '@/features/search/FiltersPage'
 import { AllIssuesBoardPage } from '@/features/board/AllIssuesBoardPage'
 import { TeamsListPage } from '@/features/teams/TeamsListPage'
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
           { path: '/people', element: <PeopleDirectoryPage /> },
           { path: '/people/:userId', element: <UserWorkloadPage /> },
           { path: '/filters', element: <FiltersPage /> },
+          { path: '/plans', element: <MorningPlansPage /> },
           { path: '/dashboards', element: <DashboardHomePage /> },
           { path: '/chat', element: <ChatPage /> },
           { path: '/coordinator', element: <CoordinatorChatRedirect /> },

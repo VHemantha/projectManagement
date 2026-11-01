@@ -135,7 +135,7 @@ def test_the_ceo_alone_sees_the_ratings(world):
     r = ceo.get("/api/coordinator/ratings/?days=365")
     assert r.status_code == 200
     assert [p["person"]["display_name"] for p in r.data["people"]] == ["Pat"]  # the CEO is not rated
-    assert [w["key"] for w in r.data["formula"]["weights"]] == ["on_time", "precheck", "promises", "response", "budget", "quality", "timesheet"]
+    assert [w["key"] for w in r.data["formula"]["weights"]] == ["on_time", "precheck", "promises", "response", "budget", "quality", "timesheet", "plans"]
     assert ceo.get("/api/coordinator/ratings/?days=5").status_code == 400
 
 

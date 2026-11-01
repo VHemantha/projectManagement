@@ -70,6 +70,8 @@ RULES = [
     Rule("kpi_weight_budget", "Weight: within the hours budget", 15, "number", "Finished tasks within the budgeted hours (and the tolerance).", 0, 100),
     Rule("kpi_weight_quality", "Weight: right first time", 15, "number", "Finished tasks that never went back for internal adjustments.", 0, 100),
     Rule("kpi_weight_timesheet", "Weight: timesheets complete", 5, "number", "Working days with at least the minimum hours recorded.", 0, 100),
+    Rule("kpi_weight_plans", "Weight: morning plans kept", 10, "number",
+         "Morning-plan items done on the day (a team lead's check overrules the person's own tick).", 0, 100),
     Rule("kpi_report_time", "Weekly ratings report to the CEO (local time, Mondays)", "08:30", "time",
          "On the first working day of each week the CEO gets the ratings and what changed."),
 ]

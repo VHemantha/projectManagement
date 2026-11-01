@@ -1,6 +1,6 @@
 import { type Row, createColumnHelper, useTable } from '@tanstack/react-table'
-import { format } from 'date-fns'
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
 
 import { ColumnsMenu } from './ColumnsMenu'
@@ -23,7 +23,6 @@ import { moveInOrder } from '@/lib/columnOrder'
 import { issueTableFeatures } from '@/lib/tableFeatures'
 import { useTableLayout } from '@/lib/useTableLayout'
 import { useUiStore } from '@/store/uiStore'
-import { CATEGORY_LABELS } from '@/lib/text'
 
 function TimerCell({ issueId }: { issueId: number }) {
   const { data: running } = useRunningTimer()
@@ -38,6 +37,23 @@ function TimerCell({ issueId }: { issueId: number }) {
 export type GroupByOption = 'none' | 'status' | 'assignee' | 'project' | 'reviewer' | 'current_responsible'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
+const PAGE_SIZES = [50, 100, 200]
+
+/** The stages the listed tasks are in, by name (the board's own names, as renamed), in board order,
+ * with how many tasks each holds. Projects that share a stage name share one entry. */
+function stagesOf(issues: IssueListItem[]) {
+  const stages = new Map<string, { name: string; category: string; order: number; count: number }>()
+  for (const i of issues) {
+    const s = stages.get(i.status.name)
+    if (s) {
+      s.count += 1
+      s.order = Math.min(s.order, i.status.order)
+    } else {
+      stages.set(i.status.name, { name: i.status.name, category: i.status.category, order: i.status.order, count: 1 })
+    }
+  }
+  return [...stages.values()].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name))
+}
 
 const helper = createColumnHelper<typeof issueTableFeatures, IssueListItem>()
 
@@ -286,7 +302,8 @@ function buildColumns(
       header: 'Due',
       size: 100,
       sortFn: 'alphanumeric',
-      cell: (ctx) => (ctx.getValue() ? format(new Date(ctx.getValue() as string), 'MMM d') : '—'),
+      // DD-MM-YY (AFIT, 1 Nov 2026).
+      cell: (ctx) => (ctx.getValue() ? format(parseISO(ctx.getValue() as string), 'dd-MM-yy') : '—'),
     }),
     // Actual time comes from timesheets; compare it with the job's budget.
     helper.accessor((row) => row.budgeted_hours ?? undefined, {
@@ -392,14 +409,43 @@ export function IssueTable({
   emptyMessage = 'No tasks found.',
 }: IssueTableProps) {
   const [search, setSearch] = useState('')
+  // Stage names picked to show (none: every stage). Taken from the tasks listed, so a renamed
+  // column's name appears as it is now (AFIT, 1 Nov 2026).
+  const [stageFilter, setStageFilter] = useState<Set<string>>(new Set())
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(PAGE_SIZES[0])
   const bulkArchive = useBulkArchive()
 
+  const stages = useMemo(() => stagesOf(issues), [issues])
+  // A picked stage no task is in any more is dropped from the filter.
+  const activeStages = useMemo(
+    () => new Set([...stageFilter].filter((name) => stages.some((s) => s.name === name))),
+    [stageFilter, stages],
+  )
+  // Any change to what is listed starts again at the first page.
+  const showStages = (next: Set<string>) => {
+    setStageFilter(next)
+    setPage(0)
+  }
+  const toggleStage = (name: string) => {
+    setPage(0)
+    setStageFilter((prev) => {
+      const next = new Set([...prev].filter((n) => activeStages.has(n)))
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
   const filtered = useMemo(() => {
-    if (!search.trim()) return issues
     const q = search.trim().toLowerCase()
-    return issues.filter((i) => i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q))
-  }, [issues, search])
+    return issues.filter(
+      (i) =>
+        (activeStages.size === 0 || activeStages.has(i.status.name)) &&
+        (!q || i.key.toLowerCase().includes(q) || i.summary.toLowerCase().includes(q)),
+    )
+  }, [issues, search, activeStages])
 
   // Selection only ever covers rows currently listed.
   const selectedKeys = useMemo(() => filtered.map((i) => i.key).filter((k) => selected.has(k)), [filtered, selected])
@@ -456,20 +502,28 @@ export function IssueTable({
   }
   const menuIds = layout.columnOrder.filter((id) => !UTILITY_COLUMNS.includes(id))
 
-  const groups = groupRows(table.getRowModel().rows, groupBy)
-  const statusCounts = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const i of issues) counts.set(i.status.category, (counts.get(i.status.category) ?? 0) + 1)
-    return counts
-  }, [issues])
+  // Pages of rows (sorted and filtered first), so every task can be reached however many there are.
+  const allRows = table.getRowModel().rows
+  const pageCount = Math.max(1, Math.ceil(allRows.length / pageSize))
+  const currentPage = Math.min(page, pageCount - 1)
+  const firstRow = currentPage * pageSize
+  const groups = groupRows(allRows.slice(firstRow, firstRow + pageSize), groupBy)
 
   return (
     <div>
-      <div className={styles.countsBar}>
-        {(['todo', 'in_progress', 'done'] as const).map((cat) => (
-          <span key={cat} className={styles.countChip}>
-            <StatusBadge label={CATEGORY_LABELS[cat]} category={cat} /> {statusCounts.get(cat) ?? 0}
-          </span>
+      {/* Each stage the tasks are in, with its real count; click to show only that stage (or several). */}
+      <div className={styles.countsBar} role="group" aria-label="Tasks by stage">
+        {stages.map((s) => (
+          <button
+            key={s.name}
+            type="button"
+            className={styles.countChip}
+            aria-pressed={activeStages.has(s.name)}
+            title={activeStages.has(s.name) ? `Stop filtering by ${s.name}` : `Show only ${s.name}`}
+            onClick={() => toggleStage(s.name)}
+          >
+            <StatusBadge label={s.name} category={s.category as StatusCategory} /> {s.count}
+          </button>
         ))}
       </div>
 
@@ -478,13 +532,40 @@ export function IssueTable({
           className={styles.searchInput}
           placeholder="Search by key or summary…"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(0)
+          }}
         />
+        <select
+          className={styles.select}
+          aria-label="Filter by status"
+          value={activeStages.size === 1 ? [...activeStages][0] : activeStages.size > 1 ? '__several' : ''}
+          onChange={(e) => {
+            if (e.target.value !== '__several') showStages(new Set(e.target.value ? [e.target.value] : []))
+          }}
+        >
+          <option value="">All statuses</option>
+          {activeStages.size > 1 && <option value="__several">{activeStages.size} statuses</option>}
+          {stages.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.name} · {s.count}
+            </option>
+          ))}
+        </select>
+        {activeStages.size > 0 && (
+          <button type="button" className={styles.bulkLink} onClick={() => showStages(new Set())}>
+            Clear status filter
+          </button>
+        )}
         {onGroupByChange && (
           <select
             className={styles.select}
             value={groupBy}
-            onChange={(e) => onGroupByChange(e.target.value as GroupByOption)}
+            onChange={(e) => {
+              onGroupByChange(e.target.value as GroupByOption)
+              setPage(0)
+            }}
           >
             {availableGroupBy.map((g) => (
               <option key={g} value={g}>
@@ -611,6 +692,51 @@ export function IssueTable({
           </table>
         )}
       </div>
+      {!isLoading && allRows.length > PAGE_SIZES[0] && (
+        <nav className={styles.pager} aria-label="Pages">
+          <label className={styles.pagerSize}>
+            Rows per page
+            <select
+              className={styles.select}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setPage(0)
+              }}
+            >
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>
+            {firstRow + 1}–{Math.min(firstRow + pageSize, allRows.length)} of {allRows.length}
+          </span>
+          <button
+            type="button"
+            className={styles.pagerButton}
+            aria-label="Previous page"
+            disabled={currentPage === 0}
+            onClick={() => setPage(currentPage - 1)}
+          >
+            <ChevronLeft size={14} />
+          </button>
+          <span>
+            Page {currentPage + 1} of {pageCount}
+          </span>
+          <button
+            type="button"
+            className={styles.pagerButton}
+            aria-label="Next page"
+            disabled={currentPage >= pageCount - 1}
+            onClick={() => setPage(currentPage + 1)}
+          >
+            <ChevronRight size={14} />
+          </button>
+        </nav>
+      )}
     </div>
   )
 }

@@ -9,7 +9,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react'
-import { type ReactNode, useMemo, useState } from 'react'
+import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import styles from './ProjectsSectionLayout.module.css'
@@ -17,7 +17,7 @@ import { CreateClientDialog } from './CreateClientDialog'
 import { type NavTreeNode, useNavTree } from '@/api/reports'
 import rail from '@/app/SideRail.module.css'
 import { Button, Skeleton, Tooltip, TreeView, type TreeNode } from '@/design-system'
-import { usePanel } from '@/store/sidebarStore'
+import { usePanel, useSidebarStore } from '@/store/sidebarStore'
 
 /** Where a new sub-workspace goes when it is started from a row of the tree. Projects are no
  * longer created from the app (AFIT, 28 Oct 2026): a task needs only its sub-workspace. */
@@ -83,6 +83,11 @@ export function ProjectsSectionLayout() {
   const selectedId = onTasks ? selectedNode(treeNodes, location.search) : null
   // Collapsed by default to an icon rail; expanded on request (remembered).
   const panel = usePanel('projectsTree')
+  // With the panel open, the main sidebar collapses (also when the page is opened by its address).
+  const collapseMain = useSidebarStore((s) => s.setMainExpanded)
+  useEffect(() => {
+    if (panel.open) collapseMain(false)
+  }, [panel.open, collapseMain])
   const [focusSearch, setFocusSearch] = useState(false)
 
   // A workspace or a sub-workspace opens its tasks, filtered to it (a workspace also expands).

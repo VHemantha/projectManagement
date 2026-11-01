@@ -14,10 +14,12 @@ import { usePresenceSocket } from '@/api/usePresenceSocket'
 import { CreateIssueModal } from '@/features/issues/CreateIssueModal'
 import { IssueDetailModal } from '@/features/issues/IssueDetailModal'
 import { QuickSearchModal } from '@/features/search/QuickSearchModal'
+import { useSidebarStore } from '@/store/sidebarStore'
 
 export function AppShell() {
-  // Desktop rail collapsed/expanded state.
-  const [expanded, setExpanded] = useState(false)
+  // Desktop rail collapsed/expanded state (in the store: opening the Kanban board's panel collapses it).
+  const expanded = useSidebarStore((s) => s.mainExpanded)
+  const setExpanded = useSidebarStore((s) => s.setMainExpanded)
   // Mobile slide-out drawer open/closed state (only relevant on small screens).
   const [drawerOpen, setDrawerOpen] = useState(false)
   const location = useLocation()
@@ -34,7 +36,7 @@ export function AppShell() {
     <div className={styles.shell}>
       <GlobalSidebar
         expanded={expanded}
-        onToggle={() => setExpanded((v) => !v)}
+        onToggle={() => setExpanded(!expanded)}
         drawerOpen={drawerOpen}
         onCloseDrawer={() => setDrawerOpen(false)}
       />

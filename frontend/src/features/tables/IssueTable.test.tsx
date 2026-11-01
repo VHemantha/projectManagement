@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -158,4 +158,53 @@ describe('IssueTable', () => {
     const headers = screen.getAllByText(/\(1\)$/).map((el) => el.textContent)
     expect(headers).toEqual(['Backlog (1)', 'In progress (1)', 'Blocked (1)', 'Done (1)'])
   })
+
+  // AFIT, 1 Nov 2026: stage counts and the status filter follow the board's own stage names.
+  it('counts each stage by its real name and filters by the stages picked', async () => {
+    const stage = (id: number, name: string, order: number, category = 'in_progress') => ({ id, name, category, order }) as IssueListItem['status']
+    const issues = [
+      makeIssue({ id: 1, key: 'A-1', summary: 'One', status: stage(1, 'To Start', 0, 'todo') }),
+      makeIssue({ id: 2, key: 'A-2', summary: 'Two', status: stage(2, 'Sent to Client', 3) }),
+      makeIssue({ id: 3, key: 'B-1', summary: 'Three', project_key: 'B', status: stage(9, 'Sent to Client', 3) }),
+      makeIssue({ id: 4, key: 'A-3', summary: 'Four', status: stage(4, 'Complete', 6, 'done') }),
+    ]
+    render(<IssueTable tableId="stages" issues={issues} />)
+    const chips = within(screen.getByRole('group', { name: 'Tasks by stage' })).getAllByRole('button')
+    expect(chips.map((c) => c.textContent)).toEqual(['To Start 1', 'Sent to Client 2', 'Complete 1'])
+
+    await userEvent.click(chips[1])
+    expect(screen.queryByText('One')).not.toBeInTheDocument()
+    expect(screen.getByText('Two')).toBeInTheDocument()
+    expect(screen.getByText('Three')).toBeInTheDocument()
+    await userEvent.click(chips[2])
+    expect(screen.getByText('Four')).toBeInTheDocument()
+    expect(screen.getByText('3 tasks')).toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByLabelText('Filter by status'), 'To Start')
+    expect(screen.getByText('One')).toBeInTheDocument()
+    expect(screen.queryByText('Two')).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Clear status filter' }))
+    expect(screen.getByText('4 tasks')).toBeInTheDocument()
+  })
+
+  it('shows due dates as DD-MM-YY', () => {
+    render(<IssueTable tableId="due" issues={[makeIssue({ id: 1, due_date: '2026-11-02' })]} />)
+    expect(screen.getByText('02-11-26')).toBeInTheDocument()
+  })
+
+  it('pages through every task, however many', async () => {
+    const issues = Array.from({ length: 60 }, (_, i) => makeIssue({ id: i + 1, key: `P-${i + 1}`, summary: `Task ${i + 1}` }))
+    render(<IssueTable tableId="pages" issues={issues} />)
+    expect(screen.getByText('Task 50')).toBeInTheDocument()
+    expect(screen.queryByText('Task 51')).not.toBeInTheDocument()
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Next page' }))
+    expect(screen.getByText('Task 60')).toBeInTheDocument()
+    expect(screen.getByText('51–60 of 60')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
+    await userEvent.selectOptions(screen.getByDisplayValue('50'), '200')
+    expect(screen.getByText('Task 1')).toBeInTheDocument()
+    expect(screen.getByText('Task 60')).toBeInTheDocument()
+    expect(screen.getByText('Page 1 of 1')).toBeInTheDocument()
+  }, 30_000)
 })

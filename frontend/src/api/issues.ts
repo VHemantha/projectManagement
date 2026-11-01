@@ -83,6 +83,26 @@ export function useIssues(params: IssueQueryParams, enabled = true) {
   })
 }
 
+/** Every task matching the filters, fetched a page at a time (the API serves at most 1000 a page),
+ * for views that must show them all: the task table pages through them itself. */
+export function useAllIssues(params: Omit<IssueQueryParams, 'page' | 'page_size'>, enabled = true) {
+  return useQuery({
+    queryKey: ['issues', 'all', params],
+    enabled,
+    queryFn: async () => {
+      const results: IssueListItem[] = []
+      let count = 0
+      for (let page = 1; page <= 40; page += 1) {
+        const { data } = await apiClient.get<Paginated<IssueListItem>>('/issues/', { params: { ...params, page, page_size: 500 } })
+        results.push(...data.results)
+        count = data.count
+        if (!data.next || results.length >= count) break
+      }
+      return { count, next: null, previous: null, results } as Paginated<IssueListItem>
+    },
+  })
+}
+
 export function useIssue(key: string | undefined) {
   return useQuery({
     queryKey: ['issue', key],

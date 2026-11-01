@@ -9,9 +9,9 @@ import {
   Grid3x3,
   LayoutDashboard,
   LayoutGrid,
-  ListFilter,
   MessageSquare,
   ShieldCheck,
+  Target,
   Users,
   UserRound,
 } from 'lucide-react'
@@ -21,6 +21,7 @@ import styles from './AppShell.module.css'
 import { ProjectSwitcher } from './ProjectSwitcher'
 import { Tooltip } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
+import { useSidebarStore } from '@/store/sidebarStore'
 
 // Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
@@ -30,8 +31,10 @@ const NAV_ITEMS = [
   { to: '/workspaces', label: 'Workspaces', icon: Users, tone: 'teal' },
   { to: '/projects', label: 'Kanban board', icon: LayoutGrid, tone: 'blue' },
   { to: '/people', label: 'People', icon: Contact, tone: 'pink' },
-  { to: '/filters', label: 'Filters', icon: ListFilter, tone: 'orange' },
+  // Filters is hidden from the menu (AFIT, 1 Nov 2026); saved filters still open at /filters.
   { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },
+  // Everyone's morning plan, and the plans of the people one leads (AFIT, 1 Nov 2026).
+  { to: '/plans', label: 'Morning plans', icon: Target, tone: 'orange' },
   { to: '/chat', label: 'Chat', icon: MessageSquare, tone: 'violet' },
   // The AI project coordinator: everyone's private conversation with it, in Messages.
   { to: '/coordinator', label: 'Coordinator', icon: Bot, tone: 'blue', end: true },
@@ -56,6 +59,12 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
   // mobile whenever the drawer is open (a drawer is always the full-width rail).
   const showLabels = expanded || drawerOpen
   const isCeo = useAuthStore((s) => s.user?.role === 'ceo')
+  const setPanelOpen = useSidebarStore((s) => s.setOpen)
+  // The Kanban board opens with its workspaces panel, which collapses this sidebar.
+  const onNavigate = (to: string) => {
+    if (to === '/projects') setPanelOpen('projectsTree', true)
+    onCloseDrawer()
+  }
   // The CEO's home is the organisation overview, not their own assigned tasks.
   const items = isCeo
     ? [
@@ -89,7 +98,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
             {/* Plain string className (not a function): Radix's `asChild` on the
                 Tooltip only merges string classes, and NavLink marks the active
                 route with aria-current="page", which the CSS targets directly. */}
-            <NavLink to={to} end={end} className={styles.navItem} onClick={onCloseDrawer}>
+            <NavLink to={to} end={end} className={styles.navItem} onClick={() => onNavigate(to)}>
               <span className={styles.navIcon} data-tone={tone} aria-hidden="true">
                 <Icon size={17} strokeWidth={2} />
               </span>

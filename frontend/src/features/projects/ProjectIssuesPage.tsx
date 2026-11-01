@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import styles from './ProjectIssuesPage.module.css'
 import { useProjectContext } from './useProjectContext'
-import { useIssues } from '@/api/issues'
+import { useAllIssues } from '@/api/issues'
 import { useProjectBoard } from '@/api/projects'
 import { EMPTY_FILTERS, IssueFilterPanel, type IssueFilters, applyIssueFilters } from '@/features/tables/IssueFilterPanel'
 import { IssueTable } from '@/features/tables/IssueTable'
@@ -11,9 +11,8 @@ import type { GroupByOption } from '@/features/tables/IssueTable'
 export function ProjectIssuesPage() {
   const { project } = useProjectContext()
   const [showArchived, setShowArchived] = useState(false)
-  const { data: issuesPage, isLoading } = useIssues({
+  const { data: issuesPage, isLoading } = useAllIssues({
     project: project.key,
-    page_size: 300,
     ordering: 'rank',
     ...(showArchived ? { include_archived: true } : {}),
   })

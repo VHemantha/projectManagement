@@ -37,10 +37,56 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
+  font-family: inherit;
   padding: 4px var(--tf-space-2);
+  border: 1px solid transparent;
   border-radius: var(--tf-radius-full);
   background: var(--tf-surface-hover);
   color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+
+.countChip[aria-pressed='true'] {
+  border-color: var(--tf-primary);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font-weight: 600;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--tf-space-3);
+  flex-wrap: wrap;
+  padding: var(--tf-space-3) 0;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.pagerSize {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin-right: auto;
+}
+
+.pagerButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  cursor: pointer;
+}
+
+.pagerButton:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .tableScroll {
