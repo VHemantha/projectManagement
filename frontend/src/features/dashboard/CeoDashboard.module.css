@@ -15,6 +15,9 @@
   font-weight: 600;
   color: var(--tf-text);
 }
+.headerActions {
+  margin-left: auto;
+}
 .asOf {
   font-size: var(--tf-font-size-sm);
   color: var(--tf-text-subtle);

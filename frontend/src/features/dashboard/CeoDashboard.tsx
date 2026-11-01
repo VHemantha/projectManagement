@@ -1,5 +1,5 @@
 import { format, parseISO } from 'date-fns'
-import { AlertTriangle, CheckCircle2, Clock, ListTodo, OctagonAlert, Timer } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, FileSpreadsheet, ListTodo, OctagonAlert, Timer } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
@@ -16,8 +16,9 @@ import {
 } from 'recharts'
 
 import styles from './CeoDashboard.module.css'
-import { type CeoDashboard as Data, useCeoDashboard } from '@/api/reports'
-import { Skeleton } from '@/design-system'
+import { extractErrorMessage } from '@/api/errors'
+import { type CeoDashboard as Data, downloadCeoReport, useCeoDashboard } from '@/api/reports'
+import { Button, Skeleton } from '@/design-system'
 
 // Validated (dataviz validate_palette.js, light): blue/orange and blue/critical pass CVD and
 // normal-vision separation and 3:1 contrast. Single-series charts use slot 1 only.
@@ -265,12 +266,36 @@ function Dashboard({ data }: { data: Data }) {
 /** The CEO's home page: the whole organisation at a glance (AFIT, 28 Oct 2026). */
 export function CeoDashboard() {
   const { data, isLoading, isError } = useCeoDashboard()
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+  // The project status as an Excel workbook with charts, when the CEO wants it (AFIT, 31 Oct 2026).
+  const download = async () => {
+    setDownloading(true)
+    setDownloadError('')
+    try {
+      await downloadCeoReport()
+    } catch (e) {
+      setDownloadError(extractErrorMessage(e, 'The report could not be made. Try again.'))
+    } finally {
+      setDownloading(false)
+    }
+  }
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
         <h1 className={styles.pageTitle}>Organisation overview</h1>
         {data && <span className={styles.asOf}>Updated {format(parseISO(data.as_of), 'EEE d MMM, h:mm a')}</span>}
+        <span className={styles.headerActions}>
+          <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
+            <FileSpreadsheet size={14} aria-hidden="true" /> {downloading ? 'Preparing…' : 'Download Excel report'}
+          </Button>
+        </span>
       </header>
+      {downloadError && (
+        <p className={styles.empty} role="alert">
+          {downloadError}
+        </p>
+      )}
       {isLoading ? (
         <Skeleton height={320} />
       ) : isError || !data ? (

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   page: { results: [] },
   board: { columns: [], cardConfigByProject: {}, isLoading: false, resolveStatus: () => null },
   users: { ceo: { user: { id: 1, role: 'ceo' } }, member: { user: { id: 2, role: 'member' } } },
+  download: vi.fn(async () => {}),
 }))
 
 const DATA: CeoDashboard = {
@@ -34,7 +35,10 @@ const DATA: CeoDashboard = {
 vi.mock('@/store/authStore', () => ({
   useAuthStore: (selector: (s: unknown) => unknown) => selector(mocks.users[mocks.role]),
 }))
-vi.mock('@/api/reports', () => ({ useCeoDashboard: () => ({ data: DATA, isLoading: false, isError: false }) }))
+vi.mock('@/api/reports', () => ({
+  useCeoDashboard: () => ({ data: DATA, isLoading: false, isError: false }),
+  downloadCeoReport: mocks.download,
+}))
 vi.mock('@/api/issues', () => ({
   useIssues: () => ({ data: mocks.page, isLoading: false }),
   useMoveIssue: () => ({ mutate: vi.fn() }),
@@ -58,6 +62,13 @@ describe('CEO home page (AFIT, 28 Oct 2026)', () => {
     expect(screen.getByRole('region', { name: 'Over budget' })).toHaveTextContent('RWCA-7Smith FY26Pat8h11.5h3.5h')
     expect(screen.getByRole('region', { name: 'Coordinator follow-ups' })).toHaveTextContent('75%')
     expect(screen.getByText(/On leave today/).parentElement).toHaveTextContent('Sam')
+  })
+
+  it('downloads the Excel report when wanted', async () => {
+    mocks.role = 'ceo'
+    renderHome()
+    await userEvent.click(screen.getByRole('button', { name: /Download Excel report/ }))
+    expect(mocks.download).toHaveBeenCalledTimes(1)
   })
 
   it('every chart can be read as a table', async () => {

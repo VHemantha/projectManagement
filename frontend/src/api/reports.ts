@@ -109,3 +109,14 @@ export function useCeoDashboard(enabled = true) {
     staleTime: 60_000,
   })
 }
+
+/** The organisation's project status as an Excel workbook with charts (CEO only), saved as a file. */
+export async function downloadCeoReport() {
+  const { data } = await apiClient.get<Blob>('/reports/ceo-report.xlsx', { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `organisation-report-${new Date().toISOString().slice(0, 10)}.xlsx`
+  link.click()
+  URL.revokeObjectURL(url)
+}

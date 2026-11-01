@@ -64,3 +64,35 @@ def test_no_one_else_can_see_it(setup):
     c = APIClient()
     c.force_authenticate(pat)
     assert c.get("/api/reports/ceo-dashboard/").status_code == 403
+
+
+def test_the_ceo_downloads_an_excel_report_with_charts(setup):
+    """AFIT, 31 Oct 2026: the project status as a workbook with Excel's own charts, CEO only."""
+    import io
+
+    from openpyxl import load_workbook
+
+    ceo, pat = setup
+    staff = APIClient()
+    staff.force_authenticate(pat)
+    assert staff.get("/api/reports/ceo-report.xlsx").status_code == 403
+    c = APIClient()
+    c.force_authenticate(ceo)
+    r = c.get("/api/reports/ceo-report.xlsx")
+    assert r.status_code == 200
+    assert r["Content-Type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert r["Content-Disposition"].startswith('attachment; filename="organisation-report-')
+    wb = load_workbook(io.BytesIO(r.content))
+    assert wb.sheetnames == ["Summary", "Projects", "Open tasks", "Team", "Follow-ups", "About"]
+    summary = wb["Summary"]
+    figures = {summary.cell(row=i, column=1).value: summary.cell(row=i, column=2).value for i in range(5, 15)}
+    assert (figures["Open tasks"], figures["Overdue"], figures["Due in the next 7 days"], figures["Hours logged this month"]) == (2, 1, 1, 3.0)
+    assert len(summary._charts) == 5
+    projects = wb["Projects"]
+    header = [c.value for c in projects[1]]
+    row = dict(zip(header, [c.value for c in projects[2]]))
+    assert (row["Project"], row["Status"], row["Open"], row["Overdue"], row["Done"], row["Hours logged"]) == ("RWCA", "Overdue", 2, 1, 1, 3.0)
+    tasks = wb["Open tasks"]
+    late = dict(zip([c.value for c in tasks[1]], [c.value for c in tasks[2]]))
+    assert late["Job name"] == "Late" and late["Days overdue"] == 3 and late["Accountant"] is None and late["Team Lead"] == "Pat"
+    assert [c.value for c in wb["Team"][3]][:3] == ["Person", "Rating score", "Rating"]
