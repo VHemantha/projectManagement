@@ -103,6 +103,17 @@ export function useAllIssues(params: Omit<IssueQueryParams, 'page' | 'page_size'
   })
 }
 
+/** The tasks the task table lists (its filters, search and order, every page) as an Excel file. */
+export async function downloadTasksExcel(keys: string[]) {
+  const { data } = await apiClient.post<Blob>('/issues/export-xlsx/', { keys }, { responseType: 'blob' })
+  const url = URL.createObjectURL(data)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `tasks-${new Date().toISOString().slice(0, 10)}.xlsx`
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export function useIssue(key: string | undefined) {
   return useQuery({
     queryKey: ['issue', key],

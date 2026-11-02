@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { IssueTable } from './IssueTable'
 import type { IssueListItem } from '@/api/types'
 
+const download = vi.hoisted(() => vi.fn())
 vi.mock('@/api/issues', () => ({
   usePatchIssueField: () => ({ mutate: vi.fn() }),
   useBulkArchive: () => ({ mutate: vi.fn(), isPending: false }),
+  downloadTasksExcel: download,
 }))
 
 // Saved layouts: tests can seed one per table via `savedLayouts`.
@@ -186,6 +188,19 @@ describe('IssueTable', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Clear status filter' }))
     expect(screen.getByText('4 tasks')).toBeInTheDocument()
   })
+
+  it('downloads every task listed, all pages, as filtered and sorted, to Excel', async () => {
+    const issues = Array.from({ length: 55 }, (_, i) =>
+      makeIssue({ id: i + 1, key: `P-${i + 1}`, summary: i % 2 ? `Odd ${i + 1}` : `Even ${i + 1}` }),
+    )
+    render(<IssueTable tableId="excel" issues={issues} />)
+    await userEvent.type(screen.getByPlaceholderText('Search by key or summary…'), 'Even')
+    await userEvent.click(screen.getByRole('button', { name: /Download Excel/ }))
+    const keys = download.mock.calls[0][0] as string[]
+    expect(keys).toHaveLength(28)
+    expect(keys[0]).toBe('P-1')
+    expect(keys).not.toContain('P-2')
+  }, 30_000)
 
   it('shows due dates as DD-MM-YY', () => {
     render(<IssueTable tableId="due" issues={[makeIssue({ id: 1, due_date: '2026-11-02' })]} />)

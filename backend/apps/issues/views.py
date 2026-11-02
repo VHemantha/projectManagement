@@ -142,6 +142,23 @@ class IssueViewSet(viewsets.ModelViewSet):
         response["Content-Disposition"] = f'attachment; filename="tasks-{timezone.localdate():%Y-%m-%d}.csv"'
         return response
 
+    @action(detail=False, methods=["post"], url_path="export-xlsx")
+    def export_xlsx(self, request):
+        """POST /api/issues/export-xlsx/ {"keys": [...]}: the tasks the task table lists (its filters,
+        search and order, every page) as an Excel workbook (AFIT, 2 Nov 2026)."""
+        from django.http import HttpResponse
+
+        from .excel_export import build
+
+        keys = request.data.get("keys")
+        if not isinstance(keys, list) or not keys or len(keys) > 20000:
+            return Response({"detail": "Send the list of task keys to download (at most 20,000)."}, status=400)
+        response = HttpResponse(
+            build([str(k) for k in keys]), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        response["Content-Disposition"] = f'attachment; filename="tasks-{timezone.localdate():%Y-%m-%d}.xlsx"'
+        return response
+
     @action(detail=False, methods=["post"], url_path="archive")
     def bulk_archive(self, request):
         """POST /api/issues/archive/ {"keys": [...], "archived": true|false} — archive or restore

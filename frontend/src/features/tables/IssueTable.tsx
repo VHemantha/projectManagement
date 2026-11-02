@@ -1,11 +1,12 @@
 import { type Row, createColumnHelper, useTable } from '@tanstack/react-table'
 import { format, parseISO } from 'date-fns'
-import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, FileSpreadsheet } from 'lucide-react'
 import { Fragment, useMemo, useState } from 'react'
 
 import { ColumnsMenu } from './ColumnsMenu'
 import styles from './IssueTable.module.css'
-import { useBulkArchive, usePatchIssueField } from '@/api/issues'
+import { extractErrorMessage } from '@/api/errors'
+import { downloadTasksExcel, useBulkArchive, usePatchIssueField } from '@/api/issues'
 import { useRunningTimer } from '@/api/timesheets'
 import type { IssueListItem, Priority, WorkflowStatus } from '@/api/types'
 import { useUsers } from '@/api/users'
@@ -415,6 +416,8 @@ export function IssueTable({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(PAGE_SIZES[0])
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   const bulkArchive = useBulkArchive()
 
   const stages = useMemo(() => stagesOf(issues), [issues])
@@ -508,6 +511,19 @@ export function IssueTable({
   const currentPage = Math.min(page, pageCount - 1)
   const firstRow = currentPage * pageSize
   const groups = groupRows(allRows.slice(firstRow, firstRow + pageSize), groupBy)
+
+  // Every task listed (all pages, as filtered, searched and sorted) to Excel (AFIT, 2 Nov 2026).
+  const downloadExcel = async () => {
+    setDownloading(true)
+    setDownloadError('')
+    try {
+      await downloadTasksExcel(allRows.map((r) => r.original.key))
+    } catch (e) {
+      setDownloadError(extractErrorMessage(e, 'The Excel file could not be made. Try again.'))
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div>
@@ -616,7 +632,21 @@ export function IssueTable({
         <span style={{ fontSize: 12, color: 'var(--tf-text-subtle)', marginLeft: 'auto' }}>
           {filtered.length} task{filtered.length === 1 ? '' : 's'}
         </span>
+        <button
+          type="button"
+          className={styles.bulkButton}
+          onClick={downloadExcel}
+          disabled={downloading || isLoading || allRows.length === 0}
+          title="Download every task listed (all pages) as an Excel file"
+        >
+          <FileSpreadsheet size={13} /> {downloading ? 'Preparing…' : 'Download Excel'}
+        </button>
       </div>
+      {downloadError && (
+        <p role="alert" style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--tf-danger)' }}>
+          {downloadError}
+        </p>
+      )}
 
       <div className={styles.tableScroll}>
         {isLoading ? (
