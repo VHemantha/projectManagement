@@ -4,7 +4,7 @@ import styles from './Coordinator.module.css'
 import { useCoordinatorMe } from '@/api/coordinator'
 import { Skeleton } from '@/design-system'
 
-/** /coordinator — opens the person's own conversation with the Loca Coordinator in Messages
+/** /coordinator — opens the person's own conversation with the TASKO Coordinator in Messages
  * (created on first visit, with a welcome from the agent). */
 export function CoordinatorChatRedirect() {
   const { data, isError } = useCoordinatorMe()

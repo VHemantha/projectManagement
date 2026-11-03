@@ -8,7 +8,7 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     id: 1,
     key: 'TRK-1',
     project_key: 'TRK',
-    project_name: 'TrackFlow Web App',
+    project_name: 'TASKO Web App',
     budgeted_hours: null,
     actual_hours: 0,
     allocated_value: null,

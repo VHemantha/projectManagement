@@ -1,5 +1,5 @@
 [Unit]
-Description=TrackFlow WebSockets: live updates and chat (gunicorn + uvicorn ASGI worker)
+Description=TASKO WebSockets: live updates and chat (gunicorn + uvicorn ASGI worker)
 After=network.target redis-server.service postgresql.service
 Wants=redis-server.service
 # Restarting or stopping the app (trackflow.service) does the same to this.

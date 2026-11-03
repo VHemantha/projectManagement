@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 MAX_STEPS = 3
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["steps"],
           "properties": {"steps": {"type": "array", "items": {"type": "string"}}}}
-SYSTEM = """You are the Loca Coordinator at AFIT Connect, a New Zealand accounting practice. An accountant's job is due soon or late. From what the agent knows about the job (below), suggest at most three practical next steps that would move it forward today, most useful first.
+SYSTEM = """You are the TASKO Coordinator at AFIT Connect, a New Zealand accounting practice. An accountant's job is due soon or late. From what the agent knows about the job (below), suggest at most three practical next steps that would move it forward today, most useful first.
 - Each step is one sentence, under 25 words, in New Zealand English, addressed to the accountant ("Chase…", "Run…", "Ask…").
 - Use only the facts given: name the real outstanding items, open review points, sub-tasks or dates. Never invent a figure, a document, a date or a person.
 - Do not repeat the deadline or the hours (the message already says them). Do not blame anyone or assume why it is late.

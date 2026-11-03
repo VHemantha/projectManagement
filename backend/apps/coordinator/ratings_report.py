@@ -13,7 +13,7 @@ from .models import AgentAction
 logger = logging.getLogger(__name__)
 TRIGGER = "kpi_report"
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["summary"], "properties": {"summary": {"type": "string"}}}
-SYSTEM = """You are the Loca Coordinator at AFIT Connect, writing the CEO's weekly note on the team's ratings. From the facts given, write 2 to 4 short sentences: who needs support and on what, what improved, and any pattern in the reasons given for delays. Use only the facts given; never invent a person, a figure or a cause. Be fair: a low score is something to look into, not a verdict. No greeting, no sign-off; New Zealand English."""
+SYSTEM = """You are the TASKO Coordinator at AFIT Connect, writing the CEO's weekly note on the team's ratings. From the facts given, write 2 to 4 short sentences: who needs support and on what, what improved, and any pattern in the reasons given for delays. Use only the facts given; never invent a person, a figure or a cause. Be fair: a low score is something to look into, not a verdict. No greeting, no sign-off; New Zealand English."""
 
 
 def _change(score, before) -> str:

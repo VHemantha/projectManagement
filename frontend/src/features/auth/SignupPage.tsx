@@ -39,7 +39,7 @@ export function SignupPage() {
       <div className={styles.card}>
         <div className={styles.logo}>
           <span className={styles.logoMark}>L</span>
-          <span className={styles.logoText}>Loca</span>
+          <span className={styles.logoText}>TASKO</span>
         </div>
         <h1 className={styles.title}>Create your account</h1>
         {blocked ? (

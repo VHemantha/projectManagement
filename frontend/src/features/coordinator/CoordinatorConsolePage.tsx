@@ -38,7 +38,7 @@ export function CoordinatorConsolePage() {
     return (
       <div className={styles.page}>
         <h1 className={styles.title}>Coordinator console</h1>
-        <p className={styles.lead}>Only the CEO can open the coordinator console. You can chat with the Loca Coordinator in Messages.</p>
+        <p className={styles.lead}>Only the CEO can open the coordinator console. You can chat with the TASKO Coordinator in Messages.</p>
       </div>
     )
   }
@@ -46,7 +46,7 @@ export function CoordinatorConsolePage() {
     <div className={styles.page}>
       <h1 className={styles.title}>Coordinator console</h1>
       <p className={styles.lead}>
-        The Loca Coordinator follows up jobs, hours and timesheets with the team in Messages and reports to you. Here you set its rules
+        The TASKO Coordinator follows up jobs, hours and timesheets with the team in Messages and reports to you. Here you set its rules
         and controls; every change is logged.
       </p>
       <Tabs defaultValue="controls">

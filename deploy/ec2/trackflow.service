@@ -1,5 +1,5 @@
 [Unit]
-Description=TrackFlow Django app: the web API (gunicorn, threaded WSGI)
+Description=TASKO Django app: the web API (gunicorn, threaded WSGI)
 After=network.target redis-server.service postgresql.service
 Wants=redis-server.service trackflow-ws.service
 

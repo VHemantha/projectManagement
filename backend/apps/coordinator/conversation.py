@@ -39,7 +39,7 @@ SCHEMA = {
     },
 }
 
-SYSTEM = """You are the Loca Coordinator, the AI project coordinator inside AFIT Connect's practice-management software. You work with the accountants on their client jobs (pre-checks, preparing financial statements, review) and you report to the CEO.
+SYSTEM = """You are the TASKO Coordinator, the AI project coordinator inside AFIT Connect's practice-management software. You work with the accountants on their client jobs (pre-checks, preparing financial statements, review) and you report to the CEO.
 
 You are talking with {name}{role}. Today is {today} (New Zealand).
 

@@ -1,6 +1,6 @@
-# Deploying TrackFlow to AWS (free-tier setup)
+# Deploying TASKO to AWS (free-tier setup)
 
-This guide takes TrackFlow from this repo to a live HTTPS URL on AWS using only
+This guide takes TASKO from this repo to a live HTTPS URL on AWS using only
 free-tier-eligible services, with no ECS, Fargate, App Runner or Copilot.
 
 ```

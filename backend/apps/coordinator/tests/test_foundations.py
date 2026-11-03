@@ -73,7 +73,7 @@ def test_everyone_has_one_private_conversation_with_the_agent():
     agent = services.agent_user()
     assert channel.channel_type == "direct_message" and set(channel.memberships.values_list("user_id", flat=True)) == {pat.id, agent.id}
     (welcome,) = Message.objects.filter(channel=channel)  # one welcome, not one per visit
-    assert welcome.author == agent and "Loca Coordinator" in str(welcome.body)
+    assert welcome.author == agent and "TASKO Coordinator" in str(welcome.body)
     assert any(c["id"] == channel.id for c in api(pat).get("/api/chat/channels/").data["results"])
     assert not any(c["id"] == channel.id for c in api(sam).get("/api/chat/channels/").data["results"])  # private
     assert api(sam).get(f"/api/chat/channels/{channel.id}/messages/").status_code == 403

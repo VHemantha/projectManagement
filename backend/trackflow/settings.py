@@ -1,5 +1,5 @@
 """
-Django settings for the TrackFlow project.
+Django settings for the TASKO project.
 """
 
 from datetime import timedelta
@@ -195,8 +195,8 @@ SIMPLE_JWT = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Loca API",
-    "DESCRIPTION": "API for Loca",
+    "TITLE": "TASKO API",
+    "DESCRIPTION": "API for TASKO",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
@@ -237,7 +237,7 @@ EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", EMAIL_PORT == 465)
 EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", not EMAIL_USE_SSL)
 # Don't hold an admin's "Invite" click for minutes if the mail server doesn't answer.
 EMAIL_TIMEOUT = int(env("EMAIL_TIMEOUT", "20"))
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "Loca <no-reply@trackflow.local>")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", "TASKO <no-reply@tasko.local>")
 # Base URL of the web app for links in emails (invitations). Empty: use the admin's browser origin.
 FRONTEND_URL = env("FRONTEND_URL", "")
 

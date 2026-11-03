@@ -11,7 +11,7 @@ from .models import AgentAction, AgentCase, Commitment
 logger = logging.getLogger(__name__)
 TRIGGER = "ceo_briefing"
 SCHEMA = {"type": "object", "additionalProperties": False, "required": ["summary"], "properties": {"summary": {"type": "string"}}}
-SYSTEM = """You are the Loca Coordinator, the AI project coordinator at AFIT Connect, writing the CEO's morning briefing. From the facts given, write 2 to 4 short sentences: what most needs the CEO's attention today and why. Use only the facts given; never invent a job, a person, a figure or a cause. Do not assume anyone is at fault. No greeting, no sign-off; New Zealand English."""
+SYSTEM = """You are the TASKO Coordinator, the AI project coordinator at AFIT Connect, writing the CEO's morning briefing. From the facts given, write 2 to 4 short sentences: what most needs the CEO's attention today and why. Use only the facts given; never invent a job, a person, a figure or a cause. Do not assume anyone is at fault. No greeting, no sign-off; New Zealand English."""
 
 
 def facts(today=None) -> dict:

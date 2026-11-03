@@ -1,4 +1,4 @@
-"""Live updates: tell every open TrackFlow tab that some data changed, so boards, lists and
+"""Live updates: tell every open TASKO tab that some data changed, so boards, lists and
 open issues refetch it (frontend: src/api/useLiveUpdates.ts).
 
 Events are tiny "what changed" notices, never data, e.g. {"kind": "issues", "project": "TRK",

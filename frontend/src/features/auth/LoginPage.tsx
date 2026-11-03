@@ -33,7 +33,7 @@ export function LoginPage() {
       <div className={styles.card}>
         <div className={styles.logo}>
           <span className={styles.logoMark}>L</span>
-          <span className={styles.logoText}>Loca</span>
+          <span className={styles.logoText}>TASKO</span>
         </div>
         <h1 className={styles.title}>Log in to your account</h1>
         <form className={styles.form} onSubmit={handleSubmit}>

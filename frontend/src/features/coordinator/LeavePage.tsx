@@ -34,7 +34,7 @@ export function LeavePage() {
     <div className={styles.page}>
       <h1 className={styles.title}>Leave</h1>
       <p className={styles.lead}>
-        Request leave here. Once the CEO approves it, the Loca Coordinator will not ask you about timesheets or deadlines for those
+        Request leave here. Once the CEO approves it, the TASKO Coordinator will not ask you about timesheets or deadlines for those
         days.
       </p>
       <section className={styles.card} aria-label="Request leave">

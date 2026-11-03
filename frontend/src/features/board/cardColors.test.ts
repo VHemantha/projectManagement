@@ -8,7 +8,7 @@ function makeIssue(overrides: Partial<IssueListItem>): IssueListItem {
     id: 1,
     key: 'TRK-1',
     project_key: 'TRK',
-    project_name: 'TrackFlow Web App',
+    project_name: 'TASKO Web App',
     summary: 'Card',
     issue_type: { id: 3, name: 'Task', icon: 'check-square', color: '#0c66e4', is_subtask: false, order: 0 },
     status: { id: 1, name: 'To Do', category: 'todo', order: 0 },

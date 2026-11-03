@@ -11,9 +11,9 @@ from apps.accounts.models import User
 
 from .models import AgentAction, AuditEntry
 
-AGENT_EMAIL = "coordinator@loca.internal"
-AGENT_NAME = "Loca Coordinator"
-WELCOME = ("Hi {name}, I'm the Loca Coordinator, the AI that helps keep jobs on track. I'll check in here about deadlines, "
+AGENT_EMAIL = "coordinator@tasko.internal"
+AGENT_NAME = "TASKO Coordinator"
+WELCOME = ("Hi {name}, I'm the TASKO Coordinator, the AI that helps keep jobs on track. I'll check in here about deadlines, "
            "hours and timesheets, and you can ask me about your own jobs at any time. When I ask for an update, a short "
            "reply with what's left, the hours you need and when you expect to finish is all I need.")
 
@@ -58,7 +58,7 @@ def leave_shadow_mode() -> int:
 def agent_user() -> User:
     user = User.objects.filter(email=AGENT_EMAIL).first()
     if user is None:
-        user = User(email=AGENT_EMAIL, username="loca-coordinator", display_name=AGENT_NAME, job_title="AI project coordinator", is_agent=True)
+        user = User(email=AGENT_EMAIL, username="tasko-coordinator", display_name=AGENT_NAME, job_title="AI project coordinator", is_agent=True)
         user.set_unusable_password()
         user.save()
     return user

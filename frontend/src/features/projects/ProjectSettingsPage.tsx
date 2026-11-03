@@ -214,7 +214,7 @@ function GeneralTab() {
         </div>
       </div>
       <div className={styles.hint}>
-        Reporting/visibility only — Loca doesn&apos;t generate invoices or handle billing.
+        Reporting/visibility only — TASKO doesn&apos;t generate invoices or handle billing.
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

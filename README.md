@@ -1,4 +1,4 @@
-# TrackFlow
+# TASKO
 
 A functional clone of Jira Software (Cloud): Django/DRF API + React/TypeScript frontend, built
 to look and behave like real Jira — same layout regions, same interaction patterns, same

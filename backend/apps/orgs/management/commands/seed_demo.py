@@ -101,7 +101,7 @@ class Command(BaseCommand):
         teams = self._seed_teams(users)
 
         scrum_project = self._seed_project(
-            org, key="TRK", name="TrackFlow Web App", project_type=Project.ProjectType.SCRUM,
+            org, key="TRK", name="TASKO Web App", project_type=Project.ProjectType.SCRUM,
             lead=users["hemanth"], users=users, avatar_color="#0C66E4",
         )
         kanban_project = self._seed_project(
