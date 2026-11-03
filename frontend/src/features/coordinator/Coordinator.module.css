@@ -155,6 +155,34 @@
   flex-wrap: wrap;
 }
 
+/* --- A follow-up's conversation (AFIT, 2 Nov 2026) --- */
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+}
+.history li {
+  border-left: 3px solid var(--tf-border);
+  padding: 4px 10px;
+  background: var(--tf-surface-sunken);
+  border-radius: var(--tf-radius-md);
+}
+.history li[data-from='person'] {
+  border-left-color: var(--tf-success);
+}
+.history p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+}
+.history strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
 /* --- Ratings tab (AFIT, 31 Oct 2026) --- */
 .stack {
   display: flex;

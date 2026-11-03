@@ -105,7 +105,7 @@ def tick(now: datetime | None = None) -> dict:
             if action == "ask":
                 # With a few next steps from what the agent knows of the job (AFIT, 31 Oct 2026).
                 steps, cost = advice.steps_for(issue, case.get_kind_display())
-                outbox[person].append((case, ask_text(case, f, today, follow_up=case.asked > 0) + advice.as_text(steps), cost))
+                outbox[person].append((case, ask_text(case, f, today, follow_up=case.asked > 0) + advice.as_text(steps), cost, steps))
             elif action == "escalate":
                 target = (leads_for(issue, exclude=person) or [services.ceo()])[0]
                 if target is not None:
@@ -146,30 +146,34 @@ def verify_commitments(issue, person, f, now) -> None:
 
 @transaction.atomic
 def deliver(outbox: dict, escalations: dict, now, *, shadow: bool) -> dict:
-    """Send each person one message with everything for them, and each lead their escalations. In
-    shadow mode nothing goes to staff: the CEO gets one digest of what would have been sent."""
+    """Send each person one message with everything for them, in their own private conversation with
+    the agent (never a shared channel), and each lead their escalations. In shadow mode nothing goes
+    to staff: the CEO gets one digest of what would have been sent. Each record keeps the words and
+    the next steps for that job, so the CEO can see what the accountant was told."""
     digest = []
     for person, items in outbox.items():
-        text = group_for_person(person, [t for _, t, _ in items])
+        text = group_for_person(person, [t for _, t, _, _ in items])
         message = None if shadow else services.post_as_agent(services.conversation_for(person), text)
         digest.append((person, text))
-        for case, _, cost in items:
+        for case, case_text, cost, steps in items:
             case.asked += 1
             case.last_asked_at = now
             if case.state == S.ANSWERED:
                 case.state = S.ASKED
             case.save(update_fields=["asked", "last_asked_at", "state"])
             AgentAction.objects.create(trigger=case.kind, target=person, issue=case.issue, reason=f"{case.get_kind_display()} — message {case.asked}",
-                                       message=message, shadow=shadow, cost_usd=cost)
+                                       message=message, shadow=shadow, cost_usd=cost,
+                                       detail={"case": case.pk, "text": case_text, "advice": steps})
     for lead, items in escalations.items():
         text = group_for_person(lead, [t for _, t in items], escalation=True)
         message = None if shadow else services.post_as_agent(services.conversation_for(lead), text)
         digest.append((lead, text))
-        for case, _ in items:
+        for case, case_text in items:
             case.state, case.escalated_to = S.ESCALATED, lead
             case.save(update_fields=["state", "escalated_to"])
             AgentAction.objects.create(trigger="escalation", target=lead, issue=case.issue,
-                                       reason=f"Escalated: {case.get_kind_display()} ({case.person.display_name})", message=message, shadow=shadow)
+                                       reason=f"Escalated: {case.get_kind_display()} ({case.person.display_name})", message=message, shadow=shadow,
+                                       detail={"case": case.pk, "text": case_text})
     if shadow and digest:
         ceo = services.ceo()
         if ceo is not None:

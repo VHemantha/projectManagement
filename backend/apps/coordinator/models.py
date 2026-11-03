@@ -9,11 +9,12 @@ from django.db import models
 
 
 class CoordinatorSettings(models.Model):
-    """The agent's master switches (one row). New installs start in shadow mode: every message the
-    agent would send to staff goes to the CEO instead, for review, until the CEO turns it off."""
+    """The agent's master switches (one row). Shadow mode sends every message the agent would send to
+    staff to the CEO instead, for review. It is off (AFIT, 2 Nov 2026): follow-ups go to the
+    accountant, one to one, and the CEO sees them in the console and the daily briefing."""
 
     paused = models.BooleanField(default=False)  # emergency pause: no checks, no messages
-    shadow_mode = models.BooleanField(default=True)
+    shadow_mode = models.BooleanField(default=False)
     timezone = models.CharField(max_length=64, default="Pacific/Auckland")
     daily_cost_cap_usd = models.FloatField(default=5.0)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")

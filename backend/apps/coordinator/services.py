@@ -38,6 +38,23 @@ def require_ceo(user, action: str, target: str = "") -> None:
         raise PermissionDenied("Only the CEO can change the coordination agent's settings. You can chat with it in Messages.")
 
 
+def leave_shadow_mode() -> int:
+    """Shadow mode was turned off. Follow-ups counted while in shadow never reached the accountant, so
+    they start again from the first message to them, not straight to the team lead. Returns how many."""
+    from .models import AgentCase
+
+    n = 0
+    for case in AgentCase.objects.exclude(state=AgentCase.State.RESOLVED).filter(asked__gt=0):
+        if AgentAction.objects.filter(target=case.person, issue=case.issue, trigger=case.kind, shadow=False).exists():
+            continue  # the accountant did get a message about it
+        case.asked, case.last_asked_at = 0, None
+        if case.state == AgentCase.State.ESCALATED:
+            case.state, case.escalated_to = AgentCase.State.ASKED, None
+        case.save(update_fields=["asked", "last_asked_at", "state", "escalated_to"])
+        n += 1
+    return n
+
+
 def agent_user() -> User:
     user = User.objects.filter(email=AGENT_EMAIL).first()
     if user is None:

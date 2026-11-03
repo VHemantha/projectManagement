@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import User
 
-from . import policies, services
+from . import followups, policies, services
 from .models import AgentAction, AgentCase, AgentPolicy, AuditEntry, CoordinatorSettings, LeaveRecord, PublicHoliday, WorkSchedule
 
 SETTINGS_FIELDS = ("paused", "shadow_mode", "timezone", "daily_cost_cap_usd")
@@ -87,8 +87,11 @@ class SettingsView(APIView):
                 errors["daily_cost_cap_usd"] = ["A number of dollars between 0 and 500."]
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        was_shadow = before["shadow_mode"]
         s.updated_by = request.user
         s.save()
+        if was_shadow and not s.shadow_mode:
+            services.leave_shadow_mode()
         after = settings_dict(s)
         services.audit(request.user, "change settings", "settings", before={k: before[k] for k in SETTINGS_FIELDS},
                        after={k: after[k] for k in SETTINGS_FIELDS})
@@ -157,11 +160,14 @@ class CaseListView(APIView):
 
     def get(self, request):
         services.require_ceo(request.user, "view follow-ups")
-        qs = AgentCase.objects.select_related("issue", "person", "escalated_to").prefetch_related("commitments")
+        qs = AgentCase.objects.select_related("issue", "person", "escalated_to").prefetch_related("commitments__source_message")
         if request.query_params.get("all") != "1":
             qs = qs.exclude(state=AgentCase.State.RESOLVED)
+        cases = list(qs[:300])
+        # What the accountant was sent, their reasons and the agent's guidance (AFIT, 2 Nov 2026).
+        history = followups.histories(cases)
         rows = []
-        for c in qs[:300]:
+        for c in cases:
             last = max(c.commitments.all(), key=lambda x: x.created_at, default=None)
             rows.append({
                 "id": c.id, "issue": c.issue.key, "title": c.issue.summary, "person": _person(c.person), "kind": c.kind,
@@ -169,7 +175,8 @@ class CaseListView(APIView):
                 "revised_due": c.revised_due, "asked": c.asked, "last_asked_at": c.last_asked_at, "escalated_to": _person(c.escalated_to),
                 "opened_at": c.opened_at, "closed_reason": c.closed_reason,
                 "commitment": ({"eta_date": last.eta_date, "remaining_hours": last.remaining_hours, "cause": last.get_cause_display(),
-                                "status": last.status} if last else None),
+                                "blockers": last.blockers, "status": last.status} if last else None),
+                "history": history.get(c.pk, []),
             })
         return Response({"cases": rows})
 

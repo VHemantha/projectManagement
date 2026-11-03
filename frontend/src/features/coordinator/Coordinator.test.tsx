@@ -45,7 +45,15 @@ vi.mock('@/api/coordinator', () => ({
   useCases: () => ({ data: { cases: [{ id: 1, issue: 'ABC-12', title: 'Client ABC year end', person: { id: 2, display_name: 'Pat' }, kind: 'prep_due',
     kind_label: 'Preparation due soon', state: 'answered', state_label: 'Answered', due_date: '2026-11-05', revised_due: '2026-11-06', asked: 1,
     last_asked_at: null, escalated_to: null, opened_at: '', closed_reason: '',
-    commitment: { eta_date: '2026-11-06', remaining_hours: 8, cause: 'Bookkeeping errors', status: 'open' } }] } }),
+    commitment: { eta_date: '2026-11-06', remaining_hours: 8, cause: 'Bookkeeping errors', status: 'open' },
+    history: [
+      { at: '2026-11-02T09:00:00+13:00', kind: 'asked', from: 'agent', to: 'Pat', text: 'ABC-12: preparation is due Thu 05 Nov.',
+        advice: [], shadow: false, delivered: true },
+      { at: '2026-11-02T10:00:00+13:00', kind: 'reason', from: 'person', to: '', text: 'The bookkeeping had errors.', advice: [],
+        cause: 'Bookkeeping errors', blockers: '', eta_date: '2026-11-06', remaining_hours: 8, shadow: false, delivered: true },
+      { at: '2026-11-02T10:00:05+13:00', kind: 'guidance', from: 'agent', to: 'Pat', text: 'Link the bookkeeping corrections on the task.',
+        advice: [], shadow: false, delivered: true },
+    ] }] } }),
   useAudit: () => ({ data: { entries: [] } }),
 }))
 vi.mock('@/app/ProjectSwitcher', () => ({ ProjectSwitcher: () => null }))
@@ -90,6 +98,12 @@ describe('Coordinator console', () => {
     expect(followUps).toHaveTextContent('ABC-12')
     expect(followUps).toHaveTextContent('Said: 8h to go, finish 6 Nov — Bookkeeping errors')
     expect(followUps).toHaveTextContent('Revised 6 Nov')
+    await userEvent.click(within(followUps).getByRole('button', { name: 'Conversation (3)' }))
+    const talk = within(followUps).getByRole('list', { name: 'Conversation on ABC-12' })
+    expect(talk).toHaveTextContent('Sent to Pat, one to one')
+    expect(talk).toHaveTextContent('Reason: Bookkeeping errors; new date 6 Nov; 8h to go')
+    expect(talk).toHaveTextContent('Guidance to Pat')
+    expect(talk).toHaveTextContent('Link the bookkeeping corrections on the task.')
 
     await userEvent.click(screen.getByRole('tab', { name: 'Leave' }))
     await userEvent.click(screen.getByRole('button', { name: 'Approve' }))

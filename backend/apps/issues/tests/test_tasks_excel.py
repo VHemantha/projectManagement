@@ -1,8 +1,9 @@
 """Tasks to Excel from the task table (AFIT, 2 Nov 2026): the keys listed, in their order, every column."""
 import io
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pytest
+from django.utils import timezone
 from openpyxl import load_workbook
 from rest_framework.test import APIClient
 
@@ -29,10 +30,10 @@ def test_the_listed_tasks_download_as_a_workbook_in_the_tables_order():
     kind, _ = IssueType.objects.get_or_create(name="Task", project=None)
     s = {x.name: x for x in project.workflow.statuses.all()}
     late = Issue.objects.create(project=project, issue_type=kind, summary="Preparation", status=s["In Progress"], reporter=amy,
-                                preparer=amy, due_date=date.today() - timedelta(days=3), budgeted_hours=10)
+                                preparer=amy, due_date=timezone.localdate() - timedelta(days=3), budgeted_hours=10)
     done = Issue.objects.create(project=project, issue_type=kind, summary="Adjustments", status=s["Complete"], reporter=amy)
     Issue.objects.create(project=project, issue_type=kind, summary="Not listed", status=s["To Start"], reporter=amy)
-    TimeEntry.objects.create(user=amy, issue=late, project=project, work_date=date.today(), duration=timedelta(hours=4))
+    TimeEntry.objects.create(user=amy, issue=late, project=project, work_date=timezone.localdate(), duration=timedelta(hours=4))
 
     api = APIClient()
     api.force_authenticate(amy)

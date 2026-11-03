@@ -87,7 +87,27 @@ export interface CaseRow {
   escalated_to: Person | null
   opened_at: string
   closed_reason: string
-  commitment: { eta_date: string | null; remaining_hours: number | null; cause: string; status: string } | null
+  commitment: { eta_date: string | null; remaining_hours: number | null; cause: string; blockers?: string; status: string } | null
+  /** What passed on this follow-up, oldest first (AFIT, 2 Nov 2026). */
+  history?: CaseEvent[]
+}
+
+/** One step of a follow-up: the agent's message to the accountant (with its suggested next steps),
+ * the reason they gave, the agent's guidance back, or the escalation to the team lead. */
+export interface CaseEvent {
+  at: string
+  kind: 'asked' | 'reason' | 'guidance' | 'escalated'
+  from: 'agent' | 'person'
+  to: string
+  text: string
+  advice: string[]
+  shadow: boolean
+  delivered: boolean
+  cause?: string
+  blockers?: string
+  eta_date?: string | null
+  remaining_hours?: number | null
+  needs_help?: boolean
 }
 
 export type LeaveKind = 'annual' | 'sick' | 'training' | 'other'

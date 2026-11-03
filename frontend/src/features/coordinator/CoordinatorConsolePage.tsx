@@ -1,10 +1,12 @@
 import { format, parseISO } from 'date-fns'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, Fragment, useState } from 'react'
 
 import styles from './Coordinator.module.css'
 import { leaveDays } from './leaveText'
 import { RatingsTab } from './RatingsTab'
 import {
+  type CaseEvent,
+  type CaseRow,
   type RuleInfo,
   useAddHoliday,
   useAgentActions,
@@ -134,11 +136,102 @@ function Controls() {
 
 const STATE_TONE: Record<string, string> = { asked: 'warning', answered: 'success', escalated: 'danger', resolved: '' }
 
+function eventTitle(e: CaseEvent, person: string): string {
+  if (e.kind === 'asked') return e.shadow ? `Would have sent to ${e.to} (shadow mode, came to you)` : `Sent to ${e.to}, one to one`
+  if (e.kind === 'reason') return `${person} replied`
+  if (e.kind === 'guidance') return `Guidance to ${e.to}`
+  return e.shadow ? `Would have escalated to ${e.to} (shadow mode)` : `Escalated to ${e.to}`
+}
+
+/** The exchange on one follow-up: what the accountant was sent, the reason they gave and the
+ * agent's guidance (AFIT, 2 Nov 2026). */
+function CaseHistory({ row }: { row: CaseRow }) {
+  const events = row.history ?? []
+  if (events.length === 0) return <p className={styles.muted}>No message has gone out on this yet (messages go out in working hours).</p>
+  return (
+    <ol className={styles.history} aria-label={`Conversation on ${row.issue}`}>
+      {events.map((e, i) => (
+        <li key={i} data-from={e.from}>
+          <small>
+            {eventTitle(e, row.person.display_name)} · {when(e.at)}
+          </small>
+          {e.kind === 'reason' && e.cause && (
+            <strong>
+              Reason: {e.cause}
+              {e.blockers ? ` — ${e.blockers}` : ''}
+              {e.eta_date ? `; new date ${format(parseISO(e.eta_date), 'd MMM')}` : ''}
+              {e.remaining_hours != null ? `; ${e.remaining_hours}h to go` : ''}
+              {e.needs_help ? '; asked for help' : ''}
+            </strong>
+          )}
+          {e.text && <p>{e.text}</p>}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function FollowUpRow({ c }: { c: CaseRow }) {
+  const [open, setOpen] = useState(false)
+  const n = c.history?.length ?? 0
+  return (
+    <Fragment>
+      <tr>
+        <td>
+          {c.issue}
+          <small>{c.title}</small>
+        </td>
+        <td>{c.person.display_name}</td>
+        <td>
+          {c.kind_label}
+          {c.commitment && (
+            <small>
+              Said: {c.commitment.remaining_hours != null ? `${c.commitment.remaining_hours}h to go, ` : ''}
+              {c.commitment.eta_date ? `finish ${format(parseISO(c.commitment.eta_date), 'd MMM')}` : 'no date'}
+              {c.commitment.cause !== 'None given' ? ` — ${c.commitment.cause}` : ''}
+              {c.commitment.blockers ? ` (${c.commitment.blockers})` : ''}
+            </small>
+          )}
+        </td>
+        <td>
+          {c.due_date && `Due ${format(parseISO(c.due_date), 'd MMM')}`}
+          {c.revised_due && <small>Revised {format(parseISO(c.revised_due), 'd MMM')}</small>}
+        </td>
+        <td>
+          <span className={styles.chip} data-tone={STATE_TONE[c.state]}>
+            {c.state_label}
+          </span>
+          <small>
+            {c.asked} message{c.asked === 1 ? '' : 's'}
+            {c.escalated_to && `, escalated to ${c.escalated_to.display_name}`}
+          </small>
+        </td>
+        <td>
+          <button type="button" className={styles.linkButton} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+            {open ? 'Hide' : 'Conversation'} ({n})
+          </button>
+        </td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={6}>
+            <CaseHistory row={c} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+}
+
 function FollowUps() {
   const { data } = useCases()
   if (!data) return <Skeleton height={80} />
   return (
     <section className={styles.card} aria-label="Follow-ups">
+      <p className={styles.muted} style={{ marginBottom: 8 }}>
+        The coordinator writes to each task&apos;s accountant in their own private conversation with it, never in a shared channel. Open a
+        follow-up&apos;s conversation to see what was sent, the reason given and the guidance the coordinator gave back.
+      </p>
       {data.cases.length === 0 ? (
         <p className={styles.muted}>Nothing is being followed up right now.</p>
       ) : (
@@ -151,40 +244,12 @@ function FollowUps() {
                 <th scope="col">Matter</th>
                 <th scope="col">Dates</th>
                 <th scope="col">State</th>
+                <th scope="col" aria-label="Conversation" />
               </tr>
             </thead>
             <tbody>
               {data.cases.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    {c.issue}
-                    <small>{c.title}</small>
-                  </td>
-                  <td>{c.person.display_name}</td>
-                  <td>
-                    {c.kind_label}
-                    {c.commitment && (
-                      <small>
-                        Said: {c.commitment.remaining_hours != null ? `${c.commitment.remaining_hours}h to go, ` : ''}
-                        {c.commitment.eta_date ? `finish ${format(parseISO(c.commitment.eta_date), 'd MMM')}` : 'no date'}
-                        {c.commitment.cause !== 'None given' ? ` — ${c.commitment.cause}` : ''}
-                      </small>
-                    )}
-                  </td>
-                  <td>
-                    {c.due_date && `Due ${format(parseISO(c.due_date), 'd MMM')}`}
-                    {c.revised_due && <small>Revised {format(parseISO(c.revised_due), 'd MMM')}</small>}
-                  </td>
-                  <td>
-                    <span className={styles.chip} data-tone={STATE_TONE[c.state]}>
-                      {c.state_label}
-                    </span>
-                    <small>
-                      {c.asked} message{c.asked === 1 ? '' : 's'}
-                      {c.escalated_to && `, escalated to ${c.escalated_to.display_name}`}
-                    </small>
-                  </td>
-                </tr>
+                <FollowUpRow key={c.id} c={c} />
               ))}
             </tbody>
           </table>

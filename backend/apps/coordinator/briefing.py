@@ -27,6 +27,13 @@ def facts(today=None) -> dict:
     # The reasons people gave the agent since the last working day (AFIT, 31 Oct 2026).
     reasons = list(Commitment.objects.filter(created_at__date__gte=since).exclude(cause=Commitment.Cause.NONE)
                    .select_related("issue", "person").order_by("cause", "-created_at")[:20])
+    # With the guidance the agent gave back to each reason (AFIT, 2 Nov 2026).
+    if reasons:
+        from .followups import guidance_for, replies_after
+
+        replies = replies_after({c.person_id for c in reasons}, min(c.created_at for c in reasons))
+        for c in reasons:
+            c.guidance = guidance_for(c, replies)
     return {"today": today, "open_jobs": len(jobs), "unassigned": sum(1 for j in jobs if responsible(j) is None), "reasons": reasons,
             "overdue": overdue, "due_soon": due_soon, "escalated": escalated, "missed": missed, "waiting": waiting,
             "kept_yesterday": Commitment.objects.filter(status=Commitment.Status.KEPT, verified_at__date__gte=calendar.previous_working_day(today) or today).count()}
@@ -40,7 +47,9 @@ def _line(c: AgentCase) -> str:
 
 def _reason(c) -> str:
     when = f"; new date {c.eta_date:%d %b}" if c.eta_date else ""
-    return f"{c.issue.key} — {c.person.display_name}: {c.get_cause_display().lower()}{(' — ' + c.blockers) if c.blockers else ''}{when}"
+    guidance = getattr(c, "guidance", "")
+    advised = f". My guidance: {guidance[:300]}{'…' if len(guidance) > 300 else ''}" if guidance else ""
+    return f"{c.issue.key} — {c.person.display_name}: {c.get_cause_display().lower()}{(' — ' + c.blockers) if c.blockers else ''}{when}{advised}"
 
 
 def compose(f: dict) -> tuple[str, float]:
