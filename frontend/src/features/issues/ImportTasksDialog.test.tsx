@@ -38,7 +38,9 @@ const csv = new File(['Job Name\nSmith FY26\n'], 'tasks.csv', { type: 'text/csv'
 describe('Bulk import tasks', () => {
   it('offers the template and the current tasks to download', async () => {
     render(<ImportTasksDialog open onOpenChange={() => {}} exportParams={{ no_parent: true, project: 'RWCA' }} />)
-    expect(screen.getByRole('link', { name: /Download template/ })).toHaveAttribute('href', TEMPLATE_URL)
+    expect(screen.getByRole('link', { name: /Download template \(Excel\)/ })).toHaveAttribute('href', TEMPLATE_URL)
+    expect(TEMPLATE_URL).toBe('/templates/tasks-import-template.xlsx')
+    expect(screen.getByRole('link', { name: 'CSV' })).toHaveAttribute('href', '/templates/tasks-import-template.csv')
     await userEvent.click(screen.getByRole('button', { name: /Download current tasks/ }))
     expect(mocks.exported).toEqual({ no_parent: true, project: 'RWCA' })
   })
@@ -52,6 +54,8 @@ describe('Bulk import tasks', () => {
     expect(within(guide).getByRole('row', { name: /Start Date/ })).toHaveTextContent('DateYYYY-MM-DD (e.g. 2026-11-02) or DD/MM/YYYY (e.g. 02/11/2026). Empty: today.')
     expect(within(guide).getByRole('row', { name: /Due Date/ })).toHaveTextContent('Empty: 5 days after the start date.')
     expect(within(guide).getByRole('row', { name: /Project Key/ })).toHaveTextContent('Optional')
+    expect(within(guide).getByRole('row', { name: /Row Type/ })).toHaveTextContent('Task or Sub-task. Empty: Task.')
+    expect(within(guide).getByRole('row', { name: /Main Task Key/ })).toHaveTextContent('Sub-task rows only')
   })
 
   it('shows the problems by row and does not import until the file is right', async () => {
@@ -63,7 +67,7 @@ describe('Bulk import tasks', () => {
     render(<ImportTasksDialog open onOpenChange={() => {}} exportParams={{}} />)
     const importButton = screen.getByRole('button', { name: 'Import' })
     expect(importButton).toBeDisabled()
-    await userEvent.upload(screen.getByLabelText('CSV file'), csv)
+    await userEvent.upload(screen.getByLabelText('Excel or CSV file'), csv)
     await userEvent.click(screen.getByRole('button', { name: 'Check file' }))
     expect(mocks.calls[0].commit).toBe(false)
     expect(screen.getByRole('alert')).toHaveTextContent('1 of 2 rows have problems')
@@ -77,11 +81,37 @@ describe('Bulk import tasks', () => {
     mocks.calls = []
     mocks.next = [result({}), result({ imported: true })]
     render(<ImportTasksDialog open onOpenChange={() => {}} exportParams={{}} />)
-    await userEvent.upload(screen.getByLabelText('CSV file'), csv)
+    await userEvent.upload(screen.getByLabelText('Excel or CSV file'), csv)
     await userEvent.click(screen.getByRole('button', { name: 'Check file' }))
     expect(screen.getByRole('status')).toHaveTextContent('All 2 rows are right: 1 to add, 1 to update.')
-    await userEvent.click(screen.getByRole('button', { name: 'Import 2 tasks' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Import 2 rows' }))
     expect(mocks.calls.map((c) => c.commit)).toEqual([false, true])
     expect(screen.getByRole('status')).toHaveTextContent('Imported: 1 added, 1 updated.')
+  })
+})
+
+describe('Sub-tasks in the bulk import (AFIT, 6 Nov 2026)', () => {
+  it('takes an Excel file and shows each sub-task under its task', async () => {
+    mocks.calls = []
+    mocks.next = [result({
+      rows: 4, create: 4, update: 0, create_subtasks: 3,
+      results: [
+        { row: 4, key: '', summary: 'Annual accounts FY26', action: 'create', type: 'task', parent: '', errors: {} },
+        { row: 5, key: '', summary: 'Bank reconciliation', action: 'create', type: 'sub-task', parent: 'the task on row 4', errors: {} },
+        { row: 6, key: '', summary: 'Draft accounts', action: 'create', type: 'sub-task', parent: 'the task on row 4', errors: {} },
+        { row: 7, key: '', summary: 'Chase the rates notice', action: 'create', type: 'sub-task', parent: 'RWCA-12', errors: {} },
+      ],
+    })]
+    render(<ImportTasksDialog open onOpenChange={() => {}} exportParams={{}} />)
+    const xlsx = new File(['PK'], 'tasks.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    await userEvent.upload(screen.getByLabelText('Excel or CSV file'), xlsx)
+    await userEvent.click(screen.getByRole('button', { name: 'Check file' }))
+    expect(mocks.calls[0].file.name).toBe('tasks.xlsx')
+    expect(screen.getByRole('status')).toHaveTextContent('All 4 rows are right: 4 to add (3 sub-tasks).')
+    const rows = within(screen.getByLabelText('Check result')).getAllByRole('row')
+    expect(rows[2]).toHaveTextContent('Sub-task: Bank reconciliation')
+    expect(rows[2]).toHaveTextContent('the task on row 4')
+    expect(rows[4]).toHaveTextContent('RWCA-12')
+    expect(screen.getByRole('button', { name: 'Import 4 rows' })).toBeEnabled()
   })
 })

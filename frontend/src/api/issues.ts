@@ -413,12 +413,15 @@ export function useBulkArchive() {
   })
 }
 
-/** One row of a bulk CSV upload, as the server checked it. */
+/** One row of a bulk upload (Excel or CSV), as the server checked it. */
 export interface ImportRowResult {
   row: number
   key: string
   summary: string
   action: 'create' | 'update' | 'unchanged'
+  /** A task, or a sub-task under `parent` (a task key, or "the task on row N" before it exists). */
+  type?: 'task' | 'sub-task'
+  parent?: string
   /** Problems by column; empty when the row is fine. */
   errors: Record<string, string>
 }
@@ -429,12 +432,15 @@ export interface ImportResult {
   create: number
   update: number
   unchanged: number
+  /** Of those to add and update, how many are sub-tasks. */
+  create_subtasks?: number
+  update_subtasks?: number
   /** False after a check, or when any row had a problem (then nothing was saved). */
   imported: boolean
   results: ImportRowResult[]
 }
 
-/** Tasks in bulk from the CSV template: `commit: false` only checks the file. */
+/** Tasks and sub-tasks in bulk from the template (Excel or CSV): `commit: false` only checks the file. */
 export function useImportTasks() {
   const queryClient = useQueryClient()
   return useMutation({

@@ -6,14 +6,18 @@ import { extractErrorMessage } from '@/api/errors'
 import { downloadTasksCsv, type ImportResult, useImportTasks } from '@/api/issues'
 import { Button, Dialog, DialogContent } from '@/design-system'
 
-/** The standard template, served with the app's files from the cloud. */
-export const TEMPLATE_URL = '/templates/tasks-import-template.csv'
+/** The standard template, served with the app's files from the cloud: an Excel workbook (with a
+ * worked example and a guide), and the same columns as CSV. */
+export const TEMPLATE_URL = '/templates/tasks-import-template.xlsx'
+export const CSV_TEMPLATE_URL = '/templates/tasks-import-template.csv'
 
 // The same guide as the template's second and third rows (backend csv_import.SPEC).
 const GUIDE: { column: string; required: boolean; type: string; format: string }[] = [
+  { column: 'Row Type', required: false, type: 'Choice', format: 'Task or Sub-task. Empty: Task. Sub-task rows go under their task\'s row, as many as it needs.' },
+  { column: 'Main Task Key', required: false, type: 'Text', format: 'Sub-task rows only: the key of a task already in the app to add it to (e.g. RWCA-12). Empty: the task row above.' },
   { column: 'Task Key', required: false, type: 'Text', format: 'Leave empty to add a new task; a task key (e.g. RWCA-12) updates that task.' },
   { column: 'Sub-workspace', required: true, type: 'Text', format: "The sub-workspace's name exactly as it shows in the app." },
-  { column: 'Job Name', required: true, type: 'Text', format: 'Up to 500 characters.' },
+  { column: 'Job Name', required: true, type: 'Text', format: "Up to 500 characters. For a sub-task row, the sub-task's name (the only cell it needs)." },
   { column: 'Group', required: true, type: 'Text', format: 'Up to 100 characters.' },
   { column: 'Accountant', required: true, type: 'Person', format: 'Email address, or the name as it shows in the app.' },
   { column: 'Project Key', required: false, type: 'Text', format: "A project of that sub-workspace (e.g. RWCA). Empty: the sub-workspace's own task list." },
@@ -30,17 +34,20 @@ const GUIDE: { column: string; required: boolean; type: string; format: string }
   { column: 'Add Standard Sub-tasks', required: false, type: 'Yes/No', format: 'yes adds Pre-check, Preparation, Internal Review and Client Review. Empty: no.' },
 ]
 
+const ofWhich = (n: number | undefined) => (n ? ` (${n} sub-task${n === 1 ? '' : 's'})` : '')
+
 function counts(r: ImportResult) {
   const parts = [
-    r.create && `${r.create} to add`,
-    r.update && `${r.update} to update`,
+    r.create && `${r.create} to add${ofWhich(r.create_subtasks)}`,
+    r.update && `${r.update} to update${ofWhich(r.update_subtasks)}`,
     r.unchanged && `${r.unchanged} unchanged`,
   ].filter(Boolean)
   return parts.join(', ') || 'nothing to change'
 }
 
-/** Add or update tasks in bulk from a CSV file: download the template (or the current tasks),
- * fill it in, check it, then import. Nothing is saved while any row has a problem. */
+/** Add or update tasks and their sub-tasks in bulk from an Excel or CSV file: download the template
+ * (or the current tasks), fill it in, check it, then import. Nothing is saved while any row has a
+ * problem. Sub-task rows go under their task's row, any number of them (AFIT, 6 Nov 2026). */
 export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -88,11 +95,12 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent title="Bulk import tasks (CSV)" maxWidth={760}>
+      <DialogContent title="Bulk import tasks and sub-tasks" maxWidth={760}>
         {done ? (
           <div className={styles.section}>
             <p className={styles.success} role="status">
-              Imported: {done.create} added, {done.update} updated{done.unchanged ? `, ${done.unchanged} unchanged` : ''}.
+              Imported: {done.create} added{ofWhich(done.create_subtasks)}, {done.update} updated{ofWhich(done.update_subtasks)}
+              {done.unchanged ? `, ${done.unchanged} unchanged` : ''}.
             </p>
             <div className={styles.actions}>
               <Button variant="secondary" onClick={reset}>Import another file</Button>
@@ -105,8 +113,11 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
               <li>
                 Download the standard template, or the current tasks to update them.
                 <div className={styles.links}>
-                  <a className={styles.link} href={TEMPLATE_URL} download="tasks-import-template.csv">
-                    <Download size={14} /> Download template
+                  <a className={styles.link} href={TEMPLATE_URL} download="tasks-import-template.xlsx">
+                    <Download size={14} /> Download template (Excel)
+                  </a>
+                  <a className={styles.link} href={CSV_TEMPLATE_URL} download="tasks-import-template.csv">
+                    <Download size={14} /> CSV
                   </a>
                   <button type="button" className={styles.link} onClick={exportTasks} disabled={exporting}>
                     <Download size={14} /> {exporting ? 'Preparing…' : 'Download current tasks'}
@@ -114,19 +125,25 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
                 </div>
               </li>
               <li>
-                Fill in one task per row (Excel or Google Sheets) and save it as CSV. A new task needs its <strong>Sub-workspace, Job Name, Group and
-                Accountant</strong>; the rest is optional. When updating a task, an empty cell keeps its value and - clears it. The template&apos;s two
-                rows starting with # are a guide and are skipped.
+                Fill in the <strong>Tasks</strong> sheet, one task per row. A new task needs its <strong>Sub-workspace, Job Name, Group and
+                Accountant</strong>; the rest is optional. When updating, an empty cell keeps its value and - clears it. The two rows starting
+                with # are a guide and are skipped.
+              </li>
+              <li>
+                For sub-tasks, add a row under the task for each one, with <strong>Row Type</strong> set to <strong>Sub-task</strong> and its name
+                in Job Name: as many as the task needs, or none. A sub-task takes its accountant, team lead, stage, priority and dates from its
+                task unless you fill them in. To add one to a task already in the app, put that task&apos;s key in Main Task Key. The template&apos;s
+                Example sheet shows a filled-in file.
               </li>
               <li>
                 Choose the file and check it. Nothing is saved until every row is right.
                 <label className={styles.file}>
                   <FileUp size={14} />
-                  <span>{file ? file.name : 'Choose CSV file…'}</span>
+                  <span>{file ? file.name : 'Choose Excel or CSV file…'}</span>
                   <input
                     type="file"
-                    accept=".csv,text/csv"
-                    aria-label="CSV file"
+                    accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    aria-label="Excel or CSV file"
                     onChange={(e) => {
                       setFile(e.target.files?.[0] ?? null)
                       setChecked(null)
@@ -179,6 +196,7 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
                         <th>Row</th>
                         <th>Task</th>
                         <th>Job Name</th>
+                        <th>Under</th>
                         <th>Result</th>
                       </tr>
                     </thead>
@@ -187,7 +205,11 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
                         <tr key={r.row}>
                           <td className={styles.num}>{r.row}</td>
                           <td>{r.key || <span className={styles.muted}>New</span>}</td>
-                          <td>{r.summary}</td>
+                          <td>
+                            {r.type === 'sub-task' && <span className={styles.muted}>Sub-task: </span>}
+                            {r.summary}
+                          </td>
+                          <td>{r.type === 'sub-task' ? r.parent : ''}</td>
                           <td>
                             {Object.keys(r.errors).length ? (
                               <ul className={styles.problems}>
@@ -215,7 +237,7 @@ export function ImportTasksDialog({ open, onOpenChange, exportParams }: {
                 disabled={!checked || problems.length > 0 || checked.create + checked.update === 0 || run.isPending}
                 onClick={() => submit(true)}
               >
-                {run.isPending && checked ? 'Importing…' : checked ? `Import ${checked.create + checked.update} tasks` : 'Import'}
+                {run.isPending && checked ? 'Importing…' : checked ? `Import ${checked.create + checked.update} rows` : 'Import'}
               </Button>
             </div>
           </>

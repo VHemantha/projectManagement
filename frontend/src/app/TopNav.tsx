@@ -65,7 +65,7 @@ export function TopNav({ onOpenDrawer }: TopNavProps) {
             </span>
           </button>
         </Tooltip>
-        <Tooltip label="Add or update tasks in bulk from a CSV file">
+        <Tooltip label="Add or update tasks and sub-tasks in bulk from an Excel or CSV file">
           <button className={styles.iconBtn} style={{ width: 'auto', padding: '0 10px', display: 'flex', gap: 4 }} onClick={() => setImportOpen(true)}>
             <FileUp size={16} />
             <span className={styles.createLabel} style={{ fontSize: 14 }}>

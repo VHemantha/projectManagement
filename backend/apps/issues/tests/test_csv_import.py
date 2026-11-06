@@ -83,7 +83,7 @@ def upload(api, *rows, commit=False, **kw):
 def test_the_template_in_the_app_has_the_columns_and_the_guide():
     assert TEMPLATE.read_bytes().decode("utf-8") == template_csv()
     header, need, kind = list(csv.reader(io.StringIO(template_csv().lstrip("﻿"))))
-    assert header == COLUMNS and header[:5] == ["Task Key", "Sub-workspace", "Job Name", "Group", "Accountant"]
+    assert header == COLUMNS and header[:7] == ["Row Type", "Main Task Key", "Task Key", "Sub-workspace", "Job Name", "Group", "Accountant"]
     assert [c for c, n in zip(header, need) if n == "Required for a new task"] == REQUIRED == ["Sub-workspace", "Job Name", "Group", "Accountant"]
     assert need[0].startswith("#") and kind[0].startswith("#")
     formats = dict(zip(header, kind))

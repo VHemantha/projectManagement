@@ -12,9 +12,15 @@ column, whether it is required and its type and format; rows starting with "#" a
 
 The whole file is checked before anything is saved: if any row has a problem, nothing is
 imported and every problem is reported with its row number.
+
+Sub-tasks and Excel (AFIT, 6 Nov 2026): the file may be an Excel workbook (.xlsx; its "Tasks" sheet)
+as well as CSV. A row whose Row Type is "Sub-task" adds a sub-task to the task row above it, so a
+task can have any number of sub-task rows under it; Main Task Key adds one to a task already in the
+app instead. A new sub-task needs only its name: the rest comes from its main task unless given.
 """
 import csv
 import io
+import zipfile
 from datetime import date, datetime, timedelta
 
 from django.db import transaction
@@ -31,9 +37,12 @@ from .models import Issue
 
 # Column: (required for a new task, type, format and default). The template's guide rows.
 SPEC = {
+    "Row Type": ("Optional", "Choice", "Task or Sub-task; empty: Task. Sub-task rows go under their task's row, as many as it needs"),
+    "Main Task Key": ("Optional", "Text", "Sub-task rows only: the key of a task already in the app to add it to (e.g. RWCA-12); "
+                                          "empty: the task row above"),
     "Task Key": ("Optional", "Text", "Leave empty to add a new task; a task key (e.g. RWCA-12) updates that task"),
     "Sub-workspace": ("Required", "Text", "The sub-workspace's name exactly as it shows in the app"),
-    "Job Name": ("Required", "Text", "Up to 500 characters"),
+    "Job Name": ("Required", "Text", "Up to 500 characters; for a sub-task row, the sub-task's name (the only cell it needs)"),
     "Group": ("Required", "Text", "Up to 100 characters"),
     "Accountant": ("Required", "Person", "Email address, or the name as it shows in the app"),
     "Project Key": ("Optional", "Text", "A project of that sub-workspace (e.g. RWCA); empty: the sub-workspace's own task list"),
@@ -56,10 +65,14 @@ REQUIRED = [c for c, (need, _, _) in SPEC.items() if need == "Required"]
 DUE_AFTER_START_DAYS = 5
 PEOPLE = {"Team Lead": "assignee_id", "Accountant": "preparer_id", "Reviewer": "reviewer_id", "Currently Responsible": "current_responsible_id"}
 CLEAR = "-"
-MAX_ROWS = 1000
-MAX_BYTES = 2 * 1024 * 1024
+MAX_ROWS = 3000  # tasks and sub-tasks together
+MAX_BYTES = 5 * 1024 * 1024
 DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d %b %Y", "%d %B %Y")
 YES, NO = {"yes", "y", "true", "1"}, {"no", "n", "false", "0", ""}
+TASK, SUBTASK = "task", "sub-task"
+ROW_TYPES = {"": TASK, "task": TASK, "main task": TASK, "sub-task": SUBTASK, "subtask": SUBTASK, "sub task": SUBTASK}
+# What a new sub-task takes from its main task when its own row leaves it empty.
+INHERITED = ("preparer", "assignee", "reviewer", "current_responsible", "status", "priority", "group", "start_date", "due_date")
 
 
 class FileProblem(ValueError):
@@ -70,15 +83,48 @@ def _norm(name: str) -> str:
     return " ".join(str(name or "").replace("﻿", "").split()).lower()
 
 
-def read_rows(data: bytes) -> list[dict]:
-    if len(data) > MAX_BYTES:
-        raise FileProblem("The file is larger than 2 MB. Split it into smaller files.")
+def _cell_text(value) -> str:
+    """An Excel cell as the text a CSV would have: dates as YYYY-MM-DD, whole numbers without .0."""
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    if isinstance(value, bool):
+        return "yes" if value else "no"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def _excel_lines(data: bytes):
+    from openpyxl import load_workbook
+
     try:
-        text = data.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        text = data.decode("cp1252", errors="replace")  # saved from Excel as plain "CSV"
-    reader = csv.reader(io.StringIO(text))
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    except (zipfile.BadZipFile, KeyError, ValueError, OSError):
+        raise FileProblem("The file can't be read as an Excel workbook. Save it as .xlsx (or as CSV) and try again.") from None
+    ws = wb["Tasks"] if "Tasks" in wb.sheetnames else wb.worksheets[0]
+    return [[_cell_text(v) for v in row] for row in ws.iter_rows(values_only=True)]
+
+
+def read_rows(data: bytes) -> list[dict]:
+    """The rows of a CSV file or an Excel workbook (its Tasks sheet), by column name."""
+    if len(data) > MAX_BYTES:
+        raise FileProblem("The file is larger than 5 MB. Split it into smaller files.")
+    if data[:2] == b"PK":  # .xlsx is a zip
+        reader = iter(_excel_lines(data))
+    else:
+        try:
+            text = data.decode("utf-8-sig")
+        except UnicodeDecodeError:
+            text = data.decode("cp1252", errors="replace")  # saved from Excel as plain "CSV"
+        reader = csv.reader(io.StringIO(text))
     header = next(reader, None)
+    # Excel keeps empty trailing columns; they aren't headings.
+    while header and not str(header[-1] or "").strip():
+        header = header[:-1]
     if not header:
         raise FileProblem("The file is empty. Download the template and fill in one task per row.")
     known = {_norm(c): c for c in COLUMNS}
@@ -94,7 +140,7 @@ def read_rows(data: bytes) -> list[dict]:
             continue  # empty, or one of the template's guide rows
         rows.append({"_row": number, **{n: (c or "").strip() for n, c in zip(names, cells) if n}})
         if len(rows) > MAX_ROWS:
-            raise FileProblem(f"The file has more than {MAX_ROWS} tasks. Split it into smaller files.")
+            raise FileProblem(f"The file has more than {MAX_ROWS} rows. Split it into smaller files.")
     if not rows:
         raise FileProblem("The file has no tasks in it: fill in one task per row under the headings.")
     return rows
@@ -164,17 +210,34 @@ class Lookups:
         return ids
 
 
-def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
-    """The serializer's data for one row, and the row's own problems by column."""
+def _subtask_type():
+    return IssueType.objects.filter(is_subtask=True, project__isnull=True).first() or IssueType.objects.filter(is_subtask=True).first()
+
+
+def _payload(row: dict, issue, lookups: Lookups, *, parent_project=None) -> tuple[dict, dict]:
+    """The serializer's data for one row, and the row's own problems by column. parent_project:
+    a new sub-task's row, in its main task's project."""
     data, problems = {}, {}
     creating = issue is None
-    project = issue.project if issue else None
+    new_subtask = creating and parent_project is not None
+    project = issue.project if issue else parent_project
 
     def cell(name):
         return row.get(name, "")
 
     project_key, client_name = cell("Project Key"), cell("Sub-workspace")
-    if creating:
+    if new_subtask:
+        if cell("Job Name") in ("", CLEAR):
+            problems["Job Name"] = "A sub-task needs its name in Job Name."
+        if project_key and resolve_project(project_key) != parent_project:
+            problems["Project Key"] = f"A sub-task goes in its main task's project ({parent_project.key}): leave Project Key empty."
+        data["project"] = parent_project.key
+        subtask_type = _subtask_type()
+        if subtask_type is None:
+            problems["Row Type"] = "The app has no Sub-task type set up."
+        else:
+            data["issue_type_id"] = subtask_type.id
+    elif creating:
         for column in REQUIRED:
             if cell(column) in ("", CLEAR):
                 problems[column] = f"{column} is required for a new task."
@@ -265,7 +328,7 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
                 data[field] = parse_date(value).isoformat()
             except ValueError as e:
                 problems[column] = str(e)
-    if creating and "Start Date" not in problems and "Due Date" not in problems:
+    if creating and not new_subtask and "Start Date" not in problems and "Due Date" not in problems:
         from . import stages
 
         start = date.fromisoformat(data["start_date"]) if data.get("start_date") else stages.today()
@@ -302,7 +365,9 @@ def _payload(row: dict, issue, lookups: Lookups) -> tuple[dict, dict]:
         data["description"] = None if value == CLEAR else text_doc(value.replace("\\n", "\n"))
 
     value = cell("Add Standard Sub-tasks").lower()
-    if value in YES:
+    if value in YES and (new_subtask or (issue is not None and issue.parent_id)):
+        problems["Add Standard Sub-tasks"] = "Standard sub-tasks are added to a task, not to a sub-task."
+    elif value in YES:
         if creating:
             data["default_subtasks"] = True
         else:
@@ -359,13 +424,68 @@ def import_rows(rows: list[dict], request, *, commit: bool) -> dict:
     return summary
 
 
+class _Main:
+    """The last task row read: the main task of the sub-task rows under it."""
+
+    def __init__(self, row: int, issue=None, serializer=None, failed=False):
+        self.row, self.issue, self.serializer, self.failed = row, issue, serializer, failed
+
+    @property
+    def project(self):
+        if self.issue is not None:
+            return self.issue.project
+        return self.serializer.validated_data.get("project") if self.serializer is not None else None
+
+    @property
+    def label(self) -> str:
+        return self.issue.key if self.issue is not None else f"the task on row {self.row}"
+
+
+def _row_type(row: dict, result: dict) -> str | None:
+    value = " ".join(row.get("Row Type", "").split()).lower()
+    if value in ROW_TYPES:
+        return ROW_TYPES[value]
+    result["errors"]["Row Type"] = "Write Task or Sub-task (empty: Task)."
+    return None
+
+
+def _main_for(row: dict, issue, main, result: dict):
+    """A sub-task row's main task: the task named in Main Task Key, else the task row above."""
+    errors = result["errors"]
+    if value := row.get("Main Task Key", ""):
+        found = Issue.objects.select_related("project").filter(key__iexact=value).first()
+        if found is None:
+            errors["Main Task Key"] = f"No task with the key “{value}”."
+        elif found.parent_id:
+            errors["Main Task Key"] = f"{found.key} is itself a sub-task: give its main task's key."
+        else:
+            return _Main(result["row"], issue=found)
+        return None
+    if issue is not None:
+        return None  # updating a sub-task already in the app: its main task stays as it is
+    if main is None:
+        errors["Row Type"] = "A sub-task row needs its task's row above it, or the task's key in Main Task Key."
+    elif main.failed:
+        errors["Row Type"] = f"Fix {main.label} first: this sub-task goes under it."
+    else:
+        return main
+    return None
+
+
 def _check_and_save(rows: list[dict], request, *, commit: bool, serializer_class) -> dict:
     lookups = Lookups()
     results, checked, seen = [], [], {}
+    main = None  # the task row the next sub-task rows belong to
     for row in rows:
         number, key = row["_row"], row.get("Task Key", "")
         issue = None
-        result = {"row": number, "key": key, "summary": row.get("Job Name", ""), "action": "update" if key else "create", "errors": {}}
+        result = {"row": number, "key": key, "summary": row.get("Job Name", ""), "action": "update" if key else "create",
+                  "type": TASK, "parent": "", "errors": {}}
+        kind = _row_type(row, result)
+        if kind == SUBTASK:
+            result["type"] = SUBTASK
+        elif row.get("Main Task Key"):
+            result["errors"]["Main Task Key"] = "Only a sub-task row has a main task: set Row Type to Sub-task, or leave this empty."
         if key:
             issue = Issue.objects.select_related("project", "parent").filter(key__iexact=key).first()
             if issue is None:
@@ -376,8 +496,22 @@ def _check_and_save(rows: list[dict], request, *, commit: bool, serializer_class
                 seen[issue.key] = number
                 result["key"] = issue.key
                 result["summary"] = result["summary"] or issue.summary
+                if kind == TASK and issue.parent_id:
+                    result["errors"]["Row Type"] = f"{issue.key} is a sub-task of {issue.parent.key}: set Row Type to Sub-task."
+                elif kind == SUBTASK and not issue.parent_id:
+                    result["errors"]["Row Type"] = f"{issue.key} is a task, not a sub-task: set Row Type to Task."
+        parent = None
+        if kind == SUBTASK and not result["errors"]:
+            parent = _main_for(row, issue, main, result)
+            if issue is not None and issue.parent_id:
+                result["parent"] = issue.parent.key
+                if parent is not None and parent.issue is not None and parent.issue.pk != issue.parent_id:
+                    result["errors"]["Main Task Key"] = f"{issue.key} is under {issue.parent.key}; a sub-task can't be moved from a file."
+            elif parent is not None:
+                result["parent"] = parent.label
+        serializer = None
         if not result["errors"]:
-            data, problems = _payload(row, issue, lookups)
+            data, problems = _payload(row, issue, lookups, parent_project=parent.project if (parent and issue is None) else None)
             result["errors"].update(problems)
             stage = data.pop("_stage", None)
             if issue is not None and not problems:
@@ -385,31 +519,52 @@ def _check_and_save(rows: list[dict], request, *, commit: bool, serializer_class
             if not problems:
                 serializer = serializer_class(instance=issue, data=data, partial=issue is not None, context={"request": request})
                 if serializer.is_valid():
-                    checked.append((result, serializer, stage))
+                    checked.append((result, serializer, stage, parent if issue is None else None))
                     if issue is not None and not data:
                         result["action"] = "unchanged"
                 else:
                     result["errors"].update({FIELD_COLUMNS.get(k, k): v for k, v in _messages(serializer.errors).items()})
+                    serializer = None
+        if kind != SUBTASK:
+            main = _Main(number, issue=issue, serializer=serializer, failed=bool(result["errors"]))
         results.append(result)
+
+    def count(action, kind=None):
+        return sum(1 for r in results if r["action"] == action and not r["errors"] and (kind is None or r["type"] == kind))
 
     failed = sum(1 for r in results if r["errors"])
     summary = {
         "rows": len(results), "failed": failed,
-        "create": sum(1 for r in results if r["action"] == "create" and not r["errors"]),
-        "update": sum(1 for r in results if r["action"] == "update" and not r["errors"]),
-        "unchanged": sum(1 for r in results if r["action"] == "unchanged" and not r["errors"]),
+        "create": count("create"), "update": count("update"), "unchanged": count("unchanged"),
+        "create_subtasks": count("create", SUBTASK), "update_subtasks": count("update", SUBTASK),
         "imported": False, "results": results,
     }
     if commit and not failed:
-        for result, serializer, stage in checked:
-            if result["action"] != "unchanged":
-                saved = serializer.save()
-                if stage:  # the stage of a task in a sub-workspace's own list, now it exists
-                    status = saved.project.workflow.statuses.filter(name__iexact=stage).first()
-                    if status and status.pk != saved.status_id:
-                        saved.status = status
-                        saved.save(update_fields=["status"])
-                result["key"] = saved.key
+        saved_rows = {}
+        for result, serializer, stage, parent in checked:
+            if result["action"] == "unchanged":
+                continue
+            extra = {}
+            if parent is not None:  # a new sub-task: under its main task, with what its row leaves empty
+                main_task = parent.issue or saved_rows[parent.row]
+                given = serializer.validated_data
+                extra["parent"] = main_task
+                for field in INHERITED:
+                    if field in given:
+                        continue
+                    if field == "current_responsible" and "preparer" in given:
+                        continue  # empty: the sub-task's own accountant, as for a task
+                    extra[field] = getattr(main_task, field)
+            saved = serializer.save(**extra)
+            if stage:  # the stage of a task in a sub-workspace's own list, now it exists
+                status = saved.project.workflow.statuses.filter(name__iexact=stage).first()
+                if status and status.pk != saved.status_id:
+                    saved.status = status
+                    saved.save(update_fields=["status"])
+            saved_rows[result["row"]] = saved
+            result["key"] = saved.key
+            if parent is not None:
+                result["parent"] = saved.parent.key
         summary["imported"] = True
     return summary
 
@@ -418,14 +573,34 @@ def _person(user) -> str:
     return (user.email or user.display_name or user.username) if user else ""
 
 
+def _with_subtasks(issues) -> list:
+    """The tasks, each followed by its sub-tasks (as in the template), each task once."""
+    related = ("project__client", "status", "assignee", "preparer", "reviewer", "current_responsible", "parent")
+    tasks = list(issues.select_related(*related).prefetch_related("labels"))
+    listed = {t.pk for t in tasks}
+    subs = {}
+    for sub in (Issue.objects.filter(parent_id__in=listed, is_archived=False).select_related(*related).prefetch_related("labels")
+                .order_by("rank", "id")):
+        subs.setdefault(sub.parent_id, []).append(sub)
+    out = []
+    for t in tasks:
+        if t.parent_id in listed:
+            continue  # comes under its main task
+        out.append(t)
+        out += subs.get(t.pk, [])
+    return out
+
+
 def export_csv(issues) -> str:
-    """Tasks in the template's format, to edit and upload again."""
+    """Tasks in the template's format, each with its sub-tasks under it, to edit and upload again."""
     out = io.StringIO()
     writer = csv.writer(out)
     writer.writerow(COLUMNS)
-    for issue in issues.select_related("project__client", "status", "assignee", "preparer", "reviewer", "current_responsible").prefetch_related("labels"):
+    for issue in _with_subtasks(issues):
         project = issue.project
         row = {
+            "Row Type": "Sub-task" if issue.parent_id else "Task",
+            "Main Task Key": issue.parent.key if issue.parent_id else "",
             "Task Key": issue.key,
             "Sub-workspace": project.client.name if project.client_id else "",
             "Job Name": issue.summary, "Group": issue.group, "Accountant": _person(issue.preparer),
@@ -442,6 +617,108 @@ def export_csv(issues) -> str:
         }
         writer.writerow([row[c] for c in COLUMNS])
     return "\ufeff" + out.getvalue()  # Excel reads it as UTF-8
+
+
+def template_xlsx() -> bytes:
+    """The standard template as an Excel workbook (AFIT, 6 Nov 2026): the Tasks sheet to fill in
+    (the headings and the two guide rows, with drop-down lists), a worked Example of tasks with
+    different numbers of sub-tasks, and How to fill in."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    from apps.workflow.services import STATUS_DEFS
+
+    head_fill, guide_fill, sub_fill = PatternFill("solid", fgColor="800000"), PatternFill("solid", fgColor="F3F3F3"), PatternFill("solid", fgColor="FBF1F1")
+    bold_white, grey = Font(bold=True, color="FFFFFF"), Font(italic=True, color="666666", size=9)
+    widths = {"Row Type": 11, "Main Task Key": 14, "Task Key": 11, "Sub-workspace": 18, "Job Name": 34, "Group": 14, "Accountant": 24,
+              "Description": 30, "Add Standard Sub-tasks": 14}
+
+    def headings(ws):
+        ws.append(COLUMNS)
+        for i, column in enumerate(COLUMNS, start=1):
+            c = ws.cell(row=1, column=i)
+            c.font, c.fill, c.alignment = bold_white, head_fill, Alignment(vertical="center", wrap_text=True)
+            ws.column_dimensions[get_column_letter(i)].width = widths.get(column, 16)
+        ws.freeze_panes = "A2"
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tasks"
+    headings(ws)
+    need = ["Required for a new task" if SPEC[c][0] == "Required" else "Optional" for c in COLUMNS]
+    kind = [f"{SPEC[c][1]}: {SPEC[c][2]}" for c in COLUMNS]
+    ws.append([f"# {need[0]} (this row and the next are a guide: leave them in or delete them)"] + need[1:])
+    ws.append([f"# {kind[0]}"] + kind[1:])
+    for r in (2, 3):
+        for i in range(1, len(COLUMNS) + 1):
+            c = ws.cell(row=r, column=i)
+            c.font, c.fill, c.alignment = grey, guide_fill, Alignment(wrap_text=True, vertical="top")
+    ws.row_dimensions[3].height = 90
+    letter = {c: get_column_letter(i) for i, c in enumerate(COLUMNS, start=1)}
+    lists = {
+        "Row Type": "Task,Sub-task",
+        "Status": ",".join(name for name, _, _ in STATUS_DEFS),
+        "Priority": ",".join(label for _, label in Issue.Priority.choices),
+        "Add Standard Sub-tasks": "Yes,No",
+    }
+    for column, values in lists.items():
+        dv = DataValidation(type="list", formula1=f'"{values}"', allow_blank=True, showErrorMessage=False)
+        dv.add(f"{letter[column]}4:{letter[column]}{MAX_ROWS + 3}")
+        ws.add_data_validation(dv)
+
+    # A worked example: one task with three sub-tasks, one with one, and a sub-task for a task in the app.
+    ex = wb.create_sheet("Example")
+    headings(ex)
+    example = [
+        {"Row Type": "Task", "Sub-workspace": "ABC Ltd", "Job Name": "Annual accounts FY26", "Group": "Companies", "Accountant": "Ann Smith",
+         "Priority": "High", "Start Date": "2026-11-09", "Due Date": "2026-11-30", "Budgeted Hours": "12"},
+        {"Row Type": "Sub-task", "Job Name": "Bank reconciliation", "Due Date": "2026-11-13", "Estimated Hours": "3"},
+        {"Row Type": "Sub-task", "Job Name": "Fixed asset register", "Accountant": "Ben Jones", "Due Date": "2026-11-18"},
+        {"Row Type": "Sub-task", "Job Name": "Draft financial statements", "Due Date": "2026-11-25", "Estimated Hours": "5"},
+        {"Row Type": "Task", "Sub-workspace": "Xyz Ltd", "Job Name": "GST return Oct", "Group": "GST", "Accountant": "Ben Jones",
+         "Due Date": "2026-11-28"},
+        {"Row Type": "Sub-task", "Job Name": "Code the October invoices"},
+        {"Row Type": "Sub-task", "Main Task Key": "RWCA-12", "Job Name": "Chase the rates notice", "Due Date": "2026-11-12"},
+    ]
+    for row in example:
+        ex.append([row.get(c, "") for c in COLUMNS])
+        if row["Row Type"] == "Sub-task":
+            for i in range(1, len(COLUMNS) + 1):
+                ex.cell(row=ex.max_row, column=i).fill = sub_fill
+
+    how = wb.create_sheet("How to fill in")
+    how.column_dimensions["A"].width = 24
+    how.column_dimensions["B"].width = 24
+    how.column_dimensions["C"].width = 12
+    how.column_dimensions["D"].width = 90
+    notes = [
+        "Fill in the Tasks sheet: one row per task, and one row per sub-task straight under its task.",
+        "A task can have any number of sub-task rows (none, one, or many). Set Row Type to Sub-task on them; they belong to the Task row above.",
+        "To add a sub-task to a task already in the app, put that task's key in Main Task Key (the row can then go anywhere).",
+        "A new sub-task needs only its name in Job Name. Its accountant, team lead, reviewer, stage, priority, group and dates come from its task "
+        "unless you fill them in.",
+        "A row with a Task Key updates that task or sub-task: an empty cell keeps its value and - clears it.",
+        "Check the file in the app first: nothing is saved until every row is right. The Example sheet shows a filled-in file.",
+    ]
+    how.append(["How to fill in the Tasks sheet"])
+    how["A1"].font = Font(bold=True, size=13)
+    for n in notes:
+        how.append([f"• {n}"])
+    how.append([])
+    how.append(["Column", "Required", "Type", "Format and default"])
+    for i in range(1, 5):
+        c = how.cell(row=how.max_row, column=i)
+        c.font, c.fill = bold_white, head_fill
+    for column in COLUMNS:
+        need_, type_, fmt = SPEC[column]
+        how.append([column, "Required for a new task" if need_ == "Required" else "Optional", type_, fmt])
+        how.cell(row=how.max_row, column=4).alignment = Alignment(wrap_text=True)
+
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
 
 
 def template_csv() -> str:

@@ -112,14 +112,15 @@ class IssueViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"], url_path="import", parser_classes=[MultiPartParser])
     def import_csv(self, request):
-        """POST /api/issues/import/ (file, commit=false|true) — tasks in bulk from the CSV template.
+        """POST /api/issues/import/ (file, commit=false|true) — tasks and their sub-tasks in bulk from the
+        template, as an Excel workbook or CSV.
         Without commit it only checks the file; with commit it saves every row, or none if any
         row has a problem."""
         from . import csv_import
 
         upload = request.FILES.get("file")
         if upload is None:
-            return Response({"detail": "Choose a CSV file to upload."}, status=400)
+            return Response({"detail": "Choose an Excel (.xlsx) or CSV file to upload."}, status=400)
         try:
             rows = csv_import.read_rows(upload.read(csv_import.MAX_BYTES + 1))
         except csv_import.FileProblem as e:
