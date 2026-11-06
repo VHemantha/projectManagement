@@ -218,6 +218,9 @@ interface IssueViewProps {
 export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
   const { data: issue, isLoading } = useIssue(issueKey)
   const updateIssue = useUpdateIssue(issueKey)
+  // Opening a full page leaves every task window, not just this one.
+  const closeAllIssueModals = useUiStore((s) => s.closeAllIssueModals)
+  const leave = onClose ? closeAllIssueModals : undefined
   const [editingSummary, setEditingSummary] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
   const [editingDescription, setEditingDescription] = useState(false)
@@ -265,7 +268,7 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           <Link to="/projects">Kanban board</Link> / <Link to={`/projects/${issue.project}`}>{issue.project}</Link> /{' '}
           <IssueKey value={issue.key} />
           <div className={styles.headerActions} style={{ marginLeft: 'auto' }}>
-            <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={onClose}>
+            <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={leave}>
               <Button variant="subtle" size="sm" iconOnly aria-label="Open full page">
                 <ExternalLink size={14} />
               </Button>
@@ -315,7 +318,7 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
           </Button>
         </div>
         {issue.issue_type.name === 'Epic' && (
-          <Link to={`/projects/${issue.project}/epics/${issue.key}/board`} onClick={onClose}>
+          <Link to={`/projects/${issue.project}/epics/${issue.key}/board`} onClick={leave}>
             <Button variant="secondary" size="sm">
               View epic on board
             </Button>

@@ -16,8 +16,13 @@ export interface CreateIssueDefaults {
 
 interface UiState {
   issueModalKey: string | null
+  /** The task windows open, the one showing last (AFIT, 5 Nov 2026): opening a sub-task or a linked
+   * task from a task goes on top, and closing it goes back to the task underneath. */
+  issueModalStack: string[]
   openIssueModal: (key: string) => void
+  /** Close the window showing; the one underneath (if any) shows again. */
   closeIssueModal: () => void
+  closeAllIssueModals: () => void
 
   createIssueOpen: boolean
   createIssueDefaultProjectKey: string | null
@@ -33,8 +38,19 @@ interface UiState {
 
 export const useUiStore = create<UiState>()((set) => ({
   issueModalKey: null,
-  openIssueModal: (key) => set({ issueModalKey: key }),
-  closeIssueModal: () => set({ issueModalKey: null }),
+  issueModalStack: [],
+  openIssueModal: (key) =>
+    set((s) => {
+      if (s.issueModalKey === key) return {}
+      const stack = s.issueModalKey ? [...s.issueModalStack.filter((k) => k !== key), key] : [key]
+      return { issueModalKey: key, issueModalStack: stack }
+    }),
+  closeIssueModal: () =>
+    set((s) => {
+      const stack = s.issueModalStack.slice(0, -1)
+      return { issueModalKey: stack[stack.length - 1] ?? null, issueModalStack: stack }
+    }),
+  closeAllIssueModals: () => set({ issueModalKey: null, issueModalStack: [] }),
 
   createIssueOpen: false,
   createIssueDefaultProjectKey: null,

@@ -286,6 +286,10 @@ export function CeoDashboard() {
         <h1 className={styles.pageTitle}>Organisation overview</h1>
         {data && <span className={styles.asOf}>Updated {format(parseISO(data.as_of), 'EEE d MMM, h:mm a')}</span>}
         <span className={styles.headerActions}>
+          {/* Each person's work in detail (AFIT, 5 Nov 2026). */}
+          <Link to="/people/work" className={styles.toggle} style={{ marginRight: 8 }}>
+            Team snapshot
+          </Link>
           <Button variant="secondary" size="sm" onClick={download} disabled={downloading}>
             <FileSpreadsheet size={14} aria-hidden="true" /> {downloading ? 'Preparing…' : 'Download Excel report'}
           </Button>

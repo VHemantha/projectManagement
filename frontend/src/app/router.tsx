@@ -11,6 +11,8 @@ import { EpicBoardPage } from '@/features/board/EpicBoardPage'
 import { MyWorkPage } from '@/features/board/MyWorkPage'
 import { IssueDetailPage } from '@/features/issues/IssueDetailPage'
 import { PeopleDirectoryPage } from '@/features/people/PeopleDirectoryPage'
+import { PersonSnapshotPage } from '@/features/people/PersonSnapshotPage'
+import { TeamSnapshotPage } from '@/features/people/TeamSnapshotPage'
 import { UserWorkloadPage } from '@/features/people/UserWorkloadPage'
 import { ProjectLayout, WorkspaceSectionRedirect } from '@/features/projects/ProjectLayout'
 import { ProjectsSectionLayout } from '@/features/projects/ProjectsSectionLayout'
@@ -63,6 +65,9 @@ export const router = createBrowserRouter([
           { path: '/workspaces/*', element: <LegacyWorkspacesRedirect /> },
           { path: '/teams/*', element: <LegacyTeamsRedirect /> },
           { path: '/people', element: <PeopleDirectoryPage /> },
+          // The CEO's snapshot of everyone's work, and of one person's (AFIT, 5 Nov 2026).
+          { path: '/people/work', element: <TeamSnapshotPage /> },
+          { path: '/people/work/:userId', element: <PersonSnapshotPage /> },
           { path: '/people/:userId', element: <UserWorkloadPage /> },
           { path: '/filters', element: <FiltersPage /> },
           { path: '/plans', element: <MorningPlansPage /> },

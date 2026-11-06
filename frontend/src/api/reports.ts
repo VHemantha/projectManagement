@@ -120,3 +120,103 @@ export async function downloadCeoReport() {
   link.click()
   URL.revokeObjectURL(url)
 }
+
+// --- The CEO's snapshot of each person's work (AFIT, 5 Nov 2026; CEO only) ---
+
+export interface SnapshotPerson {
+  id: number
+  display_name: string
+  job_title: string
+  avatar: string | null
+  role: string
+}
+
+/** What a person has a timer running on now. */
+export interface DoingNow {
+  key: string
+  summary: string
+  sub_workspace: string
+  since: string | null
+}
+
+export interface WorkFigures {
+  open: number
+  in_progress: number
+  to_start: number
+  overdue: number
+  due_this_week: number
+  completed_week: number
+  completed_30_days: number
+}
+
+export interface PersonRating {
+  score: number | null
+  rating: string
+  period_end: string
+}
+
+export interface PeopleSnapshotRow extends WorkFigures {
+  person: SnapshotPerson
+  hours_today: number
+  hours_week: number
+  doing_now: DoingNow | null
+  on_leave: boolean
+  rating: PersonRating | null
+}
+
+export interface PersonJob {
+  key: string
+  summary: string
+  sub_workspace: string
+  stage: string
+  category: 'todo' | 'in_progress' | 'done'
+  priority: string
+  start_date: string | null
+  due_date: string | null
+  days_overdue: number | null
+  budget_hours: number | null
+  actual_hours: number
+  /** Accountant, Team Lead, Currently responsible: what this person is on the job. */
+  roles: string[]
+  completed_at: string | null
+}
+
+export interface PersonDashboard {
+  as_of: string
+  person: SnapshotPerson
+  on_leave: boolean
+  doing_now: DoingNow | null
+  figures: WorkFigures
+  hours: { today: number; logged: number; expected: number; month: number; by_day: { day: string; hours: number; expected: number }[] }
+  stages: { stage: string; tasks: number }[]
+  open_jobs: PersonJob[]
+  completed: PersonJob[]
+  morning_plan: {
+    text: string
+    key: string
+    planned_hours: number | null
+    complete_by: string | null
+    status: string
+    status_label: string
+    lead_check: '' | 'confirmed' | 'not_done'
+    note: string
+  }[]
+  recent_time: { work_date: string; hours: number; key: string; summary: string; description: string }[]
+  follow_ups: { key: string; summary: string; matter: string; state: string; state_label: string; due_date: string | null; revised_due: string | null; asked: number }[]
+  rating: (PersonRating & { period_start: string; metrics: { key: string; label: string; score: number | null; counted?: boolean }[] }) | null
+}
+
+export function usePeopleSnapshot() {
+  return useQuery({
+    queryKey: ['reports', 'people'],
+    queryFn: async () => (await apiClient.get<{ as_of: string; people: PeopleSnapshotRow[] }>('/reports/people/')).data,
+  })
+}
+
+export function usePersonDashboard(userId: number) {
+  return useQuery({
+    queryKey: ['reports', 'people', userId],
+    queryFn: async () => (await apiClient.get<PersonDashboard>(`/reports/people/${userId}/`)).data,
+    enabled: Number.isFinite(userId),
+  })
+}

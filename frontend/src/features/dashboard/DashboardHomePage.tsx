@@ -4,6 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 
 import styles from './DashboardHomePage.module.css'
 import { DailyGoalsWidget } from './DailyGoalsWidget'
+import { TodoWidget } from './TodoWidget'
 import { useIssues, useRecentActivity } from '@/api/issues'
 import { IssueKey, IssueTypeIcon, StatusBadge } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
@@ -101,36 +102,41 @@ export function DashboardHomePage() {
           </div>
         </div>
 
-        <div className={styles.card}>
-          <div className={styles.cardTitle}>My tasks by status</div>
-          {pieData.length === 0 ? (
-            <div className={styles.empty}>No data yet.</div>
-          ) : (
-            <>
-              <div className={styles.pieBox}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                      {pieData.map((d) => (
-                        <Cell key={d.category} fill={CATEGORY_COLOR[d.category]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className={styles.pieLegend}>
-                {pieData.map((d) => (
-                  <div key={d.category} className={styles.pieLegendItem}>
-                    <span
-                      style={{ width: 10, height: 10, borderRadius: 2, background: CATEGORY_COLOR[d.category] }}
-                    />
-                    {d.label} ({d.value})
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+        <div>
+          {/* My own to-do list, apart from the morning plan (AFIT, 5 Nov 2026). */}
+          <TodoWidget />
+
+          <div className={styles.card}>
+            <div className={styles.cardTitle}>My tasks by status</div>
+            {pieData.length === 0 ? (
+              <div className={styles.empty}>No data yet.</div>
+            ) : (
+              <>
+                <div className={styles.pieBox}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={pieData} dataKey="value" nameKey="label" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                        {pieData.map((d) => (
+                          <Cell key={d.category} fill={CATEGORY_COLOR[d.category]} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className={styles.pieLegend}>
+                  {pieData.map((d) => (
+                    <div key={d.category} className={styles.pieLegendItem}>
+                      <span
+                        style={{ width: 10, height: 10, borderRadius: 2, background: CATEGORY_COLOR[d.category] }}
+                      />
+                      {d.label} ({d.value})
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

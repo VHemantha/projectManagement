@@ -1,0 +1,208 @@
+.card {
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: var(--tf-space-4);
+  margin-bottom: var(--tf-space-4);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  flex-wrap: wrap;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.filters {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+}
+
+.filter {
+  border: none;
+  background: none;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--tf-text-secondary);
+  cursor: pointer;
+}
+
+.filter[aria-pressed='true'] {
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font-weight: 600;
+}
+
+.hint {
+  margin: 2px 0 var(--tf-space-3);
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.form {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: var(--tf-space-2);
+}
+
+.form input,
+.form select {
+  height: 30px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  padding: 0 8px;
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.form input[aria-label='New to-do'] {
+  flex: 1;
+  min-width: 160px;
+}
+
+.add {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-primary);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.error {
+  margin: 0 0 var(--tf-space-2);
+  font-size: 12px;
+  color: var(--tf-danger);
+}
+
+.empty {
+  margin: 0;
+  padding: var(--tf-space-2) 0;
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  font-size: 13px;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.tick {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.tick input {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.item[data-done='true'] .text {
+  text-decoration: line-through;
+  color: var(--tf-text-subtle);
+}
+
+.kind,
+.due {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+}
+
+.kind[data-kind='personal'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+
+.due[data-tone='danger'] {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+
+.due[data-tone='warning'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+
+.remove {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 2px;
+  color: var(--tf-text-subtle);
+  cursor: pointer;
+}
+
+.remove:hover {
+  color: var(--tf-danger);
+}
+
+.doneHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--tf-space-3);
+  padding-top: var(--tf-space-2);
+  border-top: 1px solid var(--tf-border);
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--tf-text-link);
+  cursor: pointer;
+}

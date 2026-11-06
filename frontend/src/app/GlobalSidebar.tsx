@@ -5,6 +5,7 @@ import {
   ChevronsRight,
   Clock,
   Contact,
+  Gauge,
   GraduationCap,
   Grid3x3,
   LayoutDashboard,
@@ -69,6 +70,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
   const items = isCeo
     ? [
         ...NAV_ITEMS.map((item) => (item.to === '/' ? { ...item, label: 'Overview' } : item)),
+        { to: '/people/work', label: 'Team snapshot', icon: Gauge, tone: 'green', end: false },
         { to: '/coordinator/console', label: 'CEO console', icon: ShieldCheck, tone: 'pink', end: false },
       ]
     : NAV_ITEMS

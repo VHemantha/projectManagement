@@ -54,3 +54,29 @@ class DailyGoal(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.date}: {self.text[:40]}"
+
+
+class TodoItem(models.Model):
+    """A person's own to-do list (AFIT, 5 Nov 2026), apart from the morning plan: work and personal
+    things alike, private to the person (nobody else, not a team lead or the CEO, sees it), and not
+    counted in any rating."""
+
+    class Kind(models.TextChoices):
+        WORK = "work", "Work"
+        PERSONAL = "personal", "Personal"
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="todo_items")
+    text = models.CharField(max_length=300)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.WORK)
+    due_date = models.DateField(null=True, blank=True)
+    done = models.BooleanField(default=False)
+    done_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["done", models.F("due_date").asc(nulls_last=True), "-created_at", "-id"]
+        indexes = [models.Index(fields=["user", "done"])]
+
+    def __str__(self):
+        return f"{self.user} - {self.text[:40]}"

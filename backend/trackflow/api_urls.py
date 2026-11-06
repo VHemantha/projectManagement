@@ -43,4 +43,5 @@ urlpatterns = [
     path("", include("apps.workflow.urls")),
     path("reports/", include("apps.reports.urls")),
     path("daily-goals/", include("apps.daily_goals.urls")),
+    path("todos/", include("apps.daily_goals.todo_urls")),
 ]
