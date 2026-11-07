@@ -336,7 +336,7 @@ def _payload(row: dict, issue, lookups: Lookups, *, parent_project=None) -> tupl
         if not data.get("due_date"):
             due = start + timedelta(days=DUE_AFTER_START_DAYS)
             if cell("Add Standard Sub-tasks").lower() in YES:
-                # Never before the internal review that the standard sub-tasks bring.
+                # Empty: due on the internal review that the standard sub-tasks bring (a date given may be earlier).
                 due = max(due, stages.stage_dates(start)[stages.INTERNAL_REVIEW])
             data["due_date"] = due.isoformat()
 

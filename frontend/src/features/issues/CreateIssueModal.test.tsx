@@ -95,15 +95,21 @@ describe('CreateIssueModal: filled from where it was opened', () => {
     expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ default_subtasks: true, due_date: '2026-11-13' }), expect.anything())
   })
 
-  it("won't create a task due before its internal review, and can leave the sub-tasks out", async () => {
+  it('takes a due date before the usual internal review, and can leave the sub-tasks out', async () => {
     mocks.defaults = { projectKey: 'SMITH' }
     mocks.create.mockClear()
     render(<CreateIssueModal />)
     await userEvent.type(screen.getByLabelText(/Job Name/), 'Smith FY26')
-    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-11-10' } })
-    expect(screen.getByRole('alert')).toHaveTextContent("can't be before the internal review (Fri 13 Nov)")
+    const due = screen.getByLabelText('Due date')
+    expect(due).not.toHaveAttribute('min')
+    fireEvent.change(due, { target: { value: '2026-11-10' } })
+    expect(screen.getByText(/Earlier than the usual internal review \(Fri 13 Nov\)/)).toHaveTextContent(
+      'the sub-tasks due after Tue 10 Nov will be due that day instead.',
+    )
+    const list = screen.getByRole('list', { name: 'Standard sub-tasks' })
+    expect(list).toHaveTextContent('Internal Review — due Tue 10 Nov')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
-    expect(mocks.create).not.toHaveBeenCalled()
+    expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ default_subtasks: true, due_date: '2026-11-10' }), expect.anything())
     await userEvent.click(screen.getByRole('checkbox', { name: 'Add the standard sub-tasks' }))
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
     expect(mocks.create).toHaveBeenLastCalledWith(expect.objectContaining({ default_subtasks: false, due_date: '2026-11-10' }), expect.anything())

@@ -1,6 +1,7 @@
 """A task's standard sub-tasks (AFIT, 27 Oct 2026): Pre-check 3 days from the start, Preparation 5
 working days later, Internal Review 1 working day after that, Client Review once the client advises;
-and the task's due date may not be before its internal review."""
+and the task is due on its internal review unless another date is set; an earlier one brings the
+stages due after it back to it (AFIT, 6 Nov 2026)."""
 from datetime import date
 
 import pytest
@@ -58,17 +59,32 @@ def test_without_asking_no_sub_tasks_are_added(api):
     assert r.status_code == 201 and Issue.objects.get(key=r.data["key"]).subtasks.count() == 0
 
 
-def test_the_due_date_cannot_be_before_the_internal_review(api):
+def test_the_due_date_may_be_before_the_internal_review_and_the_stages_follow(api):
+    """AFIT, 6 Nov 2026: the default due date (the internal review) may be changed to an earlier one;
+    the stage sub-tasks due after it are then due on the task's date."""
     early = create(api, start_date=MON, default_subtasks=True, due_date="2026-11-10")
-    assert early.status_code == 400 and "before the internal review (Fri 13 Nov 2026)" in str(early.data["due_date"])
+    assert early.status_code == 201 and early.data["due_date"] == "2026-11-10"
+    subs = {s.summary: s.due_date for s in Issue.objects.get(key=early.data["key"]).subtasks.all()}
+    assert subs == {"Pre-check": date(2026, 11, 5), "Preparation": date(2026, 11, 10), "Internal Review": date(2026, 11, 10), "Client Review": None}
+
     ok = create(api, start_date=MON, default_subtasks=True, due_date="2026-11-20")
     assert ok.status_code == 201 and ok.data["due_date"] == "2026-11-20"
     key = ok.data["key"]
-    assert api.patch(f"/api/issues/{key}/", {"due_date": "2026-11-12"}, format="json").status_code == 400
-    assert api.patch(f"/api/issues/{key}/", {"due_date": "2026-11-13"}, format="json").status_code == 200  # the same day is fine
+    assert api.patch(f"/api/issues/{key}/", {"due_date": "2026-11-12"}, format="json").status_code == 200
+    subs = {s.summary: s.due_date for s in Issue.objects.get(key=key).subtasks.all()}
+    assert (subs["Preparation"], subs["Internal Review"], subs["Pre-check"]) == (date(2026, 11, 12), date(2026, 11, 12), date(2026, 11, 5))
+    # A stage already done keeps its date.
+    task = Issue.objects.get(key=key)
+    pre = task.subtasks.get(summary="Pre-check")
+    pre.status = task.project.workflow.statuses.filter(category="done").first()
+    pre.save()
+    assert api.patch(f"/api/issues/{key}/", {"due_date": "2026-11-04"}, format="json").status_code == 200
+    assert Issue.objects.get(pk=pre.pk).due_date == date(2026, 11, 5)
+    assert api.patch(f"/api/issues/{key}/", {"due_date": "2026-11-13"}, format="json").status_code == 200
     review = Issue.objects.get(key=key).subtasks.get(summary="Internal Review")
     moved = api.patch(f"/api/issues/{review.key}/", {"due_date": "2026-11-16"}, format="json")
     assert moved.status_code == 400 and "can't be after the task's due date (Fri 13 Nov 2026)" in str(moved.data["due_date"])
+    assert api.patch(f"/api/issues/{review.key}/", {"due_date": "2026-11-11"}, format="json").status_code == 200
 
 
 def test_the_form_can_preview_the_dates(api):

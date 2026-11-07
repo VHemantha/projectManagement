@@ -162,11 +162,14 @@ export function CreateIssueModal() {
 
   const { data: stageDates } = useStageDates(open && withStages)
   const reviewDate = stageDates?.stages.find((s) => s.name === 'Internal Review')?.due_date ?? ''
-  const dueTooEarly = withStages && !!dueDate && !!reviewDate && dueDate < reviewDate
+  // The due date defaults to the internal review and may be set earlier (AFIT, 6 Nov 2026): the
+  // stage sub-tasks due after it are then due on the task's date.
+  const dueEarly = withStages && !!dueDate && !!reviewDate && dueDate < reviewDate
+  const stageDue = (due: string | null) => (due && dueEarly && due > dueDate ? dueDate : due)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing || dueTooEarly) return
+    if (!projectKey || !issueTypeId || !effectiveSummary || labelsMissing) return
     createIssue.mutate(
       {
         ...(projectKey === CLIENT_JOBS ? { client_id: Number(clientId) } : { project: projectKey }),
@@ -401,13 +404,13 @@ export function CreateIssueModal() {
               label="Due date"
               type="date"
               value={dueDate || (withStages ? reviewDate : '')}
-              min={withStages ? reviewDate || undefined : undefined}
               onChange={(e) => setDueDate(e.target.value)}
             />
           </div>
-          {dueTooEarly && (
-            <p className={styles.fieldHint} role="alert">
-              The due date can&apos;t be before the internal review ({format(parseISO(reviewDate), 'EEE d MMM')}).
+          {dueEarly && (
+            <p className={styles.fieldHint} role="status">
+              Earlier than the usual internal review ({format(parseISO(reviewDate), 'EEE d MMM')}): the sub-tasks due after{' '}
+              {format(parseISO(dueDate), 'EEE d MMM')} will be due that day instead.
             </p>
           )}
 
@@ -420,7 +423,7 @@ export function CreateIssueModal() {
               <ul className={styles.stageList} aria-label="Standard sub-tasks">
                 {stageDates.stages.map((s) => (
                   <li key={s.name}>
-                    <strong>{s.name}</strong> — {s.due_date ? `due ${format(parseISO(s.due_date), 'EEE d MMM')}` : 'once the client advises'}
+                    <strong>{s.name}</strong> — {stageDue(s.due_date) ? `due ${format(parseISO(stageDue(s.due_date)!), 'EEE d MMM')}` : 'once the client advises'}
                   </li>
                 ))}
               </ul>

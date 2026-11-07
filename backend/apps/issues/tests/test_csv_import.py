@@ -176,8 +176,9 @@ def test_the_task_rules_apply_to_each_row(api):
     c.force_authenticate(other)
     r = upload(c, task(**{"Project Key": "RWCA", "Budgeted Hours": "5"}))
     assert "team lead or above" in r.data["results"][0]["errors"]["Budgeted Hours"]
+    # A due date before the usual internal review is fine (AFIT, 6 Nov 2026).
     early = upload(api, task(**{"Start Date": "2026-11-02", "Due Date": "2026-11-10", "Add Standard Sub-tasks": "yes"}))
-    assert "before the internal review" in early.data["results"][0]["errors"]["Due Date"]
+    assert early.data["results"][0]["errors"] == {}
 
 
 def test_a_task_key_updates_that_task_and_empty_cells_keep_their_value(api, lead):

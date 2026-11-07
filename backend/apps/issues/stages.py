@@ -7,7 +7,11 @@
 
 The pre-check's days and how they are counted (working days by default) are the coordination
 agent's rule, so the task and the agent's follow-ups agree. Working days skip weekends and public
-holidays. The task's due date may not be before its internal review.
+holidays.
+
+The task's due date is the internal review's date unless someone sets another. It may be earlier
+(AFIT, 6 Nov 2026): then the stage sub-tasks due after it are due on the task's due date instead,
+so no stage is due after the task. The internal review itself can't be moved past the task's date.
 """
 from datetime import date
 
@@ -41,6 +45,15 @@ def internal_review_of(issue):
     return issue.subtasks.filter(summary__iexact=INTERNAL_REVIEW).first() if issue.pk else None
 
 
+def fit_to_due(issue) -> int:
+    """Bring the task's open stage sub-tasks due after its due date back to that date. Returns how many moved."""
+    if not issue.pk or not issue.due_date or issue.parent_id:
+        return 0
+    late = (issue.subtasks.filter(summary__in=SUBTASKS, due_date__gt=issue.due_date)
+            .exclude(status__category="done"))
+    return late.update(due_date=issue.due_date)
+
+
 def create_default_subtasks(issue) -> list:
     """The four sub-tasks, with the task's people and status, each due on its stage's date."""
     from apps.workflow.models import IssueType
@@ -58,6 +71,8 @@ def create_default_subtasks(issue) -> list:
         created.append(Issue.objects.create(
             project=issue.project, issue_type=subtask_type, summary=name, parent=issue, status=issue.status, priority=issue.priority,
             reporter=issue.reporter, assignee=issue.assignee, preparer=issue.preparer, reviewer=issue.reviewer,
-            current_responsible=issue.current_responsible, due_date=dates[name], rank=rank_after(last.rank) if last else "000000",
+            current_responsible=issue.current_responsible, rank=rank_after(last.rank) if last else "000000",
+            # Never after the task itself (a task may be due before its usual internal review).
+            due_date=min(dates[name], issue.due_date) if dates[name] and issue.due_date else dates[name],
         ))
     return created

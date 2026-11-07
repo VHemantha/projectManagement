@@ -393,30 +393,19 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         return attrs
 
     def _check_stage_dates(self, attrs):
-        """A task's due date may not be before its internal review (AFIT, 27 Oct 2026); a new task
-        with the standard sub-tasks and no due date is due on its internal review."""
+        """A new task with the standard sub-tasks and no due date is due on its internal review
+        (AFIT, 27 Oct 2026). Any other due date may be set, earlier ones too (AFIT, 6 Nov 2026): the
+        stage sub-tasks due after it are then brought back to it (stages.fit_to_due). The internal
+        review itself can't be moved past its task's due date."""
         instance = self.instance
         if instance is None:
-            if not attrs.get("default_subtasks") or attrs.get("parent"):
-                return
-            review = stages.stage_dates(attrs.get("start_date"))[stages.INTERNAL_REVIEW]
-            if not attrs.get("due_date"):
-                attrs["due_date"] = review
+            if attrs.get("default_subtasks") and not attrs.get("parent") and not attrs.get("due_date"):
+                attrs["due_date"] = stages.stage_dates(attrs.get("start_date"))[stages.INTERNAL_REVIEW]
         elif instance.parent_id and instance.summary.strip().lower() == stages.INTERNAL_REVIEW.lower() and "due_date" in attrs:
-            # The internal review itself moves: not past the task's due date.
             due, review = instance.parent.due_date, attrs["due_date"]
             if due and review and review > due:
                 raise serializers.ValidationError(
                     {"due_date": f"The internal review can't be after the task's due date ({due:%a %d %b %Y})."})
-            return
-        else:
-            if "due_date" not in attrs:
-                return
-            sub = stages.internal_review_of(instance)
-            review = sub.due_date if sub else None
-        due = attrs.get("due_date")
-        if due and review and due < review:
-            raise serializers.ValidationError({"due_date": f"The due date can't be before the internal review ({review:%a %d %b %Y})."})
 
     def validate_estimated_hours(self, value):
         if value is not None and not 0 <= value <= 10000:
@@ -520,6 +509,8 @@ class IssueDetailSerializer(serializers.ModelSerializer):
         was_done = instance.status.category == "done" if instance.status_id else False
 
         instance = super().update(instance, validated_data)
+        if "due_date" in validated_data:
+            stages.fit_to_due(instance)  # an earlier due date brings the stages due after it back to it
         _apply_transition_reassignment(instance, old_status)
 
         history_rows = []
