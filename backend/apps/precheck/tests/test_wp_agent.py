@@ -90,3 +90,25 @@ def test_the_agent_unreachable_fails_the_run_plainly(settings, monkeypatch):
     issue = make_job(pat, "Smith", "SmithRent")
     r = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", FORM, format="json")
     assert r.status_code == 201 and r.data["status"] == "failed" and "not reachable" in r.data["failure_reason"]
+
+
+def test_over_long_values_from_the_agent_are_clipped_not_lost(agent):
+    """9 Nov 2026: a result whose prompt version ran past its 40-character column was refused by
+    Postgres, and the run stayed 'running'. Values are now clipped to their columns."""
+    from rest_framework.test import APIClient
+
+    from apps.precheck.models import ModelRun
+
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    run = services.start_run(issue, pat, kind=AIPrecheck.Kind.GST, options=FORM)
+    result = copy.deepcopy(SAMPLE)
+    result.update(run_id=run.run_id, mode="gst", gst={"status": "Reconciled"}, workbook_b64="")
+    result["versions"]["prompt"] = "gst-1.0 (AFIT spec 7 Nov 2026, amendments 8 Nov 2026)"
+    result["usage"]["calls"] = [{"node": "gst_read_prior_year_recon", "task_id": "read_prior_year_recon", "model": "claude-sonnet-5-5", "calls": 1,
+                                 "input": 10, "output": 5, "cache_write": 0, "cache_read": 0}]
+    r = APIClient().post("/api/precheck/internal/events/", {"run_id": run.run_id, "type": "ai_precheck.completed", "result": result}, format="json", **TOKEN)
+    assert r.status_code == 200
+    m = ModelRun.objects.get(precheck__run_id=run.run_id)
+    assert (len(m.node), len(m.prompt_version)) == (20, 40)
+    assert AIPrecheck.objects.get(pk=run.pk).status == "complete"

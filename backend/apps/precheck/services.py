@@ -609,10 +609,11 @@ def _store_result(run: AIPrecheck, result: dict) -> None:
         )
         finding.evidence.set([evidence[e] for e in f["evidence_ids"] if e in evidence])
     for call in usage["calls"]:
+        # Clipped to the columns: Postgres refuses an over-long value, and the whole result with it.
         ModelRun.objects.create(
-            precheck=run, node=call["node"], task_id=call.get("task_id", ""), model=call["model"], calls=call["calls"],
+            precheck=run, node=str(call["node"])[:20], task_id=str(call.get("task_id", ""))[:80], model=str(call["model"])[:80], calls=call["calls"],
             input_tokens=call["input"], output_tokens=call["output"], cache_write_tokens=call["cache_write"],
-            cache_read_tokens=call["cache_read"], prompt_version=result["versions"]["prompt"],
+            cache_read_tokens=call["cache_read"], prompt_version=str(result["versions"]["prompt"])[:40],
             skill_versions=result["versions"]["skills"], knowledge_ids=result["knowledge_ids"],
         )
 

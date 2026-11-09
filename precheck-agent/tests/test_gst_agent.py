@@ -281,3 +281,11 @@ def test_no_import_gst_means_no_adjustment():
     r = _recon()
     imports = r.import_gst({"gst_accounts": ["GST"]}, set(), set())
     assert imports["items"] == [] and "no adjustment" in imports["note"]
+
+
+def test_what_is_saved_fits_the_pm_applications_columns(env, gst_job):
+    """AFIT Connect keeps each call's node in 20 characters and the prompt version in 40 (Postgres
+    refuses longer values: a run's result was lost that way on 9 Nov 2026)."""
+    final = run(gst_job)
+    assert len(final["versions"]["prompt"]) <= 40 and len(final["readiness"]) <= 40
+    assert final["usage"]["calls"] and all(len(c["node"]) <= 20 and len(c["task_id"]) <= 80 for c in final["usage"]["calls"])

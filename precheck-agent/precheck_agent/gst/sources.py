@@ -70,9 +70,13 @@ def parse_links(text: str) -> list[tuple[str, str]]:
 
 
 def _rows_xlsx(data: bytes) -> list[dict]:
+    import warnings
+
     from openpyxl import load_workbook
 
-    wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+    with warnings.catch_warnings():  # sensitivity labels and other custom properties openpyxl doesn't know
+        warnings.simplefilter("ignore", UserWarning)
+        wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     sheets = []
     for ws in wb.worksheets:
         rows = []

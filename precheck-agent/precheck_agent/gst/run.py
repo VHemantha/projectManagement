@@ -23,7 +23,8 @@ from .sources import SourceProblem, gather
 from .workbook import build
 
 logger = logging.getLogger(__name__)
-RULES_VERSION = "gst-1.0 (AFIT spec 7 Nov 2026, amendments 8 Nov 2026)"
+# Short: AFIT Connect keeps it in a 40-character column. (AFIT spec 7 Nov 2026, amendments 8 Nov 2026.)
+RULES_VERSION = "gst-1.0"
 STATUS_VERDICT = {"Reconciled": "ready", "Reconciled subject to corrections": "ready_with_exceptions", "Unreconciled": "not_ready",
                   "Incomplete evidence": "not_ready"}
 

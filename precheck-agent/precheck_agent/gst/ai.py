@@ -76,7 +76,7 @@ class Reader:
             [system_message("drafter", system, self.s), HumanMessage(content=body)],
             output_config={"format": {"type": "json_schema", "schema": schema}},
         )
-        self.usage.append({"node": f"gst_{task}", "task_id": task, "model": model_id("gst", self.s), "calls": 1, "run_id": self.run_id,
+        self.usage.append({"node": "gst", "task_id": task, "model": model_id("gst", self.s), "calls": 1, "run_id": self.run_id,
                            **usage_from_message(message)})
         if stop_reason(message) in ("refusal", "max_tokens"):
             raise ValueError(f"the model stopped early ({stop_reason(message)})")
