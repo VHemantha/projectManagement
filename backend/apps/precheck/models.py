@@ -105,6 +105,7 @@ class AIPrecheck(models.Model):
         DRAFT = "draft", "Direction Note draft only"
         REVIEW = "review", "Review of the draft financial statements"
         GUIDE = "guide", "Preparation guide"
+        GST = "gst", "GST reconciliation (WP Agent)"
 
     run_id = models.CharField(max_length=64, unique=True)  # also the agent's LangGraph thread id
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRECHECK)
@@ -134,6 +135,11 @@ class AIPrecheck(models.Model):
     review = models.JSONField(default=dict)
     # A preparation guide: the steps to prepare this year's statements, with figures and checks.
     guide = models.JSONField(default=dict)
+    # The WP Agent (AFIT, 8 Nov 2026): what it was given (Drive links, job settings, the preparer's
+    # choices), its GST reconciliation, and the Excel workpaper it wrote.
+    options = models.JSONField(default=dict, blank=True)
+    gst = models.JSONField(default=dict, blank=True)
+    workbook = models.BinaryField(null=True, blank=True, editable=False)
     failure_reason = models.CharField(max_length=500, blank=True)
     usage = models.JSONField(default=dict)  # totals, calls, cost, cache share, budget
     models_used = models.JSONField(default=dict)

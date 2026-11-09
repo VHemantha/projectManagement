@@ -32,7 +32,10 @@ def require_token(x_precheck_token: str = Header(default="")) -> None:
 class RunRequest(BaseModel):
     job_id: str
     run_id: str | None = None
-    mode: Literal["precheck", "draft", "review", "guide"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
+    mode: Literal["precheck", "draft", "review", "guide", "gst"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
+    # "gst": the WP Agent's GST reconciliation (8 Nov 2026), with its inputs: the Drive link(s), the job settings and the
+    # preparer's choices (see precheck_agent/gst/run.py).
+    options: dict = {}
 
 
 @app.get("/healthz")
@@ -46,7 +49,7 @@ def healthz():
 def create_run(body: RunRequest):
     """Start a pre-check for one job. Returns the run id at once; progress and the result come
     back to the PM application as events. The run id is the LangGraph thread id."""
-    return {"run_id": runner.start(body.job_id, body.run_id, body.mode), "status": "running"}
+    return {"run_id": runner.start(body.job_id, body.run_id, body.mode, body.options), "status": "running"}
 
 
 @app.post("/precheck/runs/{run_id}/cancel", status_code=202, dependencies=[Depends(require_token)])

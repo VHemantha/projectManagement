@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     judge_effort: str = "low"
     judge_max_tokens: int = 2500
     assistant_max_tokens: int = 2000  # one answer to a question on the task card
+    # The WP Agent (GST reconciliation, 8 Nov 2026): reads documents into records and writes its
+    # summary. Empty: the judge model (Sonnet). Long statements need room to be written out.
+    gst_model: str = ""
+    gst_max_tokens: int = 16000
+    gst_timeout: int = 300
+    gst_max_reading_calls: int = 40  # a run's cap on model calls for reading documents
     # Opus 5.5 cannot disable thinking; effort is the control. Thinking counts toward max_tokens
     # (kept under the limit above which the SDK requires streaming).
     precheck_effort: str = "medium"

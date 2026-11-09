@@ -362,10 +362,11 @@ def _call_agent(path: str, body: dict) -> dict:
         raise AgentUnavailable(str(exc)) from exc
 
 
-def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
+def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK, options: dict | None = None) -> AIPrecheck:
     """Create the run and ask the agent to start. Returns at once; results arrive as events.
-    kind "draft" only drafts the Direction Note; it does not verify anything."""
-    run = AIPrecheck.objects.create(run_id=uuid.uuid4().hex, issue=issue, requested_by=user, kind=kind)
+    kind "draft" only drafts the Direction Note; it does not verify anything. kind "gst" is the WP
+    Agent's GST reconciliation, with its options (Drive links, job settings, choices)."""
+    run = AIPrecheck.objects.create(run_id=uuid.uuid4().hex, issue=issue, requested_by=user, kind=kind, options=options or {})
     try:
         body = {"job_id": str(issue.id), "run_id": run.run_id}
         if kind == AIPrecheck.Kind.DRAFT:
@@ -374,6 +375,8 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK) -> AIPrecheck:
             body["mode"] = "review"
         elif kind == AIPrecheck.Kind.GUIDE:
             body["mode"] = "guide"
+        elif kind == AIPrecheck.Kind.GST:
+            body["mode"], body["options"] = "gst", options or {}
         _call_agent("/precheck/runs", body)
     except AgentUnavailable:
         run.status = AIPrecheck.Status.FAILED
@@ -513,6 +516,16 @@ def record_event(event: dict) -> bool:
         elif run.kind == AIPrecheck.Kind.GUIDE:
             run.guide = event["result"].get("guide") or {}
             run.save(update_fields=["guide"])
+        elif run.kind == AIPrecheck.Kind.GST:
+            import base64
+            import binascii
+
+            run.gst = event["result"].get("gst") or {}
+            try:
+                run.workbook = base64.b64decode(event["result"].get("workbook_b64") or "", validate=True) or None
+            except (binascii.Error, ValueError):
+                run.workbook = None
+            run.save(update_fields=["gst", "workbook"])
         from . import posting
 
         posting.post_result(run)

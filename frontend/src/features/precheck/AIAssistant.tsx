@@ -1,4 +1,4 @@
-import { ClipboardCheck, ListChecks, MessageCircleQuestion, Sparkles } from 'lucide-react'
+import { ClipboardCheck, FileSpreadsheet, ListChecks, MessageCircleQuestion, Sparkles } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
 
 import styles from './AIAssistant.module.css'
@@ -7,13 +7,15 @@ import { GuidePanel } from './GuidePanel'
 import { Milestones } from './Milestones'
 import { PrecheckPanel } from './PrecheckPanel'
 import { ReviewPanel } from './ReviewPanel'
+import { WpAgentPanel } from './WpAgentPanel'
 import { useConversation } from '@/api/ask'
 import { useJobGuide } from '@/api/guide'
 import { useJobPrecheck } from '@/api/precheck'
 import { useJobReview } from '@/api/review'
+import { useWpAgent } from '@/api/wpAgent'
 import { Dialog, DialogContent } from '@/design-system'
 
-type Tool = 'precheck' | 'guide' | 'ask' | 'review'
+type Tool = 'precheck' | 'guide' | 'wp' | 'ask' | 'review'
 
 /** The AI assistant on a task card: four buttons, each opening its tool in a window — the
  * pre-check before the accounts are prepared, the guide to preparing them, questions at any time,
@@ -25,6 +27,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
   const review = useJobReview(jobKey).data
   const conversation = useConversation(jobKey).data
   const guide = useJobGuide(jobKey).data
+  const wp = useWpAgent(jobKey).data
 
   const precheckStatus = precheck?.latest
     ? precheck.latest.status === 'running'
@@ -74,6 +77,16 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
             ? 'Ready to write'
             : 'Best after the pre-check'
 
+  // The WP Agent (AFIT, 8 Nov 2026): the GST reconciliation workpaper.
+  const wpLatest = wp?.latest
+  const wpStatus = !wp
+    ? ''
+    : wpLatest?.status === 'running'
+      ? 'Reconciling…'
+      : wpLatest?.status === 'failed'
+        ? 'Last run failed'
+        : (wpLatest?.gst?.status ?? 'GST reconciliation workpaper')
+
   return (
     <section className={styles.assistant} aria-label="AI assistant">
       <h2 className={styles.title}>
@@ -84,6 +97,8 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
           status={precheckStatus} onOpen={() => setOpen('precheck')} />
         <Launcher icon={<ListChecks size={18} />} name="Guide" purpose="Step-by-step guide to preparing the statements"
           status={guideStatus} onOpen={() => setOpen('guide')} />
+        <Launcher icon={<FileSpreadsheet size={18} />} name="WP Agent" purpose="GST reconciliation workpaper from the Drive documents"
+          status={wpStatus} onOpen={() => setOpen('wp')} />
         <Launcher icon={<MessageCircleQuestion size={18} />} name="Ask" purpose="Questions on this task, NZ standards and law"
           status={askStatus} onOpen={() => setOpen('ask')} />
         <Launcher icon={<ClipboardCheck size={18} />} name="Review" purpose="Review the draft financial statements"
@@ -99,6 +114,11 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
       <Dialog open={open === 'guide'} onOpenChange={(o) => !o && setOpen(null)}>
         <DialogContent title="Preparation guide" maxWidth={1040}>
           <GuidePanel jobKey={jobKey} />
+        </DialogContent>
+      </Dialog>
+      <Dialog open={open === 'wp'} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent title="WP Agent — GST reconciliation" maxWidth={1040}>
+          <WpAgentPanel jobKey={jobKey} />
         </DialogContent>
       </Dialog>
       <Dialog open={open === 'review'} onOpenChange={(o) => !o && setOpen(null)}>

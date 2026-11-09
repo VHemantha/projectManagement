@@ -73,9 +73,34 @@ def new_run_id() -> str:
     return uuid.uuid4().hex
 
 
-def execute(run_id: str, job_id: str, mode: str = "precheck") -> dict:
+def execute_gst(run_id: str, job_id: str, options: dict) -> dict:
+    """The WP Agent's GST reconciliation (8 Nov 2026): its own pass, not the pre-check graph."""
+    from .gst.run import GstStop
+    from .gst.run import execute as run_gst
+
+    pm, store = get_pm(), get_store()
+    store.save_run(run_id, job_id, "running")
+    started, deadline_s = time.time(), get_settings().run_deadline_s
+    try:
+        final = run_gst(run_id, job_id, options or {}, pm, check=lambda: _check(run_id, started, deadline_s))
+    except (GstStop, PMError, RunStopped) as exc:
+        return _fail(run_id, job_id, str(exc))
+    except Exception:  # anything unexpected: say so plainly, keep the detail in the log
+        logger.exception("WP Agent run %s failed", run_id)
+        return _fail(run_id, job_id, "The GST reconciliation stopped because of an unexpected error. Nothing was changed. Please try again.")
+    finally:
+        with _lock:
+            _cancelled.discard(run_id)
+    store.save_run(run_id, job_id, final["status"], {k: v for k, v in final.items() if k != "workbook_b64"})
+    pm.send_event(run_id, {"type": "ai_precheck.completed", "job_id": job_id, "result": final})
+    return final
+
+
+def execute(run_id: str, job_id: str, mode: str = "precheck", options: dict | None = None) -> dict:
     """Run to the end (blocking). Returns the final result, or {"status": "failed", "reason"}.
-    mode "draft" stops after drafting the Direction Note (no pre-check)."""
+    mode "draft" stops after drafting the Direction Note (no pre-check); "gst" is the WP Agent."""
+    if mode == "gst":
+        return execute_gst(run_id, job_id, options or {})
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
     final = None
@@ -130,10 +155,10 @@ def fail_orphans() -> int:
     return len(orphans)
 
 
-def start(job_id: str, run_id: str | None = None, mode: str = "precheck") -> str:
+def start(job_id: str, run_id: str | None = None, mode: str = "precheck", options: dict | None = None) -> str:
     """Start a run in the background and return its id at once."""
     run_id = run_id or new_run_id()
-    threading.Thread(target=execute, args=(run_id, job_id, mode), name=f"precheck-{run_id[:8]}", daemon=True).start()
+    threading.Thread(target=execute, args=(run_id, job_id, mode, options), name=f"precheck-{run_id[:8]}", daemon=True).start()
     return run_id
 
 

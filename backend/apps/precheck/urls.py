@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     JobGuideView,
+    JobWpAgentView,
     MilestonesView,
     AccountantAnswersView,
     AssumptionDetailView,
@@ -25,6 +26,7 @@ from .views import (
     RunDetailView,
     RunListView,
     RunStopView,
+    WorkpaperView,
 )
 
 urlpatterns = [
@@ -36,6 +38,8 @@ urlpatterns = [
     path("lessons/<int:pk>/", LessonDetailView.as_view(), name="precheck-lesson"),
     path("jobs/<str:key>/ask/", JobAskView.as_view(), name="precheck-ask"),
     path("jobs/<str:key>/guide/", JobGuideView.as_view(), name="precheck-guide"),
+    path("jobs/<str:key>/wp-agent/", JobWpAgentView.as_view(), name="precheck-wp-agent"),
+    path("runs/<str:run_id>/workpaper.xlsx", WorkpaperView.as_view(), name="precheck-workpaper"),
     path("jobs/<str:key>/milestones/", MilestonesView.as_view(), name="precheck-milestones"),
     path("jobs/<str:key>/answers/", AccountantAnswersView.as_view(), name="precheck-answers"),
     path("jobs/<str:key>/review/", JobReviewView.as_view(), name="precheck-review"),

@@ -194,9 +194,25 @@ def reset_fakes() -> None:
     _fake.clear()
 
 
+def _empty_of(schema: dict):
+    """The emptiest answer of a JSON schema: what the demo model says to the WP Agent."""
+    kind = schema.get("type")
+    if kind == "object":
+        return {k: _empty_of(v) for k, v in schema.get("properties", {}).items()}
+    return {"array": [], "string": "", "boolean": False, "number": 0, "integer": 0}.get(kind, None)
+
+
+def demo_gst(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
+    """The WP Agent in demo mode reads nothing with a model: an empty answer of the shape asked."""
+    schema = ((kwargs.get("output_config") or {}).get("format") or {}).get("schema") or {}
+    text = json.dumps(_empty_of(schema) if schema else {})
+    return AIMessage(content=text, usage_metadata=_usage(_flatten(messages[-1].content), text))
+
+
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
-        set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck, "assistant": demo_assistant}[role])
+        set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck, "assistant": demo_assistant,
+                        "gst": demo_gst}[role])
     return _fake[role]
 
 
@@ -206,7 +222,8 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return f"fake-{role}"
-    return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "assistant": s.judge_model, "precheck": s.precheck_model}[role]
+    return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "assistant": s.judge_model, "precheck": s.precheck_model,
+            "gst": s.gst_model or s.judge_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
@@ -222,6 +239,8 @@ def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
         common["api_key"] = s.anthropic_api_key
     if role == "vision":
         return ChatAnthropic(model=s.vision_model or s.reader_model, max_tokens=s.image_max_tokens, **common)
+    if role == "gst":  # the WP Agent reading documents and writing its summary: Sonnet, long answers
+        return ChatAnthropic(model=s.gst_model or s.judge_model, max_tokens=s.gst_max_tokens, **{**common, "timeout": s.gst_timeout})
     if role == "assistant":  # answers a question on the task card: Sonnet, short, no extended thinking
         return ChatAnthropic(model=s.judge_model, max_tokens=s.assistant_max_tokens, **common)
     if role == "drafter":

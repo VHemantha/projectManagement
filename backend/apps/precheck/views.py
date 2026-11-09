@@ -660,6 +660,100 @@ class JobGuideView(APIView):
         return Response({**services.serialize_run(run), "guide": run.guide}, status=status.HTTP_201_CREATED)
 
 
+# --- the WP Agent: GST reconciliation (AFIT, 8 Nov 2026) ----------------------------------------------------
+
+WP_BASES = ("payments", "invoice", "hybrid")
+WP_FREQUENCIES = ("monthly", "two_monthly", "six_monthly")
+WP_SETUP_TEXT = ("entity", "ird_number", "fy_start", "balance_date", "software", "currency", "gl_version", "gst_accounts", "tolerance")
+
+
+def wp_dict(run: AIPrecheck) -> dict:
+    return {**services.serialize_run(run, full=False), "gst": run.gst, "progress": run.progress, "failure_reason": run.failure_reason,
+            "options": run.options, "has_workpaper": bool(run.workbook)}
+
+
+def _wp_defaults(issue, latest) -> dict:
+    """What the form starts with: the last run's inputs, else what the task already knows."""
+    if latest is not None and latest.options:
+        return latest.options
+    setup = services.setup_for(issue)
+    project = issue.project
+    return {"drive_link": setup["drive_folder_url"], "ar_link": "", "ap_link": "", "choices": {},
+            "setup": {"entity": project.client.name if project.client_id else project.name, "fy_start": setup["settings"].get("year_start", ""),
+                      "balance_date": setup["settings"].get("year_end", ""), "basis": "payments", "frequency": "two_monthly", "software": "Xero",
+                      "currency": "NZD", "ird_number": "", "gl_version": "", "gst_accounts": "", "first_year": False, "tolerance": "0"}}
+
+
+class JobWpAgentView(APIView):
+    """GET /api/precheck/jobs/<key>/wp-agent/ — the latest GST reconciliation, earlier ones, and the
+    form's starting values. POST {drive_link, ar_link?, ap_link?, setup: {...}, choices: {ar_gl_fallback?,
+    ap_gl_fallback?}} — run it. Returns at once; progress and the result arrive as events. The agent
+    reads Drive read-only; nothing is posted or filed."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        runs = list(_runs(issue).filter(kind=AIPrecheck.Kind.GST)[:20])
+        latest = runs[0] if runs else None
+        return Response({"latest": wp_dict(latest) if latest else None, "history": [services.serialize_run(r, full=False) for r in runs],
+                         "defaults": _wp_defaults(issue, latest)})
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        data = request.data if isinstance(request.data, dict) else {}
+        link = str(data.get("drive_link") or "").strip()
+        raw = data.get("setup") if isinstance(data.get("setup"), dict) else {}
+        errors = {}
+        if not link:
+            errors["drive_link"] = ["Paste the Google Drive link of the folder (or files) holding the documents."]
+        if not str(raw.get("balance_date") or "").strip():
+            errors["balance_date"] = ["Give the balance date (the financial year end)."]
+        basis, freq = str(raw.get("basis") or "payments"), str(raw.get("frequency") or "two_monthly")
+        if basis not in WP_BASES:
+            errors["basis"] = ["Choose payments, invoice or hybrid."]
+        if freq not in WP_FREQUENCIES:
+            errors["frequency"] = ["Choose monthly, two-monthly or six-monthly."]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        if _runs(issue).filter(kind=AIPrecheck.Kind.GST, status=AIPrecheck.Status.RUNNING).exists():
+            return Response({"detail": "A GST reconciliation is already running for this task."}, status=status.HTTP_409_CONFLICT)
+        choices = data.get("choices") if isinstance(data.get("choices"), dict) else {}
+        options = {
+            "drive_link": link[:4000], "ar_link": str(data.get("ar_link") or "").strip()[:2000], "ap_link": str(data.get("ap_link") or "").strip()[:2000],
+            "setup": {**{k: str(raw.get(k) or "").strip()[:300] for k in WP_SETUP_TEXT}, "basis": basis, "frequency": freq,
+                      "first_year": bool(raw.get("first_year"))},
+            "choices": {"ar_gl_fallback": bool(choices.get("ar_gl_fallback")), "ap_gl_fallback": bool(choices.get("ap_gl_fallback"))},
+            "prepared_by": request.user.display_name or request.user.username,
+            "firm": getattr(settings, "WP_AGENT_FIRM_NAME", "BDS Chartered Accountants Ltd"),
+        }
+        run = services.start_run(issue, request.user, kind=AIPrecheck.Kind.GST, options=options)
+        return Response(wp_dict(run), status=status.HTTP_201_CREATED)
+
+
+class WorkpaperView(APIView):
+    """GET /api/precheck/runs/<run_id>/workpaper.xlsx — the WP Agent's Excel workpaper."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, run_id):
+        from django.http import HttpResponse
+
+        run = get_object_or_404(AIPrecheck.objects.select_related("issue__project"), run_id=run_id, kind=AIPrecheck.Kind.GST)
+        if not services.can_open_job(request.user, run.issue):
+            raise PermissionDenied("You can't open this task.")
+        if not run.workbook:
+            return Response({"detail": "This run has no workpaper."}, status=status.HTTP_404_NOT_FOUND)
+        setup = (run.options or {}).get("setup") or {}
+        import re
+
+        title = f"GST reconciliation {setup.get('entity') or run.issue.key} {setup.get('balance_date') or ''}"
+        name = " ".join(re.sub(r"[^\w .()-]+", "", title).split())[:120] or "GST reconciliation"
+        response = HttpResponse(bytes(run.workbook), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        response["Content-Disposition"] = f'attachment; filename="{name}.xlsx"'
+        return response
+
+
 class MilestonesView(APIView):
     """GET /api/precheck/jobs/<key>/milestones/ — when each stage of the task happened.
     POST {kind: checks|preparation|adjustments, on?: date, note?} — stamp a stage (today by default)."""

@@ -3,8 +3,8 @@
 Sign-in is done here, in code, with a Google service account that has the read-only Drive
 scope and has been given access to the job folder. The key comes from the secret manager
 (a mounted file or an injected environment value) — never from a skill, a prompt or the
-repository. This service never writes to Drive: the only API calls are files.list,
-files.get_media and files.export.
+repository. This service never writes to Drive: the only API calls are files.list, files.get
+(one file's metadata, for a file link), files.get_media and files.export.
 
 `LocalDrive` treats a directory as a folder, for tests and the demo mode.
 """
@@ -123,6 +123,21 @@ class GoogleDrive:
             raise DriveError(f"Google Drive returned an error ({exc.resp.status}).") from exc
         return files[: self._max_files]
 
+    def get_file(self, file_id: str) -> DriveFile:
+        """One file's metadata (a link to a single file rather than a folder)."""
+        from googleapiclient.errors import HttpError
+
+        try:
+            f = self._svc.files().get(fileId=file_id, supportsAllDrives=True,
+                                      fields="id, name, mimeType, md5Checksum, modifiedTime, size, webViewLink").execute()
+        except HttpError as exc:
+            if exc.resp.status in (403, 404):
+                raise DriveError(f"This Drive file can't be opened. Share it (Viewer) with {self.account_email}.") from exc
+            raise DriveError(f"Google Drive returned an error ({exc.resp.status}).") from exc
+        return DriveFile(id=f["id"], name=f["name"], mime_type=f["mimeType"], version=f.get("md5Checksum") or f.get("modifiedTime", ""),
+                         modified_time=f.get("modifiedTime", ""), size=int(f.get("size", 0) or 0),
+                         web_url=f.get("webViewLink", f"https://drive.google.com/file/d/{f['id']}/view"))
+
     def download(self, file: DriveFile) -> tuple[bytes, str, str]:
         """(bytes, file name to parse as, MIME type). Google-native files are exported."""
         from googleapiclient.http import MediaIoBaseDownload
@@ -179,6 +194,15 @@ class LocalDrive:
                 )
             )
         return files
+
+    def get_file(self, file_id: str) -> DriveFile:
+        """file id: "<folder>:<path inside it>"."""
+        folder_id, rel = file_id.split(":", 1) if ":" in file_id else ("", file_id)
+        path = self._folder(folder_id) / rel
+        if not path.is_file():
+            raise DriveError("This file does not exist in the local fixtures.")
+        return DriveFile(id=f"{folder_id}:{rel}", name=path.name, mime_type="", version=hashlib.md5(path.read_bytes()).hexdigest(),
+                         modified_time=str(int(path.stat().st_mtime)), size=path.stat().st_size, web_url=f"local://{folder_id}/{rel}")
 
     def download(self, file: DriveFile) -> tuple[bytes, str, str]:
         folder_id, rel = file.id.split(":", 1)

@@ -11,6 +11,10 @@ The AI assistant for AFIT Connect's accountants, on every task card, in three ta
   completes the review.
 - **Ask** — any question about the task, answered only from the task's own knowledge, with the
   passages each answer rests on.
+- **WP Agent** (8 Nov 2026) — the year-end GST reconciliation workpaper from the documents behind a
+  Google Drive link: returns and IRD settlements, receivables and payables GST from the Xero ageing
+  reports (GL analysis as the fallback), journals and late claims counted once, the import GST check
+  and payment coding, as an editable Excel workpaper in the firm's L1 layout. See WP_AGENT.md.
 
 Every correction a person makes teaches it: the AI drafts the correction as a rule (a learned
 skill) that applies from then on — to that client at once, more widely once a lead approves.

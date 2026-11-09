@@ -154,6 +154,9 @@ MEDIA_URL = "/media/"
 # Production keeps uploads outside the release directory so they survive deploys.
 MEDIA_ROOT = Path(env("MEDIA_ROOT", BASE_DIR / "media"))
 FILE_UPLOAD_PERMISSIONS = 0o644
+# A request body up to 20 MB (nginx allows 25 MB): the WP Agent's finished run brings its Excel workpaper
+# with it (AFIT, 8 Nov 2026); Django's default of 2.5 MB is too small for a large client's.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 
 # Production runs behind CloudFront -> nginx -> gunicorn. nginx always sets
 # X-Forwarded-Proto=https (CloudFront only talks to viewers over HTTPS), so Django builds
