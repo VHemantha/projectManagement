@@ -29,7 +29,9 @@ _RULES = [
     ("prior_year_recon", r"((prior|previous|last)\s*(year|yr)|\bpy\b).*gst|gst.*((prior|previous|last)\s*(year|yr)|\bpy\b)"),
     ("late_claims", r"late\s*claim|transactions?\s*by\s*return|gst\s*audit|subsequent\s*(gst\s*)?return|gst\s*return\s*detail|filed\s*period"),
     ("xero_gst_recon", r"gst\s*reconciliation\s*report|gst\s*reconciliation\s*\(xero\)"),
-    ("ird_statement", r"(ird|inland\s*revenue|myir).*(statement|account\s*activity|transactions?)|gst\s*(account\s*)?statement|account\s*activity"),
+    # IRD's myIR "GST Transaction Summary Report" is the GST account statement (AFIT, 9 Nov 2026).
+    ("ird_statement", r"transaction\s*summary|(ird|inland\s*revenue|myir).*(statement|account\s*activity|transactions?)|"
+                      r"gst\s*(account\s*)?statement|account\s*activity"),
     ("gst_returns", r"gst\s*returns?|return\s*summary|gst\s*101|gst101|returns?\s*filed"),
     ("journal_report", r"journal\s*report|manual\s*journals?|journals?\s*(listing|audit)|audit\s*(history|trail)|history\s*and\s*notes"),
     ("general_ledger", r"general\s*ledger|\bgl\b|ledger\s*detail|account\s*transactions"),

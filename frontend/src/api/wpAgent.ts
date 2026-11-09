@@ -77,6 +77,8 @@ export interface GstAdjustment {
   effect: string
   status: string
   review: boolean
+  /** False for a journal candidate no late claim confirms: listed, not in the bridge. */
+  included?: boolean
   journals: string[]
   late_claims: string[]
   subsequent_return: string | null

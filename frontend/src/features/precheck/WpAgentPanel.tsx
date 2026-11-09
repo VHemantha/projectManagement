@@ -389,6 +389,7 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
             {g.adjustments!.map((a) => (
               <li key={a.id}>
                 {a.category}: {money(a.effect)} — {a.status}
+                {a.included === false && <small>Not in the bridge: a candidate for review.</small>}
                 {a.subsequent_return && <small>Cleared in the return for {ddmmyy(a.subsequent_return)} (evidence; the year-end difference stands)</small>}
               </li>
             ))}

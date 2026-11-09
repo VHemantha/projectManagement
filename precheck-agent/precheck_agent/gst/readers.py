@@ -19,7 +19,8 @@ FIELDS = {
         "date": ["invoice date", "date", "issue date", "transaction date"],
         "due": ["due date"],
         "total": ["total", "amount due", "outstanding", "balance", "total due", "amount outstanding", "total outstanding"],
-        "gst": ["gst", "tax", "gst amount", "tax amount", "gst on outstanding", "gst outstanding", "gst (nzd)", "tax (nzd)"],
+        # Xero's ageing summary has "Total" and "Outstanding GST" side by side (AFIT, 9 Nov 2026).
+        "gst": ["outstanding gst", "gst", "tax", "gst amount", "tax amount", "gst on outstanding", "gst outstanding", "gst nzd", "tax nzd"],
     },
     "general_ledger": {
         "date": ["date", "transaction date"],
@@ -34,7 +35,7 @@ FIELDS = {
         "amount": ["amount", "net", "net amount", "value"],
         "gross": ["gross", "gross amount"],
         "gst": ["gst", "tax", "gst amount", "tax amount", "gst (nzd)"],
-        "tax_code": ["tax rate", "tax code", "gst rate", "tax type", "tax rate name", "gst code"],
+        "tax_code": ["gst rate name", "tax rate name", "tax rate", "tax code", "gst rate", "tax type", "gst code"],
     },
     "trial_balance": {
         "code": ["account code", "code"],
@@ -44,9 +45,9 @@ FIELDS = {
         "balance": ["balance", "closing balance", "ytd", "year to date", "net", "amount"],
     },
     "journal_report": {
-        "journal": ["journal number", "journal #", "journal no", "journal", "journal id", "transaction id"],
+        "journal": ["journal id", "journal number", "journal #", "journal no", "journal", "transaction id"],
         "date": ["effective date", "journal date", "date"],
-        "created": ["created", "created date", "date created", "created on", "entered", "date entered", "posted", "posted date"],
+        "created": ["posted date", "created", "created date", "date created", "created on", "entered", "date entered", "posted"],
         "modified": ["modified", "last modified", "updated", "date modified", "changed"],
         "account": ["account", "account name"],
         "code": ["account code", "code"],
@@ -57,7 +58,7 @@ FIELDS = {
         "gst": ["gst", "tax", "gst amount", "tax amount"],
     },
     "gst_returns": {
-        "period_end": ["period end", "period ended", "period ending", "period to", "to", "return period", "period"],
+        "period_end": ["period ending", "period end", "period ended", "period to", "to", "return period", "period"],
         "period_start": ["period start", "period from", "from"],
         "version": ["version", "return version", "amended"],
         "filed": ["date filed", "filed date", "filed", "finalised", "date finalised", "submitted", "date submitted"],
@@ -66,17 +67,19 @@ FIELDS = {
         "box8": ["box 8", "output tax", "output gst", "gst on sales", "gst on income", "gst collected on sales and income"],
         "box9": ["box 9", "debit adjustments", "adjustments to output"],
         "box10": ["box 10", "total gst collected"],
-        "box11": ["box 11", "total purchases and expenses", "total purchases", "purchases and expenses"],
+        "box11": ["box 11", "total purchases and expenses", "total purchases", "purchases and expenses", "total expenses"],
         "box12": ["box 12", "input tax", "input gst", "gst on purchases", "gst on purchases and expenses"],
         "box13": ["box 13", "credit adjustments"],
-        "box14": ["box 14", "total gst credit"],
-        "box15": ["box 15", "gst to pay", "net gst", "gst payable", "gst to pay or refund", "amount payable", "net", "difference"],
+        "box14": ["box 14", "total gst credit", "total gst paid"],
+        "box15": ["box 15", "payment / refund", "payment refund", "gst to pay", "net gst", "gst payable", "gst to pay or refund", "amount payable", "net",
+                  "difference"],
     },
     "ird_statement": {
         "date": ["date", "transaction date", "processed", "date processed"],
         "effective": ["effective date", "effective"],
-        "type": ["transaction type", "type", "transaction", "description", "details", "item"],
-        "period": ["period end", "period", "return period", "gst period", "for period"],
+        "type": ["transaction type", "transaction", "type", "description", "details", "item"],
+        "period": ["period ending", "period end", "period", "return period", "gst period", "for period"],
+        "account_type": ["account type", "tax type"],
         "debit": ["debit", "dr", "debits"],
         "credit": ["credit", "cr", "credits"],
         "amount": ["amount"],
@@ -88,8 +91,8 @@ FIELDS = {
         "ref": ["reference", "invoice number", "ref", "number", "invoice"],
         "contact": ["contact", "name", "customer", "supplier"],
         "description": ["description", "details", "narration"],
-        "gst": ["gst", "tax", "gst amount", "tax amount"],
-        "side": ["sales or purchases", "type", "box", "category", "account type", "source"],
+        "gst": ["total gst", "gst", "tax", "gst amount", "tax amount"],
+        "side": ["tax rate", "sales or purchases", "type", "box", "category", "account type", "source"],
         "return_period": ["included in return", "return period", "filed in", "return", "period"],
     },
 }
@@ -109,13 +112,15 @@ def _score(heading: str, synonyms: list[str], field_name: str) -> int:
     h = norm(heading)
     if not h:
         return 0
+    if field_name == "total" and re.search(r"\b(gst|tax)\b", h):
+        return 0  # "Outstanding GST", "Total GST": a GST column, never the balance
     if field_name in ("gst", "box8", "box12") and any(w in h.split() for w in NOT_AN_AMOUNT):
         return 0
     for rank, syn in enumerate(synonyms):
         if h == syn:
             return 100 - rank
     for rank, syn in enumerate(synonyms):
-        if len(syn) > 3 and re.search(rf"\b{re.escape(syn)}\b", h):
+        if (len(syn) > 3 or field_name == "gst") and re.search(rf"\b{re.escape(syn)}\b", h):
             return 50 - rank
     return 0
 
@@ -307,22 +312,24 @@ def read_journals(src: Source, ai=None) -> dict:
     t = find_table(src, "journal_report", ai)
     if t is None:
         return {"lines": [], "problem": "The journal report's headings could not be found."}
-    lines, journal, jdate = [], "", None
+    lines, journal, jdate, narration = [], "", None, ""
     for row_no, values in t.rows:
         first = _first_text(values)
         debit, credit = _signed(t, values)
-        if not (debit or credit):
-            m = re.search(r"journal\s*#?\s*(\w+)", first, re.I)
-            if m:
-                journal = m.group(1)
-                jdate = day(t.get(values, "date")) or jdate
-            continue
         if _is_total(values):
             continue
+        if not (debit or credit):
+            # Xero: "ID 29061 <narration>" above each journal's lines; elsewhere "Journal #123".
+            m = re.match(r"\s*(?:id|journal\s*#?)\s*(\d\w*)\s*(.*)$", first, re.I)
+            if m:
+                journal, narration = m.group(1), m.group(2).strip()
+                jdate = day(t.get(values, "date")) or jdate
+            continue
+        jdate = day(t.get(values, "date")) or jdate  # the date in column A, on each line
         code, name = split_account(t.text(values, "account"))
-        lines.append({"id": f"{src.sid}:{row_no}", "journal": t.text(values, "journal") or journal, "date": day(t.get(values, "date")) or jdate,
+        lines.append({"id": f"{src.sid}:{row_no}", "journal": t.text(values, "journal") or journal, "date": jdate,
                       "created": day(t.get(values, "created")), "modified": day(t.get(values, "modified")), "account": name,
-                      "code": t.text(values, "code") or code, "description": t.text(values, "description"), "ref": t.text(values, "ref"),
+                      "code": t.text(values, "code") or code, "description": t.text(values, "description") or narration, "ref": t.text(values, "ref"),
                       "debit": debit, "credit": credit, "gst": amount(t.get(values, "gst")), "source": t.ref(row_no)})
     return {"lines": lines, "problem": "" if lines else "No journal lines were found."}
 
@@ -383,6 +390,9 @@ def read_ird(src: Source, ai=None) -> dict:
             when = day(t.get(values, "date"))
             if when is None or _is_total(values):
                 continue
+            kind = t.text(values, "account_type").lower()
+            if kind and "gst" not in kind:
+                continue  # a line of another tax account (income tax, PAYE)
             debit = abs(amount(t.get(values, "debit")) or Decimal(0))
             credit = abs(amount(t.get(values, "credit")) or Decimal(0))
             if "amount" in t.cols and not ({"debit", "credit"} & set(t.cols)):
@@ -415,17 +425,40 @@ def _side(text: str) -> str:
     return ""
 
 
+def return_period_of(src: Source) -> date | None:
+    """A later return's own period: "For the period 1 April 2026 to 31 May 2026" in Xero's export,
+    else the date in the file name ("... 31_05_2026 - Subsequent GST return.xlsx")."""
+    for sheet in src.sheets:
+        for _, values in sheet["rows"][:15]:
+            for v in values:
+                m = re.search(r"period\b.*?\bto\s+(\d{1,2}\s+[a-z]+\s+\d{4}|\d{1,2}/\d{1,2}/\d{4}|\d{4}-\d{2}-\d{2})", str(v or ""), re.I)
+                if m and day(m.group(1)):
+                    return day(m.group(1))
+    m = re.search(r"(\d{1,2})[_\-.](\d{1,2})[_\-.](\d{4})", src.name)
+    if m:
+        try:
+            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+    return None
+
+
 def read_late_claims(src: Source, ai=None) -> dict:
     out = []
     if src.sheets and (t := find_table(src, "late_claims", ai)):
+        period = return_period_of(src)
+        section = ""
         for row_no, values in t.rows:
+            if _is_total(values):
+                continue
             gst = amount(t.get(values, "gst"))
-            if gst is None or _is_total(values):
+            if gst is None:
+                section = _first_text(values) or section  # "15% GST on Income", "Late claims", ...
                 continue
             out.append({"id": f"{src.sid}:{row_no}", "date": day(t.get(values, "date")), "ref": t.text(values, "ref"),
                         "contact": t.text(values, "contact"), "description": t.text(values, "description"), "gst": gst,
-                        "side": _side(t.text(values, "side")), "return_period_end": _period_end(t.get(values, "return_period")),
-                        "source": t.ref(row_no), "how": "code"})
+                        "side": _side(t.text(values, "side")) or _side(section),
+                        "return_period_end": _period_end(t.get(values, "return_period")) or period, "source": t.ref(row_no), "how": "code"})
         return {"items": out, "problem": ""}
     if ai is None:
         return {"items": [], "problem": "The later returns' detail could not be read."}

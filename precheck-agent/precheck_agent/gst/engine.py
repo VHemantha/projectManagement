@@ -478,9 +478,11 @@ class Recon:
                         "finalised": final, "finalised_actual": actual, "period_end": period["period_end"] if period else None,
                         "description": first.get("description", ""), "ref": first.get("ref", ""), "contact": first.get("contact", ""),
                         "effect": effect, "direction": "output" if effect > 0 else "input", "source": first["source"]})
-            if not actual:
-                self.flag("deadline_fallback", "info", f"Journal {jid}: the return's actual finalisation date isn't known; its due date was used to screen it.",
-                          "The return's filing/finalisation date.", [first["source"]])
+        screened = [j for j in out if not j["finalised_actual"]]
+        if screened:
+            self.flag("deadline_fallback", "info", f"{len(screened)} journal(s) were screened against the returns' due dates: the returns' actual "
+                      "finalisation dates aren't in the documents.", "The returns' filing/finalisation dates (IRD's return history).",
+                      [j["source"] for j in screened[:10]])
         if undated:
             self.flag("journals_undated", "review", f"{undated} GST journal(s) dated at or before year-end have no created/modified date, so it can't be told "
                       "whether they were entered after the return was finalised.", "The journal report with audit history.")
@@ -565,12 +567,17 @@ class Recon:
             status = ("journal and late claim: one adjustment" if js and ls else "journal entered after the return was finalised (candidate)" if js
                       else "late claim in a later return")
             review = not (js and ls)
+            # A journal entered after the return was finalised is a candidate, not proof (spec, step 6): it
+            # counts in the bridge once a later return's late claim corroborates it.
+            included = bool(ls)
+            if js and not ls:
+                status = "journal entered after the return was finalised: candidate, not in the bridge until confirmed"
             if js and ls and j_total != l_total:
                 status = f"partly matched: {q(matched)} in both, {q(abs(j_total - l_total))} unmatched included once"
                 review = True
             category = {("output", 1): "Income not declared", ("input", -1): "Expenses not claimed"}.get((direction, sign), "Other")
             out.append({"id": _id("ADJ", *sorted(m["id"] for m in members)), "category": category, "direction": direction, "effect": q(effect),
-                        "status": status, "review": review, "journals": [m["id"] for m in js], "late_claims": [m["id"] for m in ls],
+                        "status": status, "review": review, "included": included, "journals": [m["id"] for m in js], "late_claims": [m["id"] for m in ls],
                         "evidence": js + ls, "year_end_amount": q(effect),
                         "subsequent_return": next((m["return_period_end"] for m in ls if m.get("return_period_end")), None),
                         "unmatched": q(abs(j_total - l_total)) if js and ls else None, "description": (js or ls)[0].get("description", "")})
@@ -715,7 +722,7 @@ class Recon:
                 d_items.append({"id": _id("ADJ", it["id"]), "category": "Expenses not claimed", "direction": "input", "effect": -q(abs(it["amount"])),
                                 "status": "import GST in the GL, not yet claimed (review timing and eligibility)", "review": True, "journals": [],
                                 "late_claims": [], "evidence": [], "year_end_amount": -q(abs(it["amount"])), "subsequent_return": None, "unmatched": None,
-                                "description": it["description"], "import": it["id"]})
+                                "description": it["description"], "import": it["id"], "included": True})
         return d_items
 
     # --- 7. period analysis -----------------------------------------------------------------------------------
@@ -775,7 +782,7 @@ class Recon:
         a_prior = sum((p["outstanding_bd"] for p in in_a if p["prior_year"]), ZERO)
         A = a_current + a_prior
         B, C = ar["total"], ap["total"]
-        D = sum((a["effect"] for a in adjustments), ZERO)
+        D = sum((a["effect"] for a in adjustments if a.get("included", True)), ZERO)
         E = A + B - C + D
         reported = ledger["reported"]
         correction_effect = sum((c["gst_effect"] for c in self.corrections), ZERO)

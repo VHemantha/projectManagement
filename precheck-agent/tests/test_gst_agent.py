@@ -289,3 +289,87 @@ def test_what_is_saved_fits_the_pm_applications_columns(env, gst_job):
     final = run(gst_job)
     assert len(final["versions"]["prompt"]) <= 40 and len(final["readiness"]) <= 40
     assert final["usage"]["calls"] and all(len(c["node"]) <= 20 and len(c["task_id"]) <= 80 for c in final["usage"]["calls"])
+
+
+# --- the real export layouts (Xero and myIR, as uploaded on 9 Nov 2026) ----------------------------------------
+
+def _titled(title, header, rows, header_row=5):
+    """A report as Xero/myIR export it: title lines, a blank line, the headings, then the rows."""
+    top = [[title], ["Jaw Stone Two Limited"], ["As at 31 March 2026"], ["Ageing by due date"], []][: header_row - 1]
+    return top + [header] + rows
+
+
+REAL = {
+    "Client - 2026 GST Return Summary Report.xlsx": [["Account ID:", "134-433-612-GST003"], ["Name:", "CLIENT LIMITED"], ["From:", "2025-04-01"],
+        ["To:", "2026-03-31"], [], ["Disclaimer: This information may not include everything"], [],
+        ["Period ending", "Total sales", "Zero-rated supplies", "Debit adjustments", "Total GST collected", "Total expenses", "Credit adjustments",
+         "Total GST paid", "Payment / Refund"],
+        [date(2025, 9, 30), 11500, 0, 100, 1500, 3833.33, 0, 500, 1000],
+        [date(2026, 3, 31), 15333.33, 0, 0, 2000, 6133.33, 0, 800, 1200]],
+    "Client - 2026 GST Transaction Summary Report.xlsx": [["Account ID:", "134-433-612-GST003"], ["Name:", "CLIENT LIMITED"], [], [], [], [], [],
+        ["Period ending", "Account type", "Date", "Transaction", "Amount"],
+        [date(2025, 9, 30), "GST", date(2025, 10, 28), "Assessment", 1000],
+        [date(2025, 9, 30), "GST", date(2025, 10, 28), "Transfer from 134-433-612-INC001", -400],
+        [date(2025, 9, 30), "GST", date(2025, 10, 29), "Payment", -600],
+        [date(2026, 3, 31), "GST", date(2026, 5, 7), "Assessment", 1200],
+        [date(2026, 3, 31), "Income Tax", date(2026, 5, 7), "Payment", -999],
+        [date(2026, 3, 31), "GST", date(2026, 5, 8), "Payment", -1200]],
+    "Client_-_Aged_Receivables_Summary.xlsx": _titled("Aged Receivables Summary",
+        ["Contact", "Current", "< 1 Month", "1 Month", "2 Months", "3 Months", "Older", "Total", "Outstanding GST"],
+        [[], ["Aged Receivables"], ["Alpha Ltd", 1150, 0, 0, 0, 0, 0, 1150, 150], ["Beta Ltd", 2300, 0, 0, 0, 0, 0, 2300, 300],
+         ["Total Aged Receivables", 3450, 0, 0, 0, 0, 0, 3450, 450]], header_row=6),
+    "Client_-_Aged_Payables_Summary.xlsx": _titled("Aged Payables Summary",
+        ["Contact", "Current", "< 1 Month", "1 Month", "2 Months", "3 Months", "Older", "Total", "Outstanding GST"],
+        [[], ["Aged Payables"], ["Bizphones", 74.75, 0, 0, 0, 0, 0, 74.75, 9.75], ["Payroll - A-Temp Recruitment", 35339.87, 0, 0, 0, 0, 0, 35339.87, 0],
+         ["Total Aged Payables", 35414.62, 0, 0, 0, 0, 0, 35414.62, 9.75]], header_row=6),
+    "Client_-_Trial_Balance.xlsx": [["Trial Balance"], ["Client"], ["As at 31 March 2026"], [],
+        ["Account Code", "Account", "Account Type", "Debit - Year to date", "Credit - Year to date"],
+        [610, "Accounts Receivable", "Current Asset", 3450, None], [800, "Accounts Payable", "Current Liability", None, 35414.62],
+        [820, "GST", "Current Liability", None, 1590.25], [230, "Contracting Income", "Sales", None, 100000]],
+    "Client_-_Journal_Report.xlsx": [["Journal Report"], ["Client"], ["For the period 1 April 2025 to 31 March 2026"], [],
+        ["Date", "Journal ID", "Account Code", "Account", "Debit", "Credit", "Posted Date", "Posted By"], [],
+        ["ID 29061 Missed GST INV-77 Kiwi Packaging"],
+        [date(2026, 3, 20), 29061, 820, "GST", 50, 0, "2026-06-01 10:15:00.12", "Contractor One"],
+        [date(2026, 3, 20), 29061, 400, "Purchases", 0, 50, "2026-06-01 10:15:00.12", "Contractor One"],
+        ["Total", None, None, None, 50, 50]],
+}
+LATER_RETURN = {
+    "Return": [["GST return", None, "Filed"], ["Client Limited"], ["134-433-612"], [], ["For the period 1 April 2026 to 31 May 2026"], [],
+               ["GST to pay", None, 999]],
+    "Transactions": [["Transactions"], ["Client Limited"], ["For the period 1 April 2026 to 31 May 2026"], [],
+                     ["Date", None, "Code", "Account", "Contact", "Reference", "Description", "Tax rate", "Gross", "Net", "Total GST"],
+                     ["15% GST on Expenses"],
+                     ["20-03-2026", None, 400, "Purchases", "Kiwi Packaging", "INV-77", "Packaging", "15% GST on Expenses (15%)", 383.33, 333.33, 50],
+                     ["02-04-2026", None, 400, "Purchases", "Kiwi Packaging", "INV-80", "Packaging", "15% GST on Expenses (15%)", 115, 100, 15]],
+}
+
+
+def test_the_real_xero_and_ird_layouts_are_read(env):
+    folder = env.drive_root / "real"
+    folder.mkdir()
+    for name, rows in REAL.items():
+        write_xlsx(folder / name, {"Sheet1": rows})
+    write_xlsx(folder / "Client 31_05_2026 - Subsequent GST return.xlsx", LATER_RETURN)
+    env.pm.add_job("401", "client-real", "real")
+    final = run("401", link="local://real", setup={"frequency": "six_monthly", "first_year": True})
+    g = final["gst"]
+    kinds = {s["name"]: s["kind"] for s in g["sources"]}
+    assert kinds["Client - 2026 GST Transaction Summary Report.xlsx"] == "ird_statement"
+    assert kinds["Client - 2026 GST Return Summary Report.xlsx"] == "gst_returns"
+    assert kinds["Client 31_05_2026 - Subsequent GST return.xlsx"] == "late_claims"
+    b = g["bridge"]
+    # Returns: "Total GST collected" includes the debit adjustments (not added twice); the transfer settles September.
+    assert (b["A"], b["A_current"], b["B"], b["C"]) == ("1200.00", "1200.00", "450.00", "9.75")
+    assert not g["paused"]  # "Outstanding GST" in row 6 is the GST column
+    # The journal (date in column A, narration on its "ID 29061" row) and the late claim are one adjustment.
+    (adj,) = [a for a in g["adjustments"] if a["included"]]
+    assert adj["effect"] == "-50.00" and adj["journals"] and adj["late_claims"] and adj["subsequent_return"] == "2026-05-31"
+    assert (b["E"], b["reported"], b["unexplained"]) == ("1590.25", "1590.25", "0.00")
+    assert g["status"] == "Reconciled" and g["counts"]["blocking"] == 0
+
+    wb = load_workbook(io.BytesIO(base64.b64decode(final["workbook_b64"])))
+    g1 = wb["G1 Receivables GST"]
+    assert g1["J1"].value == "G1" and g1["A3"].value == "G1 Receivables GST"
+    assert g1.print_title_rows and g1.page_setup.orientation == "landscape"
+    summary = wb["Summary"]
+    assert any(str(c.value).startswith("Status: Reconciled") for row in summary.iter_rows(max_row=10) for c in row if c.value)
