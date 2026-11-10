@@ -233,10 +233,15 @@ def execute(run_id: str, job_id: str, options: dict, pm, check=lambda: None) -> 
                     "exceptions": recon["exceptions"], "corrections": recon["corrections"],
                     "adjustments": [{k: v for k, v in a.items() if k != "evidence"} for a in recon["adjustments"]],
                     "periods": [{k: v for k, v in p.items() if k not in ("allocations", "versions")} for p in recon["periods"]],
-                    "receivables": {k: v for k, v in recon["ar"].items() if k != "items"} | {"items": len(recon["ar"]["items"])},
-                    "payables": {k: v for k, v in recon["ap"].items() if k != "items"} | {"items": len(recon["ap"]["items"])},
+                    "receivables": {k: v for k, v in recon["ar"].items() if k != "items"} | {"items": recon["ar"]["items"][:500]},
+                    "payables": {k: v for k, v in recon["ap"].items() if k != "items"} | {"items": recon["ap"]["items"][:500]},
                     "imports": recon["imports"], "counts": counts, "sources": result["sources"], "options": {k: v for k, v in options.items() if k != "firm"},
                     "rules_version": RULES_VERSION})
+    # What the reconciliation found, searchable by Ask (AFIT, 10 Nov 2026).
+    from .. import memory
+    from ..knowledge import Scope
+
+    memory.safely(memory.remember_gst, Scope.of(job), gst)
     trail = {
         "read": {"label": f"{len(sources)} documents read from Drive", "documents": len(sources), "changed": 0, "removed": [], "images_read": 0, "detail": []},
         "checked": {"label": f"{len(data.returns)} returns, {len(data.ird)} IRD lines, {len(data.gl)} ledger lines", "detail": []},

@@ -289,7 +289,20 @@ def job_payload(issue) -> dict:
         "direction_items": setup["direction_items"],
         "history": history_for(issue),
         "knowledge_ids": [],
+        # What each agent last concluded, for Ask to search (AFIT, 10 Nov 2026): kept in the agent's
+        # knowledge store as it finishes, and brought in step from here when a question is asked.
+        **latest_results(issue),
     }
+
+
+def latest_results(issue) -> dict:
+    """The latest finished pre-check, preparation guide and WP Agent GST reconciliation, in full."""
+    done = issue.prechecks.filter(status__in=[AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL]).order_by("-created_at")
+    pre = done.filter(kind=AIPrecheck.Kind.PRECHECK).only("precheck").first()
+    guide = done.filter(kind=AIPrecheck.Kind.GUIDE).only("guide").first()
+    gst = done.filter(kind=AIPrecheck.Kind.GST).only("gst").first()
+    return {"last_precheck_result": (pre.precheck or {}) if pre else {}, "last_guide": (guide.guide or {}) if guide else {},
+            "last_gst": (gst.gst or {}) if gst else {}}
 
 
 _BULLET = re.compile(r"^\s*(?:[-•*–·▪>]|\d{1,2}[.)]|[a-zA-Z][.)])\s+")

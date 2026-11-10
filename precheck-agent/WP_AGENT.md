@@ -144,3 +144,20 @@ basis changes are routed to review); rounding tolerance (0 by default, shown); w
 corrections (proposed only in release 1); the representative job set for speed and accuracy;
 carrying a structured closing reconciliation forward to next year (the result is stored in a
 form that allows it).
+
+## 7. Ask knows the WP Agent's work (10 Nov 2026)
+
+Every finished reconciliation is kept in the knowledge store (ChromaDB) as entries of its own kind,
+`wp_gst`, tagged with the task card's place — the same technique as the review's record — beside the
+pre-check's result (`precheck_result`) and the preparation guide (`guide`), each kept apart
+(`precheck_agent/memory.py`). One entry per fact: the status and summary, each bridge component, each
+return period, each receivable and payable line, each exception, proposed correction, adjustment and
+import GST item, and each document read. A new run replaces the task's entries; an unchanged result
+isn't stored again; the PM application also sends the latest results with each question, so runs from
+before this, or a restored store, are brought in step.
+
+Ask first puts a question in its area — the WP Agent's GST reconciliation, the pre-check, the guide,
+the review, or the documents (`ask.areas_of`) — searches that area's entries first (by meaning and by
+the question's own words), tells the model which area it is answering, and labels each passage with
+the agent it came from. The tags keep one client's results away from another's.
+

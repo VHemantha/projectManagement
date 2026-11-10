@@ -112,3 +112,15 @@ def test_over_long_values_from_the_agent_are_clipped_not_lost(agent):
     m = ModelRun.objects.get(precheck__run_id=run.run_id)
     assert (len(m.node), len(m.prompt_version)) == (20, 40)
     assert AIPrecheck.objects.get(pk=run.pk).status == "complete"
+
+
+def test_the_agent_is_sent_the_latest_results_for_ask(agent):
+    """10 Nov 2026: Ask answers questions about each agent's work, so the job carries the latest
+    pre-check, guide and GST reconciliation in full."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    assert services.job_payload(issue)["last_gst"] == {}
+    run = services.start_run(issue, pat, kind=AIPrecheck.Kind.GST, options=FORM)
+    complete(run.run_id, {"status": "Reconciled", "bridge": {"E": "10.00"}})
+    payload = services.job_payload(issue)
+    assert payload["last_gst"]["status"] == "Reconciled" and payload["last_guide"] == {} and payload["last_precheck_result"] == {}

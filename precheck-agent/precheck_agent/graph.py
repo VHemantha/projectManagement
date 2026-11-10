@@ -778,6 +778,13 @@ def publish(state: State) -> dict:
     reviewed, and the email is drafted, never sent."""
     final = build_final(state)
     get_store().save_run(state["run_id"], state["job_id"], final["status"], final)
+    # What this run concluded, searchable by Ask (AFIT, 10 Nov 2026).
+    from . import memory
+
+    if final.get("mode") == "guide":
+        memory.safely(memory.remember_guide, Scope.of(state["job"]), final.get("guide") or {})
+    elif final.get("precheck"):
+        memory.safely(memory.remember_precheck, Scope.of(state["job"]), final["precheck"])
     emit("verified", final["trail"]["verified"]["label"], evidence=final["trail"]["verified"]["evidence"])
     get_pm().send_event(state["run_id"], {"type": "ai_precheck.completed", "job_id": state["job_id"], "result": final})
     return {"final": final}

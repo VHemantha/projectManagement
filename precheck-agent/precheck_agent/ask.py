@@ -9,6 +9,13 @@ Retrieval works the way a person finds a card, then a page:
    (meaning alone misses "how much was 43 Te Wharo Drive sold for").
 The task's assumptions, review findings and the reviewer's feedback are searched the same way.
 
+What each agent concluded (AFIT, 10 Nov 2026) is in the store too: the pre-check's result, the
+preparation guide and the WP Agent's GST reconciliation (memory.py). The question is first put in
+its area — the WP Agent's GST reconciliation, the pre-check, the guide, the review, or the
+documents — by what it asks about; that area's entries are searched first and the model is told
+which area it is answering, so "why is the GST reconciliation unreconciled?" is answered from the
+WP Agent's work, not from a tax document that mentions GST.
+
 One Sonnet call answers, citing only the passages it was given (K ids) or the firm's skills for a
 rule. Code keeps only real citations, flags an amount that is not in the passages, and says so
 plainly when nothing relevant was found — the AI never answers from nowhere.
@@ -18,7 +25,7 @@ import re
 
 from langchain_core.messages import HumanMessage
 
-from . import learn
+from . import learn, memory
 from . import review as RV
 from .archives import display_name
 from .budget import cost_usd, usage_from_message
@@ -61,6 +68,7 @@ Answer from three kinds of knowledge, in this order of priority, and label every
 1. task_documents — the passages given (K lines): this task's documents, the preparer's assumptions, review findings, the reviewer's feedback and AFIT's learned rules. Cite the K ids in "sources". Use only figures, dates and names that appear in the passages or the question.
 2. nz_standards_law — New Zealand standards and law: NZ IFRS and PBE standards and other XRB pronouncements, the Income Tax Act 2007, the Goods and Services Tax Act 1985, the Tax Administration Act 1994, Inland Revenue guidance, the Companies Act 1993 and the Financial Reporting Act 2013; also the skills below. Give the reference (act and section, standard and paragraph, or IRD publication) in "reference".
 3. general_knowledge — anything beyond those: other countries' rules, general accounting or business practice, general facts. Say in "reference" what it is and where it comes from (e.g. "IFRS as issued by the IASB", "Australian tax law", "general practice"), so the accountant knows exactly where you went beyond the folder and NZ standards.
+- Passages labelled "Pre-check result", "Preparation guide" or "WP Agent (GST reconciliation)" are what those agents concluded for this task: answer a question about their work from them (they count as task_documents) and say whose work a point comes from. The QUESTION AREA line says which area the question was put in; if the passages show it belongs elsewhere, answer from what fits.
 - "answer": a short overall answer (at most 120 words). "points": each statement with its basis (at most 8 points, each at most 60 words). Never present a point from your own knowledge as coming from the task's documents.
 - "outside_job": true when the question is not about this task or its client (a general question). Answer it anyway, from standards, law or general knowledge.
 - "status": answered, partial (part of it), or not_found (neither the documents nor your knowledge answer it reliably: say what is missing and where it would be found).
@@ -99,6 +107,37 @@ _SYNONYMS = [
 ]
 
 
+# The area a question is about (AFIT, 10 Nov 2026): the WP Agent's GST reconciliation, the pre-check,
+# the preparation guide, the review. Most specific first; a question may be in more than one.
+AREAS = [
+    ("wp_gst", "the WP Agent's GST reconciliation",
+     r"\bwp\b|wp agent|work ?paper|reconcil|\brecon\b|\bbridge\b|unexplained|control (account|balance)|ageing|aged (receiv|payab)|"
+     r"outstanding gst|late claim|import gst|gst on imports|ird statement|transaction summary|return summary|box (5|9|13|15)\b|"
+     r"component [a-f]\b|proposed correction|reclassif|\bg1\b|\bm1\b|\bl1\b|"
+     r"\bgst\b.*\b(outstanding|owe|owing|owed|payable|receivable|refund|paid|payment|return|period|balance|claim|adjust|difference)"
+     r"|\b(outstanding|owe|owing|payable|receivable|refund|return|period|balance|difference)\b.*\bgst\b"),
+    ("precheck_result", "the pre-check",
+     r"pre-?check|still (needed|outstanding|missing|to come)|missing (document|information|item)|request(ed|s)? (from|of|to) the client|"
+     r"what (do|does|did) (we|the client|they) (need|send|provide)|key document|business nature|already provided|email to the client|"
+     r"not needed"),
+    ("guide", "the preparation guide",
+     r"\bguide\b|where (do i|to|should i) start|starting sequence|\bsequence\b|checklist|significant event|roll.?forward|"
+     r"judge?ments?|priority risks?|\bnext steps?\b|how (do i|to|should i) prepare"),
+    ("review", "the review",
+     r"\breview|finding|reviewer|assumption|draft (financial )?statements"),
+]
+AREA_LABEL = {k: label for k, label, _ in AREAS}
+RESULT_KINDS = ["precheck_result", "guide", "wp_gst"]
+PASSAGE_LABEL = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "AFIT's learned rule",
+                 "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent (GST reconciliation)"}
+
+
+def areas_of(question: str) -> list[str]:
+    """The areas a question is about, most specific first ([] for a question about the documents)."""
+    q = question.lower()
+    return [key for key, _, pattern in AREAS if re.search(pattern, q)]
+
+
 def tag_filters(question: str) -> dict:
     """The tags a question names: which year, which kinds of document."""
     q = question.lower()
@@ -131,10 +170,12 @@ def key_terms(question: str) -> list[str]:
     return out[:7]
 
 
-def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: int = 8, lessons: list[dict] | None = None) -> list[dict]:
+def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: int = 8, lessons: list[dict] | None = None,
+             areas: list[str] | None = None) -> list[dict]:
     kn, embedder = get_knowledge(), get_embedder()
     vec = embedder.embed([question])[0]
     found: dict[str, dict] = {}
+    areas = areas if areas is not None else areas_of(question)
 
     def add(hits, how):
         for h in hits:
@@ -142,6 +183,21 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
                 found[h["id"]] = {**h, "how": how}
             elif how.startswith("words") and not found[h["id"]]["how"].startswith("words"):
                 found[h["id"]]["how"] = how  # found by meaning, and it has the exact words too
+
+    # The question's own area first: that agent's conclusions (or the review's record), by meaning and
+    # by the question's exact words; then the other agents' results a little, in case it fits there.
+    for area in areas:
+        kinds = ["assumption", "finding", "feedback"] if area == "review" else [area]
+        add(kn.search(scope, vec, 10, source_types=kinds), f"area: {AREA_LABEL[area]}")
+        for term in key_terms(question)[:4]:
+            for form in dict.fromkeys((term, term.capitalize(), term.lower(), term.upper())):
+                hits = kn.search(scope, vec, 2, source_types=kinds, contains=form)
+                if hits:
+                    add(hits, f'area: {AREA_LABEL[area]}, words "{term}"')
+                    break
+    others = [x for x in RESULT_KINDS if x not in areas]
+    if others:
+        add(kn.search(scope, vec, 3 if areas else 6, source_types=others), "meaning")
 
     filters = tag_filters(question)
     narrowed = kn.search(scope, vec, k, **filters) if filters else []
@@ -163,15 +219,17 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
         add(kn.search(scope, vec, 4, level="firm", source_types=["skill"], lesson_id=[int(x["id"]) for x in lessons]), "learned rule")
     hits = [h for h in found.values() if h.get("source_type") != "document" or h.get("file_id") in files]
     hits.sort(key=lambda h: -h.get("score", 0))
-    # An exact match on a name, an address or an amount the question asked about is kept even when
-    # passages closer in meaning would fill the list.
-    exact = [h for h in hits if h["how"].startswith("words")][:8]
-    rest = [h for h in hits if h not in exact]
-    return (exact + rest)[:16]
+    # The question's area comes first; then an exact match on a name, an address or an amount the
+    # question asked about, kept even when passages closer in meaning would fill the list.
+    in_area = [h for h in hits if h["how"].startswith("area:")][:10]
+    exact = [h for h in hits if h["how"].startswith("words") and h not in in_area][:8]
+    rest = [h for h in hits if h not in in_area and h not in exact]
+    return (in_area + exact + rest)[:18]
 
 
-def build_input(job: dict, question: str, history: list[dict], hits: list[dict], files: dict) -> tuple[str, dict]:
+def build_input(job: dict, question: str, history: list[dict], hits: list[dict], files: dict, areas: list[str] | None = None) -> tuple[str, dict]:
     index, out = {}, [f"TASK: client {job.get('client_name') or ''}; task {job.get('title') or ''}"]
+    out.append("QUESTION AREA: " + (", ".join(AREA_LABEL[a] for a in areas) if areas else "this task's documents (or a general question)"))
     if history:
         out.append("\n== EARLIER IN THIS CONVERSATION ==")
         for h in history[-4:]:
@@ -186,8 +244,7 @@ def build_input(job: dict, question: str, history: list[dict], hits: list[dict],
             where = f"{display_name(f)}, {h.get('location', '')}, {year}"
             text = h["text"].split("\n", 1)[-1]
         else:
-            where = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback",
-                     "skill": "AFIT's learned rule"}[h["source_type"]]
+            where = PASSAGE_LABEL[h["source_type"]]
             text = h["text"]
         text = re.sub(r"\s+", " ", text)[:700]
         out.append(f"{kid} | [{where}] {text}")
@@ -238,7 +295,8 @@ def _view(kid: str, h: dict, files: dict) -> dict:
         e = evidence_from(f, h["blocks"][:3]) if h.get("blocks") else None
         return {"id": kid, "label": f"{display_name(f)}, {h.get('location', '')}", "how": h.get("how", ""),
                 "evidence": {k: e[k] for k in ("file_name", "location", "quote", "drive_url")} if e else None}
-    label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "Learned rule"}[h["source_type"]]
+    label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "Learned rule",
+             "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent"}[h["source_type"]]
     return {"id": kid, "label": f"{label} {h.get('ref', '')}".strip(), "how": h.get("how", ""), "evidence": {"quote": h["text"][:500]}}
 
 
@@ -248,12 +306,16 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
     scope = Scope.of(job)
     review = job.get("review") or {}
     RV.remember(scope, review, [], "ask")  # the record as it is now: assumptions, findings, feedback
+    memory.sync_from_job(job)  # and the latest pre-check, guide and WP Agent results
     files = {fid: {**row, "file_id": fid} for fid, row in get_store().get_manifest(job["client_id"], str(job["job_id"])).items()}
-    # Not read yet: still answered, from NZ standards, law and general knowledge (and said so).
+    # Not read yet: still answered, from the agents' results if there are any, and from NZ standards,
+    # law and general knowledge (and said so).
     read = bool(files) and bool(get_knowledge().count(scope))
-    hits = retrieve(scope, question, files, s, lessons=job.get("lessons") or []) if read else []
-    body, index = build_input(job, question, history or [], hits, files)
-    if not read:
+    has_results = bool(get_knowledge().count(scope, source_types=RESULT_KINDS))
+    areas = areas_of(question)
+    hits = retrieve(scope, question, files, s, lessons=job.get("lessons") or [], areas=areas) if (read or has_results) else []
+    body, index = build_input(job, question, history or [], hits, files, areas)
+    if not read and not hits:
         body = body.replace("(nothing found)", "(this task's documents have not been read yet: run the pre-check to read them)")
     nature = review.get("nature") or job.get("precheck_type") or ""
     message = get_model("assistant", s).invoke(
@@ -272,4 +334,5 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
                 "flags": [], "usage": usage, "cost_usd": round(cost, 6)}
     points = [{**pt, "sources": [_view(k, index[k], files) for k in pt["sources"]]} for pt in cleaned["points"]]
     return {**cleaned, "points": points, "sources": [_view(k, index[k], files) for k in cleaned["sources"]], "usage": usage,
+            "areas": [AREA_LABEL[a] for a in areas],
             "cost_usd": round(cost, 6), "input_tokens_est": est_tokens(body), "model": model_id("assistant", s)}
