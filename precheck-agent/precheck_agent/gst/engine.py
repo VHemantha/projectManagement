@@ -494,7 +494,7 @@ class Recon:
         for x in self.d.late_claims:
             rp, when = x.get("return_period_end"), x.get("date")
             item = {"id": _id("LC", x["id"]), "kind": "late_claim", "date": when, "ref": x.get("ref", ""), "contact": x.get("contact", ""),
-                    "description": x.get("description", ""), "gst": abs(x["gst"]), "direction": x.get("side") or "", "return_period_end": rp,
+                    "description": x.get("description", ""), "gst": x["gst"], "direction": x.get("side") or "", "return_period_end": rp,
                     "source": x["source"]}
             if rp is None or rp <= self.bd:
                 item["reason"] = "In a return for a period ending at or before the balance date: already in A."
@@ -526,66 +526,72 @@ class Recon:
         jtext = f"{j.get('ref', '')} {j.get('description', '')} {j.get('contact', '')}"
         ref_hit = bool(ref) and (ref == _norm_ref(j.get("ref", "")) or ref in _norm_ref(jtext))
         words = _tokens(f"{lc['contact']} {lc['description']}") & _tokens(jtext)
-        if ref_hit or (len(words) >= 2 and abs(abs(j["effect"]) - lc["gst"]) < Decimal("0.01")):
+        if ref_hit or (len(words) >= 2 and abs(abs(j["effect"]) - abs(lc["gst"])) < Decimal("0.01")):
             return "strong"
-        if abs(abs(j["effect"]) - lc["gst"]) < Decimal("0.01"):
+        if abs(abs(j["effect"]) - abs(lc["gst"])) < Decimal("0.01"):
             return "amount"
         return ""
 
     def adjustments(self, journals: list[dict], late: list[dict]) -> list[dict]:
-        """One adjustment per underlying GST difference, whatever order the evidence comes in."""
-        nodes = {x["id"]: x for x in journals + late}
-        parent = {k: k for k in nodes}
-
-        def find(k):
-            while parent[k] != k:
-                parent[k] = parent[parent[k]]
-                k = parent[k]
-            return k
-
-        maybe = []
+        """The later returns' late claims for the year, set off (AFIT, 10 Nov 2026): every later return is
+        gone through, each late claim taken with the sign the return shows (a credit note or reversal is
+        a minus), the pluses and minuses set off, and the remainder taken to the reconciliation — one
+        adjustment for sales and one for purchases. The remainder is recorded as the return would: a
+        purchases remainder lowers the GST payable (Expenses not claimed; a negative one is Expenses
+        claimed in error), a sales remainder raises it (Income not declared, or declared in error).
+        A journal for the same transaction is linked as evidence, never counted again; a journal no
+        late claim confirms stays a candidate, out of the bridge. The order of the evidence doesn't
+        change the result."""
+        out, linked, maybe = [], {}, []
         for j in journals:
             for lc in late:
                 how = self._same_adjustment(j, lc)
                 if how == "strong":
-                    parent[find(j["id"])] = find(lc["id"])
+                    linked.setdefault(j["id"], set()).add(lc["id"])
                 elif how == "amount":
                     maybe.append((j, lc))
-        groups: dict[str, list[dict]] = {}
-        for k in sorted(nodes):
-            groups.setdefault(find(k), []).append(nodes[k])
-        out = []
-        for members in groups.values():
-            js = [m for m in members if m["kind"] == "journal"]
-            ls = [m for m in members if m["kind"] == "late_claim"]
-            direction = (js or ls)[0]["direction"]
-            sign = 1 if direction == "output" else -1
-            j_total = sum((abs(m["effect"]) for m in js), ZERO)
-            l_total = sum((m["gst"] for m in ls), ZERO)
-            matched = min(j_total, l_total) if js and ls else ZERO
-            effect = sign * max(j_total, l_total)
-            status = ("journal and late claim: one adjustment" if js and ls else "journal entered after the return was finalised (candidate)" if js
-                      else "late claim in a later return")
-            review = not (js and ls)
-            # A journal entered after the return was finalised is a candidate, not proof (spec, step 6): it
-            # counts in the bridge once a later return's late claim corroborates it.
-            included = bool(ls)
-            if js and not ls:
-                status = "journal entered after the return was finalised: candidate, not in the bridge until confirmed"
-            if js and ls and j_total != l_total:
-                status = f"partly matched: {q(matched)} in both, {q(abs(j_total - l_total))} unmatched included once"
-                review = True
-            category = {("output", 1): "Income not declared", ("input", -1): "Expenses not claimed"}.get((direction, sign), "Other")
-            out.append({"id": _id("ADJ", *sorted(m["id"] for m in members)), "category": category, "direction": direction, "effect": q(effect),
-                        "status": status, "review": review, "included": included, "journals": [m["id"] for m in js], "late_claims": [m["id"] for m in ls],
-                        "evidence": js + ls, "year_end_amount": q(effect),
-                        "subsequent_return": next((m["return_period_end"] for m in ls if m.get("return_period_end")), None),
-                        "unmatched": q(abs(j_total - l_total)) if js and ls else None, "description": (js or ls)[0].get("description", "")})
+        for side in ("output", "input"):
+            items = sorted((lc for lc in late if lc["direction"] == side), key=lambda x: x["id"])
+            if not items:
+                continue
+            ids = {lc["id"] for lc in items}
+            js = sorted((j for j in journals if linked.get(j["id"], set()) & ids), key=lambda j: j["id"])
+            plus = sum((lc["gst"] for lc in items if lc["gst"] > 0), ZERO)
+            minus = sum((lc["gst"] for lc in items if lc["gst"] < 0), ZERO)
+            net = plus + minus
+            effect = net if side == "output" else -net
+            if side == "output":
+                category = "Income not declared" if net >= 0 else "Income declared in error"
+            else:
+                category = "Expenses not claimed" if net >= 0 else "Expenses claimed in error"
+            returns = sorted({lc["return_period_end"] for lc in items if lc.get("return_period_end")})
+            j_total = sum((abs(j["effect"]) for j in js), ZERO)
+            unmatched = q(abs(j_total - abs(net))) if js else None
+            status = (f"{len(items)} late claim(s) in {len(returns)} later return(s): {q(plus):,} plus and {q(minus):,} minus set off; "
+                      f"remainder {q(net):,}" + (f"; {len(js)} journal(s) linked as evidence" if js else ""))
+            if js and unmatched:
+                status += f" (journals and late claims differ by {unmatched:,})"
+            out.append({"id": _id("ADJ", side, *sorted(ids)), "category": category, "direction": side, "effect": q(effect), "status": status,
+                        "review": bool(js and unmatched), "included": net != 0, "journals": [j["id"] for j in js],
+                        "late_claims": [lc["id"] for lc in items], "evidence": js + items, "year_end_amount": q(effect),
+                        "subsequent_return": returns[0] if returns else None, "returns": returns, "plus": q(plus), "minus": q(minus), "net": q(net),
+                        "unmatched": unmatched,
+                        "description": f"{'Sales' if side == 'output' else 'Purchases'} late claims in later returns "
+                                       f"({', '.join(f'{d:%d/%m/%Y}' for d in returns)}), plus and minus set off"})
+        confirmed = {j for j in linked}
+        for j in journals:
+            if j["id"] in confirmed:
+                continue
+            out.append({"id": _id("ADJ", j["id"]), "category": "Income not declared" if j["direction"] == "output" else "Expenses not claimed",
+                        "direction": j["direction"], "effect": q(j["effect"]),
+                        "status": "journal entered after the return was finalised: candidate, not in the bridge until confirmed",
+                        "review": True, "included": False, "journals": [j["id"]], "late_claims": [], "evidence": [j], "year_end_amount": q(j["effect"]),
+                        "subsequent_return": None, "returns": [], "unmatched": None, "description": j.get("description", "")})
         for j, lc in maybe:
-            if find(j["id"]) != find(lc["id"]):
+            if j["id"] not in confirmed:
                 self.flag("possible_duplicate", "review", f"Journal {j['journal']} and late claim {lc['ref'] or lc['description']} have the same amount "
-                          f"({q(lc['gst'])}) but nothing else ties them: both are counted. Confirm whether they are one adjustment.",
-                          "The underlying invoice or transaction of each.", [j["source"], lc["source"]], lc["gst"])
+                          f"({q(abs(lc['gst']))}) but nothing else ties them: the late claim is counted, the journal stays a candidate. Confirm whether "
+                          "they are one adjustment.", "The underlying invoice or transaction of each.", [j["source"], lc["source"]], abs(lc["gst"]))
         return sorted(out, key=lambda a: a["id"])
 
     def import_gst(self, ledger: dict, timing_refs: set[str], late_refs: set[str]) -> dict:

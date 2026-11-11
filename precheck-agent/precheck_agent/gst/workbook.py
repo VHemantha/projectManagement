@@ -532,22 +532,26 @@ def build(result: dict, su, meta: dict) -> bytes:
           money=(5,), wrap=(3, 9, 10, 12))
     _finish(ws, head)
 
-    ws, row = sheet(wb, "Journals & late claims", "L1.4", su, meta, {1: 16, 2: 22, 3: 15, 4: 48, 5: 22, 6: 22, 7: 13, 8: 14, 9: 10, 10: 12},
-                    note="One adjustment per underlying GST difference, linked to every journal and late claim behind it. A later late claim is "
-                         "clearance evidence: it doesn't remove the year-end difference. Journal candidates count only when a late claim confirms them.")
+    ws, row = sheet(wb, "Journals & late claims", "L1.4", su, meta,
+                    {1: 14, 2: 22, 3: 14, 4: 14, 5: 14, 6: 15, 7: 26, 8: 46, 9: 22, 10: 13, 11: 9, 12: 10},
+                    note="Every later return gone through: each late claim for the year taken with the sign the return shows, pluses and minuses "
+                         "set off, the remainder taken to the reconciliation (purchases lower the GST payable, sales raise it). Journals for the same "
+                         "transactions are linked as evidence; a journal no late claim confirms stays a candidate, out of the bridge.")
     head = row
-    end = table(ws, row, ["Adjustment", "Category", "Effect (payable +)", "Status", "Journals", "Late claims", "Later return", "Unmatched part",
-                          "Review", "In bridge"],
-                [[a["id"], a["category"], a["effect"], a["status"], ", ".join(a["journals"]), ", ".join(a["late_claims"]), a.get("subsequent_return"),
-                  a.get("unmatched"), "Yes" if a["review"] else "", "Yes" if a.get("included", True) else "No"] for a in r["adjustments"]],
-                money=(3, 8), wrap=(4, 5, 6))
+    end = table(ws, row, ["Adjustment", "Category", "Plus", "Minus", "Remainder set off", "Effect (payable +)", "Later returns", "Status",
+                          "Journals linked", "Unmatched part", "Review", "In bridge"],
+                [[a["id"], a["category"], a.get("plus"), a.get("minus"), a.get("net"), a["effect"],
+                  ", ".join(d.strftime("%d/%m/%Y") for d in a.get("returns") or []), a["status"], ", ".join(a["journals"]), a.get("unmatched"),
+                  "Yes" if a["review"] else "", "Yes" if a.get("included", True) else "No"] for a in r["adjustments"]],
+                money=(3, 4, 5, 6, 10), wrap=(7, 8, 9))
     evidence = ([["Journal", x["id"], x["date"], x.get("created"), x.get("finalised"), x["description"], x["effect"], x["source"]] for x in r["journals"]]
-                + [["Late claim", x["id"], x["date"], None, x.get("return_period_end"), f"{x['ref']} {x['contact']} {x['description']}".strip(),
-                    x["gst"] if x["direction"] == "output" else -x["gst"], x["source"]] for x in r["late_claims"]]
+                + [["Late claim (" + ("sales" if x["direction"] == "output" else "purchases") + ")", x["id"], x["date"], None, x.get("return_period_end"),
+                    f"{x['ref']} {x['contact']} {x['description']}".strip(), x["gst"], x["source"]] for x in r["late_claims"]]
                 + [["Evidence only", x["id"], x["date"], None, x.get("return_period_end"), f"{x['ref']} {x['description']} — {x['reason']}",
                     x["gst"], x["source"]] for x in r["late_claims_evidence"][:500]])
-    table(ws, end + 3, ["Evidence", "Id", "Date", "Entered", "Return finalised / later return", "Description", "GST", "Source"], evidence,
-          money=(7,), wrap=(6, 8), title="Evidence: journals entered after the return, late claims in later returns")
+    table(ws, end + 3, ["Evidence", "Id", "Date", "Entered", "Return finalised / later return", "Description", "GST (as in the return; journals: effect)",
+                        "Source"], evidence, money=(7,), wrap=(6, 8),
+          title="Evidence: late claims in every later return (plus and minus, set off above) and journals entered after the return")
     _finish(ws, head)
 
     ws, row = sheet(wb, "Payment matching", "L1.5", su, meta, {1: 12, 2: 11, 3: 15, 4: 12, 5: 16, 6: 24, 7: 12, 8: 16, 9: 36, 10: 18, 11: 38, 12: 38})

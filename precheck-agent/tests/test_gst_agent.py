@@ -373,3 +373,44 @@ def test_the_real_xero_and_ird_layouts_are_read(env):
     assert g1.print_title_rows and g1.page_setup.orientation == "landscape"
     summary = wb["Summary"]
     assert any(str(c.value).startswith("Status: Reconciled") for row in summary.iter_rows(max_row=10) for c in row if c.value)
+
+
+# --- later returns: plus and minus set off, the remainder to the reconciliation (AFIT, 10 Nov 2026) ----------
+
+def _raw_claim(n, when, gst, side, period, ref, contact="Kiwi Supplies"):
+    return {"id": f"S{n}:{n}", "date": when, "ref": ref, "contact": contact, "description": "", "gst": D(gst), "side": side,
+            "return_period_end": period, "source": f"S{n} row {n}"}
+
+
+def test_late_claims_in_every_later_return_are_set_off_and_only_the_remainder_is_taken():
+    may, july = date(2026, 5, 31), date(2026, 7, 31)
+    data = E.Data(late_claims=[
+        _raw_claim(1, date(2026, 3, 10), "200", "input", may, "INV-1"),
+        _raw_claim(2, date(2026, 3, 12), "-50", "input", july, "CN-1"),  # a credit note: a minus
+        _raw_claim(3, date(2026, 3, 20), "30", "input", july, "INV-2"),
+        _raw_claim(4, date(2026, 2, 5), "40", "output", may, "INV-9", "Alpha Ltd"),
+        _raw_claim(5, date(2026, 2, 5), "-40", "output", july, "INV-9", "Alpha Ltd"),  # reversed in July
+    ], has_return_detail=True)
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
+    late, _ = r.late_claim_items(set())
+    journal = {"id": "J-1", "kind": "journal", "journal": "45", "date": date(2026, 3, 10), "effect": D("-200"), "direction": "input",
+               "description": "Missed input GST INV-1", "ref": "", "contact": "", "source": "journal 45"}
+    out = r.adjustments([journal], late)
+    purchases = next(a for a in out if a["direction"] == "input" and a["late_claims"])
+    assert (purchases["plus"], purchases["minus"], purchases["net"], purchases["effect"]) == (D("230.00"), D("-50.00"), D("180.00"), D("-180.00"))
+    assert purchases["category"] == "Expenses not claimed" and purchases["returns"] == [may, july] and purchases["included"]
+    assert purchases["journals"] == ["J-1"] and len(purchases["late_claims"]) == 3  # the journal is evidence, not counted again
+    sales = next(a for a in out if a["direction"] == "output")
+    assert sales["net"] == D("0.00") and sales["effect"] == D("0.00") and not sales["included"]  # fully set off
+    assert sum((a["effect"] for a in out if a["included"]), D(0)) == D("-180.00")
+    # The order of the evidence doesn't change the result.
+    again = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data).adjustments([journal], late[::-1])
+    assert [(a["id"], a["effect"]) for a in again] == [(a["id"], a["effect"]) for a in out]
+
+
+def test_more_minus_than_plus_is_recorded_as_claimed_in_error():
+    data = E.Data(late_claims=[_raw_claim(1, date(2026, 3, 1), "20", "input", date(2026, 5, 31), "INV-5"),
+                               _raw_claim(2, date(2026, 3, 2), "-70", "input", date(2026, 7, 31), "CN-5")], has_return_detail=True)
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
+    (adj,) = r.adjustments([], r.late_claim_items(set())[0])
+    assert (adj["net"], adj["effect"], adj["category"]) == (D("-50.00"), D("50.00"), "Expenses claimed in error")
