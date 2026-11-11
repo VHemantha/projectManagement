@@ -54,9 +54,11 @@ SUMMARY = _obj({"summary": _STR})
 ASK = {
     "gst_returns": "List every GST return period in the document, with each box as shown. One record per period and version.",
     "ird_statement": "List every line of the IRD GST account statement in order, with the GST period IRD allocated it to.",
-    "prior_year_recon": ("Read last year's GST reconciliation: the GL balance it reconciled, the IRD balance, returns unpaid at its balance date, timing "
-                         "items and unresolved items. Give GST payable to IRD as a positive amount and a refund due from IRD as a negative amount, "
-                         "whatever sign the workpaper prints."),
+    "prior_year_recon": ("Read last year's GST reconciliation: the GL balance it reconciled, the IRD balance, timing items and unresolved items. "
+                         "In unpaid_returns list only the returns the workpaper specifically shows as unpaid and carried forward to the next year, "
+                         "each with its period end and its own amount; never put the overall GST or IRD balance there, and leave the list empty "
+                         "if no return is specifically shown as unpaid. Give GST payable to IRD as a positive amount and a refund due from IRD as a "
+                         "negative amount, whatever sign the workpaper prints."),
     "late_claims": "List each transaction included in a later return that belongs to an earlier period (late claims and amendments).",
     "ageing": "Read the ageing report: one row per invoice (or per contact when only contacts are shown), with the GST column if the report has one.",
 }

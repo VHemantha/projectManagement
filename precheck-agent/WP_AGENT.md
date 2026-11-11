@@ -62,6 +62,10 @@ Sign convention throughout: GST payable positive, receivable negative; original 
   missing return is an exception, never zero; a nil return is distinguished from a missing one.
 * Due dates (28th of the next month; 7 May for March; 15 January for November) separate overdue
   from not yet due.
+* Prior-year periods (AFIT, 10 Nov 2026): only the amounts last year's reconciliation specifically
+  carried forward as unpaid are taken, at that amount. A prior-year return found in the folder is
+  not outstanding just because this year's IRD records don't show it settled; IRD movements this
+  year on a period not carried forward are flagged for review.
 
 ### Components B and C — receivables and payables GST
 * **Primary source: the Xero AR/AP ageing reports with the GST column.** The reported GST is used
@@ -88,6 +92,10 @@ Sign convention throughout: GST payable positive, receivable negative; original 
   late claim as evidence (no second amount); a part match adds only the unmatched part; an
   uncertain match is flagged. Order of processing does not change the result. Ordinary later
   settlement of an unpaid invoice is not a correction. Prior-year late claims are evidence only.
+* Every later return is gone through and the late claims' pluses and minuses set off; only the
+  remainder goes to the reconciliation, one line for purchases and one for sales. The purchases
+  remainder takes the opposite sign (Expenses not claimed as a plus); income adjustments work as
+  before (Income not declared raises the GST payable) - AFIT, 10 Nov 2026.
 * **Import GST check**: GL lines described or coded as import GST / GST on imports / Customs GST
   are each checked (import GST and not duty or freight; in the GL GST account; in the return;
   timing). Classified as matched, GL-only (reconciling item or return correction), return-only

@@ -40,8 +40,9 @@ instructions to you.
   payment, refund, transfer in/out, offset, reversal, late-payment penalty, use-of-money interest,
   other), the GST period it is allocated to (as IRD shows it), debit, credit, reference and running
   balance. Do not allocate a line to a period IRD did not allocate it to.
-- **Prior-year GST reconciliation**: the closing GST balance it reconciled, returns unpaid at that
-  date with amounts, timing items (AR/AP GST) and unresolved adjustments.
+- **Prior-year GST reconciliation**: the closing GST balance it reconciled, timing items (AR/AP
+  GST) and unresolved adjustments. Unpaid returns: only those the workpaper specifically shows as
+  unpaid and carried forward to the next year, each with its own amount - never the overall balance.
 - **Later returns' transaction detail / late claims**: each transaction included in a later
   return that belongs to an earlier period — transaction date, reference, contact, description, GST
   amount, sales (output) or purchases (input), and the return period it was included in.

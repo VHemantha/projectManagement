@@ -415,3 +415,48 @@ def test_more_minus_than_plus_is_recorded_as_claimed_in_error():
     r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
     (adj,) = r.adjustments([], r.late_claim_items(set())[0])
     assert (adj["net"], adj["effect"], adj["category"]) == (D("-50.00"), D("-50.00"), "Expenses claimed in error")
+
+
+def test_income_adjustments_work_as_before_only_purchases_change_sign():
+    """AFIT, 10 Nov 2026: the opposite sign is for the purchases remainder only; a sales remainder
+    (Income not declared) raises the GST payable as before, one declared in error lowers it."""
+    may = date(2026, 5, 31)
+    data = E.Data(late_claims=[_raw_claim(1, date(2026, 3, 1), "120", "output", may, "INV-7", "Alpha Ltd"),
+                               _raw_claim(2, date(2026, 3, 2), "80", "input", may, "INV-8")], has_return_detail=True)
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
+    out = {a["direction"]: a for a in r.adjustments([], r.late_claim_items(set())[0])}
+    assert (out["output"]["effect"], out["output"]["category"]) == (D("120.00"), "Income not declared")
+    assert (out["input"]["effect"], out["input"]["category"]) == (D("80.00"), "Expenses not claimed")
+    data = E.Data(late_claims=[_raw_claim(3, date(2026, 3, 1), "-60", "output", may, "CN-7", "Alpha Ltd")], has_return_detail=True)
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
+    (adj,) = r.adjustments([], r.late_claim_items(set())[0])
+    assert (adj["effect"], adj["category"]) == (D("-60.00"), "Income declared in error")
+
+
+def _return(end, net, start):
+    return {"period_end": end, "period_start": start, "version": "Original", "filed": end, "box8": D(net), "box9": D(0), "box12": D(0), "box13": D(0),
+            "box15": D(net), "source": f"return {end}"}
+
+
+def test_prior_year_periods_only_what_last_years_reconciliation_carried_forward():
+    """AFIT, 10 Nov 2026: a prior-year return found in the folder isn't outstanding just because this
+    year's IRD records don't show it settled; only the amounts last year's reconciliation specifically
+    carried forward as unpaid are taken, at the amount it carried forward."""
+    returns = [_return(date(2025, 1, 31), "700", date(2024, 12, 1)), _return(date(2025, 3, 31), "1200", date(2025, 2, 1)),
+               _return(date(2026, 3, 31), "2000", date(2026, 2, 1))]
+    prior = {"balance_date": date(2025, 3, 31), "gl_gst_balance": D("1900"), "ird_outstanding": D("1900"),
+             "unpaid_returns": [{"period_end": date(2025, 3, 31), "amount": D("900"), "source": "PY recon"}], "timing_items": [], "unresolved": []}
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), E.Data(returns=returns, prior_year=prior))
+    periods = r.returns_schedule()
+    r.allocate(periods)
+    by_end = {p["period_end"]: p for p in periods}
+    jan = by_end[date(2025, 1, 31)]
+    assert (jan["outstanding_bd"], jan["carried_forward"]) == (D(0), False) and "not carried forward" in jan["standing"]
+    march = by_end[date(2025, 3, 31)]
+    assert (march["net"], march["outstanding_bd"], march["carried_forward"]) == (D("900"), D("900"), True)  # the carried-forward amount, not the return's 1,200
+    assert sum((p["outstanding_bd"] for p in periods if p["prior_year"]), D(0)) == D("900")
+    # No prior-year reconciliation: nothing from prior-year periods.
+    r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), E.Data(returns=returns))
+    periods = r.returns_schedule()
+    r.allocate(periods)
+    assert sum((p["outstanding_bd"] for p in periods if p["prior_year"]), D(0)) == D(0)

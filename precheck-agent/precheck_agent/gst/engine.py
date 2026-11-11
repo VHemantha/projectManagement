@@ -167,13 +167,25 @@ class Recon:
                             "filed": r.get("filed"), "total_sales": r.get("box5"), "output": output, "box9": box9, "total_purchases": r.get("box11"),
                             "input": inp, "box13": box13, "net": net, "source": r["source"], "origin": "return",
                             "prior_year": end < self.su.fy_start, "settled_to_bd": ZERO, "settled_after": ZERO, "allocations": []}
-        # Older unpaid periods known only from last year's reconciliation.
+        # Prior-year periods (AFIT, 10 Nov 2026): only the amounts last year's reconciliation specifically
+        # carried forward to this year as unpaid are taken - never a prior-year return's own net, nor last
+        # year's balance as a whole.
+        carried = {}
         for u in (self.d.prior_year or {}).get("unpaid_returns", []):
-            end = u.get("period_end")
-            if end and end not in periods:
+            if u.get("period_end") and u.get("amount") is not None:
+                carried[u["period_end"]] = u
+        for end, row in periods.items():
+            if row["prior_year"]:
+                cf = carried.get(end)
+                row["carried_forward"] = cf is not None
+                if cf is not None:
+                    row["return_net"], row["net"] = row["net"], cf["amount"]
+                    row["source"] = f"{cf['source']}; return {row['source']}"
+        for end, u in carried.items():
+            if end not in periods and end < self.su.fy_start:
                 periods[end] = {"id": _id("R", end), "period_end": end, "period_start": None, "version": "per prior-year reconciliation", "versions": [],
                                 "filed": None, "total_sales": None, "output": None, "box9": None, "total_purchases": None, "input": None, "box13": None,
-                                "net": u["amount"], "source": u["source"], "origin": "prior_year", "prior_year": True,
+                                "net": u["amount"], "source": u["source"], "origin": "prior_year", "prior_year": True, "carried_forward": True,
                                 "settled_to_bd": ZERO, "settled_after": ZERO, "allocations": []}
         for end in self.expected_periods():
             if end not in periods:
@@ -241,10 +253,20 @@ class Recon:
             self.flag("unallocated", "review", f"IRD line {row['date']:%d/%m/%Y} {row['type']} {q(row['movement'])} isn't allocated to a GST period by IRD.",
                       "IRD's allocation of this amount (a statement showing the period).", [row["source"]], row["movement"])
         for p in periods:
-            p["outstanding_bd"] = (p["net"] or ZERO) + p["settled_to_bd"] if p["net"] is not None else None
-            p["outstanding_now"] = (p["outstanding_bd"] or ZERO) + p["settled_after"] if p["net"] is not None else None
             due = gst_due_date(p["period_end"])
             p["due"] = due
+            if p["prior_year"] and not p.get("carried_forward"):
+                # Not carried forward by last year's reconciliation: nothing outstanding is taken from it.
+                p["outstanding_bd"], p["outstanding_now"], p["paid_at_bd"] = ZERO, ZERO, "Yes"
+                p["standing"] = "prior year: not carried forward in last year's reconciliation"
+                moved = p["settled_to_bd"] + p["settled_after"]
+                if moved:
+                    self.flag("prior_not_carried", "review", f"IRD shows {q(moved)} this year for the period ending {p['period_end']:%d/%m/%Y}, but last "
+                              "year's GST reconciliation doesn't carry that period forward as unpaid. Nothing is taken for it.",
+                              "Last year's reconciliation showing that period, or IRD's explanation of the movement.", [p["source"]], moved)
+                continue
+            p["outstanding_bd"] = (p["net"] or ZERO) + p["settled_to_bd"] if p["net"] is not None else None
+            p["outstanding_now"] = (p["outstanding_bd"] or ZERO) + p["settled_after"] if p["net"] is not None else None
             ob = p["outstanding_bd"] or ZERO
             p["paid_at_bd"] = "Yes" if ob == 0 else "No"
             p["standing"] = "settled" if ob == 0 else ("overdue at balance date" if due <= self.bd else "not yet due at balance date")
@@ -536,10 +558,10 @@ class Recon:
         """The later returns' late claims for the year, set off (AFIT, 10 Nov 2026): every later return is
         gone through, each late claim taken with the sign the return shows (a credit note or reversal is
         a minus), the pluses and minuses set off, and the remainder taken to the reconciliation — one
-        adjustment for sales and one for purchases. The remainder goes to the reconciliation with the
-        opposite sign to the later returns' own (AFIT, 10 Nov 2026): a purchases remainder as a plus
-        (Expenses not claimed; a negative remainder, Expenses claimed in error, as a minus), a sales
-        remainder as a minus (Income not declared; a negative one, declared in error, as a plus).
+        adjustment for sales and one for purchases. A purchases remainder goes to the reconciliation
+        with the opposite sign to the later returns' own (AFIT, 10 Nov 2026): Expenses not claimed as a
+        plus, Expenses claimed in error as a minus. Sales work as before (AFIT, 10 Nov 2026): Income not
+        declared raises the GST payable, Income declared in error lowers it.
         A journal for the same transaction is linked as evidence, never counted again; a journal no
         late claim confirms stays a candidate, out of the bridge. The order of the evidence doesn't
         change the result."""
@@ -560,9 +582,9 @@ class Recon:
             plus = sum((lc["gst"] for lc in items if lc["gst"] > 0), ZERO)
             minus = sum((lc["gst"] for lc in items if lc["gst"] < 0), ZERO)
             net = plus + minus
-            # AFIT, 10 Nov 2026: a later return's remainder goes to the reconciliation with the opposite
-            # sign to its own - a purchases remainder as a plus, a sales remainder as a minus.
-            effect = -net if side == "output" else net
+            # AFIT, 10 Nov 2026: only a purchases remainder changes sign (taken as a plus); income
+            # adjustments work as before (a sales remainder raises the GST payable).
+            effect = net
             if side == "output":
                 category = "Income not declared" if net >= 0 else "Income declared in error"
             else:
