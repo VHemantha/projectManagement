@@ -124,3 +124,46 @@ def test_the_agent_is_sent_the_latest_results_for_ask(agent):
     complete(run.run_id, {"status": "Reconciled", "bridge": {"E": "10.00"}})
     payload = services.job_payload(issue)
     assert payload["last_gst"]["status"] == "Reconciled" and payload["last_guide"] == {} and payload["last_precheck_result"] == {}
+
+
+def complete_as(run_id, mode, gst):
+    from rest_framework.test import APIClient
+
+    result = copy.deepcopy(SAMPLE)
+    result.update(run_id=run_id, mode=mode, verdict="ready_with_exceptions", readiness=gst["status"], summary=gst["status"], findings=[], evidence=[],
+                  gst=gst, workbook_b64=base64.b64encode(workbook_bytes()).decode())
+    r = APIClient().post("/api/precheck/internal/events/", {"run_id": run_id, "type": "ai_precheck.completed", "result": result}, format="json", **TOKEN)
+    assert r.status_code == 200
+
+
+def test_the_wages_and_ica_agents_are_chosen_run_and_kept_apart(agent):
+    """10 Nov 2026: the WP Agent has three reconciliation agents (GST, wages, ICA), chosen on the panel.
+    Each has its own settings, runs, workpaper and latest result for Ask; one running doesn't block another."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    state = api(pat).get(f"/api/precheck/jobs/{issue.key}/wp-agent/?agent=wages").data
+    assert state["agent"] == "wages" and [a["key"] for a in state["agents"]] == ["gst", "wages", "ica"]
+    assert "opening_ird_payable" in state["defaults"]["setup"] and state["latest"] is None
+
+    wages = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", {**FORM, "agent": "wages",
+                                                                         "setup": {**FORM["setup"], "opening_ird_payable": "0", "opening_ica": "9"}},
+                          format="json")
+    assert wages.status_code == 201 and wages.data["kind"] == "wages"
+    path, body = agent[-1]
+    assert body["mode"] == "wages" and body["options"]["setup"]["opening_ird_payable"] == "0"
+    assert "opening_ica" not in body["options"]["setup"]  # only the chosen agent's settings are sent
+    ica = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", {**FORM, "agent": "ica", "setup": {**FORM["setup"], "opening_ica": "1146.26"}},
+                        format="json")
+    assert ica.status_code == 201 and agent[-1][1]["mode"] == "ica" and agent[-1][1]["options"]["setup"]["opening_ica"] == "1146.26"
+    assert api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", {**FORM, "agent": "ica"}, format="json").status_code == 409
+
+    complete_as(wages.data["run_id"], "wages", {"status": "Reconciled subject to corrections", "residuals": {"expense": "0.00"}})
+    complete_as(ica.data["run_id"], "ica", {"status": "Unreconciled", "retained": {"difference": "-20.51"}})
+    assert api(pat).get(f"/api/precheck/jobs/{issue.key}/wp-agent/").data["latest"] is None  # the GST panel shows only GST runs
+    got = api(pat).get(f"/api/precheck/jobs/{issue.key}/wp-agent/?agent=ica").data
+    assert got["latest"]["gst"]["retained"]["difference"] == "-20.51" and got["latest"]["has_workpaper"]
+    xlsx = api(pat).get(f"/api/precheck/runs/{wages.data['run_id']}/workpaper.xlsx")
+    assert xlsx.status_code == 200 and 'filename="Wages (PAYE) reconciliation Smith Rentals Ltd 2026-03-31.xlsx"' in xlsx["Content-Disposition"]
+    payload = services.job_payload(issue)
+    assert payload["last_wages"]["status"] == "Reconciled subject to corrections" and payload["last_ica"]["status"] == "Unreconciled"
+    assert payload["last_gst"] == {}

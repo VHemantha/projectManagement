@@ -73,10 +73,17 @@ def new_run_id() -> str:
     return uuid.uuid4().hex
 
 
-def execute_gst(run_id: str, job_id: str, options: dict) -> dict:
-    """The WP Agent's GST reconciliation (8 Nov 2026): its own pass, not the pre-check graph."""
+WP_MODES = ("gst", "wages", "ica")
+
+
+def execute_gst(run_id: str, job_id: str, options: dict, mode: str = "gst") -> dict:
+    """The WP Agent's reconciliations, each its own pass (not the pre-check graph): GST (8 Nov 2026),
+    wages (PAYE) and imputation (ICA) (10 Nov 2026)."""
     from .gst.run import GstStop
-    from .gst.run import execute as run_gst
+    from .gst.run import execute as gst_run
+    from .wp import ica, wages
+
+    run_gst = {"gst": gst_run, "wages": wages.execute, "ica": ica.execute}[mode]
 
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
@@ -87,7 +94,7 @@ def execute_gst(run_id: str, job_id: str, options: dict) -> dict:
         return _fail(run_id, job_id, str(exc))
     except Exception:  # anything unexpected: say so plainly, keep the detail in the log
         logger.exception("WP Agent run %s failed", run_id)
-        return _fail(run_id, job_id, "The GST reconciliation stopped because of an unexpected error. Nothing was changed. Please try again.")
+        return _fail(run_id, job_id, "The reconciliation stopped because of an unexpected error. Nothing was changed. Please try again.")
     finally:
         with _lock:
             _cancelled.discard(run_id)
@@ -99,8 +106,8 @@ def execute_gst(run_id: str, job_id: str, options: dict) -> dict:
 def execute(run_id: str, job_id: str, mode: str = "precheck", options: dict | None = None) -> dict:
     """Run to the end (blocking). Returns the final result, or {"status": "failed", "reason"}.
     mode "draft" stops after drafting the Direction Note (no pre-check); "gst" is the WP Agent."""
-    if mode == "gst":
-        return execute_gst(run_id, job_id, options or {})
+    if mode in WP_MODES:
+        return execute_gst(run_id, job_id, options or {}, mode)
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")
     final = None

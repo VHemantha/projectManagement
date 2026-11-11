@@ -429,9 +429,11 @@
    "nz-fs-review": "1.0+14559597",
    "nz-general-business": "2.0+12c0068b",
    "nz-gst-reconciliation": "1.0+00000000",
+   "nz-imputation-reconciliation": "1.0+00000000",
    "nz-investment": "2.0+761b52e8",
    "nz-preparation-guide": "1.0+36203fa2",
    "nz-residential-rental": "1.1+0d26e63d",
+   "nz-wages-reconciliation": "1.0+00000000",
    "precheck-method": "2.0+fed94440"
   }
  },

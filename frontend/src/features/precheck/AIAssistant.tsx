@@ -77,7 +77,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
             ? 'Ready to write'
             : 'Best after the pre-check'
 
-  // The WP Agent (AFIT, 8 Nov 2026): the GST reconciliation workpaper.
+  // The WP Agent (AFIT, 8 Nov 2026): reconciliation workpapers (GST; wages and ICA from 10 Nov 2026).
   const wpLatest = wp?.latest
   const wpStatus = !wp
     ? ''
@@ -85,7 +85,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
       ? 'Reconciling…'
       : wpLatest?.status === 'failed'
         ? 'Last run failed'
-        : (wpLatest?.gst?.status ?? 'GST reconciliation workpaper')
+        : (wpLatest?.gst?.status ? `GST: ${wpLatest.gst.status}` : 'Reconciliation workpapers')
 
   return (
     <section className={styles.assistant} aria-label="AI assistant">
@@ -97,7 +97,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
           status={precheckStatus} onOpen={() => setOpen('precheck')} />
         <Launcher icon={<ListChecks size={18} />} name="Guide" purpose="Step-by-step guide to preparing the statements"
           status={guideStatus} onOpen={() => setOpen('guide')} />
-        <Launcher icon={<FileSpreadsheet size={18} />} name="WP Agent" purpose="GST reconciliation workpaper from the Drive documents"
+        <Launcher icon={<FileSpreadsheet size={18} />} name="WP Agent" purpose="GST, wages and imputation reconciliation workpapers"
           status={wpStatus} onOpen={() => setOpen('wp')} />
         <Launcher icon={<MessageCircleQuestion size={18} />} name="Ask" purpose="Questions on this task, NZ standards and law"
           status={askStatus} onOpen={() => setOpen('ask')} />
@@ -117,7 +117,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
         </DialogContent>
       </Dialog>
       <Dialog open={open === 'wp'} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent title="WP Agent — GST reconciliation" maxWidth={1040}>
+        <DialogContent title="WP Agent — reconciliations" maxWidth={1040}>
           <WpAgentPanel jobKey={jobKey} />
         </DialogContent>
       </Dialog>

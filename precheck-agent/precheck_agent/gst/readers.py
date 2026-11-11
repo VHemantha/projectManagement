@@ -40,6 +40,7 @@ FIELDS = {
     "trial_balance": {
         "code": ["account code", "code"],
         "account": ["account", "account name", "description"],
+        "type": ["account type", "type", "class"],
         "debit": ["debit year to date", "ytd debit", "debit ytd", "debit", "dr"],
         "credit": ["credit year to date", "ytd credit", "credit ytd", "credit", "cr"],
         "balance": ["balance", "closing balance", "ytd", "year to date", "net", "amount"],
@@ -304,7 +305,7 @@ def read_trial_balance(src: Source, ai=None) -> dict:
             if balance is None:
                 continue
         code, plain = split_account(name)
-        rows.append({"account": plain, "code": t.text(values, "code") or code, "balance": balance, "source": t.ref(row_no)})
+        rows.append({"account": plain, "code": t.text(values, "code") or code, "type": t.text(values, "type"), "balance": balance, "source": t.ref(row_no)})
     return {"rows": rows, "problem": "" if rows else "No accounts were found in the trial balance."}
 
 

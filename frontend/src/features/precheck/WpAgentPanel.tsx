@@ -11,6 +11,7 @@ import {
   type GstFrequency,
   type GstResult,
   type GstSetup,
+  type WpAgentKey,
   type WpOptions,
   type WpRun,
   useRunWpAgent,
@@ -44,28 +45,78 @@ const money = (v: string | null | undefined) => {
 }
 const ddmmyy = (iso: string | null | undefined) => (iso ? format(parseISO(iso), 'dd-MM-yy') : '')
 
+/** The WP Agent's reconciliation agents (10 Nov 2026), each with the settings it adds to the common ones. */
+const AGENTS: { key: WpAgentKey; name: string; lead: string; fields: { key: string; label: string; hint?: string }[] }[] = [
+  {
+    key: 'gst', name: 'GST reconciliation', fields: [],
+    lead: 'Reconciles GST outstanding per the returns and IRD records at the balance date to the GST control balance, explains every ' +
+      "difference with its evidence, and writes the workpaper (Excel, in the firm's L1 layout).",
+  },
+  {
+    key: 'wages', name: 'Wages (PAYE) reconciliation',
+    lead: 'Reconciles payroll expense from the IRD employment information (gross earnings, net employer KiwiSaver, ESCT) to the P&L, ' +
+      'and rolls the IRD payroll (EMP) account forward to the balance date against the payroll liability accounts — two separate conclusions.',
+    fields: [
+      { key: 'opening_ird_payable', label: 'Opening IRD payroll payable (NZD)', hint: "Last year's closing; blank: taken from the documents" },
+      { key: 'wage_expense_accounts', label: 'Wage expense account(s)', hint: 'Found automatically if empty' },
+      { key: 'payroll_liability_accounts', label: 'Payroll liability account(s)', hint: 'Found automatically if empty' },
+      { key: 'schedular_payments', label: 'Schedular payments in gross earnings (NZD)' },
+      { key: 'other_expense_adjustments', label: 'Other expense adjustments (NZD)' },
+    ],
+  },
+  {
+    key: 'ica', name: 'Imputation (ICA) reconciliation',
+    lead: 'Prepares the imputation credit account (opening + credits − debits = closing) and reconciles the closing ICA, with the tax ' +
+      'still to pay, grossed up at 72/28, to retained earnings with permanent and timing differences.',
+    fields: [
+      { key: 'opening_ica', label: 'Opening ICA balance (NZD)', hint: "Last year's closing ICA return" },
+      { key: 'terminal_tax', label: 'EOY terminal tax still to pay (refund as −)', hint: 'Blank: from the tax computation or TB' },
+      { key: 'prov3_tax', label: 'Prov 3 tax still to pay/refund' },
+      { key: 'retained_earnings', label: 'Retained profit at the balance date', hint: 'Blank: from the statements or TB' },
+      { key: 'permanent_differences', label: 'Permanent tax differences (credits as −)', hint: 'Cumulative' },
+      { key: 'timing_differences', label: 'Timing tax differences', hint: 'Cumulative' },
+      { key: 'ic33', label: 'Remaining 33% IC as at 31 Mar 2011' },
+      { key: 'ic30', label: 'Remaining 30% IC as at 31 Mar 2013' },
+      { key: 'other_adjustments', label: 'Other adjustments' },
+    ],
+  },
+]
+const agentOf = (key: WpAgentKey) => AGENTS.find((a) => a.key === key) ?? AGENTS[0]
+
 function fileName(run: WpRun) {
   const s = run.options.setup
-  return `GST reconciliation ${s?.entity || ''} ${s?.balance_date || ''}`.replace(/\s+/g, ' ').trim() + '.xlsx'
+  return `${agentOf(run.kind).name} ${s?.entity || ''} ${s?.balance_date || ''}`.replace(/\s+/g, ' ').trim() + '.xlsx'
 }
 
-/** The WP Agent (AFIT, 8 Nov 2026): the year-end GST reconciliation workpaper, from the documents in a
- * Google Drive folder — returns and IRD settlements, receivables and payables GST from the Xero ageing
- * reports, journals and late claims counted once, the import GST check and payment coding — as an
- * editable Excel workpaper in the firm's L1 layout. It prepares; the accountant reviews and signs off. */
+/** The WP Agent (AFIT, 8 Nov 2026): year-end reconciliation workpapers from the documents in a Google
+ * Drive folder, by the reconciliation agent chosen — GST (the firm's L1 layout), wages (PAYE) and, from
+ * 10 Nov 2026, imputation (ICA) — as editable Excel workpapers. It prepares; the accountant reviews and
+ * signs off. */
 export function WpAgentPanel({ jobKey }: { jobKey: string }) {
-  const { data, isLoading, isError } = useWpAgent(jobKey)
-  if (isLoading) return <Skeleton height={64} />
-  if (isError || !data) return <p className={styles.muted}>The WP Agent could not be loaded. Refresh the page to try again.</p>
+  const [agent, setAgent] = useState<WpAgentKey>('gst')
+  const { data, isLoading, isError } = useWpAgent(jobKey, agent)
+  const chosen = agentOf(agent)
+  const picker = (
+    <fieldset className={styles.agents}>
+      <legend>Reconciliation agent</legend>
+      {AGENTS.map((a) => (
+        <label key={a.key} className={styles.check}>
+          <input type="radio" name="wp-agent" value={a.key} checked={agent === a.key} onChange={() => setAgent(a.key)} />
+          {a.name}
+        </label>
+      ))}
+    </fieldset>
+  )
+  if (isLoading) return <div className={styles.panel}>{picker}<Skeleton height={64} /></div>
+  if (isError || !data) return <div className={styles.panel}>{picker}<p className={styles.muted}>The WP Agent could not be loaded. Refresh the page to try again.</p></div>
   const latest = data.latest
   return (
     <div className={styles.panel}>
+      {picker}
       <p className={styles.lead}>
-        Reconciles GST outstanding per the returns and IRD records at the balance date to the GST control balance, explains every
-        difference with its evidence, and writes the workpaper (Excel, in the firm&apos;s L1 layout). It reads the Drive folder only; it
-        never posts a journal or files a return.
+        {chosen.lead} It reads the Drive folder only; it never posts a journal or files a return.
       </p>
-      <WpForm key={latest?.run_id ?? 'new'} jobKey={jobKey} defaults={data.defaults} latest={latest} />
+      <WpForm key={`${agent}-${latest?.run_id ?? 'new'}`} jobKey={jobKey} agent={agent} defaults={data.defaults} latest={latest} />
       {latest && <Result run={latest} jobKey={jobKey} />}
       {data.history.length > 1 && (
         <details className={styles.box}>
@@ -84,8 +135,9 @@ export function WpAgentPanel({ jobKey }: { jobKey: string }) {
   )
 }
 
-function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partial<WpOptions>; latest: WpRun | null }) {
-  const run = useRunWpAgent(jobKey)
+function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: WpAgentKey; defaults: Partial<WpOptions>; latest: WpRun | null }) {
+  const run = useRunWpAgent(jobKey, agent)
+  const isGst = agent === 'gst'
   const [link, setLink] = useState(defaults.drive_link ?? '')
   const [arLink, setArLink] = useState(defaults.ar_link ?? '')
   const [apLink, setApLink] = useState(defaults.ap_link ?? '')
@@ -119,7 +171,7 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           required
         />
       </label>
-      <div className={styles.grid2}>
+      {isGst && <div className={styles.grid2}>
         <label className={styles.field}>
           <span>AR ageing report link (optional; with the GST column)</span>
           <input ref={arRef} value={arLink} onChange={(e) => setArLink(e.target.value)} placeholder="Drive link to the year-end Aged Receivables" />
@@ -128,7 +180,7 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           <span>AP ageing report link (optional; with the GST column)</span>
           <input ref={apRef} value={apLink} onChange={(e) => setApLink(e.target.value)} placeholder="Drive link to the year-end Aged Payables" />
         </label>
-      </div>
+      </div>}
       <fieldset className={styles.settings}>
         <legend>Job settings — check them before the run</legend>
         <label className={styles.field}>
@@ -147,7 +199,7 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           <span>Balance date</span>
           <input type="date" value={setup.balance_date} onChange={(e) => set('balance_date', e.target.value)} required />
         </label>
-        <label className={styles.field}>
+        {isGst && <><label className={styles.field}>
           <span>GST basis</span>
           <select value={setup.basis} onChange={(e) => set('basis', e.target.value as GstBasis)}>
             {BASES.map((b) => (
@@ -169,7 +221,7 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           {detected?.frequency && detected.frequency !== setup.frequency && (
             <small className={styles.detected}>The returns look {detected.frequency.replace('_', '-')}</small>
           )}
-        </label>
+        </label></>}
         <label className={styles.field}>
           <span>Software</span>
           <input value={setup.software} onChange={(e) => set('software', e.target.value)} />
@@ -182,11 +234,17 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           <span>GL version / date used for the statements</span>
           <input value={setup.gl_version} onChange={(e) => set('gl_version', e.target.value)} />
         </label>
-        <label className={styles.field}>
+        {isGst && <label className={styles.field}>
           <span>GST control account(s)</span>
           <input value={setup.gst_accounts} onChange={(e) => set('gst_accounts', e.target.value)} placeholder="Found automatically if empty" />
           {detected?.gst_accounts?.length ? <small className={styles.detected}>Found: {detected.gst_accounts.join(', ')}</small> : null}
-        </label>
+        </label>}
+        {agentOf(agent).fields.map((f) => (
+          <label key={f.key} className={styles.field}>
+            <span>{f.label}</span>
+            <input value={String(setup[f.key] ?? '')} onChange={(e) => set(f.key, e.target.value)} placeholder={f.hint} />
+          </label>
+        ))}
         <label className={styles.field}>
           <span>Rounding tolerance (NZD)</span>
           <input value={setup.tolerance} onChange={(e) => set('tolerance', e.target.value)} inputMode="decimal" />
@@ -223,7 +281,7 @@ function WpForm({ jobKey, defaults, latest }: { jobKey: string; defaults: Partia
           {extractErrorMessage(run.error, 'The reconciliation could not be started.')}
         </p>
       )}
-      {latest && latest.status !== 'running' && latest.gst?.paused && Object.keys(latest.gst.paused).length > 0 && (
+      {isGst && latest && latest.status !== 'running' && latest.gst?.paused && Object.keys(latest.gst.paused).length > 0 && (
         <Paused
           paused={latest.gst.paused}
           onRevised={(side) => (side === 'ar' ? arRef : apRef).current?.focus()}
@@ -291,7 +349,8 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
   }
   if (run.status === 'failed') return <p role="alert" className={styles.error}>{run.failure_reason || 'The reconciliation stopped.'}</p>
   const g = run.gst
-  if (!g?.bridge) return null
+  const isGst = (run.kind ?? 'gst') === 'gst'
+  if (isGst ? !g?.bridge : !g?.lines) return null
   const b = g.bridge
   const exceptions = g.exceptions ?? []
   const download = async () => {
@@ -305,7 +364,7 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
       setBusy(false)
     }
   }
-  const rows: [string, string | null, string][] = [
+  const rows: [string, string | null, string][] = !b ? [] : [
     ['A  GST principal outstanding at balance date', b.A, `current periods ${money(b.A_current)}; prior-year periods ${money(b.A_prior)}`],
     ['B  Receivables GST not yet returned (added)', b.B, g.receivables?.source ?? ''],
     ['C  Payables GST not yet claimed (deducted)', b.C, g.payables?.source ?? ''],
@@ -334,7 +393,8 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
       </div>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {g.summary && <p className={styles.summary}>{g.summary}</p>}
-      <table className={styles.table} aria-label="Bridge">
+      {!isGst && <Statement g={g} />}
+      {isGst && <table className={styles.table} aria-label="Bridge">
         <tbody>
           {rows.map(([label, value, note]) => (
             <tr key={label} data-key={label.startsWith('E ') || label.startsWith('F ') || label.startsWith('Unexplained') ? 'total' : ''}>
@@ -344,7 +404,7 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table>}
 
       {exceptions.length > 0 && (
         <details className={styles.box} open={exceptions.some((x) => x.severity === 'blocking')}>
@@ -371,7 +431,10 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
           <ul className={styles.list}>
             {g.corrections!.map((c) => (
               <li key={c.id}>
-                <strong>{c.title}</strong> — GST control effect {money(c.gst_effect)}
+                <strong>{c.title}</strong> —{' '}
+                {c.gst_effect !== undefined
+                  ? `GST control effect ${money(c.gst_effect)}`
+                  : `expense effect ${money(c.expense_effect)}; liability effect ${money(c.liability_effect)}`}
                 <small>
                   {c.lines.map((l) => (Number(l.debit) ? `Dr ${l.account} ${money(l.debit)}` : `Cr ${l.account} ${money(l.credit)}`)).join('; ')}.{' '}
                   {c.explanation}
@@ -412,5 +475,41 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
       )}
       <p className={styles.muted}>Prepared by the WP Agent for review; sign-off stays with the reviewer. Task {jobKey}.</p>
     </section>
+  )
+}
+
+/** Wages and ICA: each conclusion, then the statement in the workpaper's own lines. */
+function Statement({ g }: { g: Partial<GstResult> }) {
+  return (
+    <>
+      {(g.conclusions?.length ?? 0) > 0 && (
+        <table className={styles.table} aria-label="Conclusions">
+          <tbody>
+            {g.conclusions!.map((c) => (
+              <tr key={c.label} data-key="total">
+                <th scope="row">{c.label}</th>
+                <td className={styles.num}>{money(c.residual)}</td>
+                <td className={styles.note}>
+                  <span className={styles.status} data-tone={STATUS_TONE[c.status] ?? ''}>{c.status}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <table className={styles.table} aria-label="Statement">
+        <tbody>
+          {(g.lines ?? []).map((l, i) => (
+            <tr key={i} data-key={l.strong ? 'total' : ''}>
+              <th scope="row" style={l.indent ? { paddingLeft: `${l.indent}em` } : undefined}>
+                {l.heading ? <strong>{l.label}</strong> : l.label}
+              </th>
+              <td className={styles.num}>{l.heading ? '' : l.ratio ? Number(l.value ?? 0).toFixed(4) : money(l.value)}</td>
+              <td className={styles.note}>{l.note ?? ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
   )
 }

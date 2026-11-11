@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WpAgentPanel } from './WpAgentPanel'
 
-const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}) }))
+const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}), agents: [] as string[] }))
 
 vi.mock('@/api/wpAgent', () => ({
-  useWpAgent: () => ({ data: mocks.state, isLoading: false, isError: false }),
-  useRunWpAgent: () => ({ mutate: mocks.run, isPending: false, isError: false }),
+  useWpAgent: (_key: string, agent = 'gst') => {
+    mocks.agents.push(agent)
+    return { data: mocks.state, isLoading: false, isError: false }
+  },
+  useRunWpAgent: (_key: string, agent = 'gst') => ({ mutate: (o: object) => mocks.run({ ...o, agent }), isPending: false, isError: false }),
   downloadWorkpaper: mocks.download,
 }))
 vi.mock('./StopRun', () => ({ StopRun: () => null }))
@@ -101,5 +104,50 @@ describe('WP Agent panel (AFIT, 8 Nov 2026)', () => {
     render(<WpAgentPanel jobKey="ACME-1" />)
     expect(screen.getByRole('region', { name: 'Progress' })).toHaveTextContent('9 documents found')
     expect(screen.getByRole('button', { name: 'Reconciling…' })).toBeDisabled()
+  })
+
+  it('a radio button chooses the wages or ICA agent, with its own settings, and runs it (10 Nov 2026)', async () => {
+    render(<WpAgentPanel jobKey="ACME-1" />)
+    const picker = screen.getByRole('group', { name: 'Reconciliation agent' })
+    expect(within(picker).getByRole('radio', { name: 'GST reconciliation' })).toBeChecked()
+    await userEvent.click(within(picker).getByRole('radio', { name: 'Imputation (ICA) reconciliation' }))
+    expect(mocks.agents.at(-1)).toBe('ica')
+    const form = screen.getByRole('form', { name: 'WP Agent inputs' })
+    expect(within(form).queryByLabelText('GST basis')).toBeNull()
+    expect(within(form).queryByLabelText(/AR ageing report link/)).toBeNull()
+    await userEvent.type(within(form).getByLabelText(/Google Drive link/), 'https://drive.google.com/drive/folders/ICA')
+    await userEvent.type(within(form).getByLabelText('Opening ICA balance (NZD)'), '1146.26')
+    await userEvent.click(within(form).getByRole('button', { name: 'Run reconciliation' }))
+    expect(mocks.run).toHaveBeenCalledWith(expect.objectContaining({ agent: 'ica', setup: expect.objectContaining({ opening_ica: '1146.26' }) }))
+    await userEvent.click(within(picker).getByRole('radio', { name: 'Wages (PAYE) reconciliation' }))
+    expect(mocks.agents.at(-1)).toBe('wages')
+    expect(screen.getByLabelText('Opening IRD payroll payable (NZD)')).toBeInTheDocument()
+  })
+
+  it('shows the wages conclusions and statement and names the workpaper after the agent', async () => {
+    mocks.state = {
+      latest: {
+        ...run({
+          status: 'Reconciled subject to corrections', summary: 'Both reconciled subject to one correction.', paused: {}, exceptions: [], sources: [],
+          conclusions: [{ label: 'Payroll expense', status: 'Reconciled subject to corrections', residual: '0.00' },
+                        { label: 'Payroll liabilities', status: 'Reconciled subject to corrections', residual: '0.00' }],
+          lines: [{ label: 'Payroll expense', heading: true }, { label: 'IRD-based employer-cost baseline', value: '178599.68', strong: true },
+                  { label: 'IRD payroll principal payable at the balance date', value: '3566.82', strong: true }],
+          corrections: [{ id: 'P1', title: 'IRD payment debited to salary expense', expense_effect: '-3766.84', liability_effect: '-3766.84', explanation: '',
+                          evidence: [], status: 'proposed', lines: [{ account: 'PAYE Payable', debit: '3766.84', credit: '0.00' }] }],
+        }),
+        kind: 'wages',
+      },
+      history: [], defaults: { setup: SETUP },
+    }
+    render(<WpAgentPanel jobKey="ACME-1" />)
+    const result = screen.getByRole('region', { name: 'Reconciliation result' })
+    expect(within(result).queryByRole('table', { name: 'Bridge' })).toBeNull()
+    expect(within(result).getByRole('table', { name: 'Conclusions' })).toHaveTextContent('Payroll liabilities')
+    expect(within(within(result).getByRole('table', { name: 'Statement' }))
+      .getByRole('row', { name: /employer-cost baseline/ })).toHaveTextContent('178,599.68')
+    expect(result).toHaveTextContent('expense effect (3,766.84); liability effect (3,766.84)')
+    await userEvent.click(within(result).getByRole('button', { name: /Download workpaper/ }))
+    expect(mocks.download).toHaveBeenCalledWith('r1', 'Wages (PAYE) reconciliation Acme Trading Ltd 2026-03-31.xlsx')
   })
 })

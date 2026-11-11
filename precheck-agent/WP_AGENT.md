@@ -161,3 +161,29 @@ the review, or the documents (`ask.areas_of`) — searches that area's entries f
 the question's own words), tells the model which area it is answering, and labels each passage with
 the agent it came from. The tags keep one client's results away from another's.
 
+
+## 8. Wages (PAYE) and imputation (ICA) reconciliation agents (10 Nov 2026)
+
+The WP Agent panel has a radio button for the reconciliation agent: **GST reconciliation**, **Wages
+(PAYE) reconciliation** or **Imputation (ICA) reconciliation**. Each has its own settings, runs,
+workpaper and latest result (backend kinds `gst`, `wages`, `ica`; `GET/POST .../wp-agent/?agent=`).
+They share the GST agent's Drive reading, AI document classification and workbook styling
+(`precheck_agent/wp/base.py`, `wp/sheets.py`); the figures are computed in code.
+
+| Agent | Code / skill | Documents | Workpaper |
+| --- | --- | --- | --- |
+| Wages | `wp/wages.py`, `skills/nz-wages-reconciliation` (rules `wages-1.0`) | IRD payroll (employment information) summary, myIR EMP transaction summary (month-first dates), TB, GL, journals, payroll register, prior-year workpaper | Summary (two conclusions), IRD monthly totals, GL mapping, IRD settlements, liability roll-forward, accruals & prior year, monthly differences, proposed journals, exceptions, sources |
+| ICA | `wp/ica.py`, `skills/nz-imputation-reconciliation` (rules `ica-1.0`) | Prior ICA return/workpaper, IRD income tax transactions, income summary / dividends, tax computation, statements, TB, GL | "Imputation Credits" and "Reconcile ICA to RE" in the firm's layout, then movements, tax payments & balances, dividends & income, historical rates, exceptions, sources |
+
+- **Wages:** expense baseline = gross (less schedular payments) + net employer KiwiSaver + ESCT,
+  bridged for accruals; liabilities = opening + current-year charges − payments to the balance date.
+  Payments charged to wages, income tax or suspense are proposed journals (not posted). No opening
+  balance and no prior-year evidence → liabilities "Incomplete evidence", never nil.
+- **ICA:** opening + credits (income tax paid, RWT, imputation credits received) − debits (refunds,
+  credits attached to dividends paid) = closing; UOMI and penalties are excluded. The closing balance
+  with terminal and Prov 3 tax is grossed up at exactly 72/28 (shown as 0.3889) and compared with
+  tax-paid retained profit; missing credits = difference × 28/72. Because the exact ratio is used,
+  figures can differ by cents from a workpaper that multiplies by a rounded 0.3889 (e.g. 2,837.65
+  vs 2,837.57 on the sample).
+- Ask stores each result as its own kind (`wp_wages`, `wp_ica`) and routes payroll/PAYE questions
+  and imputation/retained-earnings questions to them.

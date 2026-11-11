@@ -106,6 +106,11 @@ class AIPrecheck(models.Model):
         REVIEW = "review", "Review of the draft financial statements"
         GUIDE = "guide", "Preparation guide"
         GST = "gst", "GST reconciliation (WP Agent)"
+        WAGES = "wages", "Wages (PAYE) reconciliation (WP Agent)"
+        ICA = "ica", "Imputation (ICA) reconciliation (WP Agent)"
+
+    # The WP Agent's reconciliations: each keeps its result in `gst` and its workpaper in `workbook`.
+    WP_KINDS = ("gst", "wages", "ica")
 
     run_id = models.CharField(max_length=64, unique=True)  # also the agent's LangGraph thread id
     kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.PRECHECK)

@@ -41,7 +41,7 @@ describe('AIAssistant', () => {
     const wp = screen.getByRole('button', { name: /WP Agent/ })
     expect(wp).toHaveTextContent('Reconciled subject to corrections')
     await userEvent.click(wp)
-    expect(within(screen.getByRole('dialog', { name: 'WP Agent — GST reconciliation' })).getByText('wp agent panel')).toBeInTheDocument()
+    expect(within(screen.getByRole('dialog', { name: 'WP Agent — reconciliations' })).getByText('wp agent panel')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.getByRole('button', { name: /Guide/ })).toHaveTextContent('3 steps')
     expect(screen.getByText('milestones')).toBeInTheDocument()
@@ -82,7 +82,7 @@ describe('AIAssistant', () => {
     mocks.guide = { has_precheck: false, latest: null }
     mocks.wp = { latest: null, history: [], defaults: {} }
     render(<AIAssistant jobKey="SMITH-1" />)
-    expect(screen.getByRole('button', { name: /WP Agent/ })).toHaveTextContent('GST reconciliation workpaper')
+    expect(screen.getByRole('button', { name: /WP Agent/ })).toHaveTextContent('Reconciliation workpapers')
     expect(screen.getByRole('button', { name: /Pre-check/ })).toHaveTextContent('Set up the Drive folder')
     expect(screen.getByRole('button', { name: /Review/ })).toHaveTextContent('Not run yet')
     expect(screen.getByRole('button', { name: /Ask/ })).toHaveTextContent('Ask anything about this task')

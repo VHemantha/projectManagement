@@ -296,13 +296,13 @@ def job_payload(issue) -> dict:
 
 
 def latest_results(issue) -> dict:
-    """The latest finished pre-check, preparation guide and WP Agent GST reconciliation, in full."""
+    """The latest finished pre-check, preparation guide and WP Agent reconciliations (GST, wages, ICA), in full."""
     done = issue.prechecks.filter(status__in=[AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL]).order_by("-created_at")
     pre = done.filter(kind=AIPrecheck.Kind.PRECHECK).only("precheck").first()
     guide = done.filter(kind=AIPrecheck.Kind.GUIDE).only("guide").first()
-    gst = done.filter(kind=AIPrecheck.Kind.GST).only("gst").first()
+    wp = {k: done.filter(kind=k).only("gst").first() for k in AIPrecheck.WP_KINDS}
     return {"last_precheck_result": (pre.precheck or {}) if pre else {}, "last_guide": (guide.guide or {}) if guide else {},
-            "last_gst": (gst.gst or {}) if gst else {}}
+            **{f"last_{k}": (r.gst or {}) if r else {} for k, r in wp.items()}}
 
 
 _BULLET = re.compile(r"^\s*(?:[-•*–·▪>]|\d{1,2}[.)]|[a-zA-Z][.)])\s+")
@@ -388,8 +388,8 @@ def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK, options: dict |
             body["mode"] = "review"
         elif kind == AIPrecheck.Kind.GUIDE:
             body["mode"] = "guide"
-        elif kind == AIPrecheck.Kind.GST:
-            body["mode"], body["options"] = "gst", options or {}
+        elif kind in AIPrecheck.WP_KINDS:  # the WP Agent: gst, wages or ica
+            body["mode"], body["options"] = str(kind), options or {}
         _call_agent("/precheck/runs", body)
     except AgentUnavailable:
         run.status = AIPrecheck.Status.FAILED
@@ -529,7 +529,7 @@ def record_event(event: dict) -> bool:
         elif run.kind == AIPrecheck.Kind.GUIDE:
             run.guide = event["result"].get("guide") or {}
             run.save(update_fields=["guide"])
-        elif run.kind == AIPrecheck.Kind.GST:
+        elif run.kind in AIPrecheck.WP_KINDS:
             import base64
             import binascii
 

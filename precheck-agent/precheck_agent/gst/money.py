@@ -56,10 +56,31 @@ _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%d/%m/%y", "%d-%m-%Y", "%d %b %Y", "%d
                  "%Y/%m/%d", "%d.%m.%Y")
 
 
-def day(value) -> date | None:
-    """A cell or text as a date (New Zealand order: day first)."""
+_SLASHED = re.compile(r"^\s*(\d{1,2})/(\d{1,2})/(\d{2,4})\b")
+
+
+def month_first(values) -> bool:
+    """Whether a document writes dates month first (myIR's exports: "3/31/2026"): some date in it has a
+    second number above 12 and none has a first number above 12."""
+    us = nz = False
+    for v in values:
+        m = _SLASHED.match(str(v or ""))
+        if m:
+            a, b = int(m.group(1)), int(m.group(2))
+            us, nz = us or b > 12, nz or a > 12
+    return us and not nz
+
+
+def day(value, us: bool = False) -> date | None:
+    """A cell or text as a date (New Zealand order: day first; month first when `us`)."""
     if value is None or value == "":
         return None
+    if us and isinstance(value, str) and (m := _SLASHED.match(value)):
+        year = int(m.group(3)) + (2000 if len(m.group(3)) == 2 else 0)
+        try:
+            return date(year, int(m.group(1)), int(m.group(2)))
+        except ValueError:
+            return None
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):

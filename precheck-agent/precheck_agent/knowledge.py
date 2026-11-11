@@ -23,7 +23,7 @@ from .embeddings import get_embedder
 
 # precheck_result, guide, wp_gst: what the pre-check, the preparation guide and the WP Agent concluded
 # (memory.py, 10 Nov 2026), so Ask can answer questions about their work.
-SOURCE_TYPES = ("document", "assumption", "finding", "feedback", "skill", "answer", "precheck_result", "guide", "wp_gst")
+SOURCE_TYPES = ("document", "assumption", "finding", "feedback", "skill", "answer", "precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica")
 # From narrowest to widest. A search starts at one level and may widen; documents stop at vendor.
 LEVELS = ("task", "project", "vendor", "team", "firm")
 _SHARED_ACROSS_VENDORS = {"skill"}

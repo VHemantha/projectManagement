@@ -19,7 +19,7 @@ from .knowledge import Scope, get_knowledge
 from .textutil import sha
 
 logger = logging.getLogger(__name__)
-KINDS = ("precheck_result", "guide", "wp_gst")
+KINDS = ("precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica")
 MAX_ENTRIES = 600
 
 
@@ -225,9 +225,51 @@ def remember_gst(scope: Scope, g: dict) -> int:
     return remember(scope, "wp_gst", gst_entries(g), g) if g else 0
 
 
+# --- the WP Agent's wages (PAYE) and imputation (ICA) reconciliations (10 Nov 2026) -----------------------
+
+WP_NAMES = {"wp_wages": "WP Agent wages (PAYE) reconciliation", "wp_ica": "WP Agent imputation (ICA) reconciliation"}
+
+
+def wp_entries(g: dict, kind: str) -> list[dict]:
+    name = WP_NAMES[kind]
+    settings = g.get("settings") or {}
+    out = [{"key": "summary", "text": f"{name} at {settings.get('Balance date', '')}: status {g.get('status', '')}. {g.get('summary', '')}"}]
+    for c in g.get("conclusions") or []:
+        out.append({"key": f"conclusion-{c.get('label')}", "text": f"{name}: {c.get('label')} - {c.get('status')}, {_money(c.get('residual'))}."})
+    for n, ln in enumerate(g.get("lines") or [], start=1):
+        if not ln.get("heading"):
+            note = f" ({ln['note']})" if ln.get("note") else ""
+            out.append({"key": f"line-{n}", "ref": str(ln.get("label", ""))[:60], "text": f"{name}: {ln.get('label')} is {_money(ln.get('value'))}{note}."})
+    for x in g.get("exceptions") or []:
+        out.append({"key": f"exception-{x.get('id')}", "ref": x.get("id", ""),
+                    "text": f"{name} exception ({x.get('severity', '')}): {x.get('text', '')} Next evidence needed: {x.get('next_evidence', '') or '-'}"})
+    for c in g.get("corrections") or []:
+        lines = "; ".join(f"Dr {ln['account']} {_money(ln['debit'])}" if float(ln.get("debit") or 0) else f"Cr {ln['account']} {_money(ln['credit'])}"
+                          for ln in c.get("lines") or [])
+        out.append({"key": f"correction-{c.get('id')}", "text": f"{name} proposed journal (not posted): {c.get('title', '')} - {lines}. {c.get('explanation', '')}"})
+    for m in g.get("months") or []:
+        out.append({"key": f"month-{m.get('month_end')}", "text": f"{name}: month ending {m.get('month_end')} - IRD gross {_money(m.get('gross'))}, IRD "
+                                                                f"employer cost {_money(m.get('ird'))}, GL wages expense {_money(m.get('gl'))}, difference "
+                                                                f"{_money(m.get('residual'))}."})
+    for m in g.get("mapping") or []:
+        out.append({"key": f"account-{m.get('account')}", "text": f"{name}: account {m.get('account')} mapped as {m.get('role')}, balance {_money(m.get('balance'))}."})
+    for n, m in enumerate((g.get("movements") or {}).get("rows") or [], start=1):
+        out.append({"key": f"movement-{n}", "text": f"{name} ICA movement: {m.get('category')} {m.get('description', '')} credit {_money(m.get('credit'))}, "
+                                                    f"debit {_money(m.get('debit'))} {m.get('note', '')}."})
+    for s_ in g.get("sources") or []:
+        out.append({"key": f"source-{s_.get('sid')}", "text": f"{name} read {s_.get('name', '')} as {str(s_.get('kind', '')).replace('_', ' ')}."})
+    return out
+
+
+def remember_wp(scope: Scope, kind: str, g: dict) -> int:
+    return remember(scope, kind, wp_entries(g, kind), g) if g else 0
+
+
 def sync_from_job(job: dict) -> dict:
     """Keep the store in step with the PM application's record of the task's latest results."""
     scope = Scope.of(job)
     return {"precheck_result": safely(remember_precheck, scope, job.get("last_precheck_result") or {}),
             "guide": safely(remember_guide, scope, job.get("last_guide") or {}),
-            "wp_gst": safely(remember_gst, scope, job.get("last_gst") or {})}
+            "wp_gst": safely(remember_gst, scope, job.get("last_gst") or {}),
+            "wp_wages": safely(remember_wp, scope, "wp_wages", job.get("last_wages") or {}),
+            "wp_ica": safely(remember_wp, scope, "wp_ica", job.get("last_ica") or {})}

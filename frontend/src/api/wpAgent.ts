@@ -6,6 +6,8 @@ import type { ProgressEvent, RunSummary } from './precheck'
 export type GstBasis = 'payments' | 'invoice' | 'hybrid'
 export type GstFrequency = 'monthly' | 'two_monthly' | 'six_monthly'
 export type GstStatus = 'Reconciled' | 'Reconciled subject to corrections' | 'Unreconciled' | 'Incomplete evidence'
+/** The WP Agent's reconciliation agents (10 Nov 2026): GST, wages (PAYE) and imputation (ICA). */
+export type WpAgentKey = 'gst' | 'wages' | 'ica'
 
 /** The job settings the accountant confirms before a run (AFIT spec, section 4). */
 export interface GstSetup {
@@ -22,6 +24,8 @@ export interface GstSetup {
   gst_accounts: string
   first_year: boolean
   tolerance: string
+  /** The wages and ICA agents' own settings (opening balances, accounts, retained earnings, ...). */
+  [extra: string]: string | boolean
 }
 
 /** What a run is given: the Drive link(s), the ageing reports' own links, the settings and the
@@ -64,7 +68,10 @@ export interface GstCorrection {
   id: string
   title: string
   lines: { account: string; debit: string; credit: string }[]
-  gst_effect: string
+  gst_effect?: string
+  /** The wages agent's corrections act on the expense and the liability. */
+  expense_effect?: string
+  liability_effect?: string
   explanation: string
   evidence: string[]
   status: string
@@ -121,10 +128,29 @@ export interface GstResult {
   imports: { items: { id: string; description: string; amount: string; finding: string; treatment: string }[]; note: string }
   counts: { blocking: number; review: number; outstanding_returns: number }
   sources: { sid: string; name: string; path: string; kind: string; kind_how: string; error: string; url: string }[]
+  /** Wages and ICA: each conclusion, and the statement lines in the workpaper's own labels. */
+  conclusions: WpConclusion[]
+  lines: WpLine[]
+}
+
+export interface WpConclusion {
+  label: string
+  status: string
+  residual: string | null
+}
+
+export interface WpLine {
+  label: string
+  value?: string | null
+  note?: string
+  heading?: boolean
+  strong?: boolean
+  indent?: number
+  ratio?: boolean
 }
 
 export interface WpRun extends RunSummary {
-  kind: 'gst'
+  kind: WpAgentKey
   gst: Partial<GstResult>
   progress: ProgressEvent[]
   failure_reason: string
@@ -133,23 +159,25 @@ export interface WpRun extends RunSummary {
 }
 
 export interface WpAgentState {
+  agent?: WpAgentKey
+  agents?: { key: WpAgentKey; name: string; settings: string[] }[]
   latest: WpRun | null
   history: RunSummary[]
   defaults: Partial<WpOptions>
 }
 
-export function useWpAgent(jobKey: string) {
+export function useWpAgent(jobKey: string, agent: WpAgentKey = 'gst') {
   return useQuery({
-    queryKey: ['precheck', jobKey, 'wp-agent'],
-    queryFn: async () => (await apiClient.get<WpAgentState>(`/precheck/jobs/${jobKey}/wp-agent/`)).data,
+    queryKey: ['precheck', jobKey, 'wp-agent', agent],
+    queryFn: async () => (await apiClient.get<WpAgentState>(`/precheck/jobs/${jobKey}/wp-agent/`, { params: { agent } })).data,
     refetchInterval: (query) => (query.state.data?.latest?.status === 'running' ? 3000 : false),
   })
 }
 
-export function useRunWpAgent(jobKey: string) {
+export function useRunWpAgent(jobKey: string, agent: WpAgentKey = 'gst') {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (options: WpOptions) => (await apiClient.post<WpRun>(`/precheck/jobs/${jobKey}/wp-agent/`, options)).data,
+    mutationFn: async (options: WpOptions) => (await apiClient.post<WpRun>(`/precheck/jobs/${jobKey}/wp-agent/`, { ...options, agent })).data,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })
 }

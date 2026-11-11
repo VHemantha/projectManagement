@@ -251,3 +251,23 @@
     margin-left: 0;
   }
 }
+/* The reconciliation agent picker (GST, wages, ICA). */
+.agents {
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: var(--tf-radius-md);
+  margin: 0;
+  padding: var(--tf-space-2) var(--tf-space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2) var(--tf-space-4);
+}
+.agents legend {
+  font-size: var(--tf-font-size-sm);
+  font-weight: 600;
+  color: var(--tf-text);
+  padding: 0 4px;
+}
+.agents .check {
+  grid-column: auto;
+  color: var(--tf-text);
+}

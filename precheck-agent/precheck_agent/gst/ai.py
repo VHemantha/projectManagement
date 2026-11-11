@@ -65,14 +65,15 @@ ASK = {
 class Reader:
     """The run's model calls, with their usage and a cap on reading calls."""
 
-    def __init__(self, run_id: str = ""):
+    def __init__(self, run_id: str = "", purpose: str = "a New Zealand GST reconciliation", method: str = METHOD):
         self.s = get_settings()
         self.run_id = run_id
+        self.purpose, self.method = purpose, method  # the workpaper being prepared, and the skill its summary follows
         self.usage: list[dict] = []
         self.reading_calls = 0
 
     def _call(self, task: str, skill: str, body: str, schema: dict) -> dict:
-        system = (f"You are AFIT Connect's WP Agent, preparing a New Zealand GST reconciliation workpaper for an accountant.\n\n"
+        system = (f"You are AFIT Connect's WP Agent, preparing {self.purpose} workpaper for an accountant.\n\n"
                   f"# Skill: {skill}\n{get_skill(skill).body}")
         message = get_model("gst", self.s).invoke(
             [system_message("drafter", system, self.s), HumanMessage(content=body)],
@@ -88,8 +89,10 @@ class Reader:
         self.reading_calls += 1
         return self.reading_calls <= self.s.gst_max_reading_calls
 
-    def classify(self, sources: list[Source]) -> list[str]:
-        from .classify import KINDS
+    def classify(self, sources: list[Source], kinds: dict | None = None) -> list[str]:
+        from .classify import KINDS as GST_KINDS
+
+        KINDS = kinds or GST_KINDS
 
         body = ("What is each document? Kinds: " + "; ".join(f"{k} = {v}" for k, v in KINDS.items()) + "\n\n"
                 + "\n\n".join(f"== {s.sid}: {s.name} ==\n{full_text(s, limit=1500)}" for s in sources))
@@ -141,7 +144,8 @@ class Reader:
 
     def summary(self, facts: str) -> str:
         try:
-            answer = self._call("summary", METHOD, "Write the summary (3 to 6 sentences) from these results. Use only these figures.\n\n" + facts, SUMMARY)
+            answer = self._call("summary", self.method, "Write the summary (3 to 6 sentences) from these results. Use only these figures.\n\n" + facts,
+                                SUMMARY)
         except Exception:
             logger.exception("Writing the WP Agent summary failed")
             return ""

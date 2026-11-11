@@ -68,7 +68,7 @@ Answer from three kinds of knowledge, in this order of priority, and label every
 1. task_documents — the passages given (K lines): this task's documents, the preparer's assumptions, review findings, the reviewer's feedback and AFIT's learned rules. Cite the K ids in "sources". Use only figures, dates and names that appear in the passages or the question.
 2. nz_standards_law — New Zealand standards and law: NZ IFRS and PBE standards and other XRB pronouncements, the Income Tax Act 2007, the Goods and Services Tax Act 1985, the Tax Administration Act 1994, Inland Revenue guidance, the Companies Act 1993 and the Financial Reporting Act 2013; also the skills below. Give the reference (act and section, standard and paragraph, or IRD publication) in "reference".
 3. general_knowledge — anything beyond those: other countries' rules, general accounting or business practice, general facts. Say in "reference" what it is and where it comes from (e.g. "IFRS as issued by the IASB", "Australian tax law", "general practice"), so the accountant knows exactly where you went beyond the folder and NZ standards.
-- Passages labelled "Pre-check result", "Preparation guide" or "WP Agent (GST reconciliation)" are what those agents concluded for this task: answer a question about their work from them (they count as task_documents) and say whose work a point comes from. The QUESTION AREA line says which area the question was put in; if the passages show it belongs elsewhere, answer from what fits.
+- Passages labelled "Pre-check result", "Preparation guide" or "WP Agent (...)" (GST, wages or imputation reconciliation) are what those agents concluded for this task: answer a question about their work from them (they count as task_documents) and say whose work a point comes from. The QUESTION AREA line says which area the question was put in; if the passages show it belongs elsewhere, answer from what fits.
 - "answer": a short overall answer (at most 120 words). "points": each statement with its basis (at most 8 points, each at most 60 words). Never present a point from your own knowledge as coming from the task's documents.
 - "outside_job": true when the question is not about this task or its client (a general question). Answer it anyway, from standards, law or general knowledge.
 - "status": answered, partial (part of it), or not_found (neither the documents nor your knowledge answer it reliably: say what is missing and where it would be found).
@@ -110,6 +110,12 @@ _SYNONYMS = [
 # The area a question is about (AFIT, 10 Nov 2026): the WP Agent's GST reconciliation, the pre-check,
 # the preparation guide, the review. Most specific first; a question may be in more than one.
 AREAS = [
+    ("wp_ica", "the WP Agent's imputation (ICA) reconciliation",
+     r"imputation|\bica\b|\bir4j\b|retained (earnings|profit)|missing credits|terminal tax|prov(isional)? ?3|72/28|28/72|grossed up|"
+     r"permanent (tax )?differences?|timing (tax )?differences?|\bfdp\b"),
+    ("wp_wages", "the WP Agent's wages (PAYE) reconciliation",
+     r"\bwages?\b|payroll|\bpaye\b|kiwi ?saver|\besct\b|salar|employer contribution|student loan|child support|\bemp\b|payday|"
+     r"employment information|leave provision|holiday pay"),
     ("wp_gst", "the WP Agent's GST reconciliation",
      r"\bwp\b|wp agent|work ?paper|reconcil|\brecon\b|\bbridge\b|unexplained|control (account|balance)|ageing|aged (receiv|payab)|"
      r"outstanding gst|late claim|import gst|gst on imports|ird statement|transaction summary|return summary|box (5|9|13|15)\b|"
@@ -127,9 +133,10 @@ AREAS = [
      r"\breview|finding|reviewer|assumption|draft (financial )?statements"),
 ]
 AREA_LABEL = {k: label for k, label, _ in AREAS}
-RESULT_KINDS = ["precheck_result", "guide", "wp_gst"]
+RESULT_KINDS = ["precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica"]
 PASSAGE_LABEL = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "AFIT's learned rule",
-                 "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent (GST reconciliation)"}
+                 "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent (GST reconciliation)",
+                 "wp_wages": "WP Agent (wages reconciliation)", "wp_ica": "WP Agent (imputation reconciliation)"}
 
 
 def areas_of(question: str) -> list[str]:
@@ -296,7 +303,8 @@ def _view(kid: str, h: dict, files: dict) -> dict:
         return {"id": kid, "label": f"{display_name(f)}, {h.get('location', '')}", "how": h.get("how", ""),
                 "evidence": {k: e[k] for k in ("file_name", "location", "quote", "drive_url")} if e else None}
     label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "Learned rule",
-             "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent"}[h["source_type"]]
+             "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent", "wp_wages": "WP Agent (wages)",
+             "wp_ica": "WP Agent (imputation)"}[h["source_type"]]
     return {"id": kid, "label": f"{label} {h.get('ref', '')}".strip(), "how": h.get("how", ""), "evidence": {"quote": h["text"][:500]}}
 
 
