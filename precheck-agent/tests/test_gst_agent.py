@@ -4,8 +4,9 @@ income tax, one correction in a journal and a late claim ($150, not $300), part-
 debtors, a PAYE creditor, import GST matched to its return, a missing GST column (pause, then GL
 analysis), invoice and hybrid basis, a missing return, and an unchanged rerun.
 
-Expected bridge: A 2,500 (March return 2,000 + prior-year arrears 500) + B 450 - C 225 + D (-150)
-= E 2,575; reported GL 4,475 less the 1,900 reclassification = F 2,575; unexplained nil."""
+Expected bridge: A 2,500 (March return 2,000 + prior-year arrears 500) + B 450 - C 225 + D 150 (the
+later return's purchases remainder, taken as a plus: AFIT, 10 Nov 2026) = E 2,875; reported GL 4,775
+less the 1,900 reclassification = F 2,875; unexplained nil."""
 import base64
 import io
 import json
@@ -49,7 +50,7 @@ IRD = [["Date", "Effective date", "Transaction type", "Period", "Debit", "Credit
        ["05/05/2026", "05/05/2026", "GST return", "31/03/2026", 2000, None, ""],
        ["07/05/2026", "07/05/2026", "Payment", "31/03/2026", None, 2000, "PAY-0507B"]]
 TB = [["Code", "Account", "Debit", "Credit"],
-      [610, "Accounts Receivable", 4250, None], [800, "Accounts Payable", None, 2625], [820, "GST", None, 4475],
+      [610, "Accounts Receivable", 4250, None], [800, "Accounts Payable", None, 2625], [820, "GST", None, 4775],
       [830, "Income Tax Payable", 1900, None], [200, "Sales", None, 150000], [None, "Total", 6150, 6150]]
 GL = [["Date", "Account", "Description", "Reference", "Debit", "Credit", "GST", "Tax Rate"],
       ["07/05/2025", "820 - GST", "GST payment to IRD", "PAY-0507", 1000, None, None, ""],
@@ -127,8 +128,8 @@ def test_the_reconciliation_follows_the_acceptance_scenarios(env, gst_job):
     assert final["status"] == "complete", final
     g = final["gst"]
     b = g["bridge"]
-    assert (b["A"], b["A_current"], b["A_prior"], b["B"], b["C"], b["D"], b["E"]) == ("2500.00", "2000.00", "500.00", "450.00", "225.00", "-150.00", "2575.00")
-    assert (b["reported"], b["corrections"], b["F"], b["unexplained"]) == ("4475.00", "-1900.00", "2575.00", "0.00")
+    assert (b["A"], b["A_current"], b["A_prior"], b["B"], b["C"], b["D"], b["E"]) == ("2500.00", "2000.00", "500.00", "450.00", "225.00", "150.00", "2875.00")
+    assert (b["reported"], b["corrections"], b["F"], b["unexplained"]) == ("4775.00", "-1900.00", "2875.00", "0.00")
     assert g["status"] == "Reconciled subject to corrections" and final["verdict"] == "ready_with_exceptions"
     # March return paid in May: outstanding at 31 March, the payment shown apart.
     march = next(p for p in g["periods"] if p["period_end"] == "2026-03-31")
@@ -143,7 +144,7 @@ def test_the_reconciliation_follows_the_acceptance_scenarios(env, gst_job):
     assert [(ln["account"], ln["debit"], ln["credit"]) for ln in fix["lines"]] == [("GST", "1900.00", "0.00"), ("Income Tax Payable", "0.00", "1900.00")]
     # One correction in a journal and a late claim: one $150 adjustment with both as evidence.
     (adj,) = g["adjustments"]
-    assert adj["effect"] == "-150.00" and len(adj["journals"]) == 1 and len(adj["late_claims"]) == 1 and adj["subsequent_return"] == "2026-05-31"
+    assert adj["effect"] == "150.00" and len(adj["journals"]) == 1 and len(adj["late_claims"]) == 1 and adj["subsequent_return"] == "2026-05-31"
     assert adj["category"] == "Expenses not claimed"
     # Import GST matched to the return: no adjustment.
     (imp,) = g["imports"]["items"]
@@ -242,25 +243,25 @@ def test_journal_and_late_claim_are_one_adjustment_whatever_the_order():
     j, lc = _journal("45", "-150", "Missed input GST INV-2045"), _late("1", "150", "INV-2045")
     a = _recon().adjustments([j], [lc])
     b = _recon().adjustments([j], [lc][::-1])
-    assert [x["effect"] for x in a] == [D("-150.00")] and a[0]["id"] == b[0]["id"]
+    assert [x["effect"] for x in a] == [D("150.00")] and a[0]["id"] == b[0]["id"]
 
 
 def test_a_part_match_includes_only_the_unmatched_part_once():
     (adj,) = _recon().adjustments([_journal("46", "-150", "INV-2046 adjustment")], [_late("2", "200", "INV-2046")])
-    assert adj["effect"] == D("-200.00") and adj["unmatched"] == D("50.00") and adj["review"]
+    assert adj["effect"] == D("200.00") and adj["unmatched"] == D("50.00") and adj["review"]
 
 
 def test_an_equal_amount_alone_is_not_a_duplicate():
     r = _recon()
     out = r.adjustments([_journal("47", "-150", "Year end GST adjustment")], [_late("3", "150", "INV-9999", contact="Other Ltd")])
-    assert sorted(x["effect"] for x in out) == [D("-150.00"), D("-150.00")]
+    assert sorted(x["effect"] for x in out) == [D("-150.00"), D("150.00")]  # the journal candidate (out of the bridge) and the late claim
     assert any(x["code"] == "possible_duplicate" for x in r.exceptions)
 
 
 def test_one_journal_can_match_several_late_claims():
     out = _recon().adjustments([_journal("48", "-300", "Late GST INV-1 and INV-2")], [_late("4", "100", "INV-1"), _late("5", "200", "INV-2")])
     (adj,) = out
-    assert adj["effect"] == D("-300.00") and len(adj["late_claims"]) == 2 and not adj["unmatched"]
+    assert adj["effect"] == D("300.00") and len(adj["late_claims"]) == 2 and not adj["unmatched"]
 
 
 def test_import_gst_only_in_the_gl_is_a_reconciling_item():
@@ -325,7 +326,7 @@ REAL = {
     "Client_-_Trial_Balance.xlsx": [["Trial Balance"], ["Client"], ["As at 31 March 2026"], [],
         ["Account Code", "Account", "Account Type", "Debit - Year to date", "Credit - Year to date"],
         [610, "Accounts Receivable", "Current Asset", 3450, None], [800, "Accounts Payable", "Current Liability", None, 35414.62],
-        [820, "GST", "Current Liability", None, 1590.25], [230, "Contracting Income", "Sales", None, 100000]],
+        [820, "GST", "Current Liability", None, 1690.25], [230, "Contracting Income", "Sales", None, 100000]],
     "Client_-_Journal_Report.xlsx": [["Journal Report"], ["Client"], ["For the period 1 April 2025 to 31 March 2026"], [],
         ["Date", "Journal ID", "Account Code", "Account", "Debit", "Credit", "Posted Date", "Posted By"], [],
         ["ID 29061 Missed GST INV-77 Kiwi Packaging"],
@@ -363,8 +364,8 @@ def test_the_real_xero_and_ird_layouts_are_read(env):
     assert not g["paused"]  # "Outstanding GST" in row 6 is the GST column
     # The journal (date in column A, narration on its "ID 29061" row) and the late claim are one adjustment.
     (adj,) = [a for a in g["adjustments"] if a["included"]]
-    assert adj["effect"] == "-50.00" and adj["journals"] and adj["late_claims"] and adj["subsequent_return"] == "2026-05-31"
-    assert (b["E"], b["reported"], b["unexplained"]) == ("1590.25", "1590.25", "0.00")
+    assert adj["effect"] == "50.00" and adj["journals"] and adj["late_claims"] and adj["subsequent_return"] == "2026-05-31"
+    assert (b["E"], b["reported"], b["unexplained"]) == ("1690.25", "1690.25", "0.00")
     assert g["status"] == "Reconciled" and g["counts"]["blocking"] == 0
 
     wb = load_workbook(io.BytesIO(base64.b64decode(final["workbook_b64"])))
@@ -397,12 +398,12 @@ def test_late_claims_in_every_later_return_are_set_off_and_only_the_remainder_is
                "description": "Missed input GST INV-1", "ref": "", "contact": "", "source": "journal 45"}
     out = r.adjustments([journal], late)
     purchases = next(a for a in out if a["direction"] == "input" and a["late_claims"])
-    assert (purchases["plus"], purchases["minus"], purchases["net"], purchases["effect"]) == (D("230.00"), D("-50.00"), D("180.00"), D("-180.00"))
+    assert (purchases["plus"], purchases["minus"], purchases["net"], purchases["effect"]) == (D("230.00"), D("-50.00"), D("180.00"), D("180.00"))
     assert purchases["category"] == "Expenses not claimed" and purchases["returns"] == [may, july] and purchases["included"]
     assert purchases["journals"] == ["J-1"] and len(purchases["late_claims"]) == 3  # the journal is evidence, not counted again
     sales = next(a for a in out if a["direction"] == "output")
     assert sales["net"] == D("0.00") and sales["effect"] == D("0.00") and not sales["included"]  # fully set off
-    assert sum((a["effect"] for a in out if a["included"]), D(0)) == D("-180.00")
+    assert sum((a["effect"] for a in out if a["included"]), D(0)) == D("180.00")
     # The order of the evidence doesn't change the result.
     again = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data).adjustments([journal], late[::-1])
     assert [(a["id"], a["effect"]) for a in again] == [(a["id"], a["effect"]) for a in out]
@@ -413,4 +414,4 @@ def test_more_minus_than_plus_is_recorded_as_claimed_in_error():
                                _raw_claim(2, date(2026, 3, 2), "-70", "input", date(2026, 7, 31), "CN-5")], has_return_detail=True)
     r = E.Recon(E.Setup(entity="X", balance_date=date(2026, 3, 31), fy_start=date(2025, 4, 1)), data)
     (adj,) = r.adjustments([], r.late_claim_items(set())[0])
-    assert (adj["net"], adj["effect"], adj["category"]) == (D("-50.00"), D("50.00"), "Expenses claimed in error")
+    assert (adj["net"], adj["effect"], adj["category"]) == (D("-50.00"), D("-50.00"), "Expenses claimed in error")

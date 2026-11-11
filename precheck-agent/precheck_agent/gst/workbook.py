@@ -535,7 +535,7 @@ def build(result: dict, su, meta: dict) -> bytes:
     ws, row = sheet(wb, "Journals & late claims", "L1.4", su, meta,
                     {1: 14, 2: 22, 3: 14, 4: 14, 5: 14, 6: 15, 7: 26, 8: 46, 9: 22, 10: 13, 11: 9, 12: 10},
                     note="Every later return gone through: each late claim for the year taken with the sign the return shows, pluses and minuses "
-                         "set off, the remainder taken to the reconciliation (purchases lower the GST payable, sales raise it). Journals for the same "
+                         "set off, the remainder taken to the reconciliation with the opposite sign (purchases as a plus, sales as a minus). Journals for the same "
                          "transactions are linked as evidence; a journal no late claim confirms stays a candidate, out of the bridge.")
     head = row
     end = table(ws, row, ["Adjustment", "Category", "Plus", "Minus", "Remainder set off", "Effect (payable +)", "Later returns", "Status",

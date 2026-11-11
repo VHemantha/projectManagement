@@ -536,9 +536,10 @@ class Recon:
         """The later returns' late claims for the year, set off (AFIT, 10 Nov 2026): every later return is
         gone through, each late claim taken with the sign the return shows (a credit note or reversal is
         a minus), the pluses and minuses set off, and the remainder taken to the reconciliation — one
-        adjustment for sales and one for purchases. The remainder is recorded as the return would: a
-        purchases remainder lowers the GST payable (Expenses not claimed; a negative one is Expenses
-        claimed in error), a sales remainder raises it (Income not declared, or declared in error).
+        adjustment for sales and one for purchases. The remainder goes to the reconciliation with the
+        opposite sign to the later returns' own (AFIT, 10 Nov 2026): a purchases remainder as a plus
+        (Expenses not claimed; a negative remainder, Expenses claimed in error, as a minus), a sales
+        remainder as a minus (Income not declared; a negative one, declared in error, as a plus).
         A journal for the same transaction is linked as evidence, never counted again; a journal no
         late claim confirms stays a candidate, out of the bridge. The order of the evidence doesn't
         change the result."""
@@ -559,7 +560,9 @@ class Recon:
             plus = sum((lc["gst"] for lc in items if lc["gst"] > 0), ZERO)
             minus = sum((lc["gst"] for lc in items if lc["gst"] < 0), ZERO)
             net = plus + minus
-            effect = net if side == "output" else -net
+            # AFIT, 10 Nov 2026: a later return's remainder goes to the reconciliation with the opposite
+            # sign to its own - a purchases remainder as a plus, a sales remainder as a minus.
+            effect = -net if side == "output" else net
             if side == "output":
                 category = "Income not declared" if net >= 0 else "Income declared in error"
             else:

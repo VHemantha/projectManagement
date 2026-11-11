@@ -40,7 +40,7 @@ def test_the_wp_agents_work_is_kept_and_answers_questions_about_it(env, gst_job)
     entries = get_knowledge().get(scope, source_types=["wp_gst"])
     texts = " ".join(e["text"] for e in entries)
     assert len(entries) > 20 and all(e["task"] == gst_job for e in entries)
-    assert "expected GST control balance E = A + B - C + D is 2,575.00" in texts
+    assert "expected GST control balance E = A + B - C + D is 2,875.00" in texts
     assert "GST payment debited to income tax" in texts and "Alpha Ltd INV-3001" in texts
 
     out, body, labels = asked(env, env.pm.jobs[gst_job], "Why is the GST reconciliation only reconciled subject to corrections?")
