@@ -69,6 +69,9 @@ class FastEmbedder:
 
     def embed(self, texts: list[str]) -> np.ndarray:
         # A few chunks at a time keeps the memory this needs small (see config.fastembed_batch_size).
+        from .parsing import clean_text  # one bad character never stops a run (12 Nov 2026)
+
+        texts = [clean_text(t if isinstance(t, str) else str(t or "")) for t in texts]
         vectors = np.array(list(self._loaded().embed(texts, batch_size=self.batch_size)), dtype=np.float32)
         norms = np.linalg.norm(vectors, axis=1, keepdims=True)
         return vectors / np.where(norms == 0, 1, norms)

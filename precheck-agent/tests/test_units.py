@@ -117,3 +117,15 @@ def test_control_characters_never_reach_storage(env):
     chunks = get_knowledge().get(Scope.of(env.pm.jobs["1"]), file_id=fid)
     assert chunks and all("\x00" not in c["text"] and "\x01" not in c["text"] for c in chunks)
     assert "Bank export line one" in chunks[0]["text"]
+
+
+def test_broken_unicode_in_a_document_never_stops_a_run():
+    """12 Nov 2026: a document whose text held half an emoji (an unpaired surrogate) made the
+    embedder's tokenizer refuse it, and every pre-check on the task failed. It is repaired now."""
+    from precheck_agent.parsing import clean_text, scrub
+
+    assert clean_text("Rent \ud83d received") == "Rent � received"
+    assert clean_text("ok 😀 fine") == "ok \U0001F600 fine"  # a proper pair is joined
+    assert clean_text("plain\x00 text") == "plain text"
+    assert scrub({"blocks": [{"text": "a\udc80b"}]}) == {"blocks": [{"text": "a�b"}]}
+    "x".join(scrub(["\ud800"])).encode("utf-8")  # storable and tokenizable

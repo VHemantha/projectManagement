@@ -35,13 +35,25 @@ GOOGLE_EXPORTS = {
 
 
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_SURROGATE = re.compile(r"[\ud800-\udfff]")
+
+
+def clean_text(text: str) -> str:
+    """Broken Unicode (12 Nov 2026): some files decode to unpaired surrogate characters (half an
+    emoji or symbol). The embedder's tokenizer refuses such a string ("TextEncodeInput must be
+    Union[...]") and Postgres can't store it, so one such document stopped every pre-check on the
+    task. A proper pair is joined; a lone half becomes U+FFFD."""
+    if _SURROGATE.search(text):
+        text = text.encode("utf-16", "surrogatepass").decode("utf-16", "replace")
+    return _CONTROL.sub("", text)
 
 
 def scrub(value):
-    """Drop NUL and other control characters (keeping tab and new line) from every string in a
-    parsed document. Postgres cannot store NUL in text, and none of them carry meaning."""
+    """Drop NUL and other control characters (keeping tab and new line), and repair broken Unicode,
+    in every string in a parsed document. Postgres cannot store NUL in text, and none of them carry
+    meaning."""
     if isinstance(value, str):
-        return _CONTROL.sub("", value)
+        return clean_text(value)
     if isinstance(value, list):
         return [scrub(v) for v in value]
     if isinstance(value, dict):
