@@ -65,6 +65,8 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
         break
       case 'teams':
         add(['teams'])
+        add(['organization']) // the organisation's and people's names are announced as team changes
+        add(['users'])
         add(['reports', 'nav-tree'])
         add(['users', 'hierarchy']) // the People org chart groups people by team
         break

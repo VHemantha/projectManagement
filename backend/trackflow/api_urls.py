@@ -7,6 +7,7 @@ from apps.accounts.hierarchy import UserHierarchyView
 from apps.accounts.invitations import InvitationListCreateView, InvitationResendView, InvitationRevokeView
 from apps.accounts.views import UserListView
 from apps.issues.views import RecentActivityView
+from apps.orgs.views import OrganizationView, PersonNameView
 from apps.workflow.views import IssueTypeListView
 
 
@@ -21,6 +22,8 @@ urlpatterns = [
     path("auth/", include("apps.accounts.urls")),
     path("users/", UserListView.as_view(), name="user-list"),
     path("users/hierarchy/", UserHierarchyView.as_view(), name="user-hierarchy"),
+    path("users/<int:pk>/", PersonNameView.as_view(), name="user-name"),
+    path("organization/", OrganizationView.as_view(), name="organization"),
     path("invitations/", InvitationListCreateView.as_view(), name="invitation-list"),
     path("invitations/<int:pk>/resend/", InvitationResendView.as_view(), name="invitation-resend"),
     path("invitations/<int:pk>/revoke/", InvitationRevokeView.as_view(), name="invitation-revoke"),

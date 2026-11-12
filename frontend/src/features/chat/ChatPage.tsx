@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import styles from './ChatPage.module.css'
 import { ChannelList } from './ChannelList'
 import { MessageThread } from './MessageThread'
+import { PeopleStrip } from './PeopleStrip'
 import { useChannels } from '@/api/chat'
 import type { Channel } from '@/api/types'
 
@@ -28,7 +29,9 @@ export function ChatPage() {
   const selected = channels?.find((c) => c.id === selectedId) ?? channels?.[0] ?? null
 
   return (
-    <div className={styles.layout}>
+    <div className={styles.page}>
+      <PeopleStrip channels={channels} selectedId={selected?.id ?? null} onOpen={handleSelect} />
+      <div className={styles.layout}>
       <ChannelList selectedChannelId={selected?.id ?? null} onSelect={handleSelect} />
       {selected ? (
         <MessageThread channel={selected} />
@@ -37,6 +40,7 @@ export function ChatPage() {
           <div className={styles.empty}>Select a channel to start chatting.</div>
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -114,6 +114,8 @@ export function MessageThread({ channel }: { channel: Channel }) {
         <div className={styles.typingIndicator}>{typingUser && `${typingUser.displayName} is typing…`}</div>
 
         <MessageComposer
+          // A fresh box per conversation: the editor sets its placeholder ("Message Ann…") only when created.
+          key={channel.id}
           channel={channel}
           onSend={(body, mentioned) => {
             sendMessage(body, undefined, mentioned)

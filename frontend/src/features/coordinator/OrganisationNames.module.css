@@ -1,0 +1,178 @@
+/* The CEO's Names tab: every name in the organisation, editable in place. */
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-4);
+  max-width: 980px;
+}
+
+.lead {
+  margin: 0;
+  font-size: 14px;
+  color: var(--tf-text-secondary);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  height: 40px;
+  padding: 0 var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text-subtle);
+}
+.search:focus-within {
+  border-color: var(--tf-primary);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 14px;
+}
+.search input:focus {
+  outline: none;
+}
+
+.section {
+  padding: var(--tf-space-4) var(--tf-space-5);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface);
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin: 0 0 var(--tf-space-3);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.sectionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+}
+.count {
+  padding: 0 var(--tf-space-2);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-hover);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-text-secondary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+.row {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) minmax(120px, 220px);
+  align-items: center;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-2) 0;
+  border-top: 1px solid var(--tf-border);
+}
+.row:first-child {
+  border-top: none;
+}
+.rowLabel {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  min-width: 0;
+}
+.hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+
+.field {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.field input {
+  height: 34px;
+  padding: 0 var(--tf-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+.field input:hover {
+  border-color: var(--tf-border);
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--tf-primary);
+  background: var(--tf-surface);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--tf-success);
+}
+.error {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--tf-danger);
+}
+
+.swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--tf-radius-sm);
+}
+.key {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+}
+.muted {
+  margin: 0;
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .hint {
+    grid-column: 2;
+  }
+}

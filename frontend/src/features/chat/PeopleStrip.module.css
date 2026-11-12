@@ -1,0 +1,143 @@
+/* Everyone as badges across the top of chat. */
+.strip {
+  flex-shrink: 0;
+  padding: var(--tf-space-3) var(--tf-space-4) var(--tf-space-2);
+  border-bottom: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-2);
+}
+.title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tf-text-secondary);
+}
+.filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0 var(--tf-space-2);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
+  color: var(--tf-text-subtle);
+}
+.filter:focus-within {
+  border-color: var(--tf-primary);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
+.filter input {
+  width: 140px;
+  border: none;
+  background: none;
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 13px;
+}
+.filter input:focus {
+  outline: none;
+}
+
+/* One row that scrolls sideways when there are more people than fit. */
+.people {
+  display: flex;
+  gap: var(--tf-space-2);
+  margin: 0;
+  padding: 2px 2px var(--tf-space-2);
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tf-border) transparent;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 var(--tf-space-3) 0 5px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+.badge:hover:not(:disabled) {
+  border-color: var(--tf-primary);
+  background: var(--tf-primary-subtle);
+}
+.badge:focus-visible {
+  outline: 2px solid var(--tf-primary);
+  outline-offset: 2px;
+}
+/* The person you're talking to: solid maroon, hovered or not. */
+.badge[aria-pressed='true'],
+.badge[aria-pressed='true']:hover:not(:disabled) {
+  border-color: var(--tf-primary);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+}
+.badge:disabled {
+  cursor: progress;
+}
+
+.avatar {
+  position: relative;
+  display: inline-flex;
+}
+.online {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--tf-surface);
+  border-radius: 50%;
+  background: var(--tf-success);
+}
+
+.name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.unread {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+.badge[aria-pressed='true'] .unread {
+  background: var(--tf-surface);
+  color: var(--tf-primary);
+}
+
+.none {
+  padding: var(--tf-space-2);
+  font-size: 13px;
+  color: var(--tf-text-subtle);
+}
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tf-danger);
+}

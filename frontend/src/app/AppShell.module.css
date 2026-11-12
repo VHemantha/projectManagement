@@ -61,10 +61,24 @@
   display: block;
 }
 
+.sidebarLogo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
 .sidebarLogoText {
   font-weight: 700;
   font-size: 15px;
   white-space: nowrap;
+}
+.sidebarOrgName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--tf-text-subtle);
 }
 
 .sidebarNav {

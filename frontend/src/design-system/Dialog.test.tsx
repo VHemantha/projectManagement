@@ -5,7 +5,13 @@ import { keepOpenForSelect } from './Dialog'
 /** An Escape keydown from `target`, with the dropdown's :open state as given. */
 function escapeFrom(target: Element, open: boolean) {
   const select = target.closest('select')
-  if (select) select.matches = (q: string) => (q === ':open' ? open : Element.prototype.matches.call(select, q))
+  // jsdom has no :open, so the dropdown says whether it is open.
+  if (select) {
+    Object.defineProperty(select, 'matches', {
+      configurable: true,
+      value: (q: string) => (q === ':open' ? open : Element.prototype.matches.call(select, q)),
+    })
+  }
   const event = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true })
   Object.defineProperty(event, 'target', { value: target })
   const prevent = vi.spyOn(event, 'preventDefault')

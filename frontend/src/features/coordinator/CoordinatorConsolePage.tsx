@@ -3,6 +3,7 @@ import { type FormEvent, Fragment, useState } from 'react'
 
 import styles from './Coordinator.module.css'
 import { leaveDays } from './leaveText'
+import { OrganisationNames } from './OrganisationNames'
 import { RatingsTab } from './RatingsTab'
 import {
   type CaseEvent,
@@ -52,6 +53,7 @@ export function CoordinatorConsolePage() {
       <Tabs defaultValue="controls">
         <TabsList aria-label="Coordinator console">
           <TabsTrigger value="controls">Controls</TabsTrigger>
+          <TabsTrigger value="names">Names</TabsTrigger>
           <TabsTrigger value="cases">Follow-ups</TabsTrigger>
           <TabsTrigger value="ratings">Ratings</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
@@ -62,6 +64,7 @@ export function CoordinatorConsolePage() {
           <TabsTrigger value="audit">Audit log</TabsTrigger>
         </TabsList>
         <TabsContent value="controls"><Controls /></TabsContent>
+        <TabsContent value="names"><OrganisationNames /></TabsContent>
         <TabsContent value="cases"><FollowUps /></TabsContent>
         <TabsContent value="ratings"><RatingsTab /></TabsContent>
         <TabsContent value="rules"><Rules /></TabsContent>

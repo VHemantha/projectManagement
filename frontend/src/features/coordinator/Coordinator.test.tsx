@@ -57,6 +57,7 @@ vi.mock('@/api/coordinator', () => ({
   useAudit: () => ({ data: { entries: [] } }),
 }))
 vi.mock('@/app/ProjectSwitcher', () => ({ ProjectSwitcher: () => null }))
+vi.mock('@/api/organisation', () => ({ useOrganisation: () => ({ data: { id: 1, name: 'AFIT Connect', can_edit: false } }) }))
 
 const user = (role: 'member' | 'ceo') =>
   ({ id: 1, email: 'x@example.com', username: 'x', display_name: 'X', job_title: '', avatar: null, is_staff: role === 'ceo', role }) as CurrentUser

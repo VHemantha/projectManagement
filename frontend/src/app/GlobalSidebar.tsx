@@ -20,6 +20,7 @@ import { Link, NavLink } from 'react-router-dom'
 
 import styles from './AppShell.module.css'
 import { ProjectSwitcher } from './ProjectSwitcher'
+import { useOrganisation } from '@/api/organisation'
 import { Tooltip } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 import { useSidebarStore } from '@/store/sidebarStore'
@@ -60,6 +61,7 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
   // mobile whenever the drawer is open (a drawer is always the full-width rail).
   const showLabels = expanded || drawerOpen
   const isCeo = useAuthStore((s) => s.user?.role === 'ceo')
+  const { data: org } = useOrganisation()
   const setPanelOpen = useSidebarStore((s) => s.setOpen)
   // The Kanban board opens with its workspaces panel, which collapses this sidebar.
   const onNavigate = (to: string) => {
@@ -89,7 +91,13 @@ export function GlobalSidebar({ expanded, onToggle, drawerOpen, onCloseDrawer }:
           <span className={styles.sidebarLogoMark}>
             <img src="/favicon.svg" alt="" width={28} height={28} />
           </span>
-          {showLabels && <span className={styles.sidebarLogoText}>TASKO</span>}
+          {showLabels && (
+            <span className={styles.sidebarLogo}>
+              <span className={styles.sidebarLogoText}>TASKO</span>
+              {/* The organisation's name, which the CEO sets (console, Names). */}
+              {org?.name && org.name !== 'TASKO' && <span className={styles.sidebarOrgName}>{org.name}</span>}
+            </span>
+          )}
         </Link>
       </Tooltip>
       <nav className={styles.sidebarNav}>
