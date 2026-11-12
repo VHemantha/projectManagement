@@ -58,6 +58,41 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for the step-by-step AWS free-tier deployment
 nginx + gunicorn/uvicorn, Postgres local or RDS, React on S3 + CloudFront, CloudFormation
 template in `deploy/`).
 
+### Deploying from this PC (Viraj's machine)
+
+The EC2 SSH key on this PC is `C:\Users\viraj\.ssh\trackflow-key.pem` (it was under
+`C:\Users\Techon Computers\.ssh\` on the old PC). Run everything in **Git Bash** from the repo
+root.
+
+**One-time setup on this PC:**
+
+1. Install the AWS CLI v2 (https://awscli.amazonaws.com/AWSCLIV2.msi), restart Git Bash, then run
+   `aws configure` with the deploy user's access key and the stack's region.
+   `aws sts get-caller-identity` should print the account id.
+2. Check the key: `ssh-keygen -y -f /c/Users/viraj/.ssh/trackflow-key.pem > /dev/null && echo "key OK"`
+
+**Push to GitHub and deploy to AWS:** commit your changes first, because the backend deploy
+ships committed code only. Then run:
+
+```bash
+git push origin main && \
+SSH_KEY="/c/Users/viraj/.ssh/trackflow-key.pem" ./deploy/scripts/deploy_backend.sh && \
+./deploy/scripts/deploy_frontend.sh
+```
+
+Each step runs only if the one before it succeeded: push to GitHub, then the backend (with the
+AI pre-check service) to EC2, then the frontend to S3 + CloudFront.
+
+To deploy just one part:
+
+```bash
+SSH_KEY="/c/Users/viraj/.ssh/trackflow-key.pem" ./deploy/scripts/deploy_backend.sh   # backend only
+./deploy/scripts/deploy_frontend.sh                                                  # frontend only
+```
+
+If the repository variable `DEPLOY_ENABLED=true` is set on GitHub, a push to `main` also deploys
+through GitHub Actions. In that case `git push origin main` on its own is enough.
+
 ## What's implemented
 
 - **Auth & workspace**: email/password signup+login (JWT), profile page with avatar upload
