@@ -1,8 +1,8 @@
 /*
  * TASKO design tokens — the one place colours are defined.
  *
- * Palette: maroon and white (AFIT, 14 Oct 2026) - a maroon primary on white surfaces with a
- * faint warm tint, and pink, blue, teal, orange and green accents for meaning (status, priority). Text colours and every "-text"/accent
+ * Palette: wine maroon and white (AFIT, 12 Nov 2026, from the task-card design; first set 14 Oct
+ * 2026) - a wine-maroon primary on white surfaces with cool light-grey neutrals, and pink, blue, teal, orange and green accents for meaning (status, priority). Text colours and every "-text"/accent
  * foreground meet WCAG AA (4.5:1) on the surfaces they're used on; "-solid" colours are for
  * bars, dots and chips (3:1 against white, the non-text minimum). src/design-system/
  * tokens.test.ts checks these pairs. The app has no dark mode, so there is one set.
@@ -12,41 +12,41 @@
  */
 :root {
   /* Brand / primary (maroon) */
-  --tf-primary: #800000;
-  --tf-primary-hover: #660000;
-  --tf-primary-subtle: #f8eaea;
-  --tf-primary-strong: #5c0a0a;
+  --tf-primary: #7a1f3d;
+  --tf-primary-hover: #63182f;
+  --tf-primary-subtle: #f7ebef;
+  --tf-primary-strong: #561429;
   /* Older names, kept so nothing breaks: they are the primary now. */
   --tf-blue: var(--tf-primary);
   --tf-blue-hover: var(--tf-primary-hover);
   --tf-blue-subtle: var(--tf-primary-subtle);
 
   /* Surfaces */
-  --tf-bg: #f8f6f6;
+  --tf-bg: #f5f5f7;
   --tf-surface: #ffffff;
-  --tf-surface-sunken: #fbf9f9;
-  --tf-surface-hover: #f6eeee;
-  --tf-surface-pressed: #ecdddd;
+  --tf-surface-sunken: #f4f4f7;
+  --tf-surface-hover: #f1f1f4;
+  --tf-surface-pressed: #e6e6eb;
   --tf-sidebar-bg: #ffffff;
-  --tf-sidebar-hover: #f6eeee;
+  --tf-sidebar-hover: #f1f1f4;
 
   /* Borders */
-  --tf-border: #e8dfdf;
-  --tf-border-subtle: rgba(51, 26, 26, 0.12);
+  --tf-border: #e3e3e8;
+  --tf-border-subtle: rgba(20, 20, 35, 0.1);
   --tf-border-focus: var(--tf-primary);
 
   /* Text */
-  --tf-text: #2a1a1a;
-  --tf-text-secondary: #554545;
-  --tf-text-subtle: #6b5c5c;
+  --tf-text: #1c1c21;
+  --tf-text-secondary: #45454f;
+  --tf-text-subtle: #62626c;
   --tf-text-inverse: #ffffff;
   --tf-text-link: var(--tf-primary);
 
   /* Status category colours (badges) */
-  --tf-status-todo-bg: #f0ebeb;
-  --tf-status-todo-text: #554545;
-  --tf-status-inprogress-bg: #f8eaea;
-  --tf-status-inprogress-text: #800000;
+  --tf-status-todo-bg: #efeff3;
+  --tf-status-todo-text: #45454f;
+  --tf-status-inprogress-bg: #f7ebef;
+  --tf-status-inprogress-text: #7a1f3d;
   --tf-status-done-bg: #dcfce7;
   --tf-status-done-text: #15803d;
 
@@ -58,7 +58,7 @@
   --tf-priority-lowest: #3b6ff5;
 
   /* Job type colours (icon squares) */
-  --tf-type-epic: #a3243b;
+  --tf-type-epic: #9c2a4d;
   --tf-type-story: #1f9d63;
   --tf-type-task: #3b6ff5;
   --tf-type-bug: #e0453c;
@@ -77,8 +77,8 @@
 
   /* Accents: icon chips and highlights. Each foreground passes WCAG AA on its own -bg. */
   /* "violet" is the brand accent: maroon now (the name is kept so nothing breaks). */
-  --tf-accent-violet: #800000;
-  --tf-accent-violet-bg: #f8eaea;
+  --tf-accent-violet: #7a1f3d;
+  --tf-accent-violet-bg: #f7ebef;
   --tf-accent-pink: #be185d;
   --tf-accent-pink-bg: #fce7f3;
   --tf-accent-blue: #1d4ed8;
@@ -91,16 +91,16 @@
   --tf-accent-green-bg: #dcfce7;
 
   /* Solid accents for bars, dots and column stripes (non-text, >= 3:1 on white). */
-  --tf-solid-grey: #857777;
+  --tf-solid-grey: #81818c;
   --tf-solid-blue: #3b6ff5;
-  --tf-solid-violet: #a3243b;
+  --tf-solid-violet: #9c2a4d;
   --tf-solid-orange: #e2620c;
   --tf-solid-pink: #e0457b;
   --tf-solid-green: #1f9d63;
   --tf-solid-teal: #0e8f80;
 
   /* Dark tooltip / code surfaces */
-  --tf-inverse-bg: #2a1a1a;
+  --tf-inverse-bg: #1c1c21;
 
   /* Spacing (4px/8px grid) */
   --tf-space-1: 4px;
@@ -113,16 +113,16 @@
   --tf-space-10: 40px;
 
   /* Radius */
-  --tf-radius-sm: 4px;
-  --tf-radius-md: 6px;
-  --tf-radius-lg: 10px;
+  --tf-radius-sm: 6px;
+  --tf-radius-md: 8px;
+  --tf-radius-lg: 12px;
   --tf-radius-full: 999px;
 
-  /* Shadows: soft, slightly warm */
-  --tf-shadow-sm: 0 1px 2px rgba(51, 26, 26, 0.12);
-  --tf-shadow-md: 0 4px 10px -2px rgba(51, 26, 26, 0.16), 0 0 1px rgba(51, 26, 26, 0.25);
-  --tf-shadow-lg: 0 10px 24px -6px rgba(51, 26, 26, 0.22), 0 0 1px rgba(51, 26, 26, 0.25);
-  --tf-shadow-card: 0 1px 3px rgba(51, 26, 26, 0.06), 0 4px 12px rgba(51, 26, 26, 0.05);
+  /* Shadows: soft and neutral */
+  --tf-shadow-sm: 0 1px 2px rgba(20, 20, 35, 0.12);
+  --tf-shadow-md: 0 4px 10px -2px rgba(20, 20, 35, 0.16), 0 0 1px rgba(20, 20, 35, 0.25);
+  --tf-shadow-lg: 0 10px 24px -6px rgba(20, 20, 35, 0.22), 0 0 1px rgba(20, 20, 35, 0.25);
+  --tf-shadow-card: 0 1px 3px rgba(20, 20, 35, 0.06), 0 4px 12px rgba(20, 20, 35, 0.05);
 
   /* Layout */
   --tf-sidebar-width-collapsed: 64px;

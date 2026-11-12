@@ -99,7 +99,8 @@
   min-width: 280px;
   max-width: 600px;
   background: var(--tf-surface-sunken);
-  border-radius: var(--tf-radius-md);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-lg);
   display: flex;
   flex-direction: column;
 }
@@ -113,12 +114,11 @@
 .columnHeader {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: var(--tf-space-2) var(--tf-space-3);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--tf-text-subtle);
-  letter-spacing: 0.3px;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-3) var(--tf-space-3) var(--tf-space-2);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tf-text);
   cursor: pointer;
 }
 
@@ -130,7 +130,16 @@
 }
 
 .columnCount {
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 var(--tf-space-2);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tf-text-secondary);
 }
 .columnCreate {
   margin-left: auto;
@@ -152,35 +161,38 @@
 }
 
 .columnCount.overLimit {
+  border-color: transparent;
+  background: var(--tf-danger-bg);
   color: var(--tf-danger);
   font-weight: 700;
 }
 
 .columnBody {
-  padding: 0 6px 6px;
+  padding: 0 var(--tf-space-2) var(--tf-space-2);
   min-height: 40px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--tf-space-2);
 }
 
 .card {
   position: relative;
   background: var(--tf-surface);
   border: 1px solid var(--tf-border);
-  border-radius: var(--tf-radius-md);
-  padding: var(--tf-space-2) var(--tf-space-3);
-  box-shadow: var(--tf-shadow-sm);
+  border-radius: var(--tf-radius-lg);
+  padding: var(--tf-space-3) 14px;
+  box-shadow: var(--tf-shadow-card);
   cursor: grab;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--tf-space-2);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .cardTimerBtn {
   position: absolute;
-  top: 6px;
-  right: 6px;
+  top: var(--tf-space-2);
+  right: var(--tf-space-2);
   display: none;
   align-items: center;
   gap: 2px;
@@ -212,8 +224,14 @@
 .card:hover .cardTimerBtn {
   display: flex;
 }
+/* Like the highlighted step on the task view: a maroon outline and a lift. */
 .card:hover {
-  border-color: var(--tf-border-focus);
+  border-color: var(--tf-primary);
+  box-shadow: var(--tf-shadow-md);
+}
+.card:focus-visible {
+  outline: 2px solid var(--tf-primary);
+  outline-offset: 2px;
 }
 .card.dragging {
   opacity: 0.4;
@@ -221,22 +239,39 @@
 
 .cardEpicTag {
   align-self: flex-start;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
-  padding: 1px 6px;
-  border-radius: 3px;
+  padding: 2px var(--tf-space-2);
+  border-radius: var(--tf-radius-full);
   color: var(--tf-text);
 }
 
 .cardSummary {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--tf-text);
-  line-height: 1.3;
+  line-height: 1.35;
+  /* Room for the hover actions in the top-right corner. */
+  padding-right: var(--tf-space-1);
+  overflow-wrap: anywhere;
 }
 
+/* The project, on its own muted line under the title. */
 .cardProject {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
   color: var(--tf-text-subtle);
-  font-weight: 600;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 
 .cardFooter {
@@ -244,6 +279,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+  padding-top: var(--tf-space-2);
+  border-top: 1px solid var(--tf-border);
 }
 
 /* Every card: stage, priority and deadline (AFIT, 28 Oct 2026). */
@@ -252,15 +289,46 @@
   max-width: 100%;
   font-size: 11px;
 }
+/* The stage as a pill, like the status chip on the task view. */
+.cardStage > span {
+  height: 22px;
+  line-height: 22px;
+  padding: 0 10px;
+  border-radius: var(--tf-radius-full);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
+/* Priority and deadline as outlined chips, like the task view's suggestion buttons. */
 .cardPriority,
 .cardDeadline {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
+  height: 22px;
+  padding: 0 var(--tf-space-2);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
   font-size: 11px;
+  font-weight: 500;
   color: var(--tf-text-secondary);
   white-space: nowrap;
+}
+.cardDeadline[data-tone='none'] {
+  color: var(--tf-text-subtle);
+}
+.cardDeadline[data-tone='soon'] {
+  border-color: transparent;
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.cardDeadline[data-tone='overdue'] {
+  border-color: transparent;
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+  font-weight: 600;
 }
 
 .cardMetaRight {

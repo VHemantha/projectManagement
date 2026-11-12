@@ -1,7 +1,7 @@
 .list {
   display: flex;
   gap: var(--tf-space-4);
-  border-bottom: 2px solid var(--tf-border);
+  border-bottom: 1px solid var(--tf-border);
 }
 
 .trigger {
@@ -12,7 +12,7 @@
   background: none;
   border: none;
   padding: var(--tf-space-2) 2px;
-  margin-bottom: -2px;
+  margin-bottom: -1px;
   border-bottom: 2px solid transparent;
   font-size: 14px;
   font-weight: 500;
@@ -22,8 +22,10 @@
 .trigger:hover {
   color: var(--tf-text);
 }
+/* Maroon and bold, underlined: like the task view's Overview tab. */
 .trigger[data-state='active'] {
   color: var(--tf-primary);
+  font-weight: 600;
   border-bottom-color: var(--tf-primary);
 }
 

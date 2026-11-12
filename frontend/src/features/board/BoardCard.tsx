@@ -20,19 +20,24 @@ const PRIORITY_LABELS: Record<IssueListItem['priority'], string> = {
 /** The deadline: red once past (unless the task is finished), amber within two days. */
 function Deadline({ issue }: { issue: IssueListItem }) {
   if (!issue.due_date) {
-    return <span className={styles.cardDeadline} style={{ color: 'var(--tf-text-subtle)' }}>No deadline</span>
+    return (
+      <span className={styles.cardDeadline} data-tone="none">
+        <Calendar size={12} aria-hidden="true" />
+        No deadline
+      </span>
+    )
   }
   const due = parseISO(issue.due_date)
   const days = differenceInCalendarDays(due, new Date())
   const finished = issue.status.category === 'done'
-  const color = finished ? 'var(--tf-text-subtle)' : days < 0 ? 'var(--tf-danger)' : days <= 2 ? 'var(--tf-warning)' : 'var(--tf-text-secondary)'
+  const tone = finished ? 'none' : days < 0 ? 'overdue' : days <= 2 ? 'soon' : 'normal'
   return (
     <span
       className={styles.cardDeadline}
-      style={{ color, fontWeight: !finished && days < 0 ? 600 : undefined }}
+      data-tone={tone}
       title={`Deadline ${format(due, 'EEE d MMM yyyy')}${!finished && days < 0 ? ' (overdue)' : ''}`}
     >
-      <Calendar size={11} aria-hidden="true" />
+      <Calendar size={12} aria-hidden="true" />
       {format(due, 'd MMM')}
     </span>
   )
@@ -45,12 +50,12 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
   // The person badge: the Accountant (AFIT, 29 Oct 2026); the Team Lead's is optional.
   accountant: (issue) => (
     <span key="accountant" title={`Accountant: ${issue.preparer?.display_name ?? 'none yet'}`}>
-      <Avatar name={issue.preparer?.display_name ?? 'No accountant'} src={issue.preparer?.avatar} size={22} />
+      <Avatar name={issue.preparer?.display_name ?? 'No accountant'} src={issue.preparer?.avatar} size={24} />
     </span>
   ),
   assignee: (issue) => (
     <span key="assignee" title={`Team Lead: ${issue.assignee?.display_name ?? 'none yet'}`}>
-      <Avatar name={issue.assignee?.display_name ?? 'Unassigned'} src={issue.assignee?.avatar} size={22} />
+      <Avatar name={issue.assignee?.display_name ?? 'Unassigned'} src={issue.assignee?.avatar} size={24} />
     </span>
   ),
   labels: (issue) =>
@@ -68,7 +73,7 @@ const META_FIELD_RENDERERS: Partial<Record<CardFieldKey, (issue: IssueListItem) 
   current_responsible: (issue) =>
     issue.current_responsible && (
       <span key="current_responsible" title={`With: ${issue.current_responsible.display_name}`}>
-        <Avatar name={issue.current_responsible.display_name} src={issue.current_responsible.avatar} size={18} />
+        <Avatar name={issue.current_responsible.display_name} src={issue.current_responsible.avatar} size={22} />
       </span>
     ),
   // "linked_issue_count" is listed in CardFieldKey for forward-compat but has no renderer yet
@@ -132,7 +137,13 @@ export function BoardCard({
       )}
       <div className={styles.cardSummary}>
         {issue.summary}
-        {issue.project_name && <span className={styles.cardProject}> - {issue.project_name}</span>}
+        {/* Read as "Summary - Project"; shown as a muted second line, like the task view's subtitle. */}
+        {issue.project_name && (
+          <span className={styles.cardProject}>
+            <span className={styles.srOnly}> - </span>
+            {issue.project_name}
+          </span>
+        )}
       </div>
       <div className={styles.cardFooter}>
         <span className={styles.cardStage} title="Stage">

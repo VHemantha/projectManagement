@@ -765,7 +765,7 @@
 .drawerOverlay {
   position: fixed;
   inset: 0;
-  background: rgba(31, 26, 51, 0.35);
+  background: rgba(20, 20, 35, 0.35);
   z-index: var(--tf-z-modal);
 }
 .drawer {

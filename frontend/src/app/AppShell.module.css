@@ -348,7 +348,7 @@
 .backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(9, 30, 66, 0.54);
+  background: rgba(20, 20, 35, 0.45);
   z-index: calc(var(--tf-z-modal) - 1);
 }
 /* Never dim the desktop layout — the drawer only exists on mobile. This also
