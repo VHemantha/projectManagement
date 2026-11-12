@@ -242,3 +242,38 @@ class KpiSnapshot(models.Model):
     class Meta:
         ordering = ["-period_end", "person_id"]
         constraints = [models.UniqueConstraint(fields=["person", "period_end"], name="one_kpi_snapshot_per_person_per_day")]
+
+
+class Inquiry(models.Model):
+    """The CEO asked the agent to talk with someone (AFIT, 12 Nov 2026): "chat with Pat and find out
+    why SMITH-1 is late", "guide Lee on the GST return". The agent decides what to ask, sends it to
+    that person in their private conversation with it, guides them from what the CEO said and what
+    it knows, and reports what it found back to the CEO. Kept, so the CEO can see who was asked
+    what, what they said and what they were told."""
+
+    class State(models.TextChoices):
+        ASKING = "asking", "Asked, waiting for a reply"
+        REPORTED = "reported", "Reported to the CEO"
+        NO_REPLY = "no_reply", "No reply: the CEO was told"
+
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="agent_inquiries")
+    issue = models.ForeignKey("issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="agent_inquiries")
+    request = models.TextField(max_length=2000)  # the CEO's own words
+    purpose = models.CharField(max_length=500)  # what the CEO wants to know or achieve
+    questions = models.JSONField(default=list)  # what the agent asked
+    note_for_person = models.TextField(max_length=1000, blank=True)  # what the CEO wanted passed on at once
+    ceo_guidance = models.TextField(max_length=1500, blank=True)  # what the CEO wants them guided on
+    state = models.CharField(max_length=10, choices=State.choices, default=State.ASKING)
+    rounds = models.PositiveIntegerField(default=0)  # replies from the person read so far
+    nudged = models.BooleanField(default=False)
+    findings = models.JSONField(default=list)  # [{at, text}]: what they said, for the CEO
+    report = models.TextField(blank=True)  # what the agent told the CEO
+    asked_message = models.ForeignKey("chat.Message", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    last_asked_at = models.DateTimeField(null=True, blank=True)
+    opened_at = models.DateTimeField(auto_now_add=True)
+    reported_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-opened_at", "-id"]
+        indexes = [models.Index(fields=["person", "state"])]

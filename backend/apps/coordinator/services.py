@@ -65,8 +65,18 @@ def agent_user() -> User:
 
 
 def _doc(text: str) -> dict:
-    paragraphs = [p for p in text.split("\n\n") if p.strip()]
-    return {"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": p}]} for p in paragraphs]}
+    """Paragraphs at blank lines; a single line break (a list of questions) is a hard break."""
+    def lines(p: str) -> list[dict]:
+        out = []
+        for n, line in enumerate(p.split("\n")):
+            if n:
+                out.append({"type": "hardBreak"})
+            if line:
+                out.append({"type": "text", "text": line})
+        return out
+
+    paragraphs = [p.strip("\n") for p in text.split("\n\n") if p.strip()]
+    return {"type": "doc", "content": [{"type": "paragraph", "content": lines(p)} for p in paragraphs]}
 
 
 def post_as_agent(channel, text: str):

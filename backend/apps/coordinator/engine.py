@@ -115,6 +115,9 @@ def tick(now: datetime | None = None) -> dict:
         _close(case, "No longer needs attention: the stage is done, a new date was given, or the job closed.", now)
         closed += 1
     sent = deliver(outbox, escalations, now, shadow=s.shadow_mode) if sending else {"people": 0, "escalations": 0}
+    from . import inquiries
+
+    sent["inquiries"] = inquiries.chase(now) if sending else {}  # the CEO's questions to staff, unanswered
     from .briefing import send_if_due
 
     briefing = send_if_due(now)
