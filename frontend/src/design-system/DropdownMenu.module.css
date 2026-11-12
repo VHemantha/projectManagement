@@ -1,9 +1,10 @@
 .content {
+  /* Matches the open list of every <select> (global.css). */
   min-width: 200px;
   background: var(--tf-surface);
-  border-radius: var(--tf-radius-md);
+  border-radius: var(--tf-radius-lg);
   box-shadow: var(--tf-shadow-lg);
-  border: 1px solid var(--tf-border-subtle);
+  border: 1px solid var(--tf-border);
   padding: var(--tf-space-1);
   z-index: var(--tf-z-dropdown);
 }
@@ -12,12 +13,14 @@
   display: flex;
   align-items: center;
   gap: var(--tf-space-2);
-  padding: var(--tf-space-2) var(--tf-space-3);
+  min-height: 34px;
+  padding: 6px var(--tf-space-3);
   border-radius: var(--tf-radius-sm);
   font-size: var(--tf-font-size-base);
   color: var(--tf-text);
   cursor: pointer;
   outline: none;
+  transition: background-color 0.1s ease;
 }
 .item[data-highlighted] {
   background: var(--tf-surface-hover);

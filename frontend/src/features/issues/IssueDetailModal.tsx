@@ -1,6 +1,7 @@
 import * as RadixDialog from '@radix-ui/react-dialog'
 import { ArrowLeft } from 'lucide-react'
 
+import { keepOpenForSelect } from '@/design-system'
 import dialogStyles from '@/design-system/Dialog.module.css'
 import { IssueView } from './IssueView'
 import { useUiStore } from '@/store/uiStore'
@@ -21,6 +22,7 @@ export function IssueDetailModal() {
             // The task view scrolls its own body and keeps its footer (Close, Save changes) in view.
             style={{ maxWidth: 1320, padding: 0, maxHeight: 'calc(100vh - 48px)', overflow: 'hidden' }}
             aria-describedby={undefined}
+            onEscapeKeyDown={keepOpenForSelect}
           >
             <RadixDialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>
               {issueModalKey}

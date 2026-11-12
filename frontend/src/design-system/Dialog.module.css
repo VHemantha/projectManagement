@@ -6,10 +6,12 @@
 }
 
 .content {
+  /* Centred with inset + auto margins rather than a transform: inside a transformed window,
+     Chrome draws a <select>'s open list (global.css) out of place, off to the side. */
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  margin: auto;
+  height: fit-content;
   width: calc(100% - 32px);
   max-width: 640px;
   max-height: 85vh;

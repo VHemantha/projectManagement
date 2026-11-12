@@ -60,7 +60,7 @@ import {
   useSavePrecheckSetup,
   useSetDisposition,
 } from '@/api/precheck'
-import { Button, Skeleton } from '@/design-system'
+import { Button, Skeleton, keepOpenForSelect } from '@/design-system'
 
 const TYPE_HINTS: Record<PrecheckType, string> = {
   auto: 'The pre-check decides from the questionnaire and last year\'s accounts whether this is a rental, a business or an investment entity.',
@@ -897,7 +897,7 @@ function EvidenceDrawer({ finding, run, onClose }: { finding: Finding | null; ru
     <RadixDialog.Root open={!!finding} onOpenChange={(open) => !open && onClose()}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className={styles.drawerOverlay} />
-        <RadixDialog.Content className={styles.drawer} aria-describedby={undefined}>
+        <RadixDialog.Content className={styles.drawer} aria-describedby={undefined} onEscapeKeyDown={keepOpenForSelect}>
           {finding && (
             <>
               <div className={styles.drawerHeader}>

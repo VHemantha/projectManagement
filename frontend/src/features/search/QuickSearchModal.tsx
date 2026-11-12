@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 
 import styles from './QuickSearchModal.module.css'
 import { useQuickSearch } from '@/api/search'
-import { IssueKey, IssueTypeIcon } from '@/design-system'
+import { IssueKey, IssueTypeIcon, keepOpenForSelect } from '@/design-system'
 import { useUiStore } from '@/store/uiStore'
 
 export function QuickSearchModal() {
@@ -39,7 +39,7 @@ export function QuickSearchModal() {
       {open && (
         <RadixDialog.Portal>
           <RadixDialog.Overlay className={styles.overlay} />
-          <RadixDialog.Content className={styles.content} aria-describedby={undefined}>
+          <RadixDialog.Content className={styles.content} aria-describedby={undefined} onEscapeKeyDown={keepOpenForSelect}>
             <RadixDialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>
               Quick search
             </RadixDialog.Title>

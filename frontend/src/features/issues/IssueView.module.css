@@ -140,6 +140,13 @@
 .statusPill select:focus {
   outline: none;
 }
+/* The pill draws the outline and focus ring; the dropdown inside it adds none of its own. */
+.statusPill select,
+.statusPill select:focus-visible,
+.statusPill select:open {
+  padding: 0;
+  box-shadow: none;
+}
 .srOnly {
   position: absolute;
   width: 1px;

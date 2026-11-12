@@ -31,6 +31,133 @@ select {
   color: inherit;
 }
 
+/* Dropdowns (AFIT, 12 Nov 2026): every <select> in the app opens a styled list - a rounded white
+   panel with a soft shadow, padded options, a light hover, the chosen option in maroon with a tick,
+   and a chevron that turns as it opens. This uses the browser's customizable select, so each one
+   stays a real <select> (keyboard, screen readers, forms and tests unchanged). Browsers without it
+   (Firefox and Safari, for now) keep their own native dropdown. Lists (multiple / size) are left alone. */
+@supports (appearance: base-select) {
+  :where(select:not([multiple]):not([size])),
+  :where(select:not([multiple]):not([size]))::picker(select) {
+    appearance: base-select;
+  }
+
+  :where(select:not([multiple]):not([size])) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--tf-space-2);
+    min-width: 0;
+    padding-inline: var(--tf-space-3) var(--tf-space-2);
+    border: 1px solid var(--tf-border);
+    border-radius: var(--tf-radius-md);
+    background-color: var(--tf-surface);
+    color: var(--tf-text);
+    line-height: 1.3;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  :where(select:not([multiple]):not([size])):hover:not(:disabled) {
+    border-color: var(--tf-text-subtle);
+  }
+  :where(select:not([multiple]):not([size])):focus-visible,
+  :where(select:not([multiple]):not([size])):open {
+    outline: none;
+    border-color: var(--tf-primary);
+    box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+  }
+  :where(select:not([multiple]):not([size])):disabled {
+    background-color: var(--tf-surface-sunken);
+    color: var(--tf-text-subtle);
+    cursor: not-allowed;
+  }
+
+  /* The chevron, at the right; it turns when the list is open. */
+  :where(select:not([multiple]):not([size]))::picker-icon {
+    content: '';
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    margin-left: auto;
+    background-color: var(--tf-text-subtle);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    transition: rotate 0.15s ease;
+  }
+  :where(select:not([multiple]):not([size])):open::picker-icon {
+    rotate: 180deg;
+    background-color: var(--tf-primary);
+  }
+
+  /* The open list. */
+  :where(select:not([multiple]):not([size]))::picker(select) {
+    min-width: anchor-size(width);
+    max-height: min(320px, 60vh);
+    margin-block: 6px;
+    padding: var(--tf-space-1);
+    overflow-y: auto;
+    border: 1px solid var(--tf-border);
+    border-radius: var(--tf-radius-lg);
+    background: var(--tf-surface);
+    box-shadow: var(--tf-shadow-lg);
+    scrollbar-width: thin;
+    scrollbar-color: var(--tf-border) transparent;
+    position-try-fallbacks: flip-block;
+  }
+
+  :where(select:not([multiple]):not([size])) option {
+    display: flex;
+    align-items: center;
+    gap: var(--tf-space-2);
+    min-height: 34px;
+    padding: 6px var(--tf-space-3);
+    border-radius: var(--tf-radius-sm);
+    color: var(--tf-text);
+    font-size: 14px;
+    font-weight: 400;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+  }
+  :where(select:not([multiple]):not([size])) option:hover,
+  :where(select:not([multiple]):not([size])) option:focus-visible {
+    outline: none;
+    background-color: var(--tf-surface-hover);
+  }
+  :where(select:not([multiple]):not([size])) option:checked {
+    background-color: var(--tf-primary-subtle);
+    color: var(--tf-primary-strong);
+    font-weight: 600;
+  }
+  :where(select:not([multiple]):not([size])) option:disabled {
+    color: var(--tf-text-subtle);
+    cursor: not-allowed;
+  }
+  /* The tick on the chosen option, at the right. */
+  :where(select:not([multiple]):not([size])) option::checkmark {
+    order: 1;
+    margin-left: auto;
+    color: var(--tf-primary);
+    font-weight: 700;
+  }
+  /* "None" / "Unassigned" style first options with no value read as a placeholder. */
+  :where(select:not([multiple]):not([size])) option[value='']:not(:checked) {
+    color: var(--tf-text-subtle);
+  }
+
+  /* Groups of options: a small heading, the options under it. */
+  :where(select:not([multiple]):not([size])) optgroup {
+    padding-top: var(--tf-space-1);
+    color: var(--tf-text-subtle);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  :where(select:not([multiple]):not([size])) optgroup + optgroup {
+    margin-top: var(--tf-space-1);
+    border-top: 1px solid var(--tf-border);
+  }
+}
+
 a {
   color: var(--tf-text-link);
   text-decoration: none;
