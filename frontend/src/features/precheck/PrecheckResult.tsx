@@ -288,6 +288,21 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
   const [missedOpen, setMissedOpen] = useState(false)
   return (
     <div className={styles.result}>
+      {/* The email first, folded: what would go to the client, one click away (AFIT, 13 Nov 2026). */}
+      {output.email.body && (
+        <details className={`${styles.collapsible} ${styles.email}`} aria-label="Email to the client">
+          <summary>
+            <ChevronDown size={14} aria-hidden="true" /> <Mail size={13} aria-hidden="true" /> Email to the client (drafted, not sent)
+            <span className={styles.summaryAction} onClick={(e) => e.preventDefault()}>
+              <CopyButton value={`${output.email.subject}
+
+${output.email.body}`} label="email" />
+            </span>
+          </summary>
+          <div className={styles.subject}>{output.email.subject}</div>
+          <pre className={styles.body}>{output.email.body}</pre>
+        </details>
+      )}
       <GapTracker jobKey={jobKey} />
       <section aria-labelledby="pc-key">
         <h3 id="pc-key" className={styles.sectionTitle}>
@@ -306,27 +321,6 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
           ))}
         </ul>
       </section>
-
-      {nature && (
-        <section aria-labelledby="pc-nature" className={styles.nature}>
-          <h3 id="pc-nature" className={styles.sectionTitle}>
-            Business nature: {nature.label}
-            {nature.fixed && <span className={styles.muted}> (set on the task)</span>}
-          </h3>
-          {nature.summary && <p className={styles.summary}>{nature.summary}</p>}
-          {nature.reasoning && <p className={styles.reason}>{nature.reasoning}</p>}
-          <Sources sources={nature.sources} output={output} />
-          {nature.facts.length > 0 && (
-            <ul className={styles.facts}>
-              {nature.facts.map((f) => (
-                <li key={f.text}>
-                  {f.text} <Sources sources={f.sources} output={output} />
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
 
       <section aria-labelledby="pc-requests">
         <div className={styles.sectionHead}>
@@ -388,19 +382,29 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
         </section>
       )}
 
-      {output.email.body && (
-        <section aria-labelledby="pc-email" className={styles.email}>
-          <div className={styles.sectionHead}>
-            <h3 id="pc-email" className={styles.sectionTitle}>
-              <Mail size={13} aria-hidden="true" /> Email to the client (drafted, not sent)
-            </h3>
-            <CopyButton value={`${output.email.subject}\n\n${output.email.body}`} label="email" />
+      {/* Folded: the business nature the pre-check worked to, and why. */}
+      {nature && (
+        <details className={styles.collapsible} aria-label="Business nature">
+          <summary>
+            <ChevronDown size={14} aria-hidden="true" /> Business nature: {nature.label}
+            {nature.fixed && <span className={styles.muted}> (set on the task)</span>}
+          </summary>
+          <div className={styles.nature}>
+            {nature.summary && <p className={styles.summary}>{nature.summary}</p>}
+            {nature.reasoning && <p className={styles.reason}>{nature.reasoning}</p>}
+            <Sources sources={nature.sources} output={output} />
+            {nature.facts.length > 0 && (
+              <ul className={styles.facts}>
+                {nature.facts.map((f) => (
+                  <li key={f.text}>
+                    {f.text} <Sources sources={f.sources} output={output} />
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
-          <div className={styles.subject}>{output.email.subject}</div>
-          <pre className={styles.body}>{output.email.body}</pre>
-        </section>
+        </details>
       )}
-
       {output.lessons_applied.length > 0 && (
         <p className={styles.muted}>
           Lessons applied: {output.lessons_applied.map((l) => l.text).join(' · ')}

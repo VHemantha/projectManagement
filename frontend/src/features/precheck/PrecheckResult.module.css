@@ -236,6 +236,25 @@ a.source:hover {
 .collapsible > summary::-webkit-details-marker {
   display: none;
 }
+/* The chevron points right when folded, down when open. */
+.collapsible > summary > svg:first-child {
+  rotate: -90deg;
+  transition: rotate 0.15s ease;
+}
+.collapsible[open] > summary > svg:first-child {
+  rotate: 0deg;
+}
+/* An action in a folded section's heading (the email's Copy), at the right. */
+.summaryAction {
+  margin-left: auto;
+}
+.email > summary {
+  margin-bottom: 0;
+  color: var(--tf-text);
+}
+.email[open] > summary {
+  margin-bottom: var(--tf-space-2);
+}
 
 .email {
   border: 1px solid var(--tf-border);
