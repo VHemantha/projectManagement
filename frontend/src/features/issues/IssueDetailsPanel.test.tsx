@@ -36,11 +36,15 @@ const issue = {
 describe('Task panel', () => {
   beforeEach(() => mocks.update.mockClear())
 
-  it("uses AFIT's names for the roles and no longer shows the reporter", () => {
+  it("uses AFIT's names for the roles (as the 12 Nov 2026 design writes them) and no longer shows the reporter", () => {
     render(wrap(<IssueDetailsPanel issue={issue} />))
-    for (const label of ['Team Lead', 'Accountant', 'Reviewer', 'Currently Responsible', 'Estimated Hours']) {
+    expect(screen.getByRole('heading', { name: 'Job details' })).toBeInTheDocument()
+    for (const label of ['Team lead', 'Accountant', 'Reviewer', 'Responsible', 'Estimated Hours']) {
       expect(screen.getByText(label)).toBeInTheDocument()
     }
+    // Each role's picker is labelled with its role.
+    expect(screen.getByLabelText('Accountant')).toHaveValue('2')
+    expect(screen.getByRole('region', { name: 'Time budget' })).toBeInTheDocument()
     for (const old of ['Assignee', 'Preparer', 'Current responsible', 'Reporter']) {
       expect(screen.queryByText(old)).not.toBeInTheDocument()
     }

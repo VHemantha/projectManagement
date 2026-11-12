@@ -1,67 +1,102 @@
+/* The task's time budget card (AFIT, 12 Nov 2026 design). */
 .box {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-4) var(--tf-space-5);
   border: 1px solid var(--tf-border);
-  border-radius: var(--tf-radius-md);
+  border-radius: var(--tf-radius-lg);
   background: var(--tf-surface);
 }
 
-.figures {
+.title {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.value {
-  font-size: 18px;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin: 0;
+  font-size: 17px;
   font-weight: 700;
   color: var(--tf-text);
 }
 
-.caption {
-  font-size: 11px;
-  color: var(--tf-text-subtle);
+.figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-
-.budget {
+.figure {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 2px;
+  padding: 0 var(--tf-space-3);
+  border-left: 1px solid var(--tf-border);
+}
+.figure:first-child {
+  padding-left: 0;
+  border-left: none;
 }
 
+.value,
 .budgetInput {
-  width: 80px;
-  height: 28px;
-  padding: 0 6px;
-  border: 1px solid var(--tf-border);
-  border-radius: var(--tf-radius-sm);
-  background: var(--tf-surface);
+  font-size: 22px;
+  font-weight: 700;
   color: var(--tf-text);
-  font-size: 14px;
-  text-align: right;
+  line-height: 1.2;
+}
+.value button {
+  font: inherit;
+  color: inherit;
+}
+.budgetInput {
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-bottom: 1px dashed var(--tf-border);
+  background: none;
+  -moz-appearance: textfield;
+}
+.budgetInput::-webkit-outer-spin-button,
+.budgetInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.budgetInput:focus {
+  outline: none;
+  border-bottom-color: var(--tf-primary);
+}
+.budgetInput[readonly] {
+  border-bottom-color: transparent;
+}
+.caption {
+  font-size: 13px;
+  color: var(--tf-text-secondary);
 }
 
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+}
+.barWrap {
+  flex: 1;
+  min-width: 0;
+}
 .bar {
-  height: 6px;
-  border-radius: 3px;
-  background: var(--tf-surface-sunken);
+  height: 8px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-pressed);
   overflow: hidden;
 }
-
 .fill {
   display: block;
   height: 100%;
-  background: var(--tf-success);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-primary);
 }
 .fill[data-over='true'] {
   background: var(--tf-danger);
 }
-
 .status {
+  margin-top: 4px;
   font-size: 12px;
   color: var(--tf-text-secondary);
 }
@@ -69,32 +104,50 @@
   color: var(--tf-danger);
   font-weight: 600;
 }
-
 .hint {
+  margin-top: 4px;
   font-size: 12px;
   color: var(--tf-text-subtle);
 }
 
+.logButton {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.logButton:hover {
+  background: var(--tf-surface-hover);
+}
+
 .people {
+  margin: 0;
+  padding: 0;
   list-style: none;
-  margin: 2px 0 0;
-  padding: 6px 0 0;
-  border-top: 1px solid var(--tf-border);
-  font-size: 12px;
+  font-size: 13px;
 }
 .people li {
   display: flex;
   justify-content: space-between;
-  padding: 1px 0;
-}
-
-.hours {
-  font-variant-numeric: tabular-nums;
+  padding: 3px 0;
   color: var(--tf-text-secondary);
+}
+.hours {
+  font-weight: 600;
+  color: var(--tf-text);
 }
 
 .link {
   align-self: flex-start;
   font-size: 12px;
-  color: var(--tf-primary);
 }

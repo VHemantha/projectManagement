@@ -18,27 +18,26 @@ export function IssueDetailModal() {
           <RadixDialog.Overlay className={dialogStyles.overlay} />
           <RadixDialog.Content
             className={dialogStyles.content}
-            style={{ maxWidth: 1000, padding: 0 }}
+            // The task view scrolls its own body and keeps its footer (Close, Save changes) in view.
+            style={{ maxWidth: 1320, padding: 0, maxHeight: 'calc(100vh - 48px)', overflow: 'hidden' }}
             aria-describedby={undefined}
           >
             <RadixDialog.Title style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden' }}>
               {issueModalKey}
             </RadixDialog.Title>
-            <div style={{ padding: 24 }}>
-              {underneath && (
-                <button
-                  type="button"
-                  onClick={closeIssueModal}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 4, marginBottom: 8, padding: 0, border: 'none',
-                    background: 'none', color: 'var(--tf-text-link)', font: 'inherit', fontSize: 13, cursor: 'pointer',
-                  }}
-                >
-                  <ArrowLeft size={14} aria-hidden="true" /> Back to {underneath}
-                </button>
-              )}
-              <IssueView issueKey={issueModalKey} isModal onClose={closeIssueModal} />
-            </div>
+            {underneath && (
+              <button
+                type="button"
+                onClick={closeIssueModal}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4, margin: '12px 32px 0', padding: 0, border: 'none',
+                  background: 'none', color: 'var(--tf-text-link)', font: 'inherit', fontSize: 13, cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft size={14} aria-hidden="true" /> Back to {underneath}
+              </button>
+            )}
+            <IssueView issueKey={issueModalKey} isModal onClose={closeIssueModal} />
           </RadixDialog.Content>
         </RadixDialog.Portal>
       )}

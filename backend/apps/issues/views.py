@@ -263,7 +263,9 @@ class IssueCommentListCreateView(generics.ListCreateAPIView):
         return get_issue_or_404(self.kwargs["issue_key"])
 
     def get_queryset(self):
-        return Comment.objects.filter(issue=self.get_issue()).select_related("author")
+        comments = Comment.objects.filter(issue=self.get_issue()).select_related("author")
+        stage = self.request.query_params.get("stage")
+        return comments.filter(stage=stage) if stage is not None else comments
 
     def perform_create(self, serializer):
         issue = self.get_issue()

@@ -1,6 +1,11 @@
-"""Results posted on the task: when the AI's pre-check, guide or review finishes, a summary is added
-to the task's comments and the stage is stamped on the task's milestones. Posted by the system on
-behalf of the person who ran it; no notification is sent (the person is watching the run)."""
+"""Results posted on the task: when the AI's pre-check, guide, review or WP Agent reconciliation
+finishes, a summary is added to the task's comments and the stage is stamped on the task's milestones.
+Posted by the system on behalf of the person who ran it; no notification is sent (the person is
+watching the run).
+
+Each posted result carries the stage it belongs to (AFIT, 12 Nov 2026), so the task view's milestone
+bar shows it in that stage's history: the pre-check under Pre-check, the guide and the WP Agent's
+workpapers under Preparation, the review under Internal review."""
 from django.utils import timezone
 
 from apps.issues.models import Comment
@@ -9,7 +14,14 @@ from .models import AIPrecheck, TaskMilestone
 
 MAX_LINES = 25
 TITLES = {AIPrecheck.Kind.PRECHECK: "AI pre-check", AIPrecheck.Kind.GUIDE: "AI preparation guide",
-          AIPrecheck.Kind.REVIEW: "AI review"}
+          AIPrecheck.Kind.REVIEW: "AI review", AIPrecheck.Kind.GST: "WP Agent: GST reconciliation",
+          AIPrecheck.Kind.WAGES: "WP Agent: wages (PAYE) reconciliation",
+          AIPrecheck.Kind.ICA: "WP Agent: imputation (ICA) reconciliation"}
+# The stage of the task each kind of result belongs to (Comment.Stage values).
+STAGES = {AIPrecheck.Kind.PRECHECK: "precheck", AIPrecheck.Kind.GUIDE: "preparation", AIPrecheck.Kind.REVIEW: "internal_review",
+          AIPrecheck.Kind.GST: "preparation", AIPrecheck.Kind.WAGES: "preparation", AIPrecheck.Kind.ICA: "preparation"}
+# Milestones are kept for the pre-check, the guide and the review (the WP Agent has none of its own).
+MILESTONE_KINDS = (AIPrecheck.Kind.PRECHECK, AIPrecheck.Kind.GUIDE, AIPrecheck.Kind.REVIEW)
 
 
 def _text(text: str, bold: bool = False) -> dict:
@@ -42,10 +54,23 @@ def _lines(run: AIPrecheck) -> tuple[str, list[tuple[str, list[str]]]]:
         steps = [f"{s.get('area', '')}: {s.get('step', '')}" + (" (waits on the client)" if s.get("waits_on_client") else "")
                  for s in g.get("steps") or []]
         return (g.get("summary") or (g.get("decision") or {}).get("reason", "")), [("Steps", steps)]
+    if run.kind in AIPrecheck.WP_KINDS:
+        return _wp_lines(run.gst or {})
     r = run.review or {}
     findings = [f"{f.get('ref', '')} [{f.get('severity', '')}] {f.get('fs_line', '')}: {f.get('issue', '')}".strip() for f in r.get("findings") or []]
     resolved = [f"{x.get('ref', '')}: {x.get('reason', '')}" for x in r.get("resolved") or []]
     return (r.get("summary") or (r.get("decision") or {}).get("reason", "")), [("Open findings", findings), ("Resolved", resolved)]
+
+
+def _wp_lines(w: dict) -> tuple[str, list[tuple[str, list[str]]]]:
+    """A WP Agent reconciliation: its status and summary, what still needs evidence, the proposed
+    corrections and (wages, ICA) each conclusion."""
+    exceptions = [f"[{e.get('severity', '')}] {e.get('text', '')}" + (f" Next: {e['next_evidence']}" if e.get("next_evidence") else "")
+                  for e in w.get("exceptions") or []]
+    corrections = [f"{c.get('title', '')}" + (f" ({c['status']})" if c.get("status") else "") for c in w.get("corrections") or []]
+    conclusions = [f"{c.get('label', '')}: {c.get('status', '')}" for c in w.get("conclusions") or []]
+    headline = _join(f"{w['status']} —" if w.get("status") else "", w.get("summary", ""))
+    return headline, [("Conclusions", conclusions), ("Exceptions", exceptions), ("Proposed corrections", corrections)]
 
 
 def _join(*parts: str) -> str:
@@ -83,16 +108,8 @@ def _guide_sections(g: dict) -> list[tuple[str, list[str]]]:
             ("8. Completion and handover checklist", checklist), ("8. To roll forward to next year", roll)]
 
 
-def post_result(run: AIPrecheck) -> None:
-    """Add the run's summary to the task's comments and stamp its milestone. Only for a finished
-    pre-check, guide or review with someone to post on behalf of; never twice for one run."""
-    if run.kind not in TITLES or run.status not in (AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL):
-        return
-    if TaskMilestone.objects.filter(run=run).exists():
-        return
-    TaskMilestone.objects.create(issue=run.issue, kind=run.kind, on=timezone.localdate(), auto=True, run=run, by=run.requested_by)
-    if run.requested_by is None:
-        return
+def result_comment(run: AIPrecheck) -> dict:
+    """The run's result as a comment body (rich-text JSON)."""
     headline, sections = _lines(run)
     content = [_para(_text(f"{TITLES[run.kind]} — posted automatically on {timezone.localtime():%d %b %Y, %H:%M}", bold=True)),
                _para(_text(headline or "Finished."))]
@@ -104,7 +121,21 @@ def post_result(run: AIPrecheck) -> None:
         content.append(_bullets(shown))
         if len(lines) > len(shown):
             content.append(_para(_text(f"... and {len(lines) - len(shown)} more: open the AI assistant on this task for the full list.")))
-    Comment.objects.create(issue=run.issue, author=run.requested_by, body={"type": "doc", "content": content})
+    return {"type": "doc", "content": content}
+
+
+def post_result(run: AIPrecheck) -> None:
+    """Add the run's summary to the task's comments, under its stage, and stamp its milestone. Only
+    for a finished run with someone to post on behalf of; never twice for one run."""
+    if run.kind not in TITLES or run.status not in (AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL):
+        return
+    if run.kind in MILESTONE_KINDS:
+        if TaskMilestone.objects.filter(run=run).exists():
+            return
+        TaskMilestone.objects.create(issue=run.issue, kind=run.kind, on=timezone.localdate(), auto=True, run=run, by=run.requested_by)
+    if run.requested_by is None:
+        return
+    Comment.objects.create(issue=run.issue, author=run.requested_by, body=result_comment(run), stage=STAGES[run.kind])
 
 
 def milestone_dict(m: TaskMilestone) -> dict:

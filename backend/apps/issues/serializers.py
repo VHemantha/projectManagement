@@ -558,7 +558,8 @@ class CommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Comment
-        fields = ["id", "author", "body", "created_at", "updated_at"]
+        # stage: which stage of the task the comment is about ("" for a general comment).
+        fields = ["id", "author", "body", "stage", "created_at", "updated_at"]
 
 
 class AttachmentSerializer(serializers.ModelSerializer):

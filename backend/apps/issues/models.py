@@ -125,9 +125,19 @@ class Issue(models.Model):
 
 
 class Comment(models.Model):
+    # The stage of the task a comment is about (AFIT, 12 Nov 2026): the task view's milestone bar
+    # shows each stage's comments under it as its history, the AI's posted results included.
+    class Stage(models.TextChoices):
+        PRECHECK = "precheck", "Pre-check"
+        PREPARATION = "preparation", "Preparation"
+        INTERNAL_REVIEW = "internal_review", "Internal review"
+        CLIENT_REVIEW = "client_review", "Client review"
+        DISPATCH = "dispatch", "Dispatch"
+
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="comments")
     body = models.JSONField()
+    stage = models.CharField(max_length=20, choices=Stage.choices, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

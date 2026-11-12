@@ -1,0 +1,266 @@
+/* The AI workspace on the task view (AFIT, 12 Nov 2026 design). */
+.workspace {
+  margin-top: var(--tf-space-6);
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tf-space-3);
+  margin-bottom: var(--tf-space-4);
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.title svg {
+  color: var(--tf-primary);
+}
+.tagline {
+  padding-left: var(--tf-space-3);
+  border-left: 1px solid var(--tf-border);
+  font-size: 14px;
+  color: var(--tf-text-subtle);
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tf-space-3);
+}
+@media (max-width: 640px) {
+  .tiles {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tile {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tf-space-4);
+  min-width: 0;
+  padding: var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.tile:hover {
+  box-shadow: var(--tf-shadow-card);
+}
+/* The next tool to use stands out with a maroon edge, as in the design. */
+.tile[data-next] {
+  border: 1.5px solid var(--tf-primary);
+}
+
+.tileIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-hover);
+  color: var(--tf-text-secondary);
+}
+
+.tileText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  flex: 1;
+}
+.tileHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--tf-space-2);
+  width: 100%;
+}
+.tileName {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.nextStep {
+  flex-shrink: 0;
+  padding: 2px var(--tf-space-2);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.tilePurpose {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--tf-text-secondary);
+}
+.tileStatus {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+
+.tileAction,
+.tileActionPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  height: 34px;
+  margin-top: var(--tf-space-3);
+  padding: 0 var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tileAction:hover {
+  background: var(--tf-surface-hover);
+}
+.tileActionPrimary {
+  border-color: var(--tf-primary);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+}
+.tileActionPrimary:hover {
+  background: var(--tf-primary-hover);
+}
+.tileAction:focus-visible,
+.tileActionPrimary:focus-visible {
+  outline: 2px solid var(--tf-primary);
+  outline-offset: 2px;
+}
+
+/* Ask Assistant: a tinted panel with the question box and suggested questions. */
+.ask {
+  margin-top: var(--tf-space-4);
+  padding: var(--tf-space-4) var(--tf-space-5);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface-sunken);
+}
+.askHead {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-4);
+  margin-bottom: var(--tf-space-3);
+}
+.askIcon {
+  display: inline-flex;
+  color: var(--tf-primary);
+}
+.askText {
+  flex: 1;
+  min-width: 0;
+}
+.askTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.askPurpose {
+  margin: 0;
+  font-size: 14px;
+  color: var(--tf-text-secondary);
+}
+.askHistory {
+  border: none;
+  background: none;
+  color: var(--tf-text-link);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.askHistory:hover {
+  text-decoration: underline;
+}
+
+.askForm {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: 4px 4px 4px var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+}
+.askForm:focus-within {
+  border-color: var(--tf-primary);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
+.askForm input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: none;
+  background: none;
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 15px;
+}
+.askForm input:focus {
+  outline: none;
+}
+.askSend {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 36px;
+  border: none;
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  cursor: pointer;
+}
+.askSend:hover:not(:disabled) {
+  background: var(--tf-primary-hover);
+}
+.askSend:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-3);
+}
+.prompt {
+  height: 30px;
+  padding: 0 var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.prompt:hover {
+  border-color: var(--tf-primary);
+  color: var(--tf-primary);
+}
+
+.error {
+  margin: var(--tf-space-2) 0 0;
+  font-size: 13px;
+  color: var(--tf-danger);
+}

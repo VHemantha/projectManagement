@@ -10,10 +10,12 @@ import { useToggleWatch, useUpdateIssue } from '@/api/issues'
 import { useTeam } from '@/api/teams'
 import type { IssueDetail, Priority } from '@/api/types'
 import { useUsers } from '@/api/users'
-import { PriorityIcon } from '@/design-system'
 
 const PRIORITIES: Priority[] = ['highest', 'high', 'medium', 'low', 'lowest']
 
+/** The task's right-hand column (AFIT, 12 Nov 2026 design): its Job details (stage, the people on it,
+ * priority and group, then the rest of its fields) and its Time budget. Every field saves as it
+ * changes. */
 export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
   const updateIssue = useUpdateIssue(issue.key)
   const toggleWatch = useToggleWatch(issue.key)
@@ -21,172 +23,163 @@ export function IssueDetailsPanel({ issue }: { issue: IssueDetail }) {
   const { data: board } = useProjectBoard(issue.project)
   const { data: project } = useProject(issue.project)
   const { data: projectTeam } = useTeam(project?.primary_team?.id)
-  // Assignee is restricted to the issue's project's team once one is set; every other role
-  // picker (Preparer/Reviewer/Current responsible) keeps the full org list.
+  // The Team Lead is one of the project's workspace (team) once it has one; every other role
+  // picker (Accountant, Reviewer, Responsible) keeps the full list of people.
   const assigneeCandidates = projectTeam ? projectTeam.memberships.map((m) => m.user) : users
 
   return (
-    <div className={styles.panel}>
-      <button
-        type="button"
-        className={styles.watchBtn}
-        data-active={issue.is_watching}
-        onClick={() => toggleWatch.mutate(!issue.is_watching)}
-      >
-        {issue.is_watching ? <Eye size={14} /> : <EyeOff size={14} />}
-        {issue.is_watching ? 'Watching' : 'Watch'} ({issue.watcher_count})
-      </button>
+    <aside className={styles.side}>
+      <section className={styles.panel} aria-label="Job details">
+        <h3 className={styles.panelTitle}>Job details</h3>
 
-      <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Status</span>
-        <select
-          className={styles.panelSelect}
-          value={issue.status.id}
-          onChange={(e) => updateIssue.mutate({ status_id: Number(e.target.value) })}
-        >
-          {board?.statuses.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <RolePicker
-        label="Team Lead"
-        value={issue.assignee}
-        users={assigneeCandidates}
-        onChange={(id) => updateIssue.mutate({ assignee_id: id })}
-      />
-
-      <div className={styles.divider} />
-
-      <RolePicker
-        label="Accountant"
-        value={issue.preparer}
-        users={users}
-        onChange={(id) => updateIssue.mutate({ preparer_id: id })}
-        emptyLabel="Unset"
-      />
-      <RolePicker
-        label="Reviewer"
-        value={issue.reviewer}
-        users={users}
-        onChange={(id) => updateIssue.mutate({ reviewer_id: id })}
-        emptyLabel="Unset"
-      />
-      <RolePicker
-        label="Currently Responsible"
-        value={issue.current_responsible}
-        users={users}
-        onChange={(id) => updateIssue.mutate({ current_responsible_id: id })}
-        emptyLabel="Unset"
-      />
-
-      <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Priority</span>
-        <select
-          className={styles.panelSelect}
-          value={issue.priority}
-          onChange={(e) => updateIssue.mutate({ priority: e.target.value })}
-        >
-          {PRIORITIES.map((p) => (
-            <option key={p} value={p}>
-              {p[0].toUpperCase() + p.slice(1)}
-            </option>
-          ))}
-        </select>
-        <div style={{ marginTop: 2 }}>
-          <PriorityIcon priority={issue.priority} />
-        </div>
-      </div>
-
-      <div className={styles.panelRow}>
-        <label className={styles.panelLabel} htmlFor="task-group">
-          Group
-        </label>
-        <GroupInput key={issue.group ?? ''} value={issue.group ?? ''} onSave={(group) => updateIssue.mutate({ group })} />
-      </div>
-
-      <div className={styles.panelRow}>
-        <label className={styles.panelLabel} htmlFor="task-estimate">
-          Estimated Hours
-        </label>
-        <HoursInput
-          key={issue.estimated_hours ?? 'none'}
-          value={issue.estimated_hours ?? null}
-          onSave={(estimated_hours) => updateIssue.mutate({ estimated_hours })}
-        />
-      </div>
-
-      <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Time tracking</span>
-        <TimeTracking issue={issue} />
-      </div>
-
-      <div className={styles.panelRow}>
-        <label className={styles.panelLabel} htmlFor="job-value">
-          Task value{project ? ` (${project.job_value_currency})` : ''}
-        </label>
-        <input
-          id="job-value"
-          className={styles.panelSelect}
-          type="number"
-          min={0}
-          step="0.01"
-          placeholder="—"
-          // Keyed so a value changed elsewhere (e.g. on the card) refreshes this box.
-          key={issue.allocated_value ?? 'none'}
-          defaultValue={issue.allocated_value == null ? '' : Number(issue.allocated_value)}
-          onBlur={(e) => {
-            const next = e.target.value === '' ? null : String(Number(e.target.value))
-            const current = issue.allocated_value == null ? null : String(Number(issue.allocated_value))
-            if (next !== current) updateIssue.mutate({ allocated_value: next })
-          }}
-        />
-      </div>
-
-      <div className={styles.panelRow}>
-        <span className={styles.panelLabel}>Due date</span>
-        <input
-          className={styles.panelSelect}
-          type="date"
-          value={issue.due_date ?? ''}
-          onChange={(e) => updateIssue.mutate({ due_date: e.target.value || null })}
-        />
-      </div>
-
-      {issue.labels.length > 0 && (
         <div className={styles.panelRow}>
-          <span className={styles.panelLabel}>Labels</span>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {issue.labels.map((l) => (
-              <span
-                key={l.id}
-                style={{
-                  fontSize: 12,
-                  padding: '2px 8px',
-                  borderRadius: 3,
-                  background: l.color,
-                  color: 'var(--tf-text)',
-                }}
-              >
-                {l.name}
-              </span>
+          <label className={styles.panelLabel} htmlFor="task-status">
+            Status
+          </label>
+          <select
+            id="task-status"
+            className={styles.panelSelect}
+            value={issue.status.id}
+            onChange={(e) => updateIssue.mutate({ status_id: Number(e.target.value) })}
+          >
+            {board?.statuses.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
             ))}
+          </select>
+        </div>
+
+        <RolePicker
+          label="Team lead"
+          value={issue.assignee}
+          users={assigneeCandidates}
+          onChange={(id) => updateIssue.mutate({ assignee_id: id })}
+        />
+        <RolePicker
+          label="Accountant"
+          value={issue.preparer}
+          users={users}
+          onChange={(id) => updateIssue.mutate({ preparer_id: id })}
+        />
+        <RolePicker
+          label="Reviewer"
+          value={issue.reviewer}
+          users={users}
+          onChange={(id) => updateIssue.mutate({ reviewer_id: id })}
+        />
+        <RolePicker
+          label="Responsible"
+          hint="Who has the task now"
+          value={issue.current_responsible}
+          users={users}
+          onChange={(id) => updateIssue.mutate({ current_responsible_id: id })}
+        />
+
+        <div className={styles.panelPair}>
+          <div className={styles.panelRow}>
+            <label className={styles.panelLabel} htmlFor="task-priority">
+              Priority
+            </label>
+            <select
+              id="task-priority"
+              className={styles.panelSelect}
+              value={issue.priority}
+              onChange={(e) => updateIssue.mutate({ priority: e.target.value })}
+            >
+              {PRIORITIES.map((p) => (
+                <option key={p} value={p}>
+                  {p[0].toUpperCase() + p.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.panelRow}>
+            <label className={styles.panelLabel} htmlFor="task-group">
+              Group
+            </label>
+            <GroupInput key={issue.group ?? ''} value={issue.group ?? ''} onSave={(group) => updateIssue.mutate({ group })} />
           </div>
         </div>
-      )}
 
-      <div className={styles.divider} />
+        <div className={styles.divider} />
 
-      <div className={styles.metaText}>
-        Created {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}
-      </div>
-      <div className={styles.metaText}>
-        Updated {formatDistanceToNow(new Date(issue.updated_at), { addSuffix: true })}
-      </div>
-    </div>
+        <div className={styles.panelPair}>
+          <div className={styles.panelRow}>
+            <label className={styles.panelLabel} htmlFor="task-due">
+              Due date
+            </label>
+            <input
+              id="task-due"
+              className={styles.panelSelect}
+              type="date"
+              value={issue.due_date ?? ''}
+              onChange={(e) => updateIssue.mutate({ due_date: e.target.value || null })}
+            />
+          </div>
+          <div className={styles.panelRow}>
+            <label className={styles.panelLabel} htmlFor="task-estimate">
+              Estimated Hours
+            </label>
+            <HoursInput
+              key={issue.estimated_hours ?? 'none'}
+              value={issue.estimated_hours ?? null}
+              onSave={(estimated_hours) => updateIssue.mutate({ estimated_hours })}
+            />
+          </div>
+        </div>
+
+        <div className={styles.panelRow}>
+          <label className={styles.panelLabel} htmlFor="job-value">
+            Task value{project ? ` (${project.job_value_currency})` : ''}
+          </label>
+          <input
+            id="job-value"
+            className={styles.panelSelect}
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="—"
+            // Keyed so a value changed elsewhere (e.g. on the card) refreshes this box.
+            key={issue.allocated_value ?? 'none'}
+            defaultValue={issue.allocated_value == null ? '' : Number(issue.allocated_value)}
+            onBlur={(e) => {
+              const next = e.target.value === '' ? null : String(Number(e.target.value))
+              const current = issue.allocated_value == null ? null : String(Number(issue.allocated_value))
+              if (next !== current) updateIssue.mutate({ allocated_value: next })
+            }}
+          />
+        </div>
+
+        {issue.labels.length > 0 && (
+          <div className={styles.panelRow}>
+            <span className={styles.panelLabel}>Labels</span>
+            <div className={styles.labels}>
+              {issue.labels.map((l) => (
+                <span key={l.id} className={styles.label} style={{ background: l.color }}>
+                  {l.name}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className={styles.panelFoot}>
+          <button
+            type="button"
+            className={styles.watchBtn}
+            data-active={issue.is_watching}
+            onClick={() => toggleWatch.mutate(!issue.is_watching)}
+          >
+            {issue.is_watching ? <Eye size={14} /> : <EyeOff size={14} />}
+            {issue.is_watching ? 'Watching' : 'Watch'} ({issue.watcher_count})
+          </button>
+          <span className={styles.metaText}>Created {formatDistanceToNow(new Date(issue.created_at), { addSuffix: true })}</span>
+        </div>
+      </section>
+
+      <TimeTracking issue={issue} />
+    </aside>
   )
 }
 
@@ -214,7 +207,7 @@ function GroupInput({ value, onSave }: { value: string; onSave: (group: string) 
 }
 
 /** The accountant's estimate of the hours the task needs: anyone may set it (the budget, under
- * Time tracking, is the team lead's). Saved when you leave the box or press Enter. */
+ * Time budget, is the team lead's). Saved when you leave the box or press Enter. */
 function HoursInput({ value, onSave }: { value: number | null; onSave: (hours: number | null) => void }) {
   const [draft, setDraft] = useState(value === null ? '' : String(value))
   const save = () => {

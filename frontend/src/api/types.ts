@@ -543,6 +543,8 @@ export interface Comment {
   id: number
   author: User
   body: Record<string, unknown>
+  /** The stage of the task it is about (the milestone bar's history); empty for a general comment. */
+  stage?: '' | 'precheck' | 'preparation' | 'internal_review' | 'client_review' | 'dispatch'
   created_at: string
   updated_at: string
 }

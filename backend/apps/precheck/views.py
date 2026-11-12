@@ -806,3 +806,33 @@ class MilestonesView(APIView):
         services._announce_issue(issue)
         return Response(milestone_dict(m), status=status.HTTP_201_CREATED)
 
+
+
+class JobStagesView(APIView):
+    """GET /api/precheck/jobs/<key>/stages/ — the task's five stages for the milestone bar: each one
+    done, active or still to come, with its date and how many comments it has (AFIT, 12 Nov 2026)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        from . import stages
+
+        issue = _job(request, key)
+        return Response({"stages": stages.stage_states(issue)})
+
+
+class JobStageNoteView(APIView):
+    """POST /api/precheck/jobs/<key>/stage-note/ {stage} — the AI's draft of a comment recording that
+    stage's completion, from its latest results. Nothing is posted: the person edits it and posts it
+    as a comment on the stage."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        from . import stages
+
+        issue = _job(request, key)
+        stage = str(request.data.get("stage") or "")
+        if stage not in stages.LABELS:
+            return Response({"stage": [f"Choose one of: {', '.join(stages.LABELS)}."]}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(stages.draft_note(issue, stage, request.user))

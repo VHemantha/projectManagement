@@ -43,7 +43,10 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
         if (e.key) add(['issue', e.key])
         break
       case 'issue':
-        if (e.key) add(['issue', e.key])
+        if (e.key) {
+          add(['issue', e.key])
+          add(['issues', 'stages', e.key]) // a comment on a stage changes its count
+        }
         break
       case 'board':
         if (e.project) {
@@ -70,7 +73,10 @@ export function keysToInvalidate(events: LiveEvent[]): { queryKey: unknown[]; ex
         add(['reports', 'nav-tree'])
         break
       case 'precheck': // a job's AI pre-check: progress, result, decisions on findings
-        if (e.key) add(['precheck', e.key])
+        if (e.key) {
+          add(['precheck', e.key])
+          add(['issues', 'stages', e.key]) // a posted pre-check completes its stage
+        }
         add(['precheck-run'])
         break
     }

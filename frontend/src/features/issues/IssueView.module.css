@@ -1,72 +1,200 @@
+/* The task view (AFIT, 12 Nov 2026 design): header, tabs, the main column beside Job details and
+   Time budget, and (in a window) a footer with Close and Save changes. */
+
 .page {
   padding: var(--tf-space-6);
-  max-width: 1100px;
+  max-width: 1320px;
   margin: 0 auto;
 }
 
-.breadcrumb {
-  font-size: 12px;
-  color: var(--tf-text-subtle);
-  margin-bottom: var(--tf-space-3);
+/* In a window: the body scrolls and the footer stays at the bottom. */
+.modal {
   display: flex;
-  align-items: center;
-  gap: var(--tf-space-2);
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+}
+.modalBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--tf-space-5) var(--tf-space-8) var(--tf-space-6);
 }
 
-.headerRow {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+/* Header */
+.header {
   margin-bottom: var(--tf-space-4);
 }
-
-.typeKeyRow {
+.breadcrumb {
   display: flex;
   align-items: center;
   gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-4);
 }
-
+.crumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+}
+.crumbs a {
+  display: inline-flex;
+  align-items: center;
+  color: var(--tf-text);
+}
+.crumbs a:hover {
+  color: var(--tf-primary);
+  text-decoration: none;
+}
 .headerActions {
   display: flex;
+  align-items: center;
   gap: 4px;
+  margin-left: auto;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tf-space-4);
+}
+.titleIcon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface-hover);
+  color: var(--tf-text-secondary);
+}
+.titleText {
+  flex: 1;
+  min-width: 0;
+}
+.summary {
+  margin: 0;
+  padding: 0 var(--tf-space-1);
+  margin-left: calc(-1 * var(--tf-space-1));
+  border-radius: var(--tf-radius-md);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--tf-text);
+  cursor: text;
+}
+.summary:hover {
+  background: var(--tf-surface-hover);
+}
+.summaryInput {
+  width: 100%;
+  padding: 0 var(--tf-space-2);
+  border: 1px solid var(--tf-primary);
+  border-radius: var(--tf-radius-md);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+  font: inherit;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.summaryInput:focus {
+  outline: none;
+}
+.subtitle {
+  margin: 2px 0 0;
+  font-size: 16px;
+  color: var(--tf-text-secondary);
+}
+
+/* The stage, as a pill-shaped picker at the top right. */
+.statusPill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  height: 40px;
+  padding: 0 var(--tf-space-3) 0 var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+}
+.statusPill:focus-within {
+  border-color: var(--tf-primary);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
+.statusPill select {
+  max-width: 220px;
+  border: none;
+  background: none;
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.statusPill select:focus {
+  outline: none;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Tabs and layout */
+.tabs {
+  margin-bottom: var(--tf-space-5);
+}
+.tabs [role='tab'] {
+  padding: var(--tf-space-3) var(--tf-space-5);
+  font-size: 15px;
+  gap: var(--tf-space-2);
+}
+.tabs [role='tab'][data-state='active'] {
+  border-bottom-width: 3px;
 }
 
 .layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: var(--tf-space-6);
   align-items: start;
 }
-
+@media (max-width: 1100px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
   }
 }
+.main {
+  min-width: 0;
+}
+/* The tab content sits flush: the layout gives the spacing. */
+.main > [role='tabpanel'] {
+  padding-top: 0;
+}
 
-.summary {
-  font-size: 20px;
-  font-weight: 600;
+.sectionTitle {
+  margin: 0 0 var(--tf-space-2);
+  font-size: 18px;
+  font-weight: 700;
   color: var(--tf-text);
-  padding: var(--tf-space-1) var(--tf-space-2);
-  border-radius: var(--tf-radius-md);
-  cursor: text;
-  margin-bottom: var(--tf-space-5);
 }
-.summary:hover {
-  background: var(--tf-surface-hover);
+.block {
+  margin-top: var(--tf-space-6);
 }
-
-.summaryInput {
-  width: 100%;
-  font-size: 20px;
-  font-weight: 600;
-  padding: var(--tf-space-1) var(--tf-space-2);
-  border-radius: var(--tf-radius-md);
-  border: 2px solid var(--tf-border-focus);
-  margin-bottom: var(--tf-space-5);
-}
-
 .sectionLabel {
   font-size: 13px;
   font-weight: 600;
@@ -74,22 +202,32 @@
   margin-bottom: var(--tf-space-2);
   margin-top: var(--tf-space-5);
 }
-.sectionLabel:first-child {
-  margin-top: 0;
-}
 
-.descriptionDisplay {
-  cursor: text;
+.descriptionEmpty {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--tf-space-4);
+  border: 1px solid var(--tf-border);
   border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text-subtle);
+  font: inherit;
+  font-size: 15px;
+  text-align: left;
+  cursor: text;
+}
+.descriptionEmpty:hover {
+  border-color: var(--tf-text-subtle);
+}
+.descriptionDisplay {
+  padding: var(--tf-space-1) var(--tf-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--tf-radius-md);
+  cursor: text;
   min-height: 32px;
 }
 .descriptionDisplay:hover {
-  background: var(--tf-surface-hover);
-}
-.descriptionPlaceholder {
-  color: var(--tf-text-subtle);
-  padding: var(--tf-space-2) var(--tf-space-3);
-  font-size: 14px;
+  border-color: var(--tf-border);
 }
 
 .editActions {
@@ -102,7 +240,7 @@
   display: flex;
   align-items: center;
   gap: var(--tf-space-2);
-  padding: 6px 4px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--tf-border);
   font-size: 13px;
   cursor: pointer;
@@ -121,11 +259,17 @@
   margin-top: var(--tf-space-2);
 }
 
+.searchResults {
+  margin-top: 4px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+}
+
 .linkRow {
   display: flex;
   align-items: center;
   gap: var(--tf-space-2);
-  padding: 6px 4px;
+  padding: 8px 6px;
   border-bottom: 1px solid var(--tf-border);
   font-size: 13px;
 }
@@ -143,8 +287,8 @@
 
 .dropzone {
   border: 2px dashed var(--tf-border);
-  border-radius: var(--tf-radius-md);
-  padding: var(--tf-space-4);
+  border-radius: var(--tf-radius-lg);
+  padding: var(--tf-space-5);
   text-align: center;
   color: var(--tf-text-subtle);
   font-size: 13px;
@@ -167,42 +311,111 @@
   color: var(--tf-text-link);
 }
 
-/* Right panel */
-.panel {
-  background: var(--tf-surface);
+.driveFolder {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-3) var(--tf-space-4);
   border: 1px solid var(--tf-border);
-  border-radius: var(--tf-radius-md);
-  padding: var(--tf-space-4);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface);
+  color: var(--tf-text-secondary);
+  font-size: 14px;
+}
+.driveFolder a {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 600;
+}
+
+/* Right column: Job details and Time budget */
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-4);
+  min-width: 0;
+}
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--tf-space-3);
+  padding: var(--tf-space-4) var(--tf-space-5) var(--tf-space-5);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface-sunken);
 }
-
+.panelTitle {
+  margin: 0 0 var(--tf-space-1);
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--tf-text);
+}
 .panelRow {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
 }
-
+.panelPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tf-space-3);
+}
 .panelLabel {
-  font-size: 11px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--tf-text-subtle);
+  color: var(--tf-text);
 }
-
 .panelSelect {
   width: 100%;
-  height: 32px;
-  padding: 0 var(--tf-space-2);
+  min-width: 0;
+  height: 36px;
+  padding: 0 var(--tf-space-3);
   border-radius: var(--tf-radius-md);
   border: 1px solid var(--tf-border);
   background: var(--tf-surface);
-  font-size: 13px;
+  color: var(--tf-text);
+  font: inherit;
+  font-size: 15px;
 }
-
+.panelSelect:focus {
+  outline: none;
+  border-color: var(--tf-primary);
+  box-shadow: 0 0 0 3px var(--tf-primary-subtle);
+}
 .assigneeRow {
   display: flex;
   align-items: center;
+  gap: var(--tf-space-2);
+}
+.emptyAvatar {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--tf-text-subtle);
+  color: var(--tf-text-inverse);
+  font-size: 13px;
+  font-weight: 600;
+}
+.labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.label {
+  padding: 2px 8px;
+  border-radius: var(--tf-radius-full);
+  color: var(--tf-text);
+  font-size: 12px;
+}
+.panelFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--tf-space-2);
 }
 
@@ -212,16 +425,16 @@
   gap: 6px;
   font-size: 13px;
   color: var(--tf-text-secondary);
-  background: var(--tf-surface-hover);
-  border: none;
+  background: var(--tf-surface);
+  border: 1px solid var(--tf-border);
   border-radius: var(--tf-radius-md);
-  padding: 6px var(--tf-space-2);
+  padding: 5px var(--tf-space-2);
   cursor: pointer;
-  align-self: flex-start;
 }
 .watchBtn[data-active='true'] {
   color: var(--tf-primary);
   background: var(--tf-primary-subtle);
+  border-color: transparent;
 }
 
 .metaText {
@@ -232,6 +445,54 @@
 .divider {
   height: 1px;
   background: var(--tf-border);
+}
+
+/* Footer (in a window) */
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-4) var(--tf-space-8);
+  border-top: 1px solid var(--tf-border);
+  background: var(--tf-surface);
+}
+.page .footer {
+  padding: var(--tf-space-4) 0 0;
+  margin-top: var(--tf-space-6);
+  background: none;
+}
+.updated {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  font-size: 14px;
+  color: var(--tf-text-secondary);
+}
+.footerActions {
+  display: flex;
+  gap: var(--tf-space-3);
+  margin-left: auto;
+}
+.footerActions button {
+  height: 40px;
+  padding: 0 var(--tf-space-6);
+  font-size: 15px;
+}
+
+@media (max-width: 640px) {
+  .modalBody {
+    padding: var(--tf-space-4);
+  }
+  .footer {
+    padding: var(--tf-space-3) var(--tf-space-4);
+  }
+  .titleRow {
+    flex-wrap: wrap;
+  }
+  .summary,
+  .summaryInput {
+    font-size: 22px;
+  }
 }
 
 /* Activity feed */
