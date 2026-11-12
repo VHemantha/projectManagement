@@ -23,7 +23,8 @@ from .embeddings import get_embedder
 
 # precheck_result, guide, wp_gst: what the pre-check, the preparation guide and the WP Agent concluded
 # (memory.py, 10 Nov 2026), so Ask can answer questions about their work.
-SOURCE_TYPES = ("document", "assumption", "finding", "feedback", "skill", "answer", "precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica")
+SOURCE_TYPES = ("document", "assumption", "finding", "feedback", "skill", "answer", "precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica",
+                "gap")  # gap: a provisional missing-information finding (gaps.py), kept apart from document chunks
 # From narrowest to widest. A search starts at one level and may widen; documents stop at vendor.
 LEVELS = ("task", "project", "vendor", "team", "firm")
 _SHARED_ACROSS_VENDORS = {"skill"}
@@ -181,6 +182,15 @@ class Knowledge:
         """Entries by their tags alone, no meaning involved (e.g. every assumption on a task)."""
         res = self.col.get(where=where_for(scope, level, source_types, **filters), limit=limit, include=["documents", "metadatas"])
         return [self._entry(i, t, m) for i, t, m in zip(res["ids"], res["documents"], res["metadatas"])]
+
+    def gap_cases(self, statuses: Iterable[str]) -> list[dict]:
+        """Every task with a gap in one of these statuses, across the store: {vendor, task, team,
+        project} once each. The autonomous re-check (gaps.py) starts from this list."""
+        res = self.col.get(where={"$and": [{"source_type": "gap"}, {"status": {"$in": list(statuses)}}]}, include=["metadatas"])
+        seen: dict[tuple, dict] = {}
+        for m in res["metadatas"]:
+            seen.setdefault((m.get("vendor"), m.get("task")), {k: m.get(k, "") for k in ("vendor", "task", "team", "project")})
+        return sorted(seen.values(), key=lambda c: (c["vendor"], c["task"]))
 
     def file_ids(self, scope: Scope) -> set[str]:
         """The files whose chunks this task holds: what is really in the store, whatever a marker

@@ -508,6 +508,8 @@ def record_event(event: dict) -> bool:
         return _record_answer(event)
     if str(event.get("type", "")).startswith("ai_learning."):
         return _record_rule(event)
+    if event.get("type") == "ai_precheck.gaps_updated":
+        return _record_gaps(event)
     run = AIPrecheck.objects.select_for_update().select_related("issue__project").filter(run_id=event.get("run_id")).first()
     if run is None or run.status != AIPrecheck.Status.RUNNING:
         return False
@@ -539,13 +541,40 @@ def record_event(event: dict) -> bool:
             except (binascii.Error, ValueError):
                 run.workbook = None
             run.save(update_fields=["gst", "workbook"])
-        from . import posting
+        from . import gaps, posting
 
         posting.post_result(run)
+        if run.kind == AIPrecheck.Kind.PRECHECK:
+            # The run's own result is posted above; its gaps are only kept, not posted again.
+            gaps.store(run.issue, (event["result"].get("precheck") or {}).get("gaps") or {}, post=False)
     else:
         return False
     _announce(run)
     return True
+
+
+def _record_gaps(event: dict) -> bool:
+    """The agent re-checked a task's gaps on its own and something changed (or the case settled)."""
+    from apps.issues.models import Issue
+
+    from . import gaps
+
+    job_id = str(event.get("job_id", ""))
+    issue = Issue.objects.select_related("project").filter(pk=int(job_id) if job_id.isdigit() else 0).first()
+    if issue is None:
+        return False
+    gaps.store(issue, event.get("report") or {})
+    _announce_issue(issue)
+    return True
+
+
+def recheck_gaps(issue, *, finalize: bool = False) -> bool:
+    """Ask the agent to re-check the task's gaps now (or to finalise the case). False if not reachable."""
+    try:
+        _call_agent("/precheck/gaps/finalize" if finalize else "/precheck/gaps/sweep", {"job_id": str(issue.id)})
+        return True
+    except AgentUnavailable:
+        return False
 
 
 def _store_draft(run: AIPrecheck, event: dict) -> None:

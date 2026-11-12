@@ -8,7 +8,7 @@ import type { Finding, JobPrecheck, PrecheckSetup, Run } from '@/api/precheck'
 import { TooltipProvider } from '@/design-system'
 import { output } from './precheckFixture'
 
-const mocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({ gaps: undefined as unknown, gapAction: vi.fn(),
   data: null as unknown,
   start: vi.fn(),
   save: vi.fn(),
@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/api/precheck', () => ({
   useJobPrecheck: () => ({ data: mocks.data, isLoading: false, isError: false }),
+  useJobGaps: () => ({ data: mocks.gaps }),
+  useGapAction: () => ({ mutate: mocks.gapAction, isPending: false, isError: false, isSuccess: false }),
   usePrecheckRun: () => ({ data: undefined }),
   useRunPrecheck: () => ({ mutate: mocks.start, isPending: false, isError: false }),
   useSavePrecheckSetup: () => ({ mutate: mocks.save, isPending: false, isError: false }),

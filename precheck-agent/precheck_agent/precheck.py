@@ -91,9 +91,11 @@ SCHEMA = {
 
 ANSWER = """Answer in the JSON shape given.
 - business_nature: the type, a one-sentence summary, your reasoning (at most 80 words) and the facts that drive what is needed, each with its sources.
-- items: everything this year's accounts need. decision: request (missing or incomplete evidence: say which), already_provided (list the D ids that provide it in "documents"), not_needed (say why), or ask_accountant (an internal question for the accountant: uncertain applicability, something the team may hold internally; never sent to the client). "priority": blocking when the gap stops preparation, else normal. "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N, P, M) the reason rests on.
+- items: everything this year's accounts need. decision: request (not found, or not complete, in what you are shown: say which, and what would show it), already_provided (list the D ids that provide it in "documents"), not_needed (say why), or ask_accountant (an internal question for the accountant: uncertain applicability, something the team may hold internally; never sent to the client). "priority": blocking when the gap stops preparation, else normal. "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N, P, M) the reason rests on.
 - preparer_notes: the internal analysis (section B): what you understood, assumptions, doubts, conflicting documents, possible accounting or tax issues and matters for judgment, each with sources; facts apart from assumptions.
 - lessons_applied: the L ids you applied.
+- You see only the first lines of each document, so a request is provisional: code then searches every document in full, and keeps checking new ones, before anything is treated as missing. Write "not found in the documents shown", never "missing" or any final conclusion.
+- Cite the ids (and so the document and line) behind every reason, fact and note.
 Never invent a figure, file or fact: use only what is in the input."""
 
 

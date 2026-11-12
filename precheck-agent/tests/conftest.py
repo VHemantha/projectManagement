@@ -121,7 +121,8 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("PRECHECK_DRIVE_MODE", "local")
     monkeypatch.setenv("PRECHECK_LOCAL_DRIVE_ROOT", str(drive_root))
     monkeypatch.setenv("PRECHECK_SERVICE_TOKEN", "test-token")
-    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
+    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner.sweep_graph,
+                   runner._checkpointer, skills_loader.all_skills):
         cached.cache_clear()
     store.metadata.clear()
     llm.reset_fakes()
@@ -144,7 +145,8 @@ def env(tmp_path, monkeypatch):
     e.run = run
     yield e
     pm_client.set_pm(None)
-    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner._checkpointer, skills_loader.all_skills):
+    for cached in (config.get_settings, store.get_store, knowledge.get_knowledge, embeddings.get_embedder, runner.graph, runner.sweep_graph,
+                   runner._checkpointer, skills_loader.all_skills):
         cached.cache_clear()
 
 

@@ -70,6 +70,43 @@ checks what has arrived. Real run on a general business (15 Oct 2026): IRD repor
 because the team has access, an answered dividend question not repeated, the unconfirmed invoice rule
 raised for the accountant; $0.35, 75 s.
 
+**"Not found" is provisional (12 Nov 2026, `gaps.py`).** The pre-check's model sees only the first
+lines of each document (the input is capped), so a request means *not found in what it was shown*,
+never *missing*. Each request becomes a **gap** in the knowledge store (source type `gap`, tagged with
+the task like every chunk, so one task's evidence never reaches another's):
+
+- **Backward**: a new gap is searched for in every chunk of the task already stored (by meaning, and
+  by its exact words and their synonyms). **Forward**: on each run, and on the autonomous re-check,
+  every gap is searched for in the documents that are new or changed.
+- A search only finds candidates. A **verifier** (Sonnet, structured JSON) must confirm a passage
+  fills the gap, quoting it; code keeps the quote only if it is really in the passage, at least
+  `gap_min_confidence`. Code then decides the status: `OPEN`, `PARTIALLY_RESOLVED` (says what is still
+  needed), `RESOLVED`, `CONFLICTING` (two documents give different values: both kept, neither picked,
+  sent to the accountant, not the client) or `CONFIRMED_MISSING`. Every change is logged and kept in
+  the gap's history.
+- What a search finds moves from "requests" to "provided" (with its evidence) before the client is
+  asked; the result says it is provisional.
+- **Only `finalize_case()` confirms a gap missing.** The agent re-checks every task with gaps still
+  open every `gap_sweep_minutes` on its own; once every document has been checked, the folder has not
+  changed for `gap_settle_days` and `gap_confirm_sweeps` sweeps in a row found nothing, it finalises the
+  case (one last sweep, then every gap still OPEN is confirmed missing). A document that arrives later
+  is still checked by the next pre-check and can reopen it. A person can also ask for a re-check or
+  finalise now (task card, `POST /api/precheck/jobs/<key>/gaps/`).
+- What the re-checks find is posted under the task's Pre-check stage by the TASKO Coordinator.
+- Endpoints: `GET /precheck/gaps/{job_id}` (the report), `POST /precheck/gaps/sweep` and
+  `POST /precheck/gaps/finalize` (`{job_id}`).
+
+| Setting (`PRECHECK_…`) | Default | What it tunes |
+|---|---|---|
+| `GAP_TOP_K` | 6 | passages found by meaning per search |
+| `GAP_MIN_SIMILARITY` | 0.2 | below this a passage found by meaning is not verified (raise it with `fastembed`, whose scores run higher than the hash embedder's) |
+| `GAP_MIN_CONFIDENCE` | 0.7 | the verifier's least confidence for evidence |
+| `GAP_MERGE_SIMILARITY` | 0.92 | a new request this close to a known gap is that gap |
+| `GAP_MAX_VERIFICATIONS` | 30 | verifier calls per run or sweep (cost cap; about $0.005 each) |
+| `GAP_SWEEP_MINUTES` | 60 | how often open tasks are re-checked (0: off) |
+| `GAP_SETTLE_DAYS` | 3 | a folder unchanged this long may be finalised |
+| `GAP_CONFIRM_SWEEPS` | 2 | quiet sweeps in a row before finalising |
+
 **Teaching it.** On the task card a person can correct an item (not needed, wrong reason) or
 add one that was missed. The lesson applies to this client at once. "Apply to all clients of
 this type" waits until a lead or admin approves it. Active lessons are given to the model on

@@ -2,7 +2,7 @@
 name: precheck-method
 description: How AFIT's pre-check works - an experienced New Zealand accountant reads the client questionnaire, last year's financial statements and workpapers, decides the business nature, and lists exactly what is still needed to prepare this year's accounts, each with its reason.
 metadata:
-  version: "2.0"
+  version: "2.1"
 ---
 
 # Pre-checking a task before this year's accounts are prepared
@@ -46,6 +46,20 @@ of finished work: you do not prepare the accounts, post entries or decide tax po
    the right entity, every account or property.
 4. **Decide each item**: `request`, `already_provided` (name the files), or `not_needed` (say
    why — e.g. the questionnaire says there was no sale this year).
+
+## Your view is partial: a request is "not found yet", not "missing"
+
+You see every file's name but only the first lines of each document (R lines), and a long folder
+is cut short. So `request` means **not found in the documents shown**. After you answer, code
+searches every document in full for each request, a verifier confirms what it finds, and new
+documents are checked against every request as they arrive. Only once the folder has settled is
+anything confirmed missing, and that is not your decision.
+
+- Write "not found in the documents shown" or "not yet received", never "missing", "not
+  provided" or any final conclusion.
+- Say what you looked for and what would show it ("the ANZ statement for March", "an invoice for
+  the roof repair"), so the search can find it.
+- Cite the ids behind every reason, fact and note: the document and line each rests on.
 
 ## Every item needs a reason a client would understand
 

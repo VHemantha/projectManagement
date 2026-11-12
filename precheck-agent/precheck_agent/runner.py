@@ -8,7 +8,7 @@ from functools import lru_cache
 
 from . import budget
 from .config import get_settings
-from .graph import PrecheckStop, build_graph
+from .graph import PrecheckStop, build_graph, build_sweep_graph
 from .pm_client import PMError, get_pm
 from .store import get_store
 
@@ -200,6 +200,48 @@ def learn_now(body: dict) -> dict:
         logger.exception("Drafting lesson %s failed", body.get("lesson_id"))
         pm.send_event(run_id, {"type": "ai_learning.failed", "job_id": body.get("job_id", ""), "reason": "The rule could not be drafted."})
         return {}
+
+
+@lru_cache
+def sweep_graph():
+    return build_sweep_graph()
+
+
+def sweep(job_id: str, finalize: bool = False) -> dict:
+    """The autonomous re-check of one task's gaps (gaps.py): read its folder again, check the gaps
+    against what is new, finalise it once settled (or now, with `finalize`). Tells the PM application
+    when anything changed. Blocking; never raises (a problem is logged and tried next time)."""
+    run_id = f"gaps-{job_id}-{uuid.uuid4().hex[:8]}"
+    try:
+        final = sweep_graph().invoke({"run_id": run_id, "job_id": job_id, "mode": "sweep", "finalize": finalize, "started_at": time.time()})
+    except (PrecheckStop, PMError) as exc:
+        logger.info("Gap sweep of task %s skipped: %s", job_id, exc)
+        return {"status": "skipped", "reason": str(exc)}
+    except Exception:
+        logger.exception("Gap sweep of task %s failed", job_id)
+        return {"status": "failed"}
+    finally:
+        budget.release(run_id)
+    result = final.get("gaps") or {}
+    if result.get("changed"):
+        get_pm().send_event(run_id, {"type": "ai_precheck.gaps_updated", "job_id": job_id, "report": result["report"]})
+    return {"status": "complete", **result}
+
+
+def start_sweep(job_id: str, finalize: bool = False) -> None:
+    threading.Thread(target=sweep, args=(job_id, finalize), name=f"gaps-{job_id}", daemon=True).start()
+
+
+_sweeper_stop = threading.Event()
+
+
+def start_sweeper() -> threading.Thread:
+    """The background loop that keeps re-checking every task with gaps still open (gaps.run_sweeper)."""
+    from . import gaps as GP
+
+    thread = threading.Thread(target=GP.run_sweeper, args=(sweep, _sweeper_stop), name="gap-sweeper", daemon=True)
+    thread.start()
+    return thread
 
 
 def start_learn(body: dict) -> None:

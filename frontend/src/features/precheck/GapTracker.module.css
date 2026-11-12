@@ -1,0 +1,100 @@
+/* The pre-check's provisional "not found" list and each item's gap status. */
+.tracker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  margin-bottom: var(--tf-space-4);
+  padding: var(--tf-space-3) var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-left: 3px solid var(--tf-warning);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+}
+.tracker[data-final] {
+  border-left-color: var(--tf-success);
+}
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tf-space-2);
+  color: var(--tf-text-secondary);
+}
+.text {
+  margin: 0;
+  font-size: 13px;
+  color: var(--tf-text-secondary);
+}
+.text strong {
+  color: var(--tf-text);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.counts li {
+  padding: 2px var(--tf-space-2);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-hover);
+  font-size: 12px;
+  color: var(--tf-text-secondary);
+}
+.number {
+  font-weight: 700;
+  color: var(--tf-text);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--tf-space-2);
+}
+
+.chip {
+  flex-shrink: 0;
+  padding: 1px var(--tf-space-2);
+  border-radius: var(--tf-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chip[data-status='OPEN'],
+.counts li[data-status='OPEN'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.chip[data-status='PARTIALLY_RESOLVED'],
+.counts li[data-status='PARTIALLY_RESOLVED'] {
+  background: var(--tf-accent-blue-bg);
+  color: var(--tf-accent-blue);
+}
+.chip[data-status='RESOLVED'],
+.counts li[data-status='RESOLVED'] {
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.chip[data-status='CONFLICTING'],
+.counts li[data-status='CONFLICTING'] {
+  background: var(--tf-accent-pink-bg);
+  color: var(--tf-accent-pink);
+}
+.chip[data-status='CONFIRMED_MISSING'],
+.counts li[data-status='CONFIRMED_MISSING'] {
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+
+.muted {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+.error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tf-danger);
+}

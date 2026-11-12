@@ -87,6 +87,29 @@ export interface PrecheckItem {
   documents: SourceRef[]
   /** Raised by code: no_source, no_file_named, figure_not_in_documents. */
   flags: string[]
+  /** The item's missing-information gap: the AI keeps checking every document for it (12 Nov 2026). */
+  gap?: { gap_id: string; status: GapStatus; still_needed: string }
+}
+
+/** A "not found" is provisional: OPEN until found (RESOLVED, or partly), or until the task's folder
+ * has settled and the AI confirms it missing. CONFLICTING: documents give different values. */
+export type GapStatus = 'OPEN' | 'PARTIALLY_RESOLVED' | 'RESOLVED' | 'CONFLICTING' | 'CONFIRMED_MISSING'
+
+export interface JobGaps {
+  provisional: boolean
+  finalized_at: string | null
+  updated_at: string | null
+  counts: Partial<Record<GapStatus, number>>
+  gaps: {
+    gap_id: string
+    group: string
+    item: string
+    status: GapStatus
+    label: string
+    still_needed: string
+    origin: string
+    evidence: { doc_name: string; location: string; quoted_snippet: string; extracted_value: string; drive_url: string; found_direction: string }[]
+  }[]
 }
 
 /** The pre-check: decision, key documents, business nature, every item with its reason, and
@@ -262,6 +285,23 @@ export function useJobPrecheck(jobKey: string) {
     queryFn: async () => (await apiClient.get<JobPrecheck>(`/precheck/jobs/${jobKey}/`)).data,
     refetchInterval: (query) =>
       query.state.data?.latest?.status === 'running' || query.state.data?.draft?.status === 'running' ? RUNNING_POLL_MS : false,
+  })
+}
+
+/** The task's gaps, kept up to date by the AI's own re-checks (under ['precheck', key]: refreshed live). */
+export function useJobGaps(jobKey: string) {
+  return useQuery({
+    queryKey: ['precheck', jobKey, 'gaps'],
+    queryFn: async () => (await apiClient.get<JobGaps>(`/precheck/jobs/${jobKey}/gaps/`)).data,
+  })
+}
+
+/** Check the task's gaps again now, or finalise the case (what is still not found is confirmed missing). */
+export function useGapAction(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (action: 'recheck' | 'finalize') => (await apiClient.post(`/precheck/jobs/${jobKey}/gaps/`, { action })).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })
 }
 

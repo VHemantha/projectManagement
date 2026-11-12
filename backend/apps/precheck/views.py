@@ -836,3 +836,29 @@ class JobStageNoteView(APIView):
         if stage not in stages.LABELS:
             return Response({"stage": [f"Choose one of: {', '.join(stages.LABELS)}."]}, status=status.HTTP_400_BAD_REQUEST)
         return Response(stages.draft_note(issue, stage, request.user))
+
+
+class JobGapsView(APIView):
+    """GET /api/precheck/jobs/<key>/gaps/ — what the pre-check has not found yet and what it found by
+    searching every document: each item's status (provisional until the case settles).
+    POST {action: "recheck" | "finalize"} — check again now, or finalise the case now (every item still
+    not found is then confirmed missing). Both run in the background; the result arrives as an event."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        from . import gaps
+
+        issue = _job(request, key)
+        folder = getattr(issue, "drive_folder", None)
+        report = folder.gap_report if folder else {}
+        return Response({**gaps.summary(report), "updated_at": folder.gap_report_at if folder else None})
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        action = str(request.data.get("action") or "")
+        if action not in ("recheck", "finalize"):
+            return Response({"action": ["recheck or finalize"]}, status=status.HTTP_400_BAD_REQUEST)
+        if not services.recheck_gaps(issue, finalize=action == "finalize"):
+            return Response({"detail": "The AI service is not reachable right now. Please try again shortly."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({"status": "checking"}, status=status.HTTP_202_ACCEPTED)

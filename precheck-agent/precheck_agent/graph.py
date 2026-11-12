@@ -100,6 +100,8 @@ class State(TypedDict, total=False):
     guide: dict
     folders: dict  # Drive folder id -> path inside the task folder
     precheck: dict
+    finalize: bool  # the gap sweep: finalise the case now, whatever its settle time (gaps.py)
+    gaps: dict  # the gap sweep's report and whether anything changed
     evidence: Annotated[dict, _merge]
     usage: Annotated[list, _concat]
     skipped: Annotated[list, _concat]
@@ -491,6 +493,47 @@ def precheck(state: State) -> dict:
     return {"precheck": output, "evidence": evidence, "usage": usage}
 
 
+# --- track_gaps (code + verifier) --------------------------------------------------------------------
+
+def track_gaps(state: State) -> dict:
+    """A request is "not found in what the model was shown", never a final "missing": each becomes a
+    provisional gap, searched for in every document (and the known gaps in the documents that
+    changed), and the result is rewritten to say so (gaps.py)."""
+    from . import gaps as GP
+
+    out = state["precheck"]
+    emit("verified", f"Searching every document for the {len(out['requests'])} items not found yet", "running")
+    tracked, usage = GP.track(state["job"], out, state["key"], state["files"], state["sync"]["changed"], state.get("evidence", {}),
+                              run_id=state["run_id"])
+    c = tracked["gaps"]["counts"]
+    emit("verified", f"Items checked against every document: {c[GP.RESOLVED]} found, {c[GP.PARTIAL]} partly found, "
+                     f"{c[GP.CONFLICTING]} conflicting, {c[GP.OPEN]} not found yet", "done", found=c[GP.RESOLVED], open=c[GP.OPEN])
+    return {"precheck": tracked, "usage": usage}
+
+
+def sweep_gaps(state: State) -> dict:
+    """The autonomous re-check of a case's gaps, after its folder was read again (gaps.sweep_case)."""
+    from . import gaps as GP
+
+    report, usage, changed = GP.sweep_case(state["job"], state["files"], state["sync"]["changed"], force_finalize=bool(state.get("finalize")),
+                                           run_id=state["run_id"])
+    return {"gaps": {"report": report, "changed": changed}, "usage": usage}
+
+
+def build_sweep_graph():
+    """Read the task's folder again (only new or changed files cost anything) and check its gaps."""
+    g = StateGraph(State)
+    for name, fn in [("load_job", load_job), ("sync_drive", sync_drive), ("index", index), ("run_rules", run_rules), ("sweep_gaps", sweep_gaps)]:
+        g.add_node(name, fn)
+    g.add_edge(START, "load_job")
+    g.add_edge("load_job", "sync_drive")
+    g.add_edge("sync_drive", "index")
+    g.add_edge("index", "run_rules")
+    g.add_edge("run_rules", "sweep_gaps")
+    g.add_edge("sweep_gaps", END)
+    return g.compile(cache=StoreCache(get_store()))
+
+
 # --- guide (model: Opus, one call) -----------------------------------------------------------------
 
 def guide(state: State) -> dict:
@@ -793,7 +836,7 @@ def publish(state: State) -> dict:
 def build_graph(checkpointer=None):
     g = StateGraph(State)
     for name, fn in [("load_job", load_job), ("sync_drive", sync_drive), ("index", index), ("run_rules", run_rules),
-                     ("key_documents", key_documents), ("precheck", precheck), ("review", review), ("guide", guide),
+                     ("key_documents", key_documents), ("precheck", precheck), ("track_gaps", track_gaps), ("review", review), ("guide", guide),
                      ("draft_directions", draft_directions),
                      ("publish", publish)]:
         g.add_node(name, fn)
@@ -804,7 +847,8 @@ def build_graph(checkpointer=None):
     g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "key_documents"])
     g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck", "review", "guide"])
     g.add_edge("guide", "publish")
-    g.add_edge("precheck", "publish")
+    g.add_edge("precheck", "track_gaps")
+    g.add_edge("track_gaps", "publish")
     g.add_edge("review", "publish")
     g.add_edge("draft_directions", END)
     g.add_edge("publish", END)

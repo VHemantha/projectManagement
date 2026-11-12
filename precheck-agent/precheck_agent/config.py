@@ -105,6 +105,23 @@ class Settings(BaseSettings):
     gl_entry_min: float = 1000.0  # ledger entries at least this large are listed one by one (the invoice threshold)
     analysis_min_amount: float = 250.0  # material lines (used for the bank account check)
 
+    # --- missing-information gaps (gaps.py, 12 Nov 2026) ---------------------------------------
+    # A pre-check's "not found" is a provisional gap, checked against every document of the task
+    # (backward when it is found, forward as documents arrive) and confirmed missing only when the
+    # task's folder has settled. Every number below is a tuning knob, not a rule of the code.
+    gap_top_k: int = 6  # passages found by meaning, per search, for the verifier to read
+    gap_min_similarity: float = 0.2  # a passage found by meaning below this is not worth verifying
+    gap_min_confidence: float = 0.7  # the verifier's least confidence for a passage to count as evidence
+    gap_merge_similarity: float = 0.92  # a new "not found" this close in meaning to a known gap is that gap
+    gap_max_verifications: int = 30  # verifier calls in one run or sweep (cost stays bounded)
+    verifier_max_tokens: int = 1200
+    # The autonomous re-check: every gap_sweep_minutes (0: off) each task with gaps still open is
+    # looked at again. A gap is confirmed missing only once every document has been checked, the
+    # folder has not changed for gap_settle_days, and gap_confirm_sweeps sweeps in a row found nothing.
+    gap_sweep_minutes: int = 60
+    gap_settle_days: float = 3.0
+    gap_confirm_sweeps: int = 2
+
     # --- rules -------------------------------------------------------------------------------
     variance_pct: float = 25.0
     variance_min_amount: float = 5_000.0

@@ -54,6 +54,11 @@ class JobFolder(models.Model):
     # Accountant-confirmed settings (general business and investment briefs, 16 Oct 2026):
     # {"year_start", "year_end" (ISO dates), "xero_complete", "ird_access", "related_records" (yes|no|"")}.
     accountant_settings = models.JSONField(default=dict, blank=True)
+    # The latest report of the task's missing-information gaps from the agent (12 Nov 2026): each
+    # "not found" with its status (open, partly found, found, conflicting, confirmed missing) and
+    # evidence. Provisional until the agent finalises the case. Updated by runs and by its re-checks.
+    gap_report = models.JSONField(default=dict, blank=True)
+    gap_report_at = models.DateTimeField(null=True, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 

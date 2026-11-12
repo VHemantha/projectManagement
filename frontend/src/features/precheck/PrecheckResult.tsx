@@ -17,6 +17,7 @@ import {
   useTeachLesson,
 } from '@/api/precheck'
 import { Button, CopyButton } from '@/design-system'
+import { GapChip, GapTracker } from './GapTracker'
 
 const FLAG_TEXT: Record<string, string> = {
   no_source: 'The AI gave no source for this',
@@ -171,6 +172,7 @@ function ItemRow({
       <div className={styles.itemHead}>
         <span className={styles.itemTitle}>{item.item}</span>
         {item.priority === 'blocking' && item.decision === 'request' && <span className={styles.blocking}>Blocks preparation</span>}
+        {item.gap && <GapChip status={item.gap.status} />}
         {!teaching && (
           <button type="button" className={styles.teachButton} onClick={() => setTeaching(true)} aria-label={`Correct: ${item.item}`}>
             <GraduationCap size={13} aria-hidden="true" /> {taught ? 'Lesson saved' : 'Correct this'}
@@ -286,6 +288,7 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
   const [missedOpen, setMissedOpen] = useState(false)
   return (
     <div className={styles.result}>
+      <GapTracker jobKey={jobKey} />
       <section aria-labelledby="pc-key">
         <h3 id="pc-key" className={styles.sectionTitle}>
           Key documents

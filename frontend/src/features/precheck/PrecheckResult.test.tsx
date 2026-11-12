@@ -7,7 +7,7 @@ import { output } from './precheckFixture'
 import type { PrecheckOutput } from '@/api/precheck'
 import { TooltipProvider } from '@/design-system'
 
-const mocks = vi.hoisted(() => ({
+const mocks = vi.hoisted(() => ({ gaps: undefined as unknown, gapAction: vi.fn(),
   // A save that succeeds closes the form, as the real mutation's onSuccess does.
   teach: vi.fn((_payload: unknown, options?: { onSuccess?: () => void }) => options?.onSuccess?.()),
   setStatus: vi.fn(),
@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/api/precheck', () => ({
   useLessons: () => ({ data: mocks.lessons }),
+  useJobGaps: () => ({ data: mocks.gaps }),
+  useGapAction: () => ({ mutate: mocks.gapAction, isPending: false, isError: false, isSuccess: false }),
   useTeachLesson: () => ({ mutate: mocks.teach, isPending: false, isError: false }),
   useSetLessonStatus: () => ({ mutate: mocks.setStatus }),
   useAccountantAnswers: () => ({ data: { answers: mocks.answers } }),

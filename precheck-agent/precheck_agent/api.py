@@ -18,7 +18,10 @@ async def lifespan(_app):
     # Runs the previous process left unfinished are reported as failed, in the background so
     # start-up is not held up while AFIT Connect is itself restarting.
     threading.Thread(target=runner.fail_orphans, name="fail-orphans", daemon=True).start()
+    # Tasks with missing-information gaps still open are re-checked on their own (gaps.py).
+    runner.start_sweeper()
     yield
+    runner._sweeper_stop.set()
 
 
 app = FastAPI(title="AFIT Connect pre-check agent", version=__version__, lifespan=lifespan)
@@ -80,6 +83,40 @@ def ask_question(body: AskRequest):
     comes back to the PM application as an event."""
     runner.start_ask(body.job_id, body.question_id, body.question[:2000], body.history[-4:])
     return {"question_id": body.question_id, "status": "running"}
+
+
+class GapsRequest(BaseModel):
+    job_id: str
+
+
+@app.get("/precheck/gaps/{job_id}", dependencies=[Depends(require_token)])
+def gap_report(job_id: str):
+    """The task's missing-information gaps by status: provisional until the case is finalised."""
+    from . import gaps as GP
+    from .knowledge import Scope
+    from .pm_client import PMError, get_pm
+
+    try:
+        job = get_pm().get_job(job_id)
+    except PMError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return GP.report(Scope.of(job))
+
+
+@app.post("/precheck/gaps/sweep", status_code=202, dependencies=[Depends(require_token)])
+def gap_sweep(body: GapsRequest):
+    """Re-check the task's gaps now (what the background loop does every gap_sweep_minutes). The
+    report comes back to the PM application as an event when anything changed."""
+    runner.start_sweep(body.job_id)
+    return {"job_id": body.job_id, "status": "checking"}
+
+
+@app.post("/precheck/gaps/finalize", status_code=202, dependencies=[Depends(require_token)])
+def gap_finalize(body: GapsRequest):
+    """finalize_case: one last sweep of every gap against every document, then every gap still open is
+    confirmed missing. The final report comes back to the PM application as an event."""
+    runner.start_sweep(body.job_id, finalize=True)
+    return {"job_id": body.job_id, "status": "finalizing"}
 
 
 class LearnRequest(BaseModel):
