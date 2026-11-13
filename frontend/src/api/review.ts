@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from './client'
-import type { LessonScope, Run, Severity, SourceRef } from './precheck'
+import type { LessonScope, NoteConsidered, Run, Severity, SourceRef } from './precheck'
 
 export type ReviewResponseKind = 'agree' | 'fixed' | 'not_an_issue' | 'wrong_reason'
 export type AssumptionVerdict = 'supported' | 'challenged' | 'needs_evidence'
@@ -57,6 +57,7 @@ export interface ReviewOutput {
   resolved: { ref: string; reason: string; sources: SourceRef[] }[]
   assumption_reviews: { assumption: string; verdict: AssumptionVerdict; reason: string; sources: SourceRef[] }[]
   lessons_applied: { id: string; text: string }[]
+  special_notes?: NoteConsidered[]
   checks: { label: string; passed: boolean; detail: string }[]
   counts: Record<Severity, number>
   evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>

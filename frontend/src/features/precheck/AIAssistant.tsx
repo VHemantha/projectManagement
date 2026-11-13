@@ -6,6 +6,7 @@ import { AskPanel } from './AskPanel'
 import { GuidePanel } from './GuidePanel'
 import { PrecheckPanel } from './PrecheckPanel'
 import { ReviewPanel } from './ReviewPanel'
+import { SpecialNotes } from './SpecialNotes'
 import { WpAgentPanel } from './WpAgentPanel'
 import { useAsk, useConversation } from '@/api/ask'
 import { extractErrorMessage } from '@/api/errors'
@@ -131,6 +132,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
         <Tile icon={<ClipboardCheck size={20} />} name="Review" purpose="Check draft financial statements" status={reviewStatus}
           action={reviewDone ? 'Open review' : 'Start review'} next={next === 'review'} onOpen={() => setOpen('review')} />
       </div>
+      <SpecialNotes jobKey={jobKey} />
 
       <div className={styles.ask}>
         <div className={styles.askHead}>

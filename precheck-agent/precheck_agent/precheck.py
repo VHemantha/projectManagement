@@ -37,6 +37,7 @@ from .prompting import system_message
 from .rules import _block_for
 from .learn import lesson_text
 from .skills_loader import get_skill
+from . import special_notes as SN
 from .textutil import clip_words, est_tokens, sha, to_number
 
 TYPES = {"residential_rental": "Residential rental", "general": "General business", "investment": "Investment"}
@@ -44,7 +45,8 @@ TYPES = {"residential_rental": "Residential rental", "general": "General busines
 # intended dividends...): section B, never sent to the client.
 DECISIONS = ["request", "already_provided", "not_needed", "ask_accountant"]
 PRIORITIES = ["blocking", "normal"]
-SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment"]
+# plain-language: every agent writes so anyone can understand it (AFIT, 13 Nov 2026).
+SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "plain-language"]
 SOURCE_KINDS = {"Q": "questionnaire", "F": "last_year_fs", "T": "last_year_tb", "W": "workpaper", "D": "document",
                 "B": "bank", "C": "check", "N": "direction", "R": "received", "G": "general_ledger"}
 
@@ -119,7 +121,7 @@ def _fmt(n) -> str:
 
 
 def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: dict, facts: dict, lessons: list[dict],
-                settings: Settings, caps: dict | None = None) -> tuple[str, dict]:
+                settings: Settings, caps: dict | None = None, agent: str = "precheck") -> tuple[str, dict]:
     """The input text and the id -> item index used to check the answer. `key` is keydocs.find(),
     `facts` is analysis.prepare() (last year's TB lines, bank exports, code checks)."""
     caps = caps or {"Q": 700, "F": 500, "T": 250, "W": 240, "D": 400, "R": 1200, "R_per_doc": 30}
@@ -242,6 +244,7 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
         if lesson.get("entity_type"):
             where += f", {lesson.get('entity_label') or lesson['entity_type']} only"
         out.append(f"{lid} | {where} | {lesson.get('kind', '')} | item: {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
+    out += SN.section(job, agent, index)  # the staff's special notes for this task (AFIT, 13 Nov 2026)
     out.append("\n" + ANSWER)
     return "\n".join(out), index
 
@@ -416,6 +419,8 @@ def _source_view(sid: str, index: dict, ev) -> dict:
         label = (f"General ledger: {a['name']}" if kind == "gl_account" else
                  f"General ledger: {a['name']}, {item['entry']['date']:%d %b %Y}, {_fmt(item['entry']['amount'])}")
         return {"id": sid, "label": label, "evidence_id": ev(evidence_from(a["file"], [block])) if block else ev(file_evidence(a["file"]))}
+    if kind == "special_note":
+        return {"id": sid, "label": SN.label(item), "evidence_id": None}
     return {"id": sid, "label": f"Direction Note: {_line(item['text'], 90)}", "evidence_id": None}
 
 

@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import styles from './PrecheckResult.module.css'
 import { CHECK_TYPES, RULE_ENTITY_TYPES } from './ruleOptions'
+import { NotesConsidered } from './SpecialNotes'
 import { extractErrorMessage } from '@/api/errors'
 import {
   type AccountantAnswer,
@@ -405,6 +406,7 @@ ${output.email.body}`} label="email" />
           </div>
         </details>
       )}
+      <NotesConsidered notes={output.special_notes} />
       {output.lessons_applied.length > 0 && (
         <p className={styles.muted}>
           Lessons applied: {output.lessons_applied.map((l) => l.text).join(' · ')}

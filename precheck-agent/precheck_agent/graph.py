@@ -33,6 +33,7 @@ from .knowledge import Scope, get_knowledge
 from . import guide as G
 from . import learn
 from . import review as RV
+from . import special_notes as SN
 from .config import get_settings
 from .drive import DriveError, get_drive, is_zip
 from .emails import is_email
@@ -437,7 +438,7 @@ def route_after_key(state: State):
 
 # --- 6. precheck (model: Opus, one call) -----------------------------------------------------------
 
-def precheck_input(state: State) -> tuple[list[dict], dict, str, dict, str]:
+def precheck_input(state: State, agent: str = "precheck") -> tuple[list[dict], dict, str, dict, str]:
     """(documents, facts, input text, id index, fixed business nature): what the pre-check reads,
     also used by the preparation guide so both cite the same lines."""
     s, job = get_settings(), state["job"]
@@ -455,7 +456,7 @@ def precheck_input(state: State) -> tuple[list[dict], dict, str, dict, str]:
     # The lessons that fit this job best, not the latest ones (AFIT, 29 Oct 2026).
     lessons = learn.select(job.get("lessons", []), job, docs, nature=fixed)
     body, index = P.fit_input(lambda caps: P.build_input(job, state["key"], docs, state["files"], state["periods"], facts,
-                                                         lessons, s, caps), s)
+                                                         lessons, s, caps, agent), s)
     return docs, facts, body, index, fixed
 
 
@@ -487,6 +488,7 @@ def precheck(state: State) -> dict:
         cache.set_value("precheck", key, cleaned)
     output, evidence = P.assemble(cleaned, index, state["key"], facts, job.get("client_name", ""))
     output["how"] = how
+    output["special_notes"] = SN.considered(job, "precheck", cleaned)
     n = {k: len(output[k]) for k in ("requests", "provided", "not_needed")}
     emit("judged", f"{output['business_nature']['label']}: {n['requests']} to request, {n['provided']} already provided, {n['not_needed']} not needed",
          **n)
@@ -541,7 +543,7 @@ def guide(state: State) -> dict:
     documents and how to verify each. Reads what the pre-check reads, plus its latest result."""
     s, store, job, run_id = get_settings(), get_store(), state["job"], state["run_id"]
     emit("judged", "Writing the preparation guide", "running")
-    _, _, body, index, _ = precheck_input(state)
+    _, _, body, index, _ = precheck_input(state, "guide")
     body = G.with_precheck(body, job.get("last_precheck"), job.get("rolled_forward"), index)
     cache = StoreCache(store)
     key = G.cache_key(job["client_id"], state["job_id"], body, s)
@@ -564,6 +566,7 @@ def guide(state: State) -> dict:
         cache.set_value("guide", key, cleaned)
     output, evidence = G.assemble(cleaned, index)
     output["how"] = how
+    output["special_notes"] = SN.considered(job, "guide", cleaned)
     emit("judged", output["decision"]["reason"], steps=G.size(output))
     return {"guide": output, "evidence": evidence, "usage": usage}
 
@@ -616,6 +619,7 @@ def review(state: State) -> dict:
         cache.set_value("review", key, cleaned)
     output, evidence = RV.assemble(cleaned, index, draft, how_found, checks)
     output["how"] = how
+    output["special_notes"] = SN.considered(job, "review", cleaned)
     RV.remember(scope, rv, cleaned["findings"], run_id)
     c = output["counts"]
     emit("judged", f"{len(output['findings'])} findings open ({c['high']} high), {len(output['resolved'])} resolved, "

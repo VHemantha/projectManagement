@@ -58,7 +58,7 @@
     "files": [
      {
       "name": "Final TB 2025.xlsx (in Smith.zip)",
-      "evidence_id": "E-865e6eee71"
+      "evidence_id": "E-f3aff96319"
      }
     ]
    }
@@ -105,7 +105,7 @@
      {
       "id": "T1",
       "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
-      "evidence_id": "E-3d54e483c0"
+      "evidence_id": "E-e2e89b4466"
      }
     ],
     "documents": [],
@@ -126,7 +126,7 @@
      {
       "id": "T2",
       "label": "Last year's trial balance: row 7: 410 | Body corporate levies | Expense | 2400 | | 2300",
-      "evidence_id": "E-0e83dc8a02"
+      "evidence_id": "E-9bad49d5ed"
      }
     ],
     "documents": [],
@@ -147,7 +147,7 @@
      {
       "id": "T3",
       "label": "Last year's trial balance: row 8: 420 | Rates | Expense | 3412 | | 3300",
-      "evidence_id": "E-4007f28d42"
+      "evidence_id": "E-8bb3bd103f"
      }
     ],
     "documents": [],
@@ -168,7 +168,7 @@
      {
       "id": "T4",
       "label": "Last year's trial balance: row 9: 430 | Interest | Expense | 14322.18 | | 15010",
-      "evidence_id": "E-b0db99809f"
+      "evidence_id": "E-d41279ac9d"
      }
     ],
     "documents": [],
@@ -191,14 +191,14 @@
      {
       "id": "B1",
       "label": "Bank 01-0123-0456789-00, 02 Apr 2025 to 30 Mar 2026",
-      "evidence_id": "E-03b8c743da"
+      "evidence_id": "E-638d32a19b"
      }
     ],
     "documents": [
      {
       "id": "D2",
       "label": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
-      "evidence_id": "E-a3aec92ea5"
+      "evidence_id": "E-ad3dd53377"
      }
     ],
     "flags": []
@@ -240,37 +240,37 @@
    "body": "Hi client-s,\n\nThank you for your documents. To prepare your accounts for the year to 31 March 2026, we still need the following. We have said why each item is needed.\n\nLast year's accounts\n- Evidence for Rental income this year: Rental income was in last year's accounts and will be needed again.\n- Evidence for Body corporate levies this year: Body corporate levies was in last year's accounts and will be needed again.\n- Evidence for Rates this year: Rates was in last year's accounts and will be needed again.\n- Evidence for Interest this year: Interest was in last year's accounts and will be needed again.\n\nIf something does not apply to you, just let us know and we will note it.\n\nThank you,\nAFIT"
   },
   "evidence": {
-   "E-03b8c743da": {
+   "E-638d32a19b": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "sheet 'Transactions', row 2",
     "quote": "row 2: 2026-03-30 00:00:00 | Credit | Barfoot & Thompson | 2390 | 7537",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-a3aec92ea5": {
+   "E-ad3dd53377": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-3d54e483c0": {
+   "E-e2e89b4466": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 6",
     "quote": "row 6: 200 | Rental income | Revenue |  | 31200 | -29900",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-0e83dc8a02": {
+   "E-9bad49d5ed": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 7",
     "quote": "row 7: 410 | Body corporate levies | Expense | 2400 |  | 2300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-4007f28d42": {
+   "E-8bb3bd103f": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 8",
     "quote": "row 8: 420 | Rates | Expense | 3412 |  | 3300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-b0db99809f": {
+   "E-d41279ac9d": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 9",
     "quote": "row 9: 430 | Interest | Expense | 14322.18 |  | 15010",
@@ -288,7 +288,7 @@
     "quote": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-865e6eee71": {
+   "E-f3aff96319": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "Final TB 2025.xlsx (in Smith.zip)",
@@ -308,6 +308,7 @@
    }
   },
   "how": "model",
+  "special_notes": [],
   "gaps": {
    "case_id": "1",
    "provisional": true,
@@ -333,7 +334,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-12T11:39:16+00:00",
+     "detected_at": "2026-11-13T09:59:16+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -348,7 +349,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-12T11:39:16+00:00",
+     "detected_at": "2026-11-13T09:59:16+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -363,7 +364,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-12T11:39:16+00:00",
+     "detected_at": "2026-11-13T09:59:16+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -378,7 +379,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-12T11:39:16+00:00",
+     "detected_at": "2026-11-13T09:59:16+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -491,7 +492,7 @@
     "task_id": "precheck",
     "model": "fake-precheck",
     "calls": 1,
-    "run_id": "0479fe2d7349497d9ea09a8b6458dcd6",
+    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
     "input": 2546,
     "output": 560,
     "cache_write": 0,
@@ -502,8 +503,8 @@
     "task_id": "gap-752bce9e6e905c7819772aa1",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "0479fe2d7349497d9ea09a8b6458dcd6",
-    "input": 451,
+    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "input": 448,
     "output": 53,
     "cache_write": 0,
     "cache_read": 0
@@ -513,8 +514,8 @@
     "task_id": "gap-3842f65145cc7fcc0be98d6f",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "0479fe2d7349497d9ea09a8b6458dcd6",
-    "input": 458,
+    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "input": 455,
     "output": 53,
     "cache_write": 0,
     "cache_read": 0
@@ -524,8 +525,8 @@
     "task_id": "gap-fa6bc712c32f839694fafd0c",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "0479fe2d7349497d9ea09a8b6458dcd6",
-    "input": 348,
+    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "input": 345,
     "output": 53,
     "cache_write": 0,
     "cache_read": 0
@@ -535,15 +536,15 @@
     "task_id": "gap-3a4ce79fab688c42ab855ebb",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "0479fe2d7349497d9ea09a8b6458dcd6",
-    "input": 447,
+    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "input": 444,
     "output": 53,
     "cache_write": 0,
     "cache_read": 0
    }
   ],
   "totals": {
-   "input": 4250,
+   "input": 4238,
    "output": 772,
    "cache_write": 0,
    "cache_read": 0
@@ -577,6 +578,7 @@
    "nz-preparation-guide": "2.1+ff8bf4a5",
    "nz-residential-rental": "1.1+0d26e63d",
    "nz-wages-reconciliation": "1.0+74594c45",
+   "plain-language": "1.0+394d824a",
    "precheck-method": "2.1+7eaa9692"
   }
  },

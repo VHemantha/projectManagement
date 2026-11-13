@@ -1,6 +1,8 @@
 from django.urls import path
 
 from .views import (
+    JobAgentNoteDetailView,
+    JobAgentNotesView,
     JobGapsView,
     JobGuideView,
     JobStageNoteView,
@@ -47,6 +49,8 @@ urlpatterns = [
     path("jobs/<str:key>/stages/", JobStagesView.as_view(), name="precheck-stages"),
     path("jobs/<str:key>/gaps/", JobGapsView.as_view(), name="precheck-gaps"),
     path("jobs/<str:key>/stage-note/", JobStageNoteView.as_view(), name="precheck-stage-note"),
+    path("jobs/<str:key>/notes/", JobAgentNotesView.as_view(), name="precheck-agent-notes"),
+    path("jobs/<str:key>/notes/<int:pk>/", JobAgentNoteDetailView.as_view(), name="precheck-agent-note"),
     path("jobs/<str:key>/answers/", AccountantAnswersView.as_view(), name="precheck-answers"),
     path("jobs/<str:key>/review/", JobReviewView.as_view(), name="precheck-review"),
     path("jobs/<str:key>/review/runs/", ReviewRunView.as_view(), name="precheck-review-runs"),

@@ -133,6 +133,8 @@ export interface PrecheckOutput {
   /** Section B: questions for the accountant (never in the client email). Runs before 16 Oct 2026 have none. */
   accountant_questions?: PrecheckItem[]
   lessons_applied: { id: string; text: string }[]
+  /** The staff's special notes the pre-check was given (13 Nov 2026); older runs have none. */
+  special_notes?: NoteConsidered[]
   email: { subject: string; body: string }
   evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
   how?: string
@@ -248,6 +250,54 @@ export function useAnswerQuestion(jobKey: string) {
     mutationFn: async (body: { question: string; answer: string }) =>
       (await apiClient.post<AccountantAnswer>(`/precheck/jobs/${jobKey}/answers/`, body)).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'answers'] }),
+  })
+}
+
+/** Which AI agents a special note is for; none = every agent (AFIT, 13 Nov 2026). */
+export type NoteAgent = 'precheck' | 'guide' | 'review' | 'ask'
+
+/** A special note from staff to the AI agents on a task: they follow it when deciding and writing. */
+export interface AgentNote {
+  id: number
+  text: string
+  agents: NoteAgent[]
+  by: string
+  by_id: number | null
+  created_at: string
+  can_edit: boolean
+}
+
+/** On a result: each special note the agent was given, and whether it cited it. */
+export interface NoteConsidered {
+  id: string
+  text: string
+  by: string
+  cited: boolean
+}
+
+export function useAgentNotes(jobKey: string) {
+  return useQuery({
+    queryKey: ['precheck', jobKey, 'notes'],
+    queryFn: async () => (await apiClient.get<{ notes: AgentNote[]; max: number }>(`/precheck/jobs/${jobKey}/notes/`)).data,
+  })
+}
+
+export function useAddAgentNote(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { text: string; agents: NoteAgent[] }) =>
+      (await apiClient.post<AgentNote>(`/precheck/jobs/${jobKey}/notes/`, body)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'notes'] }),
+  })
+}
+
+export function useRemoveAgentNote(jobKey: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.delete(`/precheck/jobs/${jobKey}/notes/${id}/`)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey, 'notes'] }),
   })
 }
 

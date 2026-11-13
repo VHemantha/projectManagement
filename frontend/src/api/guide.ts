@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from './client'
-import type { Run, SourceRef } from './precheck'
+import type { NoteConsidered, Run, SourceRef } from './precheck'
 
 export interface GuideStep {
   area: string
@@ -62,6 +62,7 @@ export interface GuideV2 {
   roll_forward?: (GuideItem & { item: string; why: string })[]
   words: number
   flags: string[]
+  special_notes?: NoteConsidered[]
   evidence: Evidence
   how?: string
 }

@@ -18,7 +18,13 @@ vi.mock('./ReviewPanel', () => ({ ReviewPanel: () => <p>review panel</p> }))
 vi.mock('./AskPanel', () => ({ AskPanel: () => <p>ask panel</p> }))
 vi.mock('./GuidePanel', () => ({ GuidePanel: () => <p>guide panel</p> }))
 vi.mock('./WpAgentPanel', () => ({ WpAgentPanel: () => <p>wp agent panel</p> }))
-vi.mock('@/api/precheck', () => ({ useJobPrecheck: () => ({ data: mocks.precheck }) }))
+vi.mock('@/api/precheck', () => ({
+  useJobPrecheck: () => ({ data: mocks.precheck }),
+  // The special notes panel under the tools (13 Nov 2026).
+  useAgentNotes: () => ({ data: { notes: [], max: 20 } }),
+  useAddAgentNote: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+  useRemoveAgentNote: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}))
 vi.mock('@/api/review', () => ({ useJobReview: () => ({ data: mocks.review }) }))
 vi.mock('@/api/ask', () => ({
   useConversation: () => ({ data: mocks.conversation }),
@@ -45,7 +51,7 @@ describe('AI workspace (AFIT, 12 Nov 2026 design)', () => {
     const region = screen.getByRole('region', { name: 'AI assistant' })
     expect(within(region).getByRole('heading', { name: 'AI workspace' })).toBeInTheDocument()
     const names = within(region).getAllByRole('group').map((g) => g.getAttribute('aria-label'))
-    expect(names).toEqual(['Pre-check', 'Preparation guide', 'Workpaper agent', 'Review', 'Suggested questions'])
+    expect(names).toEqual(['Pre-check', 'Preparation guide', 'Workpaper agent', 'Review', 'Agents the note is for', 'Suggested questions'])
     expect(tile('Pre-check')).toHaveTextContent('Requests to send')
     expect(tile('Preparation guide')).toHaveTextContent('3 steps')
     expect(tile('Workpaper agent')).toHaveTextContent('GST: Reconciled subject to corrections')

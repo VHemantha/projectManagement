@@ -489,3 +489,21 @@ class TaskMilestone(models.Model):
     class Meta:
         ordering = ["on", "created_at", "id"]
 
+
+
+class AgentNote(models.Model):
+    """A special note from AFIT staff to the AI agents on one task (AFIT, 13 Nov 2026): "the client
+    sold the rental in June, treat it as the year of sale", "ignore the old ANZ account". Every run
+    of the agents it names (the pre-check, the preparation guide, the review, Ask; none named =
+    all of them) is given it, follows it when deciding and writing, and lists it with the result."""
+
+    AGENTS = (("precheck", "Pre-check"), ("guide", "Preparation guide"), ("review", "Review"), ("ask", "Ask"))
+
+    issue = models.ForeignKey("issues.Issue", on_delete=models.CASCADE, related_name="agent_notes")
+    text = models.TextField(max_length=1000)
+    agents = models.JSONField(default=list, blank=True)  # [] = every agent
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]

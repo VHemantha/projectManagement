@@ -303,7 +303,7 @@ def assemble(cleaned: dict, index: dict) -> tuple[dict, dict]:
         if item["kind"] == "lesson":  # an earlier correction: a reviewer point carried forward
             lesson = item["lesson"]
             return {"id": sid, "label": f"Earlier correction: {clip_words(lesson.get('note') or lesson.get('item', ''), 14)}", "evidence_id": None}
-        return P._source_view(sid, index, ev)
+        return P._source_view(sid, index, ev)  # special notes included
 
     def with_views(v):
         if isinstance(v, dict):

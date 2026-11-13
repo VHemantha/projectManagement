@@ -39,6 +39,7 @@ from .llm import get_model, model_id, stop_reason, text_of
 from .precheck import TYPES, Unusable, _line, figures_ok, known_numbers
 from .prompting import system_message
 from .skills_loader import get_skill
+from . import special_notes as SN
 from .textutil import clip_words, est_tokens, sha
 
 NATURE_SKILLS = {"residential_rental": "nz-residential-rental", "general": "nz-general-business", "investment": "nz-investment"}
@@ -95,7 +96,7 @@ Never raise again a finding the reviewer closed as not an issue unless the input
 
 
 def skills_for(nature: str) -> list[str]:
-    return ["nz-fs-review", NATURE_SKILLS.get(nature, "nz-general-business")]
+    return ["nz-fs-review", NATURE_SKILLS.get(nature, "nz-general-business"), "plain-language"]
 
 
 def system_text(nature: str) -> str:
@@ -257,6 +258,7 @@ def build_input(job: dict, scope: Scope, key: dict, docs: list[dict], files: dic
         lid = f"L{lesson['id']}"
         index[lid] = {"kind": "lesson", "lesson": lesson}
         out.append(f"{lid} | {lesson.get('kind', '')} | {_line(lesson.get('item', ''), 120)} | {_line(lesson_text(lesson), 400)}")
+    out += SN.section(job, "review", index)  # the staff's special notes for this task (AFIT, 13 Nov 2026)
     out.append("\n" + ANSWER)
     return "\n".join(out), index
 
@@ -361,6 +363,8 @@ def _source_view(sid: str, index: dict, ev) -> dict:
         c = item["check"]
         first = next(((f, b) for f, b in c["evidence"] if b), None)
         return {"id": sid, "label": f"Check: {c['label']}", "evidence_id": ev(evidence_from(first[0], [first[1]])) if first else None}
+    if kind == "special_note":
+        return {"id": sid, "label": SN.label(item), "evidence_id": None}
     return {"id": sid, "label": sid, "evidence_id": None}
 
 

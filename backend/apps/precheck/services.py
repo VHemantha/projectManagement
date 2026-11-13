@@ -287,12 +287,26 @@ def job_payload(issue) -> dict:
         # For a review round: the preparer's assumptions and every finding with the reviewer's response.
         "review": review_record.payload(issue),
         "direction_items": setup["direction_items"],
+        # Staff's special notes to the agents on this task, which they follow (AFIT, 13 Nov 2026).
+        "special_notes": [{"id": n["id"], "text": n["text"], "by": n["by"], "agents": n["agents"]} for n in agent_notes(issue)],
         "history": history_for(issue),
         "knowledge_ids": [],
         # What each agent last concluded, for Ask to search (AFIT, 10 Nov 2026): kept in the agent's
         # knowledge store as it finishes, and brought in step from here when a question is asked.
         **latest_results(issue),
     }
+
+
+MAX_AGENT_NOTES = 20
+
+
+def agent_note_dict(n) -> dict:
+    return {"id": n.id, "text": n.text, "agents": list(n.agents or []), "by": n.created_by.display_name if n.created_by else "",
+            "by_id": n.created_by_id, "created_at": n.created_at}
+
+
+def agent_notes(issue) -> list[dict]:
+    return [agent_note_dict(n) for n in issue.agent_notes.select_related("created_by")[:MAX_AGENT_NOTES]]
 
 
 def latest_results(issue) -> dict:

@@ -1,0 +1,172 @@
+/* Special notes for the AI on a task (AFIT, 13 Nov 2026). */
+.notes {
+  margin-top: var(--tf-space-3);
+  padding: var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface);
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tf-space-3);
+  color: var(--tf-primary);
+}
+.title {
+  margin: 0;
+  font-size: var(--tf-font-size-base);
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.purpose {
+  margin: 2px 0 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+}
+
+.list {
+  margin: var(--tf-space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+}
+.note {
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-left: 3px solid var(--tf-primary);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface-sunken);
+}
+.text {
+  margin: 0;
+  font-size: var(--tf-font-size-base);
+  color: var(--tf-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+.for {
+  font-weight: 600;
+}
+.remove {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--tf-danger);
+  cursor: pointer;
+}
+.remove:focus-visible {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: 2px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-3);
+}
+.form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: var(--tf-font-size-base);
+}
+.form textarea:focus {
+  outline: none;
+  border-color: var(--tf-border-focus);
+}
+.agents {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.agents legend {
+  float: left;
+  margin-right: 4px;
+  padding: 0;
+  font-weight: 600;
+}
+.agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.hint {
+  color: var(--tf-text-subtle);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.muted {
+  color: var(--tf-text-subtle);
+  font-size: var(--tf-font-size-sm);
+}
+.error {
+  margin: var(--tf-space-2) 0 0;
+  color: var(--tf-danger);
+  font-size: var(--tf-font-size-sm);
+}
+
+/* On a result. */
+.considered {
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-left: 3px solid var(--tf-primary);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface-sunken);
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.considered ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.consideredTitle {
+  font-weight: 600;
+  color: var(--tf-text);
+}
+.used {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+  font-size: 11px;
+  font-weight: 600;
+}

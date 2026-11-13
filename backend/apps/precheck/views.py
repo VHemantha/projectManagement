@@ -14,7 +14,7 @@ from trackflow.naming import clean_name
 
 from . import services
 from . import review as review_record
-from .models import CARD_PATH_ROLES, PRECHECK_TYPES, AIFeedback, Assumption, ReviewFinding, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
+from .models import CARD_PATH_ROLES, PRECHECK_TYPES, AgentNote, AIFeedback, Assumption, ReviewFinding, AIFinding, AIPrecheck, JobFolder, PrecheckLesson, folder_id_from
 
 MAX_DIRECTION_ITEMS = 40
 
@@ -862,3 +862,79 @@ class JobGapsView(APIView):
         if not services.recheck_gaps(issue, finalize=action == "finalize"):
             return Response({"detail": "The AI service is not reachable right now. Please try again shortly."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         return Response({"status": "checking"}, status=status.HTTP_202_ACCEPTED)
+
+
+AGENT_KEYS = {k for k, _ in AgentNote.AGENTS}
+
+
+def _note_agents(raw):
+    """The agents a note is for: a list naming some of them; none (or all) means every agent."""
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list) or set(raw) - AGENT_KEYS:
+        return None
+    return [] if set(raw) == AGENT_KEYS else [k for k in ("precheck", "guide", "review", "ask") if k in raw]
+
+
+class JobAgentNotesView(APIView):
+    """GET /api/precheck/jobs/<key>/notes/ — the task's special notes to the AI agents.
+    POST {text, agents} — add one (AFIT, 13 Nov 2026). Every later run of the agents it names
+    follows it; anyone who works on the task may add one."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        issue = _job(request, key)
+        lead = services.can_approve_lessons(request.user, issue)
+        notes = [{**n, "can_edit": lead or n["by_id"] == request.user.id} for n in services.agent_notes(issue)]
+        return Response({"notes": notes, "max": services.MAX_AGENT_NOTES})
+
+    def post(self, request, key):
+        issue = _job(request, key)
+        text = str(request.data.get("text") or "").strip()[:1000]
+        agents = _note_agents(request.data.get("agents"))
+        if len(text) < 3:
+            return Response({"text": ["Write the note for the AI."]}, status=status.HTTP_400_BAD_REQUEST)
+        if agents is None:
+            return Response({"agents": ["Choose from the pre-check, the preparation guide, the review and Ask."]}, status=status.HTTP_400_BAD_REQUEST)
+        if issue.agent_notes.count() >= services.MAX_AGENT_NOTES:
+            return Response({"text": [f"A task can have at most {services.MAX_AGENT_NOTES} notes. Remove one first."]}, status=status.HTTP_400_BAD_REQUEST)
+        note = AgentNote.objects.create(issue=issue, text=text, agents=agents, created_by=request.user)
+        services._announce_issue(issue)
+        return Response({**services.agent_note_dict(note), "can_edit": True}, status=status.HTTP_201_CREATED)
+
+
+class JobAgentNoteDetailView(APIView):
+    """PATCH / DELETE /api/precheck/jobs/<key>/notes/<id>/ — change or remove a note: its author,
+    or a lead or admin."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _note(self, request, key, pk):
+        issue = _job(request, key)
+        note = get_object_or_404(issue.agent_notes, pk=pk)
+        if note.created_by_id != request.user.id and not services.can_approve_lessons(request.user, issue):
+            raise PermissionDenied("Only the person who wrote this note, or a lead, can change it.")
+        return issue, note
+
+    def patch(self, request, key, pk):
+        issue, note = self._note(request, key, pk)
+        if "text" in request.data:
+            text = str(request.data.get("text") or "").strip()[:1000]
+            if len(text) < 3:
+                return Response({"text": ["Write the note for the AI."]}, status=status.HTTP_400_BAD_REQUEST)
+            note.text = text
+        if "agents" in request.data:
+            agents = _note_agents(request.data.get("agents"))
+            if agents is None:
+                return Response({"agents": ["Choose from the pre-check, the preparation guide, the review and Ask."]}, status=status.HTTP_400_BAD_REQUEST)
+            note.agents = agents
+        note.save()
+        services._announce_issue(issue)
+        return Response({**services.agent_note_dict(note), "can_edit": True})
+
+    def delete(self, request, key, pk):
+        issue, note = self._note(request, key, pk)
+        note.delete()
+        services._announce_issue(issue)
+        return Response(status=status.HTTP_204_NO_CONTENT)

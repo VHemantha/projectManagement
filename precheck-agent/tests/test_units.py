@@ -18,7 +18,8 @@ def test_skills_in_agent_skills_format(env):
     skills = all_skills()
     assert set(skills) == {"precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "direction-drafting", "nz-fs-review", "nz-preparation-guide",
                            "nz-gst-reconciliation", "gst-document-reading",  # the WP Agent (8 Nov 2026)
-                           "nz-wages-reconciliation", "nz-imputation-reconciliation"}  # its wages and ICA agents (10 Nov 2026)
+                           "nz-wages-reconciliation", "nz-imputation-reconciliation",  # its wages and ICA agents (10 Nov 2026)
+                           "plain-language"}  # every report in plain words (13 Nov 2026)
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")
@@ -129,3 +130,14 @@ def test_broken_unicode_in_a_document_never_stops_a_run():
     assert clean_text("plain\x00 text") == "plain text"
     assert scrub({"blocks": [{"text": "a\udc80b"}]}) == {"blocks": [{"text": "a�b"}]}
     "x".join(scrub(["\ud800"])).encode("utf-8")  # storable and tokenizable
+
+
+def test_every_report_writing_agent_writes_in_plain_language(env):
+    """AFIT, 13 Nov 2026: the pre-check, Ask, the preparation guide, the review and the Direction Note
+    are all written so anyone can understand them."""
+    from precheck_agent import ask, directions, guide, precheck, review
+
+    for system in (precheck.system_text(), ask.system_text("general"), guide.system_text(), review.system_text("residential_rental"),
+                   directions.draft_system()):
+        assert "# Skill: plain-language" in system and "Use everyday words" in system
+    assert "plain-language" in precheck.skill_versions() and "plain-language" in review.skill_versions("general")

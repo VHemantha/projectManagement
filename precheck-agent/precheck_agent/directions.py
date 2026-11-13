@@ -135,7 +135,8 @@ def standard_items(document_classes: set[str]) -> list[dict]:
 
 
 def draft_system() -> str:
-    return DRAFT_ROLE + "\n\n# Skill: direction-drafting\n" + get_skill("direction-drafting").body
+    return (DRAFT_ROLE + "\n\n# Skill: direction-drafting\n" + get_skill("direction-drafting").body
+            + "\n\n# Skill: plain-language\n" + get_skill("plain-language").body)
 
 
 def draft_input(job: dict, files: dict[str, dict], rule_results: list[dict]) -> str:
@@ -159,7 +160,8 @@ def draft_input(job: dict, files: dict[str, dict], rule_results: list[dict]) -> 
 
 def draft_cache_key(client_id: str, job_id: str, body: str, settings: Settings | None = None) -> str:
     s = settings or get_settings()
-    return sha(client_id, job_id, "draft", model_id("drafter", s), s.prompt_version, get_skill("direction-drafting").version, body)
+    return sha(client_id, job_id, "draft", model_id("drafter", s), s.prompt_version, get_skill("direction-drafting").version,
+               get_skill("plain-language").version, body)
 
 
 def call_draft(body: str, settings: Settings | None = None) -> tuple[dict, dict]:

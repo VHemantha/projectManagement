@@ -38,6 +38,7 @@ from .precheck import figures_ok, known_numbers
 from .prompting import system_message
 from .skills_loader import get_skill
 from .store import get_store
+from . import special_notes as SN
 from .textutil import clip_words, est_tokens
 
 STATUSES = ["answered", "partial", "not_found"]
@@ -257,6 +258,7 @@ def build_input(job: dict, question: str, history: list[dict], hits: list[dict],
         out.append(f"{kid} | [{where}] {text}")
     if not hits:
         out.append("(nothing found)")
+    out += SN.section(job, "ask", index)  # the staff's special notes for this task (AFIT, 13 Nov 2026)
     out.append(f"\n== QUESTION ==\n{question}")
     return "\n".join(out), index
 
@@ -297,6 +299,8 @@ def clean(raw: dict, index: dict, body: str) -> dict:
 
 
 def _view(kid: str, h: dict, files: dict) -> dict:
+    if h["source_type"] == "special_note":
+        return {"id": kid, "label": SN.label(h), "how": "special note", "evidence": {"quote": h["text"][:500]}}
     if h["source_type"] == "document":
         f = files[h["file_id"]]
         e = evidence_from(f, h["blocks"][:3]) if h.get("blocks") else None
@@ -342,5 +346,5 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
                 "flags": [], "usage": usage, "cost_usd": round(cost, 6)}
     points = [{**pt, "sources": [_view(k, index[k], files) for k in pt["sources"]]} for pt in cleaned["points"]]
     return {**cleaned, "points": points, "sources": [_view(k, index[k], files) for k in cleaned["sources"]], "usage": usage,
-            "areas": [AREA_LABEL[a] for a in areas],
+            "areas": [AREA_LABEL[a] for a in areas], "special_notes": SN.considered(job, "ask", cleaned["sources"]),
             "cost_usd": round(cost, 6), "input_tokens_est": est_tokens(body), "model": model_id("assistant", s)}

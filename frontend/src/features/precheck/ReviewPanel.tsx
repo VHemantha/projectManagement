@@ -2,6 +2,7 @@ import { AlertTriangle, Check, ExternalLink, Loader2, Plus, RotateCcw, Sparkles,
 import { type FormEvent, useState } from 'react'
 
 import styles from './ReviewPanel.module.css'
+import { NotesConsidered } from './SpecialNotes'
 import { StopRun } from './StopRun'
 import { extractErrorMessage } from '@/api/errors'
 import { type LessonScope, type SourceRef, useLessons, useSetLessonStatus } from '@/api/precheck'
@@ -178,6 +179,7 @@ function RoundSummary({ output, round }: { output: ReviewOutput; round: number }
           {output.draft_found_by === 'task card' ? ' (set on the task card)' : ''}
         </p>
       )}
+      <NotesConsidered notes={output.special_notes} />
       {output.lessons_applied.length > 0 && (
         <p className={styles.muted}>Lessons applied: {output.lessons_applied.map((l) => l.text).join('; ')}</p>
       )}

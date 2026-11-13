@@ -2,6 +2,7 @@ import { AlertTriangle, CheckSquare, Clock, ExternalLink, Loader2, RotateCcw, Sp
 import type { ReactNode } from 'react'
 
 import styles from './GuidePanel.module.css'
+import { NotesConsidered } from './SpecialNotes'
 import { StopRun } from './StopRun'
 import { extractErrorMessage } from '@/api/errors'
 import { type GuideEvent, type GuideOutput, type GuideStep, type GuideV2, useJobGuide, useRunGuide } from '@/api/guide'
@@ -83,6 +84,7 @@ function EightSections({ guide }: { guide: GuideV2 }) {
         <strong>{guide.decision.reason}</strong>
         <Flags flags={guide.flags} />
       </div>
+      <NotesConsidered notes={guide.special_notes} />
 
       <Section n={1} title="Job snapshot">
         <dl className={styles.snapshot}>
