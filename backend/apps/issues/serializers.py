@@ -295,6 +295,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     watcher_count = serializers.IntegerField(source="watchers.count", read_only=True)
     is_watching = serializers.SerializerMethodField()
     can_set_budget = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()  # the task view offers Delete only then
 
     class Meta:
         model = Issue
@@ -351,6 +352,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "watcher_count",
             "is_watching",
             "can_set_budget",
+            "can_delete",
             "is_archived",
             "archived_at",
             "rank",
@@ -455,6 +457,10 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     def get_can_set_budget(self, obj):
         request = self.context.get("request")
         return bool(request and can_set_budget(request.user, obj.project))
+
+    def get_can_delete(self, obj):
+        request = self.context.get("request")
+        return bool(request and can_delete_task(request.user, obj.project))
 
     def get_is_watching(self, obj):
         request = self.context.get("request")

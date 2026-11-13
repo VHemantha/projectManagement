@@ -238,7 +238,18 @@ describe('Deleting a task from its card (AFIT, 28 Oct 2026)', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Delete this task?' })
     expect(dialog).toHaveTextContent("Smith FY26 (TRK-1) will be deleted permanently")
     expect(deleteMutate).not.toHaveBeenCalled()
-    await userEvent.click(screen.getByRole('button', { name: 'Delete permanently' }))
+    // Permanent, so it waits for DELETE to be typed (AFIT, 13 Nov 2026).
+    const button = screen.getByRole('button', { name: 'Delete permanently' })
+    expect(button).toBeDisabled()
+    const word = screen.getByLabelText('Type DELETE to confirm')
+    await userEvent.type(word, 'delete')
+    expect(button).toBeDisabled() // capitals, exactly
+    await userEvent.type(word, '{Enter}')
+    expect(deleteMutate).not.toHaveBeenCalled()
+    await userEvent.clear(word)
+    await userEvent.type(word, 'DELETE')
+    expect(button).toBeEnabled()
+    await userEvent.click(button)
     expect(deleteMutate).toHaveBeenCalledWith('TRK-1', expect.anything())
     expect(openIssueModal).not.toHaveBeenCalled() // the card did not open
   })

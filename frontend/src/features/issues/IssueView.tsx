@@ -17,7 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { type DragEvent, type ReactNode, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import styles from './IssueView.module.css'
 import { ActivityFeed } from './ActivityFeed'
@@ -52,6 +52,7 @@ import {
   isDocEmpty,
 } from '@/design-system'
 import type { StatusCategory } from '@/design-system'
+import { DeleteTaskDialog } from '@/features/board/DeleteTaskDialog'
 import { AIAssistant } from '@/features/precheck/AIAssistant'
 import { Milestones } from '@/features/precheck/Milestones'
 import { WpAgentPanel } from '@/features/precheck/WpAgentPanel'
@@ -281,6 +282,10 @@ function Header({ issue, isModal, onClose, leave, summary }: {
   const precheck = useJobPrecheck(issue.key).data
   const client = project?.client?.name
   const subtitle = [client ?? issue.project_name, yearLabel(precheck?.setup.settings?.year_end)].filter(Boolean)
+  const [deleting, setDeleting] = useState(false)
+  const navigate = useNavigate()
+  // Gone: a window closes; a full page goes back to the project's board.
+  const afterDelete = () => (onClose ? onClose() : navigate(`/projects/${issue.project}`, { replace: true }))
 
   return (
     <header className={styles.header}>
@@ -315,6 +320,11 @@ function Header({ issue, isModal, onClose, leave, summary }: {
             {issue.is_archived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
             {issue.is_archived ? 'Restore' : 'Archive'}
           </Button>
+          {issue.can_delete && (
+            <Button variant="subtle" size="sm" onClick={() => setDeleting(true)} title="Delete this task permanently" style={{ color: 'var(--tf-danger)' }}>
+              <Trash2 size={14} /> Delete
+            </Button>
+          )}
           {isModal && (
             <Link to={`/projects/${issue.project}/issues/${issue.key}`} onClick={leave}>
               <Button variant="subtle" size="sm" iconOnly aria-label="Open full page">
@@ -364,6 +374,7 @@ function Header({ issue, isModal, onClose, leave, summary }: {
           </Button>
         </Link>
       )}
+      {issue.can_delete && <DeleteTaskDialog issue={issue} open={deleting} onOpenChange={setDeleting} onDeleted={afterDelete} />}
     </header>
   )
 }
