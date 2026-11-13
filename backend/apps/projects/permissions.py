@@ -28,5 +28,7 @@ def can_set_budget(user, project: Project) -> bool:
 def can_delete_task(user, project: Project) -> bool:
     """Deleting a task is permanent (its sub-tasks, comments, history, AI pre-check runs and
     follow-ups go with it), so it's for team lead and above (AFIT, 28 Oct 2026): the same people
-    who may set budgeted time."""
+    who may set budgeted time, and anyone given the right to delete tasks by name (13 Nov 2026)."""
+    if user and user.is_authenticated and getattr(user, "can_delete_tasks", False):
+        return True
     return can_set_budget(user, project)

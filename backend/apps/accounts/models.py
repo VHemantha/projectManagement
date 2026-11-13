@@ -23,6 +23,9 @@ class User(AbstractUser):
     # The coordination agent's own account (it writes in the Messages section). It cannot sign in
     # and is left out of people lists.
     is_agent = models.BooleanField(default=False)
+    # May delete tasks without being a team lead or admin (AFIT, 13 Nov 2026): given to a named
+    # person ("manage.py grant_task_delete <email>") rather than widening their whole role.
+    can_delete_tasks = models.BooleanField(default=False)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
