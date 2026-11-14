@@ -13,7 +13,7 @@ const issue = (over: Partial<IssueListItem>) =>
   ({ id: 1, key: 'RWCA-1', project_key: 'RWCA', summary: 'Job', status: { id: 1, name: 'To do', category: 'todo' }, priority: 'medium',
      assignee: { id: 2, display_name: 'Pat' }, due_date: null, budgeted_hours: null, actual_hours: 0, group: '', ...over }) as unknown as IssueListItem
 
-const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown>, issues: [] as unknown[] }))
+const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown>, issues: [] as unknown[], settingsOpen: false }))
 
 vi.mock('@/api/issues', () => ({
   useAllIssues: (q: Record<string, unknown>) => {
@@ -27,7 +27,12 @@ vi.mock('@/api/clients', () => ({ useClients: () => ({ data: [{ id: 5, name: 'RW
 vi.mock('./crossProjectBoard', () => ({ useCrossProjectBoard: () => ({ columns: [], cardConfigByProject: {}, isLoading: false, resolveStatus: () => null }) }))
 vi.mock('./KanbanBoard', () => ({ KanbanBoard: () => <div>kanban board</div> }))
 vi.mock('@/features/tables/IssueTable', () => ({ IssueTable: ({ issues }: { issues: unknown[] }) => <div>task list of {issues.length}</div> }))
-vi.mock('@/features/projects/CreateClientDialog', () => ({ CreateClientDialog: () => null }))
+vi.mock('@/features/projects/CreateClientDialog', () => ({
+  CreateClientDialog: ({ open }: { open: boolean }) => {
+    mocks.settingsOpen = open
+    return open ? <div>sub-workspace settings window</div> : null
+  },
+}))
 
 function Where() {
   const { search } = useLocation()
@@ -45,6 +50,22 @@ function renderAt(url: string) {
 }
 
 describe('The tasks of a workspace / sub-workspace', () => {
+  it('has Settings next to Summary, opening the sub-workspace settings without leaving the view (AFIT, 13 Nov 2026)', async () => {
+    mocks.issues = [issue({})]
+    renderAt('/projects/all-issues?team=4&client=5&view=summary')
+    const tabs = within(screen.getByRole('tablist', { name: 'Views' })).getAllByRole('tab').map((t) => t.textContent)
+    expect(tabs).toEqual(['Kanban', 'Tasks', 'Summary', 'Settings'])
+    await userEvent.click(screen.getByRole('tab', { name: 'Settings' }))
+    expect(screen.getByText('sub-workspace settings window')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('where')).toHaveTextContent('view=summary')
+  })
+
+  it('offers Settings only once a sub-workspace is chosen', () => {
+    renderAt('/projects/all-issues?team=4')
+    expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument()
+  })
+
   it('is titled by the selection and filtered by workspace and sub-workspace', () => {
     mocks.issues = [issue({})]
     renderAt('/projects/all-issues?team=4&client=5')

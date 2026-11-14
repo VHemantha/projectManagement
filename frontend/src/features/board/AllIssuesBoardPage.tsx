@@ -22,6 +22,7 @@ const VIEWS = [
   { id: 'summary', label: 'Summary' },
 ] as const
 type View = (typeof VIEWS)[number]['id']
+const SETTINGS = 'settings' // a tab that opens the sub-workspace's settings, not a view
 
 /** The tasks of the Projects section — on a Kanban, as a task list, or as a summary report —
  * narrowed by Workspace and Sub-workspace. The Projects tree opens it filtered to the row clicked
@@ -110,13 +111,21 @@ export function AllIssuesBoardPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1 className={styles.title}>{heading || 'All tasks'}</h1>
-        <Tabs value={view} onValueChange={setView}>
+        {/* Settings sits next to Summary (AFIT, 13 Nov 2026): it opens the sub-workspace's settings
+            in a window, so the view behind it stays as it was. */}
+        <Tabs value={view} onValueChange={(next) => (next === SETTINGS ? setClientSettingsOpen(true) : setView(next))}>
           <TabsList aria-label="Views">
             {VIEWS.map((v) => (
               <TabsTrigger key={v.id} value={v.id}>
                 {v.label}
               </TabsTrigger>
             ))}
+            {selectedClient && (
+              <TabsTrigger value={SETTINGS}>
+                <Settings size={13} style={{ verticalAlign: '-2px', marginRight: 4 }} aria-hidden="true" />
+                Settings
+              </TabsTrigger>
+            )}
           </TabsList>
         </Tabs>
         <div className={styles.filters}>
@@ -154,11 +163,6 @@ export function AllIssuesBoardPage() {
               ))}
             </select>
           </label>
-          {selectedClient && (
-            <button type="button" className={styles.clear} onClick={() => setClientSettingsOpen(true)}>
-              <Settings size={13} style={{ verticalAlign: '-2px' }} /> Sub-workspace settings
-            </button>
-          )}
           {filtersActive && (
             <button type="button" className={styles.clear} onClick={() => setSearchParams(view === 'kanban' ? {} : { view }, { replace: true })}>
               Clear filters
