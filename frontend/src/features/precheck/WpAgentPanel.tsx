@@ -2,6 +2,7 @@ import { format, parseISO } from 'date-fns'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Play, RotateCcw, Upload } from 'lucide-react'
 import { type FormEvent, useRef, useState } from 'react'
 
+import { EwpResult } from './EwpResult'
 import { StopRun } from './StopRun'
 import styles from './WpAgentPanel.module.css'
 import { extractErrorMessage } from '@/api/errors'
@@ -80,12 +81,30 @@ const AGENTS: { key: WpAgentKey; name: string; lead: string; fields: { key: stri
       { key: 'other_adjustments', label: 'Other adjustments' },
     ],
   },
+  {
+    key: 'ewp', name: 'Electronic workpapers (CCH)',
+    lead: "Prepares the firm's Electronic Workpapers 2026 workbook from the entity's own documents — review summary, bank, payables, tax, ICA, " +
+      'income, investment income, expenses, home office and accounting fees, with proposed journals. Only input cells are filled; formulas and ' +
+      'macros are left as they are, and every figure shows its source. GST (L1) is the GST reconciliation agent.',
+    fields: [
+      { key: 'entity_type', label: 'Entity type', hint: 'Company, Trust, Partnership, Sole trader' },
+      { key: 'gst_status', label: 'GST (We do GST / They do GST / N/A)', hint: 'We do GST' },
+      { key: 'reviewed_by', label: 'Reviewed by' },
+    ],
+  },
+]
+/** The electronic workpapers the agent can prepare (L1 GST is the GST reconciliation agent). */
+const EWP_WORKPAPERS: { key: string; title: string }[] = [
+  { key: 'B1', title: 'Review summary' }, { key: 'F1.1', title: 'Bank reconciliation' }, { key: 'M1', title: 'Accounts payable' },
+  { key: 'Q1', title: 'Taxation due' }, { key: 'Q3a', title: 'Imputation credit account' }, { key: 'S2', title: 'Income reconciliation' },
+  { key: 'T2', title: 'Investment income' }, { key: 'V1', title: 'Expenses' }, { key: 'V2', title: 'Use of home as office' },
+  { key: 'V5', title: 'Accounting fees' }, { key: 'D1', title: 'Journals' },
 ]
 const agentOf = (key: WpAgentKey) => AGENTS.find((a) => a.key === key) ?? AGENTS[0]
 
 function fileName(run: WpRun) {
   const s = run.options.setup
-  return `${agentOf(run.kind).name} ${s?.entity || ''} ${s?.balance_date || ''}`.replace(/\s+/g, ' ').trim() + '.xlsx'
+  return `${agentOf(run.kind).name} ${s?.entity || ''} ${s?.balance_date || ''}`.replace(/\s+/g, ' ').trim() + (run.kind === 'ewp' ? '.xlsm' : '.xlsx')
 }
 
 /** The WP Agent (AFIT, 8 Nov 2026): year-end reconciliation workpapers from the documents in a Google
@@ -143,6 +162,9 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
   const [apLink, setApLink] = useState(defaults.ap_link ?? '')
   const [setup, setSetup] = useState<GstSetup>({ ...EMPTY_SETUP, ...(defaults.setup ?? {}) })
   const [choices, setChoices] = useState(defaults.choices ?? {})
+  const isEwp = agent === 'ewp'
+  const [workpapers, setWorkpapers] = useState<string[]>(defaults.workpapers ?? EWP_WORKPAPERS.map((w) => w.key))
+  const toggle = (key: string) => setWorkpapers((w) => (w.includes(key) ? w.filter((k) => k !== key) : [...w, key]))
   const arRef = useRef<HTMLInputElement>(null)
   const apRef = useRef<HTMLInputElement>(null)
   const running = latest?.status === 'running'
@@ -152,7 +174,7 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
   const start = (extra: Partial<WpOptions['choices']> = {}) => {
     const next = { ...choices, ...extra }
     setChoices(next)
-    run.mutate({ drive_link: link.trim(), ar_link: arLink.trim(), ap_link: apLink.trim(), setup, choices: next })
+    run.mutate({ drive_link: link.trim(), ar_link: arLink.trim(), ap_link: apLink.trim(), setup, choices: next, ...(isEwp ? { workpapers } : {}) })
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -254,6 +276,17 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
           First-year entity (no prior-year reconciliation)
         </label>
       </fieldset>
+      {isEwp && (
+        <fieldset className={styles.wpChoices}>
+          <legend>Workpapers to prepare</legend>
+          {EWP_WORKPAPERS.map((w) => (
+            <button key={w.key} type="button" className={styles.wpTab} aria-pressed={workpapers.includes(w.key)} onClick={() => toggle(w.key)}
+              title={w.title}>
+              {w.key} {w.title}
+            </button>
+          ))}
+        </fieldset>
+      )}
       {(choices.ar_gl_fallback || choices.ap_gl_fallback) && (
         <p className={styles.muted}>
           GL analysis chosen for {[choices.ar_gl_fallback && 'receivables', choices.ap_gl_fallback && 'payables'].filter(Boolean).join(' and ')} (the
@@ -264,7 +297,8 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
         </p>
       )}
       <div className={styles.actions}>
-        <Button type="submit" variant="primary" size="sm" disabled={running || run.isPending || !link.trim() || !setup.balance_date}>
+        <Button type="submit" variant="primary" size="sm"
+          disabled={running || run.isPending || !link.trim() || !setup.balance_date || (isEwp && (!workpapers.length || !setup.entity.trim()))}>
           {running || run.isPending ? (
             <Loader2 size={14} className={styles.spin} aria-hidden="true" />
           ) : latest ? (
@@ -272,7 +306,8 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
           ) : (
             <Play size={14} aria-hidden="true" />
           )}
-          {running ? 'Reconciling…' : latest ? 'Run reconciliation again' : 'Run reconciliation'}
+          {running ? (isEwp ? 'Preparing…' : 'Reconciling…') : isEwp ? (latest ? 'Prepare workpapers again' : 'Prepare workpapers')
+            : latest ? 'Run reconciliation again' : 'Run reconciliation'}
         </Button>
         {running && <StopRun jobKey={jobKey} runId={latest?.run_id} />}
       </div>
@@ -348,6 +383,7 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
     )
   }
   if (run.status === 'failed') return <p role="alert" className={styles.error}>{run.failure_reason || 'The reconciliation stopped.'}</p>
+  if (run.kind === 'ewp') return run.gst?.fields ? <EwpResult run={run} jobKey={jobKey} /> : null
   const g = run.gst
   const isGst = (run.kind ?? 'gst') === 'gst'
   if (isGst ? !g?.bridge : !g?.lines) return null

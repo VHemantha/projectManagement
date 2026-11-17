@@ -35,7 +35,7 @@ def require_token(x_precheck_token: str = Header(default="")) -> None:
 class RunRequest(BaseModel):
     job_id: str
     run_id: str | None = None
-    mode: Literal["precheck", "draft", "review", "guide", "gst", "wages", "ica"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
+    mode: Literal["precheck", "draft", "review", "guide", "gst", "wages", "ica", "ewp"] = "precheck"  # "draft": only draft the Direction Note; "review": review the draft statements
     # "gst": the WP Agent's GST reconciliation (8 Nov 2026), with its inputs: the Drive link(s), the job settings and the
     # preparer's choices (see precheck_agent/gst/run.py).
     options: dict = {}
@@ -53,6 +53,30 @@ def create_run(body: RunRequest):
     """Start a pre-check for one job. Returns the run id at once; progress and the result come
     back to the PM application as events. The run id is the LangGraph thread id."""
     return {"run_id": runner.start(body.job_id, body.run_id, body.mode, body.options), "status": "running"}
+
+
+class EwpCell(BaseModel):
+    sheet: str
+    cell: str
+    value: str | float | int | None = None
+    kind: Literal["money", "number", "percent", "date", "text"] = "text"
+
+
+class EwpApply(BaseModel):
+    workbook_b64: str
+    cells: list[EwpCell]
+
+
+@app.post("/precheck/ewp/apply", dependencies=[Depends(require_token)])
+def ewp_apply(body: EwpApply) -> dict:
+    """The accountant's corrections to an electronic workpapers file (16 Nov 2026): written into the
+    workbook's input cells only - the template's formulas, macros and other parts are left as they are."""
+    from .ewp.run import apply_request
+
+    try:
+        return apply_request(body.workbook_b64, [c.model_dump() for c in body.cells])
+    except Exception as exc:  # a corrupt or foreign file: say so plainly
+        raise HTTPException(status_code=400, detail=f"The workbook could not be updated: {exc}") from exc
 
 
 @app.post("/precheck/runs/{run_id}/cancel", status_code=202, dependencies=[Depends(require_token)])

@@ -31,6 +31,7 @@ from .views import (
     RunDetailView,
     RunListView,
     RunStopView,
+    WorkpaperEditView,
     WorkpaperView,
 )
 
@@ -45,6 +46,7 @@ urlpatterns = [
     path("jobs/<str:key>/guide/", JobGuideView.as_view(), name="precheck-guide"),
     path("jobs/<str:key>/wp-agent/", JobWpAgentView.as_view(), name="precheck-wp-agent"),
     path("runs/<str:run_id>/workpaper.xlsx", WorkpaperView.as_view(), name="precheck-workpaper"),
+    path("runs/<str:run_id>/workpaper/", WorkpaperEditView.as_view(), name="precheck-workpaper-edit"),
     path("jobs/<str:key>/milestones/", MilestonesView.as_view(), name="precheck-milestones"),
     path("jobs/<str:key>/stages/", JobStagesView.as_view(), name="precheck-stages"),
     path("jobs/<str:key>/gaps/", JobGapsView.as_view(), name="precheck-gaps"),

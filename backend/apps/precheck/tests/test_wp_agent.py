@@ -142,7 +142,7 @@ def test_the_wages_and_ica_agents_are_chosen_run_and_kept_apart(agent):
     pat = person("pat")
     issue = make_job(pat, "Smith", "SmithRent")
     state = api(pat).get(f"/api/precheck/jobs/{issue.key}/wp-agent/?agent=wages").data
-    assert state["agent"] == "wages" and [a["key"] for a in state["agents"]] == ["gst", "wages", "ica"]
+    assert state["agent"] == "wages" and [a["key"] for a in state["agents"]] == ["gst", "wages", "ica", "ewp"]
     assert "opening_ird_payable" in state["defaults"]["setup"] and state["latest"] is None
 
     wages = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", {**FORM, "agent": "wages",
@@ -167,3 +167,53 @@ def test_the_wages_and_ica_agents_are_chosen_run_and_kept_apart(agent):
     payload = services.job_payload(issue)
     assert payload["last_wages"]["status"] == "Reconciled subject to corrections" and payload["last_ica"]["status"] == "Unreconciled"
     assert payload["last_gst"] == {}
+
+
+EWP_FIELDS = [
+    {"id": "f-bank", "wp": "F1.1", "sheet": "F1.1", "cell": "I12", "label": "Closing balance per bank statement", "value": "101868.92",
+     "agent_value": "101868.92", "kind": "money", "source": "S3 bank rec", "how": "document", "status": "review", "note": "", "editable": True},
+    {"id": "f-date", "wp": "Q3a", "sheet": "Q3a", "cell": "C24", "label": "Terminal tax payment - date", "value": "2025-04-29",
+     "agent_value": "2025-04-29", "kind": "date", "source": "S5", "how": "document", "status": "extracted", "note": "", "editable": True},
+    {"id": "f-tick", "wp": "T2", "sheet": "T2", "cell": "G9", "label": "NZ interest (tick)", "value": "R", "agent_value": "R", "kind": "text",
+     "source": "", "how": "calculated", "status": "verified", "note": "", "editable": False},
+]
+
+
+def test_the_electronic_workpapers_run_with_the_chosen_workpapers_and_are_corrected_and_downloaded(agent, monkeypatch):
+    """16 Nov 2026: the WP Agent's electronic workpapers - the accountant chooses the workpapers, corrects
+    the cells the agent filled (each change logged), and downloads the macro workbook."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    form = {**FORM, "agent": "ewp", "workpapers": ["T2", "F1.1", "L1"], "setup": {**FORM["setup"], "entity_type": "Company", "reviewed_by": "Robin"}}
+    r = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", form, format="json")
+    assert r.status_code == 201 and r.data["kind"] == "ewp"
+    body = agent[-1][1]
+    assert body["mode"] == "ewp" and body["options"]["workpapers"] == ["F1.1", "T2"]  # in workbook order; GST (L1) isn't one of them
+    assert body["options"]["setup"]["entity_type"] == "Company" and body["options"]["setup"]["reviewed_by"] == "Robin"
+    none = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", {**form, "workpapers": ["L1"]}, format="json")
+    assert none.status_code in (400, 409)
+
+    complete_as(r.data["run_id"], "ewp", {"status": "Prepared - review", "fields": EWP_FIELDS, "workpapers": [], "edits": []})
+    sent = []
+
+    def fake_agent(path, body, timeout=10):
+        sent.append((path, body))
+        assert path == "/precheck/ewp/apply" and timeout >= 60
+        return {"workbook_b64": base64.b64encode(b"EDITED").decode(), "refused": []}
+
+    monkeypatch.setattr(services, "_call_agent", fake_agent)
+    url = f"/api/precheck/runs/{r.data['run_id']}/workpaper/"
+    bad = api(pat).patch(url, {"cells": [{"id": "f-bank", "value": "lots"}, {"id": "f-tick", "value": "x"}]}, format="json")
+    assert bad.status_code == 400 and set(bad.data["cells"]) == {"f-bank", "f-tick"} and not sent  # a number is checked; a calculated tick isn't editable
+    ok = api(pat).patch(url, {"cells": [{"id": "f-bank", "value": "101,900"}, {"id": "f-date", "value": "2025-04-30"}]}, format="json")
+    assert ok.status_code == 200, ok.data
+    assert sent[0][1]["cells"] == [{"sheet": "F1.1", "cell": "I12", "kind": "money", "value": 101900.0},
+                                   {"sheet": "Q3a", "cell": "C24", "kind": "date", "value": "2025-04-30"}]
+    run = AIPrecheck.objects.get(run_id=r.data["run_id"])
+    assert bytes(run.workbook) == b"EDITED"
+    bank = next(f for f in run.gst["fields"] if f["id"] == "f-bank")
+    assert (bank["value"], bank["agent_value"], bank["edited_by"], bank["status"]) == ("101900.00", "101868.92", "Pat", "edited")
+    assert [(e["cell"], e["from"], e["to"]) for e in run.gst["edits"]] == [("I12", "101868.92", "101900.00"), ("C24", "2025-04-29", "2025-04-30")]
+    xlsm = api(pat).get(f"/api/precheck/runs/{run.run_id}/workpaper.xlsx")
+    assert xlsm["Content-Type"] == "application/vnd.ms-excel.sheet.macroEnabled.12" and xlsm["Content-Disposition"].endswith('.xlsm"')
+    assert services.job_payload(issue)["last_ewp"]["status"] == "Prepared - review"

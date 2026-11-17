@@ -7,7 +7,7 @@ export type GstBasis = 'payments' | 'invoice' | 'hybrid'
 export type GstFrequency = 'monthly' | 'two_monthly' | 'six_monthly'
 export type GstStatus = 'Reconciled' | 'Reconciled subject to corrections' | 'Unreconciled' | 'Incomplete evidence'
 /** The WP Agent's reconciliation agents (10 Nov 2026): GST, wages (PAYE) and imputation (ICA). */
-export type WpAgentKey = 'gst' | 'wages' | 'ica'
+export type WpAgentKey = 'gst' | 'wages' | 'ica' | 'ewp'
 
 /** The job settings the accountant confirms before a run (AFIT spec, section 4). */
 export interface GstSetup {
@@ -36,6 +36,8 @@ export interface WpOptions {
   ap_link: string
   setup: GstSetup
   choices: { ar_gl_fallback?: boolean; ap_gl_fallback?: boolean }
+  /** Electronic workpapers: the workpapers to prepare (B1, F1.1, M1, ...). */
+  workpapers?: string[]
 }
 
 /** Amounts arrive as strings (exact decimals); GST payable positive, receivable negative. */
@@ -62,6 +64,8 @@ export interface GstException {
   next_evidence: string
   refs: string[]
   amount: string | null
+  /** Electronic workpapers: the workpaper it belongs to. */
+  wp?: string
 }
 
 export interface GstCorrection {
@@ -131,6 +135,64 @@ export interface GstResult {
   /** Wages and ICA: each conclusion, and the statement lines in the workpaper's own labels. */
   conclusions: WpConclusion[]
   lines: WpLine[]
+  /** Electronic workpapers (16 Nov 2026). */
+  workpapers: EwpWorkpaper[]
+  fields: EwpField[]
+  checks: EwpCheck[]
+  inventory: EwpDocument[]
+  journals: { id: string; wp: string; title: string; narration: string; why: string; status: string;
+    lines: { account: string; code: string; debit: string; credit: string }[] }[]
+  edits: { at: string; by: string; id: string; sheet: string; cell: string; label: string; from: string | null; to: string | null }[]
+}
+
+/** One cell the agent filled, with where it came from; the accountant can correct it. */
+export interface EwpField {
+  id: string
+  wp: string
+  sheet: string
+  cell: string
+  label: string
+  value: string | null
+  agent_value: string | null
+  kind: 'money' | 'number' | 'percent' | 'date' | 'text'
+  source: string
+  how: string
+  status: string
+  note: string
+  editable: boolean
+  edited_by?: string
+  edited_at?: string
+}
+
+export interface EwpCheck {
+  wp: string
+  label: string
+  workpaper: string | null
+  ledger: string | null
+  variance: string | null
+  status: 'agrees' | 'difference' | 'missing' | 'computed'
+  note: string
+}
+
+export interface EwpWorkpaper {
+  key: string
+  title: string
+  purpose: string
+  status: string
+  fields: number
+  checks: EwpCheck[]
+  exceptions: string[]
+}
+
+export interface EwpDocument {
+  sid: string
+  name: string
+  path: string
+  kind: string
+  wp: string
+  entity: string
+  status: 'used' | 'excluded' | 'duplicate' | 'unreadable' | 'not used'
+  note: string
 }
 
 export interface WpConclusion {
@@ -183,6 +245,16 @@ export function useRunWpAgent(jobKey: string, agent: WpAgentKey = 'gst') {
 }
 
 /** The run's Excel workpaper, saved by the browser. */
+/** The accountant's corrections to the electronic workpapers' cells: the workbook is rewritten. */
+export function useSaveWorkpaper(jobKey: string, runId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (cells: { id: string; value: string | null }[]) =>
+      (await apiClient.patch<WpRun & { errors: Record<string, string> }>(`/precheck/runs/${runId}/workpaper/`, { cells })).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
+  })
+}
+
 export async function downloadWorkpaper(runId: string, fileName: string) {
   const { data } = await apiClient.get<Blob>(`/precheck/runs/${runId}/workpaper.xlsx`, { responseType: 'blob' })
   const url = URL.createObjectURL(data)

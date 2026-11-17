@@ -676,6 +676,10 @@ WP_AGENTS = {
 }
 
 
+WP_AGENTS["ewp"] = {"name": "Electronic workpapers", "extra": ("entity_type", "gst_status", "reviewed_by")}
+EWP_WORKPAPERS = ("B1", "F1.1", "M1", "Q1", "Q3a", "S2", "T2", "V1", "V2", "V5", "D1")
+
+
 def _agent(request) -> str:
     raw = request.query_params.get("agent") or (request.data.get("agent") if isinstance(request.data, dict) else None) or "gst"
     return raw if raw in WP_AGENTS else "gst"
@@ -745,6 +749,13 @@ class JobWpAgentView(APIView):
             "prepared_by": request.user.display_name or request.user.username,
             "firm": getattr(settings, "WP_AGENT_FIRM_NAME", "BDS Chartered Accountants Ltd"),
         }
+        if agent == "ewp":
+            chosen = data.get("workpapers") if isinstance(data.get("workpapers"), list) else list(EWP_WORKPAPERS)
+            options["workpapers"] = [w for w in EWP_WORKPAPERS if w in chosen]
+            if not options["workpapers"]:
+                return Response({"workpapers": ["Choose at least one workpaper."]}, status=status.HTTP_400_BAD_REQUEST)
+            if not options["setup"].get("entity"):
+                return Response({"entity": ["Give the entity's name: documents are matched to it."]}, status=status.HTTP_400_BAD_REQUEST)
         run = services.start_run(issue, request.user, kind=agent, options=options)
         return Response(wp_dict(run), status=status.HTTP_201_CREATED)
 
@@ -768,9 +779,40 @@ class WorkpaperView(APIView):
         label = WP_AGENTS.get(run.kind, WP_AGENTS["gst"])["name"]
         title = f"{label} {setup.get('entity') or run.issue.key} {setup.get('balance_date') or ''}"
         name = " ".join(re.sub(r"[^\w .()-]+", "", title).split())[:120] or label
-        response = HttpResponse(bytes(run.workbook), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-        response["Content-Disposition"] = f'attachment; filename="{name}.xlsx"'
+        macro = run.kind == AIPrecheck.Kind.EWP  # the firm's macro-enabled template
+        content_type = "application/vnd.ms-excel.sheet.macroEnabled.12" if macro else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        response = HttpResponse(bytes(run.workbook), content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{name}.{"xlsm" if macro else "xlsx"}"'
         return response
+
+
+class WorkpaperEditView(APIView):
+    """PATCH /api/precheck/runs/<run_id>/workpaper/ {cells: [{id, value}]} — correct the electronic
+    workpapers' cells the agent filled; the workbook is rewritten (input cells only) and every change
+    is logged. Returns the run as the WP Agent panel shows it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, run_id):
+        run = get_object_or_404(AIPrecheck.objects.select_related("issue__project"), run_id=run_id, kind=AIPrecheck.Kind.EWP)
+        if not services.can_open_job(request.user, run.issue):
+            raise PermissionDenied("You can't open this task.")
+        if run.status not in (AIPrecheck.Status.COMPLETE, AIPrecheck.Status.PARTIAL) or not run.workbook:
+            return Response({"detail": "Only a finished run's workbook can be edited."}, status=status.HTTP_409_CONFLICT)
+        cells = request.data.get("cells") if isinstance(request.data, dict) else None
+        if not isinstance(cells, list) or not cells or len(cells) > 500:
+            return Response({"cells": ["Send the cells to change."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            out = services.apply_workpaper_edits(run, [c for c in cells if isinstance(c, dict)], request.user)
+        except services.AgentRefused as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except services.AgentUnavailable:
+            return Response({"detail": "The WP Agent is not reachable just now, so the workbook wasn't changed. Try again shortly."},
+                            status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        if out.get("errors") and not out.get("changed"):
+            return Response({"cells": out["errors"]}, status=status.HTTP_400_BAD_REQUEST)
+        run.refresh_from_db()
+        return Response({**wp_dict(run), "errors": out.get("errors") or {}})
 
 
 class MilestonesView(APIView):

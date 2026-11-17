@@ -375,7 +375,7 @@ class AgentUnavailable(Exception):
     pass
 
 
-def _call_agent(path: str, body: dict) -> dict:
+def _call_agent(path: str, body: dict, timeout: int = 10) -> dict:
     request = urllib.request.Request(
         settings.PRECHECK_AGENT_URL.rstrip("/") + path,
         data=json.dumps(body).encode(),
@@ -383,10 +383,85 @@ def _call_agent(path: str, body: dict) -> dict:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:  # noqa: S310 - fixed, configured URL
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - fixed, configured URL
             return json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 400:
+            try:
+                detail = json.loads(exc.read() or b"{}").get("detail", "")
+            except ValueError:
+                detail = ""
+            raise AgentRefused(detail or "The agent refused the request.") from exc
+        raise AgentUnavailable(str(exc)) from exc
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise AgentUnavailable(str(exc)) from exc
+
+
+class AgentRefused(Exception):
+    """The agent understood the request and said no (shown to the person as it is)."""
+
+
+def apply_workpaper_edits(run: AIPrecheck, edits: list[dict], user) -> dict:
+    """An accountant's corrections to the electronic workpapers (16 Nov 2026): only the cells the agent
+    filled (its fields) can be changed; the agent writes them into the workbook's input cells (the
+    template's formulas and macros are never touched), and every change is logged with who made it."""
+    import base64
+    from decimal import Decimal, InvalidOperation
+
+    from django.utils import timezone
+
+    g = dict(run.gst or {})
+    fields = {f["id"]: dict(f) for f in g.get("fields") or []}
+    cells, changes, errors = [], [], {}
+    for e in edits:
+        f = fields.get(str(e.get("id", "")))
+        if f is None or not f.get("editable", True):
+            errors[str(e.get("id", ""))] = "This cell can't be edited here."
+            continue
+        raw = e.get("value")
+        value = None if raw in (None, "") else raw
+        if value is not None and f["kind"] in ("money", "number", "percent"):
+            try:
+                value = str(Decimal(str(value).replace(",", "").replace("$", "").strip()).quantize(Decimal("0.01")))
+            except (InvalidOperation, ValueError):
+                errors[f["id"]] = f"{f['label']}: enter a number."
+                continue
+        elif value is not None and f["kind"] == "date":
+            from datetime import date
+
+            try:
+                value = date.fromisoformat(str(value)[:10]).isoformat()
+            except ValueError:
+                errors[f["id"]] = f"{f['label']}: enter a date (YYYY-MM-DD)."
+                continue
+        elif value is not None:
+            value = str(value)[:500]
+        if str(value) == str(f.get("value")):
+            continue
+        cells.append({"sheet": f["sheet"], "cell": f["cell"], "kind": f["kind"],
+                      "value": float(value) if value is not None and f["kind"] in ("money", "number", "percent") else value})
+        changes.append((f, value))
+    if errors:
+        return {"errors": errors}
+    if not changes:
+        return {"changed": 0}
+    out = _call_agent("/precheck/ewp/apply", {"workbook_b64": base64.b64encode(bytes(run.workbook)).decode(), "cells": cells}, timeout=90)
+    refused = {(r["sheet"], r["cell"]): r.get("reason", "") for r in out.get("refused") or []}
+    now = timezone.now().isoformat()
+    who = user.display_name or user.username
+    log = list(g.get("edits") or [])
+    for f, value in changes:
+        if (f["sheet"], f["cell"]) in refused:
+            errors[f["id"]] = f"{f['label']}: {refused[(f['sheet'], f['cell'])]}"
+            continue
+        log.append({"at": now, "by": who, "id": f["id"], "sheet": f["sheet"], "cell": f["cell"], "label": f["label"], "from": f.get("value"), "to": value})
+        fields[f["id"]].update(value=value, edited_by=who, edited_at=now, status="edited")
+    g["fields"] = [fields[f["id"]] if f["id"] in fields else f for f in g.get("fields") or []]
+    g["edits"] = log[-500:]
+    run.gst = g
+    run.workbook = base64.b64decode(out["workbook_b64"])
+    run.save(update_fields=["gst", "workbook"])
+    return {"changed": len(changes) - len(errors), "errors": errors}
 
 
 def start_run(issue, user, kind: str = AIPrecheck.Kind.PRECHECK, options: dict | None = None) -> AIPrecheck:

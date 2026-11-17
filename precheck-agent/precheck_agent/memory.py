@@ -19,7 +19,7 @@ from .knowledge import Scope, get_knowledge
 from .textutil import sha
 
 logger = logging.getLogger(__name__)
-KINDS = ("precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica")
+KINDS = ("precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica", "wp_ewp")
 MAX_ENTRIES = 600
 
 
@@ -227,7 +227,8 @@ def remember_gst(scope: Scope, g: dict) -> int:
 
 # --- the WP Agent's wages (PAYE) and imputation (ICA) reconciliations (10 Nov 2026) -----------------------
 
-WP_NAMES = {"wp_wages": "WP Agent wages (PAYE) reconciliation", "wp_ica": "WP Agent imputation (ICA) reconciliation"}
+WP_NAMES = {"wp_wages": "WP Agent wages (PAYE) reconciliation", "wp_ica": "WP Agent imputation (ICA) reconciliation",
+            "wp_ewp": "WP Agent electronic workpapers"}
 
 
 def wp_entries(g: dict, kind: str) -> list[dict]:
@@ -272,4 +273,5 @@ def sync_from_job(job: dict) -> dict:
             "guide": safely(remember_guide, scope, job.get("last_guide") or {}),
             "wp_gst": safely(remember_gst, scope, job.get("last_gst") or {}),
             "wp_wages": safely(remember_wp, scope, "wp_wages", job.get("last_wages") or {}),
-            "wp_ica": safely(remember_wp, scope, "wp_ica", job.get("last_ica") or {})}
+            "wp_ica": safely(remember_wp, scope, "wp_ica", job.get("last_ica") or {}),
+            "wp_ewp": safely(remember_wp, scope, "wp_ewp", job.get("last_ewp") or {})}

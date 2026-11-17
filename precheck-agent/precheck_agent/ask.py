@@ -111,6 +111,9 @@ _SYNONYMS = [
 # The area a question is about (AFIT, 10 Nov 2026): the WP Agent's GST reconciliation, the pre-check,
 # the preparation guide, the review. Most specific first; a question may be in more than one.
 AREAS = [
+    ("wp_ewp", "the WP Agent's electronic workpapers",
+     r"workpapers?\b|\bb1\b|\bd1\b|\bf1\.1\b|\bm1\b|\bq1\b|\bq3a\b|\bs2\b|\bt2\b|\bv1\b|\bv2\b|\bv5\b|bank rec|accounts payable|creditors|"
+     r"investment income|accounting fees?|home office|use of home|taxation due|proposed journals?|review summary"),
     ("wp_ica", "the WP Agent's imputation (ICA) reconciliation",
      r"imputation|\bica\b|\bir4j\b|retained (earnings|profit)|missing credits|terminal tax|prov(isional)? ?3|72/28|28/72|grossed up|"
      r"permanent (tax )?differences?|timing (tax )?differences?|\bfdp\b"),
@@ -134,10 +137,11 @@ AREAS = [
      r"\breview|finding|reviewer|assumption|draft (financial )?statements"),
 ]
 AREA_LABEL = {k: label for k, label, _ in AREAS}
-RESULT_KINDS = ["precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica"]
+RESULT_KINDS = ["precheck_result", "guide", "wp_gst", "wp_wages", "wp_ica", "wp_ewp"]
 PASSAGE_LABEL = {"assumption": "Preparer's assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "AFIT's learned rule",
                  "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent (GST reconciliation)",
-                 "wp_wages": "WP Agent (wages reconciliation)", "wp_ica": "WP Agent (imputation reconciliation)"}
+                 "wp_wages": "WP Agent (wages reconciliation)", "wp_ica": "WP Agent (imputation reconciliation)",
+                 "wp_ewp": "WP Agent (electronic workpapers)"}
 
 
 def areas_of(question: str) -> list[str]:
@@ -308,7 +312,7 @@ def _view(kid: str, h: dict, files: dict) -> dict:
                 "evidence": {k: e[k] for k in ("file_name", "location", "quote", "drive_url")} if e else None}
     label = {"assumption": "Assumption", "finding": "Review finding", "feedback": "Reviewer's feedback", "skill": "Learned rule",
              "precheck_result": "Pre-check result", "guide": "Preparation guide", "wp_gst": "WP Agent", "wp_wages": "WP Agent (wages)",
-             "wp_ica": "WP Agent (imputation)"}[h["source_type"]]
+             "wp_ica": "WP Agent (imputation)", "wp_ewp": "WP Agent (workpapers)"}[h["source_type"]]
     return {"id": kid, "label": f"{label} {h.get('ref', '')}".strip(), "how": h.get("how", ""), "evidence": {"quote": h["text"][:500]}}
 
 

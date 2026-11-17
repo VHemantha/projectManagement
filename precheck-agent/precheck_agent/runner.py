@@ -73,7 +73,7 @@ def new_run_id() -> str:
     return uuid.uuid4().hex
 
 
-WP_MODES = ("gst", "wages", "ica")
+WP_MODES = ("gst", "wages", "ica", "ewp")
 
 
 def execute_gst(run_id: str, job_id: str, options: dict, mode: str = "gst") -> dict:
@@ -81,9 +81,10 @@ def execute_gst(run_id: str, job_id: str, options: dict, mode: str = "gst") -> d
     wages (PAYE) and imputation (ICA) (10 Nov 2026)."""
     from .gst.run import GstStop
     from .gst.run import execute as gst_run
+    from .ewp import run as ewp
     from .wp import ica, wages
 
-    run_gst = {"gst": gst_run, "wages": wages.execute, "ica": ica.execute}[mode]
+    run_gst = {"gst": gst_run, "wages": wages.execute, "ica": ica.execute, "ewp": ewp.execute}[mode]
 
     pm, store = get_pm(), get_store()
     store.save_run(run_id, job_id, "running")

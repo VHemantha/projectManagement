@@ -195,3 +195,34 @@ They share the GST agent's Drive reading, AI document classification and workboo
   vs 2,837.57 on the sample).
 - Ask stores each result as its own kind (`wp_wages`, `wp_ica`) and routes payroll/PAYE questions
   and imputation/retained-earnings questions to them.
+
+## 9. Electronic workpapers (CCH "Electronic Workpapers Static 2026") (16 Nov 2026)
+
+A fourth choice on the WP Agent panel: **Electronic workpapers (CCH)**. Toggle buttons choose the
+workpapers to prepare: B1 review summary, F1.1 bank, M1 accounts payable, Q1 taxation due, Q3a ICA,
+S2 income, T2 investment income, V1 expenses, V2 use of home, V5 accounting fees, D1 journals.
+GST (L1) is the GST agent and isn't prepared here.
+
+| Part | Where | What |
+| --- | --- | --- |
+| Template | `templates/Electronic Workpapers Static 2026.xlsm` | The firm's macro workbook (29 sheets, hidden sheets, named ranges, VBA) |
+| Cell writer | `precheck_agent/ewp/xlsm.py` | Writes values straight into each sheet's XML; every other part of the file is copied byte for byte. Refuses any cell the template holds a formula in, and cells inside merged ranges. Sets `fullCalcOnLoad` so Excel recalculates on opening. (openpyxl's save dropped custom XML, dynamic-array metadata, the VBA project's relationships and the controls' links, so it isn't used to write.) |
+| Cell plan | `ewp/catalogue.py` | B1's rows, the account-to-workpaper rules and each workpaper's input cells, mapped from the template |
+| Reading | `ewp/readers.py` | Kinds of document; whose document it is; MYOB GL / trial balance read by code; PDFs (IRD summaries, statements, minutes, fee statements, creditors) read by the model into fixed records |
+| Procedures | `ewp/procedures.py` | Each workpaper's figures, checks against the ledger, exceptions and proposed journals |
+| Run / edits | `ewp/run.py`, `POST /precheck/ewp/apply` | The run; the accountant's corrections written into the finished workbook (template formulas still protected) |
+| Skill | `skills/nz-electronic-workpapers` | Reading and preparing rules given to the model |
+
+Rules that matter:
+- **Whose document:** a document is used only if it is the entity's. IRD's own documents (income
+  summaries, myIR transactions, ICA details) must have the entity as the header taxpayer - the owners'
+  personal myIR documents name the company as employer or as the other side of a transfer and are
+  set aside. Other documents must name the entity or its IRD number. Duplicates are dropped.
+- **Evidence status** on every cell: verified (read by code, or two sources agree), extracted (read by
+  the model from one document), review, missing. Every cell keeps its source.
+- **Never forced:** differences are checks with a status (agrees / difference / missing); proposed
+  journals go on D1 and are never posted.
+- **Edits:** the web page shows each workpaper's cells, checks and exceptions; the accountant changes a
+  cell, saves (`PATCH /api/precheck/runs/<id>/workpaper/`; the backend asks the agent to rewrite the
+  workbook) and downloads the .xlsm. Every change is logged with who made it and the agent's value.
+- V2 (use of home) is never filled from guesses: without floor areas and costs it is flagged.

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WpAgentPanel } from './WpAgentPanel'
 
-const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}), agents: [] as string[] }))
+const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}), agents: [] as string[], save: vi.fn() }))
 
 vi.mock('@/api/wpAgent', () => ({
   useWpAgent: (_key: string, agent = 'gst') => {
@@ -13,6 +13,7 @@ vi.mock('@/api/wpAgent', () => ({
   },
   useRunWpAgent: (_key: string, agent = 'gst') => ({ mutate: (o: object) => mocks.run({ ...o, agent }), isPending: false, isError: false }),
   downloadWorkpaper: mocks.download,
+  useSaveWorkpaper: () => ({ mutate: mocks.save, isPending: false, isError: false, data: undefined }),
 }))
 vi.mock('./StopRun', () => ({ StopRun: () => null }))
 
@@ -149,5 +150,61 @@ describe('WP Agent panel (AFIT, 8 Nov 2026)', () => {
     expect(result).toHaveTextContent('expense effect (3,766.84); liability effect (3,766.84)')
     await userEvent.click(within(result).getByRole('button', { name: /Download workpaper/ }))
     expect(mocks.download).toHaveBeenCalledWith('r1', 'Wages (PAYE) reconciliation Acme Trading Ltd 2026-03-31.xlsx')
+  })
+
+  it('the electronic workpapers agent takes the workpapers chosen by toggle buttons (16 Nov 2026)', async () => {
+    render(<WpAgentPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('radio', { name: 'Electronic workpapers (CCH)' }))
+    expect(mocks.agents.at(-1)).toBe('ewp')
+    const form = screen.getByRole('form', { name: 'WP Agent inputs' })
+    const choices = within(form).getByRole('group', { name: 'Workpapers to prepare' })
+    expect(within(choices).queryByRole('button', { name: /L1/ })).toBeNull()  // GST is its own agent
+    await userEvent.click(within(choices).getByRole('button', { name: /V2 Use of home/ }))
+    expect(within(choices).getByRole('button', { name: /V2 Use of home/ })).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.type(within(form).getByLabelText(/Google Drive link/), 'https://drive.google.com/drive/folders/TMC')
+    await userEvent.click(within(form).getByRole('button', { name: 'Prepare workpapers' }))
+    const sent = mocks.run.mock.calls.at(-1)![0]
+    expect(sent.agent).toBe('ewp')
+    expect(sent.workpapers).not.toContain('V2')
+    expect(sent.workpapers).toContain('F1.1')
+  })
+
+  it('the electronic workpapers are shown by workpaper, corrected cell by cell, saved, then downloaded', async () => {
+    mocks.save.mockClear()
+    const fields = [
+      { id: 'a', wp: 'F1.1', sheet: 'F1.1', cell: 'I12', label: 'Closing balance per bank statement', value: '101868.92', agent_value: '101868.92',
+        kind: 'money', source: 'S3 Banking reconciliation report', how: 'document', status: 'review', note: '', editable: true },
+      { id: 'b', wp: 'T2', sheet: 'T2', cell: 'G17', label: 'Interest 1 - gross', value: '21741.18', agent_value: '21741.18', kind: 'money',
+        source: 'S5 IRD income summary', how: 'document', status: 'verified', note: '', editable: true },
+    ]
+    mocks.state = {
+      latest: {
+        ...run({
+          status: 'Prepared - review', summary: 'Prepared for review.', exceptions: [{ id: 'x', wp: 'F1.1', code: 'no_statement', severity: 'review',
+            text: "The closing balance is the software's expected statement balance.", next_evidence: 'The bank statement.', refs: [], amount: null }],
+          fields, edits: [], journals: [],
+          workpapers: [{ key: 'F1.1', title: 'Bank reconciliation', purpose: 'Bank', status: 'Prepared - review', fields: 1,
+            checks: [{ wp: 'F1.1', label: 'Bank vs ledger', workpaper: '101868.92', ledger: '101868.92', variance: '0.00', status: 'agrees', note: '' }],
+            exceptions: ['x'] },
+          { key: 'T2', title: 'Investment income', purpose: 'Interest', status: 'Prepared', fields: 1, checks: [], exceptions: [] }],
+          inventory: [{ sid: 'S9', name: 'V5 - Accountancy Fee Statement.pdf', path: '', kind: 'fee_statement', wp: 'V5', entity: 'other',
+            status: 'excluded', note: "doesn't name the entity" }],
+        }),
+        kind: 'ewp',
+      },
+      history: [], defaults: { setup: SETUP },
+    }
+    render(<WpAgentPanel jobKey="ACME-1" />)
+    const result = screen.getByRole('region', { name: 'Electronic workpapers' })
+    expect(within(result).getByRole('table', { name: 'Checks' })).toHaveTextContent('agrees')
+    expect(result).toHaveTextContent("software's expected statement balance")
+    const cell = within(result).getByLabelText('Closing balance per bank statement (F1.1!I12)')
+    await userEvent.clear(cell)
+    await userEvent.type(cell, '101900')
+    expect(within(result).getByRole('button', { name: /Download workbook/ })).toBeDisabled()  // save first
+    await userEvent.click(within(result).getByRole('button', { name: 'Save 1 change' }))
+    expect(mocks.save).toHaveBeenCalledWith([{ id: 'a', value: '101900' }], expect.anything())
+    await userEvent.click(within(within(result).getByRole('group', { name: 'Workpapers' })).getByRole('button', { name: 'Documents' }))
+    expect(within(result).getByRole('table', { name: 'Documents' })).toHaveTextContent('excluded')
   })
 })
