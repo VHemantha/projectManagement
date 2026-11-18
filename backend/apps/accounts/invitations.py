@@ -66,7 +66,7 @@ def _send_invitation_email(invitation: Invitation, url: str) -> bool:
         send_mail(
             subject="You're invited to TASKO",
             message=(
-                f"{inviter} has invited you to join TASKO as {invitation.get_role_display().lower()}{team}.\n\n"
+                f"{inviter} has invited you to join TASKO as {'a Team Lead' if invitation.role == Invitation.Role.ADMIN else 'a Standard user'}{team}.\n\n"
                 f"Create your account here (the link works once and expires in {INVITATION_DAYS} days):\n{url}\n"
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,

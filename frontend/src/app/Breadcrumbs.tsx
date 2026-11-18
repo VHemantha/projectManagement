@@ -12,7 +12,7 @@ import { DEFAULT_TAB } from '@/features/projects/workspaceTabs'
 // separately in `resolveDynamicLabel`.
 const STATIC_LABELS: Record<string, string> = {
   workspaces: 'Workspaces',
-  projects: 'Kanban board',
+  projects: 'Workspaces', // the organisation's Kanban, named Workspaces in the menu (16 Nov 2026)
   'all-issues': 'All tasks',
   people: 'People',
   filters: 'Filters',

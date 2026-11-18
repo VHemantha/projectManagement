@@ -6,6 +6,7 @@ import { OrgChart } from './OrgChart'
 import styles from './PeopleDirectoryPage.module.css'
 import { useUserHierarchy, useUsers } from '@/api/users'
 import { Avatar, CopyButton } from '@/design-system'
+import { employeeTypeLabel } from '@/lib/employeeType'
 import { useAuthStore } from '@/store/authStore'
 
 type View = 'list' | 'diagram'
@@ -56,7 +57,10 @@ export function PeopleDirectoryPage() {
               <Avatar name={user.display_name} src={user.avatar} size={44} userId={user.id} interactive />
               <div className={styles.info}>
                 <div className={styles.name}>{user.display_name}</div>
-                {user.job_title && <div className={styles.role}>{user.job_title}</div>}
+                <div className={styles.role}>
+                  <span className={styles.type}>{employeeTypeLabel(user)}</span>
+                  {user.job_title && <> · {user.job_title}</>}
+                </div>
                 <div className={styles.emailRow}>
                   {/* mailto link + copy button; both stop the click from opening
                       the person page so the email actions work in isolation. */}

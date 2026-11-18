@@ -23,6 +23,7 @@ import {
 import { type FormEvent, useState } from 'react'
 
 import styles from './PrecheckPanel.module.css'
+import { PrecheckChat } from './PrecheckChat'
 import { PrecheckResult } from './PrecheckResult'
 import { StopRun } from './StopRun'
 import {
@@ -61,6 +62,7 @@ import {
   useSetDisposition,
 } from '@/api/precheck'
 import { Button, Skeleton, keepOpenForSelect } from '@/design-system'
+import { monthEnd } from '@/lib/monthEnd'
 
 const TYPE_HINTS: Record<PrecheckType, string> = {
   auto: 'The pre-check decides from the questionnaire and last year\'s accounts whether this is a rental, a business or an investment entity.',
@@ -282,10 +284,7 @@ function SetupForm({
             ))}
           </select>
         </label>
-        <label className={styles.field}>
-          <span>Financial year end</span>
-          <input type="date" value={confirmed.year_end} onChange={(e) => setConfirmed({ ...confirmed, year_end: e.target.value })} />
-        </label>
+        <YearEndPicker value={confirmed.year_end} onChange={(year_end) => setConfirmed({ ...confirmed, year_end })} />
       </div>
       {precheckType !== 'residential_rental' && <AccountantSettingsFields value={confirmed} onChange={setConfirmed} />}
       <fieldset className={styles.keyPaths}>
@@ -384,6 +383,49 @@ function DraftedList({ items }: { items: DirectionItem[] }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+/** Financial year end (AFIT, 16 Nov 2026): only the month and year are chosen; the day is the
+ * month's last. Saved once both are picked; clearing either clears it. */
+function YearEndPicker({ value, onChange }: { value: string; onChange: (isoDate: string) => void }) {
+  const [year, month] = value ? value.split('-').map(Number) : [NaN, NaN]
+  const [draft, setDraft] = useState<{ year: string; month: string }>({
+    year: Number.isFinite(year) ? String(year) : '',
+    month: Number.isFinite(month) ? String(month) : '',
+  })
+  const thisYear = new Date().getFullYear()
+  const years = Array.from(new Set([...Array.from({ length: 9 }, (_, i) => thisYear + 2 - i), ...(Number.isFinite(year) ? [year] : [])]))
+    .sort((a, b) => b - a)
+  const pick = (next: { year: string; month: string }) => {
+    setDraft(next)
+    onChange(next.year && next.month ? monthEnd(Number(next.year), Number(next.month)) : '')
+  }
+  return (
+    <fieldset className={`${styles.field} ${styles.yearEnd}`}>
+      <legend>Financial year end</legend>
+      <div className={styles.yearEndPickers}>
+        <select aria-label="Financial year end month" value={draft.month} onChange={(e) => pick({ ...draft, month: e.target.value })}>
+          <option value="">Month</option>
+          {MONTHS.map((m, i) => (
+            <option key={m} value={String(i + 1)}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Financial year end year" value={draft.year} onChange={(e) => pick({ ...draft, year: e.target.value })}>
+          <option value="">Year</option>
+          {years.map((y) => (
+            <option key={y} value={String(y)}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </div>
+      {value && <small>Ends {format(new Date(`${value}T00:00:00`), 'd MMMM yyyy')}</small>}
+    </fieldset>
   )
 }
 
@@ -533,6 +575,8 @@ function RunView({
       {run.status !== 'failed' && <Trail run={run} />}
 
       {finished && run.precheck && <PrecheckResult output={run.precheck} jobKey={jobKey} />}
+      {/* The Pre-Check Agent's own chat, under the latest result (16 Nov 2026). */}
+      {finished && run.precheck && isLatest && <PrecheckChat jobKey={jobKey} running={false} />}
       {finished && !run.precheck && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
 
       {finished && !run.precheck && (

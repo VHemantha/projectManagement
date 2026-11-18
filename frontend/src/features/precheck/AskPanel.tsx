@@ -36,7 +36,7 @@ const SUGGESTIONS = [
 /** Ask the AI about this task or the accounting and tax around it. Answers draw first on this
  * task's documents, then NZ standards and law, then general knowledge — and each point says which,
  * so the accountant can see where the AI went beyond the folder and NZ sources. */
-export function AskPanel({ jobKey }: { jobKey: string }) {
+export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead }: { jobKey: string; suggestions?: string[]; lead?: string }) {
   const { data, isLoading, isError } = useConversation(jobKey)
   const ask = useAsk(jobKey)
   const [question, setQuestion] = useState('')
@@ -54,12 +54,12 @@ export function AskPanel({ jobKey }: { jobKey: string }) {
   return (
     <div className={styles.ask}>
       <p className={styles.lead}>
-        Ask about this task, or a general accounting or tax question. The AI answers from this task&apos;s documents first, then
-        NZ standards, IRD law and company law, and general knowledge last — each point says which.
+        {lead ??
+          "Ask about this task, or a general accounting or tax question. The AI answers from this task's documents first, then NZ standards, IRD law and company law, and general knowledge last — each point says which."}
       </p>
       {data.questions.length === 0 ? (
         <div className={styles.suggestions} role="group" aria-label="Suggested questions">
-          {SUGGESTIONS.map((s) => (
+          {suggestions.map((s) => (
             <button key={s} type="button" className={styles.suggestion} disabled={ask.isPending} onClick={() => submit(s)}>
               {s}
             </button>

@@ -52,7 +52,7 @@ export function SignupPage() {
           <form className={styles.form} onSubmit={handleSubmit}>
             <p style={{ margin: 0, fontSize: 13, color: 'var(--tf-text-subtle)' }}>
               {preview.data.invited_by_name ?? 'An admin'} invited you to join as{' '}
-              {preview.data.role === 'admin' ? 'an admin' : 'a worker'}
+              {preview.data.role === 'admin' ? 'a Team Lead' : 'a Standard user'}
               {preview.data.team_name ? ` in the ${preview.data.team_name} workspace` : ''}.
             </p>
             {signup.isError && <div className={styles.formError}>{extractErrorMessage(signup.error)}</div>}

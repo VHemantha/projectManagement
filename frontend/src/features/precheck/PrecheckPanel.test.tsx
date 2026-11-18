@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PrecheckPanel } from './PrecheckPanel'
+import { monthEnd } from '@/lib/monthEnd'
 import { costChip, trailStep } from './precheckText'
 import type { Finding, JobPrecheck, PrecheckSetup, Run } from '@/api/precheck'
 import { TooltipProvider } from '@/design-system'
@@ -17,6 +18,8 @@ const mocks = vi.hoisted(() => ({ gaps: undefined as unknown, gapAction: vi.fn()
   stop: vi.fn(),
 }))
 
+// The pre-check's chat has its own test (16 Nov 2026).
+vi.mock('./PrecheckChat', () => ({ PrecheckChat: () => <div>pre-check chat</div> }))
 vi.mock('@/api/precheck', () => ({
   useJobPrecheck: () => ({ data: mocks.data, isLoading: false, isError: false }),
   useJobGaps: () => ({ data: mocks.gaps }),
@@ -120,7 +123,10 @@ describe('PrecheckPanel states', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     expect(screen.getByLabelText('The team has working IRD access for this entity')).toHaveValue('no')
     expect(screen.queryByLabelText(/Financial year starts/)).not.toBeInTheDocument() // the year end is enough
-    await userEvent.type(screen.getByLabelText('Financial year end'), '2026-06-30')
+    // Month and year only: the day is the month's last (AFIT, 16 Nov 2026).
+    await userEvent.selectOptions(screen.getByLabelText('Financial year end month'), 'June')
+    await userEvent.selectOptions(screen.getByLabelText('Financial year end year'), '2026')
+    expect(screen.getByText('Ends 30 June 2026')).toBeInTheDocument()
     await userEvent.selectOptions(screen.getByLabelText('Entity type'), 'ltc')
     await userEvent.selectOptions(screen.getByLabelText("Xero holds the full year's bank transactions"), 'yes')
     await userEvent.click(screen.getByRole('button', { name: 'Save without running' }))
@@ -335,6 +341,7 @@ describe('PrecheckPanel states', () => {
     expect(screen.getByLabelText('Items')).toHaveTextContent('2 to request')
     expect(screen.getByRole('heading', { name: 'Section A — Information required from the client (2)' })).toBeInTheDocument()
     expect(screen.queryByText('Nothing found that needs attention.')).not.toBeInTheDocument()
+    expect(screen.getByText('pre-check chat')).toBeInTheDocument() // its own chat, under the latest result
   })
 
   it('complete with nothing found', () => {
@@ -380,5 +387,14 @@ describe('helpers', () => {
   it('cost chip', () => {
     expect(costChip(run({ usage: { totals: { input: 0, output: 0, cache_read: 0, cache_write: 0 }, cost_usd: 0, cache_share: 0 } }))).toBe('0 tokens · 0% from cache · $0.0000')
     expect(costChip(run({ usage: {} }))).toBeNull()
+  })
+})
+
+describe('monthEnd', () => {
+  it('is the last day of the month, leap years included', () => {
+    expect(monthEnd(2026, 3)).toBe('2026-03-31')
+    expect(monthEnd(2026, 6)).toBe('2026-06-30')
+    expect(monthEnd(2028, 2)).toBe('2028-02-29')
+    expect(monthEnd(2027, 2)).toBe('2027-02-28')
   })
 })

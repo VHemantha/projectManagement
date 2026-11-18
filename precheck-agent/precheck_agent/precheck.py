@@ -38,6 +38,7 @@ from .rules import _block_for
 from .learn import lesson_text
 from .skills_loader import get_skill
 from . import special_notes as SN
+from . import snapshot as JS
 from .textutil import clip_words, est_tokens, sha, to_number
 
 TYPES = {"residential_rental": "Residential rental", "general": "General business", "investment": "Investment"}
@@ -46,14 +47,14 @@ TYPES = {"residential_rental": "Residential rental", "general": "General busines
 DECISIONS = ["request", "already_provided", "not_needed", "ask_accountant"]
 PRIORITIES = ["blocking", "normal"]
 # plain-language: every agent writes so anyone can understand it (AFIT, 13 Nov 2026).
-SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "plain-language"]
+SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "job-snapshot", "plain-language"]
 SOURCE_KINDS = {"Q": "questionnaire", "F": "last_year_fs", "T": "last_year_tb", "W": "workpaper", "D": "document",
                 "B": "bank", "C": "check", "N": "direction", "R": "received", "G": "general_ledger"}
 
 SCHEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["business_nature", "items", "preparer_notes", "lessons_applied"],
+    "required": ["business_nature", "items", "preparer_notes", "lessons_applied", "snapshot"],
     "properties": {
         "business_nature": {
             "type": "object",
@@ -88,6 +89,8 @@ SCHEMA = {
             "properties": {"text": {"type": "string"}, "sources": {"type": "array", "items": {"type": "string"}}},
         }},
         "lessons_applied": {"type": "array", "items": {"type": "string"}},
+        # The Job Snapshot's words (AFIT, 16 Nov 2026); code adds its figures.
+        "snapshot": JS.SCHEMA,
     },
 }
 
@@ -96,6 +99,7 @@ ANSWER = """Answer in the JSON shape given.
 - items: everything this year's accounts need. decision: request (not found, or not complete, in what you are shown: say which, and what would show it), already_provided (list the D ids that provide it in "documents"), not_needed (say why), or ask_accountant (an internal question for the accountant: uncertain applicability, something the team may hold internally; never sent to the client). "priority": blocking when the gap stops preparation, else normal. "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N, P, M) the reason rests on.
 - preparer_notes: the internal analysis (section B): what you understood, assumptions, doubts, conflicting documents, possible accounting or tax issues and matters for judgment, each with sources; facts apart from assumptions.
 - lessons_applied: the L ids you applied.
+""" + JS.ANSWER + """
 - You see only the first lines of each document, so a request is provisional: code then searches every document in full, and keeps checking new ones, before anything is treated as missing. Write "not found in the documents shown", never "missing" or any final conclusion.
 - Cite the ids (and so the document and line) behind every reason, fact and note.
 Never invent a figure, file or fact: use only what is in the input."""
@@ -377,6 +381,7 @@ def clean(raw: dict, index: dict, body: str, fixed_type: str = "") -> dict:
         "business_nature": {"type": btype, "fixed": bool(fixed_type), "summary": clip_words(str(nature.get("summary", "")), 30),
                             "reasoning": reasoning if figures_ok(reasoning, known) else "", "sources": valid(nature.get("sources", [])), "facts": facts},
         "items": items, "preparer_notes": notes, "lessons_applied": lessons,
+        "snapshot": JS.clean(raw.get("snapshot"), valid, lambda text: figures_ok(text, known)),
     }
 
 
@@ -424,7 +429,7 @@ def _source_view(sid: str, index: dict, ev) -> dict:
     return {"id": sid, "label": f"Direction Note: {_line(item['text'], 90)}", "evidence_id": None}
 
 
-def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: str) -> tuple[dict, dict]:
+def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: str, previous: dict | None = None) -> tuple[dict, dict]:
     """(the pre-check shown on the task card, evidence by id)."""
     evidence: dict[str, dict] = {}
 
@@ -437,7 +442,22 @@ def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: st
     views = lambda ids: [_source_view(i, index, ev) for i in ids]  # noqa: E731
     items = [{**it, "sources": views(it["sources"]), "documents": views(it["documents"])} for it in cleaned["items"]]
     nature = cleaned["business_nature"]
+    # The Job Snapshot (16 Nov 2026): code's figures, each with the line it came from, and the
+    # model's words. Shown first; `previous` is the last pre-check's snapshot, to say what changed.
+    t_ids = {n - 1: f"T{n}" for n in range(1, len(facts.get("all_prior_lines") or []) + 1) if f"T{n}" in index}
+
+    def figure_source(r: dict) -> dict:
+        label = f"Last year's {'trial balance' if r['file'].get('document_class') == 'trial_balance' else 'statements'}: {_line(r['block']['text'], 90)}"
+        return {"id": r["source"] or "", "label": label, "evidence_id": ev(evidence_from(r["file"], [r["block"]]))}
+
+    snap = cleaned.get("snapshot")
+    if snap:
+        snap = {**snap, **{k: [{**x, "sources": views(x["sources"])} for x in snap[k]] for k in ("revenue_sources", "events", "focus_areas", "understood")},
+                "ownership": {**snap["ownership"], "sources": views(snap["ownership"]["sources"]),
+                              "shareholders": [{**h, "sources": views(h["sources"])} for h in snap["ownership"]["shareholders"]]}}
+    snapshot = JS.assemble(snap, JS.figures(facts, t_ids), figure_source, previous)
     out = {
+        "snapshot": snapshot,
         "key_documents": key_views(key, ev),
         "business_nature": {**nature, "label": TYPES[nature["type"]], "sources": views(nature["sources"]),
                             "facts": [{**f, "sources": views(f["sources"])} for f in nature["facts"]]},

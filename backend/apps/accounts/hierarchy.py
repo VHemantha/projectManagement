@@ -34,7 +34,9 @@ class UserHierarchyView(generics.GenericAPIView):
         for m in memberships:
             teams_of.setdefault(m.user_id, []).append(m.team.name)
 
-        admins = [_node(request, u, "admin", teams_of.get(u.id, [])) for u in users if u.is_staff]
+        # The CEO and the Team Leads (organisation admins) at the top (AFIT, 16 Nov 2026), the CEO first.
+        admins = [_node(request, u, "ceo" if u.is_ceo else "admin", teams_of.get(u.id, []))
+                  for u in sorted((u for u in users if u.is_staff), key=lambda u: not u.is_ceo)]
         by_id = {u.id: u for u in users}
 
         teams = []
@@ -66,8 +68,8 @@ class UserHierarchyView(generics.GenericAPIView):
         return Response(
             {
                 "derived": True,
-                "basis": "Admins are organisation staff; everyone else is grouped by workspace membership "
-                "(workspace leads first). There is no reporting-line field.",
+                "basis": "The CEO and Team Leads are at the top; Standard employees are grouped by workspace "
+                "membership (workspace leads first). There is no reporting-line field.",
                 "admins": admins,
                 "teams": teams,
                 "no_team": no_team,

@@ -6,11 +6,13 @@ export interface User {
   job_title: string
   avatar: string | null
   is_staff: boolean
+  /** "ceo" for the CEO; see lib/employeeType for the employee type shown. */
+  role?: 'member' | 'ceo'
 }
 
 /** A person in the org chart: admin (organisation staff), team lead or member. */
-export interface HierarchyNode extends User {
-  role: 'admin' | 'lead' | 'member'
+export interface HierarchyNode extends Omit<User, 'role'> {
+  role: 'ceo' | 'admin' | 'lead' | 'member'
   teams: string[]
 }
 

@@ -967,3 +967,20 @@
   color: var(--tf-text);
 }
 
+
+/* Financial year end: month and year only (AFIT, 16 Nov 2026). */
+.yearEnd {
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+.yearEnd legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+.yearEndPickers {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--tf-space-2);
+}

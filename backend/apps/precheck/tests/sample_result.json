@@ -25,6 +25,207 @@
  "evidence": [],
  "precheck_type": "residential_rental",
  "precheck": {
+  "snapshot": {
+   "figures": {
+    "available": true,
+    "basis": "trial_balance",
+    "year_label": "Last year",
+    "comparative_label": "Year before",
+    "kpis": [
+     {
+      "label": "Revenue",
+      "amount": 31200.0,
+      "comparative": 29900.0,
+      "change_pct": 4
+     },
+     {
+      "label": "Expenses",
+      "amount": 22630.18,
+      "comparative": 23002.0,
+      "change_pct": -2
+     },
+     {
+      "label": "Net profit",
+      "amount": 8569.82,
+      "comparative": 6898.0,
+      "change_pct": 24
+     },
+     {
+      "label": "Total assets",
+      "amount": 4210.0,
+      "comparative": 3100.0,
+      "change_pct": 36
+     }
+    ],
+    "income": [
+     {
+      "label": "Rental income",
+      "amount": 31200.0,
+      "comparative": 29900.0,
+      "source": {
+       "id": "T1",
+       "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
+       "evidence_id": "E-43b8d5c5f1"
+      }
+     }
+    ],
+    "expenses": [
+     {
+      "label": "Interest",
+      "amount": 14322.18,
+      "comparative": 15010.0,
+      "source": {
+       "id": "T4",
+       "label": "Last year's trial balance: row 9: 430 | Interest | Expense | 14322.18 | | 15010",
+       "evidence_id": "E-0139aab22a"
+      }
+     },
+     {
+      "label": "Rates",
+      "amount": 3412.0,
+      "comparative": 3300.0,
+      "source": {
+       "id": "T3",
+       "label": "Last year's trial balance: row 8: 420 | Rates | Expense | 3412 | | 3300",
+       "evidence_id": "E-9d71e3064f"
+      }
+     },
+     {
+      "label": "Property management fees",
+      "amount": 2496.0,
+      "comparative": 2392.0,
+      "source": {
+       "id": "T5",
+       "label": "Last year's trial balance: row 10: 440 | Property management fees | Expense | 2496 | | 2392",
+       "evidence_id": "E-97fbc55108"
+      }
+     },
+     {
+      "label": "Body corporate levies",
+      "amount": 2400.0,
+      "comparative": 2300.0,
+      "source": {
+       "id": "T2",
+       "label": "Last year's trial balance: row 7: 410 | Body corporate levies | Expense | 2400 | | 2300",
+       "evidence_id": "E-fe4ef95bc0"
+      }
+     }
+    ],
+    "asset_mix": [
+     {
+      "label": "Cash and bank",
+      "amount": 4210.0,
+      "comparative": 3100.0,
+      "lines": [
+       {
+        "label": "ANZ Rental Account",
+        "amount": 4210.0,
+        "comparative": 3100.0,
+        "source": {
+         "id": "T6",
+         "label": "Last year's trial balance: row 11: 680 | ANZ Rental Account | Current Asset | 4210 | | 3100",
+         "evidence_id": "E-7b397061e1"
+        }
+       }
+      ]
+     }
+    ],
+    "funding_mix": [
+     {
+      "label": "Bank borrowing",
+      "amount": 418000.0,
+      "comparative": 424000.0,
+      "lines": [
+       {
+        "label": "ASB Home loan",
+        "amount": 418000.0,
+        "comparative": 424000.0,
+        "source": {
+         "id": "T7",
+         "label": "Last year's trial balance: row 12: 800 | ASB Home loan | Non-current Liability | | 418000 | -424000",
+         "evidence_id": "E-b2b5aa8d6b"
+        }
+       }
+      ]
+     },
+     {
+      "label": "Shortfall (owed more than the recorded assets)",
+      "amount": -413790.0,
+      "derived": true,
+      "comparative": -420900.0,
+      "lines": []
+     }
+    ],
+    "current_accounts": [],
+    "this_year": null
+   },
+   "business_story": "Demo: a residential rental client.",
+   "story_flags": [],
+   "revenue_sources": [
+    {
+     "label": "Main income",
+     "detail": "From the questionnaire.",
+     "sources": [
+      {
+       "id": "Q1",
+       "label": "Questionnaire: Client Questionnaire 2026",
+       "evidence_id": "E-d357333754"
+      }
+     ]
+    }
+   ],
+   "financial_story": "Demo: last year's results are shown by code.",
+   "financial_flags": [],
+   "events": [
+    {
+     "text": "Demo: an event the questionnaire mentions.",
+     "kind": "other",
+     "status": "inferred",
+     "sources": [
+      {
+       "id": "Q1",
+       "label": "Questionnaire: Client Questionnaire 2026",
+       "evidence_id": "E-d357333754"
+      }
+     ],
+     "flags": []
+    }
+   ],
+   "ownership": {
+    "shareholders": [],
+    "note": "",
+    "sources": []
+   },
+   "current_accounts": "",
+   "focus_areas": [
+    {
+     "area": "Last year's balances",
+     "why": "They carry into this year.",
+     "sources": [
+      {
+       "id": "T1",
+       "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
+       "evidence_id": "E-43b8d5c5f1"
+      }
+     ]
+    }
+   ],
+   "understood": [
+    {
+     "text": "Demo: read the questionnaire and last year's accounts.",
+     "status": "confirmed",
+     "sources": [
+      {
+       "id": "Q1",
+       "label": "Questionnaire: Client Questionnaire 2026",
+       "evidence_id": "E-d357333754"
+      }
+     ]
+    }
+   ],
+   "written": true,
+   "changes": []
+  },
   "key_documents": [
    {
     "role": "questionnaire",
@@ -58,7 +259,7 @@
     "files": [
      {
       "name": "Final TB 2025.xlsx (in Smith.zip)",
-      "evidence_id": "E-f3aff96319"
+      "evidence_id": "E-a7e72c14d1"
      }
     ]
    }
@@ -105,7 +306,7 @@
      {
       "id": "T1",
       "label": "Last year's trial balance: row 6: 200 | Rental income | Revenue | | 31200 | -29900",
-      "evidence_id": "E-e2e89b4466"
+      "evidence_id": "E-43b8d5c5f1"
      }
     ],
     "documents": [],
@@ -126,7 +327,7 @@
      {
       "id": "T2",
       "label": "Last year's trial balance: row 7: 410 | Body corporate levies | Expense | 2400 | | 2300",
-      "evidence_id": "E-9bad49d5ed"
+      "evidence_id": "E-fe4ef95bc0"
      }
     ],
     "documents": [],
@@ -147,7 +348,7 @@
      {
       "id": "T3",
       "label": "Last year's trial balance: row 8: 420 | Rates | Expense | 3412 | | 3300",
-      "evidence_id": "E-8bb3bd103f"
+      "evidence_id": "E-9d71e3064f"
      }
     ],
     "documents": [],
@@ -168,7 +369,7 @@
      {
       "id": "T4",
       "label": "Last year's trial balance: row 9: 430 | Interest | Expense | 14322.18 | | 15010",
-      "evidence_id": "E-d41279ac9d"
+      "evidence_id": "E-0139aab22a"
      }
     ],
     "documents": [],
@@ -191,14 +392,14 @@
      {
       "id": "B1",
       "label": "Bank 01-0123-0456789-00, 02 Apr 2025 to 30 Mar 2026",
-      "evidence_id": "E-638d32a19b"
+      "evidence_id": "E-3d6e92d1b7"
      }
     ],
     "documents": [
      {
       "id": "D2",
       "label": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
-      "evidence_id": "E-ad3dd53377"
+      "evidence_id": "E-d08430578f"
      }
     ],
     "flags": []
@@ -240,40 +441,64 @@
    "body": "Hi client-s,\n\nThank you for your documents. To prepare your accounts for the year to 31 March 2026, we still need the following. We have said why each item is needed.\n\nLast year's accounts\n- Evidence for Rental income this year: Rental income was in last year's accounts and will be needed again.\n- Evidence for Body corporate levies this year: Body corporate levies was in last year's accounts and will be needed again.\n- Evidence for Rates this year: Rates was in last year's accounts and will be needed again.\n- Evidence for Interest this year: Interest was in last year's accounts and will be needed again.\n\nIf something does not apply to you, just let us know and we will note it.\n\nThank you,\nAFIT"
   },
   "evidence": {
-   "E-638d32a19b": {
+   "E-3d6e92d1b7": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "sheet 'Transactions', row 2",
     "quote": "row 2: 2026-03-30 00:00:00 | Credit | Barfoot & Thompson | 2390 | 7537",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-ad3dd53377": {
+   "E-d08430578f": {
     "file_name": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "01-0123-0456789-00_Transactions_2025-04-01_2026-03-31.xlsx (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-e2e89b4466": {
+   "E-43b8d5c5f1": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 6",
     "quote": "row 6: 200 | Rental income | Revenue |  | 31200 | -29900",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-9bad49d5ed": {
+   "E-fe4ef95bc0": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 7",
     "quote": "row 7: 410 | Body corporate levies | Expense | 2400 |  | 2300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-8bb3bd103f": {
+   "E-9d71e3064f": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 8",
     "quote": "row 8: 420 | Rates | Expense | 3412 |  | 3300",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-d41279ac9d": {
+   "E-0139aab22a": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "sheet 'Trial Balance', row 9",
     "quote": "row 9: 430 | Interest | Expense | 14322.18 |  | 15010",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-d357333754": {
+    "file_name": "Client Questionnaire 2026.txt (in Smith.zip)",
+    "location": "line 1",
+    "quote": "Client Questionnaire 2026",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-97fbc55108": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 10",
+    "quote": "row 10: 440 | Property management fees | Expense | 2496 |  | 2392",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-7b397061e1": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 11",
+    "quote": "row 11: 680 | ANZ Rental Account | Current Asset | 4210 |  | 3100",
+    "drive_url": "local://smith/Smith.zip"
+   },
+   "E-b2b5aa8d6b": {
+    "file_name": "Final TB 2025.xlsx (in Smith.zip)",
+    "location": "sheet 'Trial Balance', row 12",
+    "quote": "row 12: 800 | ASB Home loan | Non-current Liability |  | 418000 | -424000",
     "drive_url": "local://smith/Smith.zip"
    },
    "E-3e603aee6f": {
@@ -288,16 +513,10 @@
     "quote": "Smith 2025 Financial Statements - Signed.txt (in Smith.zip)",
     "drive_url": "local://smith/Smith.zip"
    },
-   "E-f3aff96319": {
+   "E-a7e72c14d1": {
     "file_name": "Final TB 2025.xlsx (in Smith.zip)",
     "location": "file in the task folder",
     "quote": "Final TB 2025.xlsx (in Smith.zip)",
-    "drive_url": "local://smith/Smith.zip"
-   },
-   "E-d357333754": {
-    "file_name": "Client Questionnaire 2026.txt (in Smith.zip)",
-    "location": "line 1",
-    "quote": "Client Questionnaire 2026",
     "drive_url": "local://smith/Smith.zip"
    },
    "E-98d3f83657": {
@@ -334,7 +553,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-13T09:59:16+00:00",
+     "detected_at": "2026-11-18T06:30:29+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -349,7 +568,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-13T09:59:16+00:00",
+     "detected_at": "2026-11-18T06:30:29+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -364,7 +583,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-13T09:59:16+00:00",
+     "detected_at": "2026-11-18T06:30:29+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -379,7 +598,7 @@
      "status": "OPEN",
      "still_needed": "",
      "detected_in_doc_id": "smith:Smith.zip!Smith/2025/Final TB 2025.xlsx",
-     "detected_at": "2026-11-13T09:59:16+00:00",
+     "detected_at": "2026-11-18T06:30:29+00:00",
      "origin": "precheck",
      "evidence": [],
      "history": []
@@ -479,8 +698,8 @@
    "detail": []
   },
   "verified": {
-   "label": "11 sources linked; 0 items flagged for a closer look",
-   "evidence": 11,
+   "label": "14 sources linked; 0 items flagged for a closer look",
+   "evidence": 14,
    "detail": []
   }
  },
@@ -492,9 +711,9 @@
     "task_id": "precheck",
     "model": "fake-precheck",
     "calls": 1,
-    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
-    "input": 2546,
-    "output": 560,
+    "run_id": "da46dabe63c6432e8c45d98f9cf2dea8",
+    "input": 3043,
+    "output": 834,
     "cache_write": 0,
     "cache_read": 0
    },
@@ -503,7 +722,7 @@
     "task_id": "gap-752bce9e6e905c7819772aa1",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "run_id": "da46dabe63c6432e8c45d98f9cf2dea8",
     "input": 448,
     "output": 53,
     "cache_write": 0,
@@ -514,7 +733,7 @@
     "task_id": "gap-3842f65145cc7fcc0be98d6f",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "run_id": "da46dabe63c6432e8c45d98f9cf2dea8",
     "input": 455,
     "output": 53,
     "cache_write": 0,
@@ -525,7 +744,7 @@
     "task_id": "gap-fa6bc712c32f839694fafd0c",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "run_id": "da46dabe63c6432e8c45d98f9cf2dea8",
     "input": 345,
     "output": 53,
     "cache_write": 0,
@@ -536,7 +755,7 @@
     "task_id": "gap-3a4ce79fab688c42ab855ebb",
     "model": "fake-verifier",
     "calls": 1,
-    "run_id": "696e00f1ed8448c693cf24b989ff9e0d",
+    "run_id": "da46dabe63c6432e8c45d98f9cf2dea8",
     "input": 444,
     "output": 53,
     "cache_write": 0,
@@ -544,8 +763,8 @@
    }
   ],
   "totals": {
-   "input": 4238,
-   "output": 772,
+   "input": 4735,
+   "output": 1046,
    "cache_write": 0,
    "cache_read": 0
   },
@@ -570,7 +789,8 @@
   "skills": {
    "direction-drafting": "1.0+41b0dac8",
    "gst-document-reading": "1.0+37a523f8",
-   "nz-electronic-workpapers": "1.0+00000000",
+   "job-snapshot": "1.0+718cafd5",
+   "nz-electronic-workpapers": "1.0+66ab72a9",
    "nz-fs-review": "1.0+14559597",
    "nz-general-business": "2.0+12c0068b",
    "nz-gst-reconciliation": "1.0+a58148d3",
@@ -585,5 +805,5 @@
  },
  "knowledge_ids": [],
  "demo": true,
- "duration_s": 0.6
+ "duration_s": 1.6
 }

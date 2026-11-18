@@ -48,11 +48,11 @@ describe('PrecheckResult', () => {
     const keys = screen.getByRole('heading', { name: 'Key documents' }).parentElement!
     expect(within(keys).getAllByLabelText('Found')).toHaveLength(3)
     expect(within(keys).getByRole('link', { name: /Client Questionnaire 2026\.pdf/ })).toHaveAttribute('href', 'https://drive.example/cq')
-    // Kept simple (AFIT, 13 Nov 2026): the email comes first, folded; the business nature is folded
-    // below the requests; what is provided or not needed is folded too.
+    // The email is folded, and comes after the findings it is drafted from (AFIT, 16 Nov 2026: the
+    // Job Snapshot first, then the findings, then the email); the business nature is folded too.
     const email = screen.getByRole('group', { name: 'Email to the client' })
     expect(email).not.toHaveAttribute('open')
-    expect(email.compareDocumentPosition(keys) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(keys.compareDocumentPosition(email) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     const nature = screen.getByRole('group', { name: 'Business nature' })
     expect(nature).not.toHaveAttribute('open')
     expect(nature).toHaveTextContent('Business nature: Residential rental')

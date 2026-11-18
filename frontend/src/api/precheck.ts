@@ -114,7 +114,65 @@ export interface JobGaps {
 
 /** The pre-check: decision, key documents, business nature, every item with its reason, and
  * the email to the client (drafted, never sent). */
+/** The Job Snapshot (AFIT design requirements, 16 Nov 2026): the story of the client and its year,
+ * shown before the findings. Every figure is worked out by code and opens to its source line. */
+export type SnapshotStatus = 'confirmed' | 'inferred' | 'unresolved'
+
+export interface SnapshotLine {
+  label: string
+  amount: number
+  comparative: number | null
+  source: SourceRef
+}
+
+export interface SnapshotGroup {
+  label: string
+  amount: number
+  comparative: number | null
+  derived?: boolean
+  lines: SnapshotLine[]
+}
+
+export interface SnapshotKpi {
+  label: string
+  amount: number
+  comparative: number | null
+  change_pct: number | null
+}
+
+export interface SnapshotFigures {
+  available: boolean
+  basis: '' | 'trial_balance' | 'financial_statements'
+  year_label: string
+  comparative_label: string
+  kpis?: SnapshotKpi[]
+  income?: SnapshotLine[]
+  expenses?: SnapshotLine[]
+  asset_mix?: SnapshotGroup[]
+  funding_mix?: SnapshotGroup[]
+  current_accounts?: (SnapshotLine & { direction: string })[]
+  this_year?: { revenue: number; expenses: number; net_profit: number; accounts_matched: number } | null
+}
+
+export interface JobSnapshot {
+  figures: SnapshotFigures
+  written: boolean
+  changes: string[]
+  business_story?: string
+  story_flags?: string[]
+  revenue_sources?: { label: string; detail: string; sources: SourceRef[] }[]
+  financial_story?: string
+  financial_flags?: string[]
+  events?: { text: string; kind: string; status: SnapshotStatus; sources: SourceRef[]; flags: string[] }[]
+  ownership?: { shareholders: { name: string; percent: number | null; sources: SourceRef[] }[]; note: string; sources: SourceRef[] }
+  current_accounts?: string
+  focus_areas?: { area: string; why: string; sources: SourceRef[] }[]
+  understood?: { text: string; status: SnapshotStatus; sources: SourceRef[] }[]
+}
+
 export interface PrecheckOutput {
+  /** Runs from 16 Nov 2026 have one; it is shown first. */
+  snapshot?: JobSnapshot
   decision: { state: 'blocked' | 'requests' | 'nothing'; label: string; reason: string }
   key_documents: { role: string; label: string; found: boolean; note: string; files: { name: string; evidence_id: string | null }[] }[]
   business_nature: {

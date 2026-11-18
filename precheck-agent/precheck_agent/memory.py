@@ -80,6 +80,7 @@ def precheck_entries(p: dict) -> list[dict]:
     if nature:
         out.append({"key": "nature", "text": f"Pre-check: business nature {nature.get('label') or nature.get('type', '')}. "
                                             f"{nature.get('summary', '')} Reasoning: {nature.get('reasoning', '')}"})
+    out += snapshot_entries(p.get("snapshot") or {})
     for group, rows in (("request", requests), ("already_provided", p.get("provided") or []), ("not_needed", p.get("not_needed") or [])):
         for n, r in enumerate(rows, start=1):
             out.append({"key": f"{group}-{n}", "ref": r.get("item", "")[:60],
@@ -101,6 +102,38 @@ def precheck_entries(p: dict) -> list[dict]:
     email = p.get("email") or {}
     if email.get("subject"):
         out.append({"key": "email", "text": f"Pre-check drafted email to the client (never sent): {email['subject']}. {_t(email.get('body', ''))[:600]}"})
+    return out
+
+
+def snapshot_entries(s: dict) -> list[dict]:
+    """The Job Snapshot in the knowledge store (16 Nov 2026), so the pre-check's chat can say why
+    something is in it and how a figure was worked out."""
+    if not s:
+        return []
+    out = []
+    if s.get("business_story"):
+        out.append({"key": "snapshot-story", "text": f"Job Snapshot - the business: {s['business_story']} {s.get('financial_story', '')}"})
+    f = s.get("figures") or {}
+    if f.get("available"):
+        basis = "last year's trial balance" if f.get("basis") == "trial_balance" else "last year's financial statements"
+        kpis = "; ".join(f"{k['label']} {_money(k['amount'])}" + (f" (year before {_money(k['comparative'])})" if k.get("comparative") is not None else "")
+                         for k in f.get("kpis") or [])
+        out.append({"key": "snapshot-figures", "text": f"Job Snapshot figures, worked out by code from {basis}: {kpis}."})
+        for name in ("asset_mix", "funding_mix"):
+            groups = "; ".join(f"{g['label']} {_money(g['amount'])} (" + ", ".join(f"{ln['label']} {_money(ln['amount'])}" for ln in g.get("lines") or []) + ")"
+                               for g in f.get(name) or [])
+            if groups:
+                label = "what the client owns" if name == "asset_mix" else "how it is funded"
+                out.append({"key": f"snapshot-{name}", "text": f"Job Snapshot - {label}, by code: {groups}."})
+        if f.get("current_accounts"):
+            out.append({"key": "snapshot-accounts", "text": "Job Snapshot - shareholder current accounts, by code: " + "; ".join(
+                f"{a['label']} {_money(a['amount'])} {a['direction']}" for a in f["current_accounts"]) + "."})
+    for n, e in enumerate(s.get("events") or [], start=1):
+        out.append({"key": f"snapshot-event-{n}", "text": f"Job Snapshot event ({e.get('status', '')}): {e.get('text', '')}"})
+    for n, a in enumerate(s.get("focus_areas") or [], start=1):
+        out.append({"key": f"snapshot-focus-{n}", "text": f"Job Snapshot - focus for the preparer: {a.get('area', '')}. {a.get('why', '')}"})
+    for n, u in enumerate(s.get("understood") or [], start=1):
+        out.append({"key": f"snapshot-understood-{n}", "text": f"Job Snapshot - what the AI understood ({u.get('status', '')}): {u.get('text', '')}"})
     return out
 
 

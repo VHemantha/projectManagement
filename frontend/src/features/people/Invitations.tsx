@@ -94,8 +94,8 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       <label className={styles.field}>
         <span>Role</span>
         <select value={role} onChange={(e) => setRole(e.target.value as InvitationRole)}>
-          <option value="worker">Worker</option>
-          <option value="admin">Admin (organisation admin)</option>
+          <option value="worker">Standard</option>
+          <option value="admin">Team Lead (organisation admin)</option>
         </select>
       </label>
       <label className={styles.field}>
@@ -158,7 +158,7 @@ export function InvitationList() {
           {invitations.map((inv) => (
             <tr key={inv.id}>
               <td>{inv.email}</td>
-              <td>{inv.role === 'admin' ? 'Admin' : 'Worker'}</td>
+              <td>{inv.role === 'admin' ? 'Team Lead' : 'Standard'}</td>
               <td>{inv.team_name ?? '—'}</td>
               <td>
                 <span className={styles.status} data-status={inv.status}>

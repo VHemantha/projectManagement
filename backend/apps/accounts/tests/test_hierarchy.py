@@ -49,3 +49,14 @@ def test_hierarchy_puts_admins_on_top_and_groups_workers_by_team():
 
 def test_hierarchy_needs_login():
     assert APIClient().get("/api/users/hierarchy/").status_code == 401
+
+
+def test_the_ceo_and_team_leads_are_on_top_the_ceo_first():
+    """Employee types (AFIT, 16 Nov 2026): Standard, Team Lead (an organisation admin) and the CEO."""
+    make("anna", is_staff=True)
+    make("zed", role=User.Role.CEO)
+    client = APIClient()
+    client.force_authenticate(user=make("pat"))
+    data = client.get("/api/users/hierarchy/").data
+    assert [(a["display_name"], a["role"]) for a in data["admins"]] == [("Zed", "ceo"), ("Anna", "admin")]
+    assert data["basis"].startswith("The CEO and Team Leads are at the top; Standard employees")

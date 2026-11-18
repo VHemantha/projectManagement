@@ -100,3 +100,9 @@
   color: var(--tf-primary);
   text-decoration: underline;
 }
+
+/* The employee type: Standard, Team Lead or CEO (AFIT, 16 Nov 2026). */
+.type {
+  font-weight: 600;
+  color: var(--tf-text-secondary);
+}

@@ -1,4 +1,4 @@
-import { Settings } from 'lucide-react'
+import { Plus, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -10,7 +10,7 @@ import { TasksSummary } from './TasksSummary'
 import { useClients } from '@/api/clients'
 import { useAllIssues, useMoveIssue } from '@/api/issues'
 import { useTeams } from '@/api/teams'
-import { Tabs, TabsList, TabsTrigger } from '@/design-system'
+import { Button, Tabs, TabsList, TabsTrigger } from '@/design-system'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
 import { type GroupByOption, IssueTable } from '@/features/tables/IssueTable'
 import { useUiStore } from '@/store/uiStore'
@@ -207,6 +207,12 @@ export function AllIssuesBoardPage() {
           isLoading={isLoading || board.isLoading}
           emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
           onCreateIssue={(ctx) => openCreateIssue({ ...filterDefaults, ...defaultsFromColumn(ctx) })}
+          // On the right of the board's toolbar (AFIT, 16 Nov 2026), filled in from the filters.
+          toolbarExtra={
+            <Button variant="primary" size="sm" onClick={() => openCreateIssue(filterDefaults)}>
+              <Plus size={14} /> Create task
+            </Button>
+          }
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = board.resolveStatus(issue, column)
             if (statusId === null) return

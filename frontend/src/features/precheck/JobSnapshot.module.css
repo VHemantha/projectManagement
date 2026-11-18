@@ -1,0 +1,412 @@
+/* The Job Snapshot (AFIT design requirements, 16 Nov 2026): one compact page, restrained colours,
+   white space; the maroon is AFIT's. */
+.snapshot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+  padding: var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-top: 3px solid var(--tf-primary);
+  border-radius: var(--tf-radius-lg);
+  background: var(--tf-surface);
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--tf-space-3);
+  color: var(--tf-primary);
+}
+.title {
+  margin: 0;
+  font-size: var(--tf-font-size-lg);
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.subtitle {
+  margin: 2px 0 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-subtle);
+}
+
+.changes {
+  display: flex;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-blue-subtle);
+  color: var(--tf-text);
+  font-size: var(--tf-font-size-sm);
+}
+.changes ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  padding-top: var(--tf-space-3);
+  border-top: 1px solid var(--tf-border-subtle);
+}
+.blockTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: var(--tf-font-size-base);
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.blockTitle svg {
+  color: var(--tf-primary);
+}
+.yearTag {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+}
+
+.story {
+  margin: 0;
+  font-size: var(--tf-font-size-base);
+  line-height: 1.55;
+  color: var(--tf-text);
+}
+.small {
+  margin: 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.muted {
+  color: var(--tf-text-subtle);
+  font-size: var(--tf-font-size-sm);
+}
+.note {
+  margin: 0;
+  font-size: 11px;
+  color: var(--tf-text-subtle);
+}
+.flag {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.revenue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--tf-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.revenueBox {
+  display: flex;
+  align-items: center;
+  gap: var(--tf-space-2);
+  padding: 6px 10px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+  font-size: var(--tf-font-size-sm);
+}
+.revenueIcon {
+  display: inline-flex;
+  padding: 5px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--tf-space-2);
+}
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+}
+.kpiLabel {
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+.kpiValue {
+  font-size: var(--tf-font-size-lg);
+  font-weight: 700;
+  color: var(--tf-text);
+  font-variant-numeric: tabular-nums;
+}
+.kpiChange {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--tf-text-secondary);
+}
+
+.mixes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tf-space-4);
+}
+@media (max-width: 640px) {
+  .mixes {
+    grid-template-columns: 1fr;
+  }
+}
+.mix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.mixHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.bar {
+  display: flex;
+  height: 14px;
+  overflow: hidden;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface-sunken);
+}
+.bar > span {
+  height: 100%;
+  min-width: 2px;
+}
+.bar > span + span {
+  border-left: 1px solid var(--tf-surface);
+}
+.groups,
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--tf-font-size-sm);
+}
+.legend {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.groups i,
+.legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.groups summary,
+.groupRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+}
+.groupRow {
+  cursor: default;
+  padding-left: 18px;
+}
+.groups summary::-webkit-details-marker {
+  display: none;
+}
+.groups summary > svg {
+  rotate: -90deg;
+  transition: rotate 0.15s ease;
+  color: var(--tf-text-subtle);
+}
+.groups details[open] > summary > svg {
+  rotate: 0deg;
+}
+.lines {
+  margin: 2px 0 4px 18px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: var(--tf-text-secondary);
+}
+.lines li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.num {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--tf-font-size-sm);
+}
+.table caption {
+  text-align: left;
+  font-weight: 600;
+  color: var(--tf-text-secondary);
+  padding-bottom: 2px;
+}
+.table th,
+.table td {
+  padding: 3px 6px 3px 0;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  text-align: left;
+  font-weight: 400;
+  vertical-align: top;
+}
+.table thead th {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+}
+.table .num {
+  text-align: right;
+}
+.lineTables {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--tf-space-4);
+}
+@media (max-width: 640px) {
+  .lineTables {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.compareRow {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--tf-space-2);
+  font-size: var(--tf-font-size-sm);
+}
+.compareLabel {
+  color: var(--tf-text-secondary);
+}
+.compareBars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.compareBar {
+  position: relative;
+  display: block;
+  min-width: 2px;
+  height: 16px;
+  border-radius: 0 4px 4px 0;
+  background: var(--tf-primary);
+}
+.compareBar[data-year='before'] {
+  background: var(--tf-solid-grey);
+}
+.compareBar em {
+  position: absolute;
+  left: 6px;
+  top: 0;
+  line-height: 16px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--tf-text-inverse);
+  white-space: nowrap;
+  text-shadow: 0 0 2px rgb(0 0 0 / 35%);
+}
+
+.events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text);
+}
+.status {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 0 7px;
+  border-radius: var(--tf-radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.status[data-status='confirmed'] {
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.status[data-status='inferred'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.status[data-status='unresolved'] {
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+}
+
+.takeaway {
+  margin-top: var(--tf-space-2);
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-left: 3px solid var(--tf-primary);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-primary-subtle);
+}
+.takeaway ul,
+.understood ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--tf-font-size-sm);
+}
+
+.understood {
+  padding: var(--tf-space-2) var(--tf-space-3);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

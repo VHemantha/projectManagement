@@ -6,7 +6,9 @@ import styles from './OrgChart.module.css'
 import type { HierarchyNode, HierarchyTeam, UserHierarchy } from '@/api/types'
 import { Avatar } from '@/design-system'
 
-const ROLE_LABELS: Record<HierarchyNode['role'], string> = { admin: 'Admin', lead: 'Workspace lead', member: 'Member' }
+// Employee types (AFIT, 16 Nov 2026): the CEO and Team Leads on top; "lead" and "member" are a
+// person's place in a workspace.
+const ROLE_LABELS: Record<HierarchyNode['role'], string> = { ceo: 'CEO', admin: 'Team Lead', lead: 'Workspace lead', member: 'Member' }
 
 /**
  * The organisation as a diagram: admins on top, then one branch per team with its leads above
@@ -20,15 +22,15 @@ export function OrgChart({ hierarchy }: { hierarchy: UserHierarchy }) {
       <p className={styles.basis}>
         <Info size={14} aria-hidden="true" /> {hierarchy.basis}
       </p>
-      <div className={styles.tier} role="group" aria-label="Admins">
+      <div className={styles.tier} role="group" aria-label="CEO and Team Leads">
         <div className={styles.tierLabel}>
-          <Shield size={14} aria-hidden="true" /> Admins
+          <Shield size={14} aria-hidden="true" /> CEO and Team Leads
         </div>
         <div className={styles.nodes}>
           {hierarchy.admins.length ? (
             hierarchy.admins.map((u) => <PersonNode key={u.id} person={u} />)
           ) : (
-            <span className={styles.empty}>No admins</span>
+            <span className={styles.empty}>No CEO or Team Leads yet</span>
           )}
         </div>
       </div>

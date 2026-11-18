@@ -58,6 +58,7 @@ def test_admin_invites_and_the_email_carries_a_single_use_link(admin_client, tea
     assert data["invite_url"].startswith("https://app.example.com/signup?invite=")
     assert len(mail.outbox) == 1
     assert data["invite_url"] in mail.outbox[0].body
+    assert "as a Standard user in the" in mail.outbox[0].body  # employee types (16 Nov 2026)
     assert mail.outbox[0].to == ["new@example.com"]
 
     token = token_from(data["invite_url"])

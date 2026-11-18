@@ -13,7 +13,6 @@ import {
   MessageSquare,
   ShieldCheck,
   Target,
-  Users,
   UserRound,
 } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
@@ -28,10 +27,10 @@ import { useSidebarStore } from '@/store/sidebarStore'
 // Each section has its own accent colour (see .navIcon in AppShell.module.css).
 const NAV_ITEMS = [
   { to: '/', label: 'Your work', icon: UserRound, tone: 'violet', end: true },
-  // The hierarchy, top down: Workspaces hold sub-workspaces, which hold the tasks. The Kanban
-  // board is the whole organisation's, filtered from its workspace tree.
-  { to: '/workspaces', label: 'Workspaces', icon: Users, tone: 'teal' },
-  { to: '/projects', label: 'Kanban board', icon: LayoutGrid, tone: 'blue' },
+  // The whole organisation's Kanban, filtered from its workspace tree. It is called Workspaces,
+  // and the separate Workspaces list is hidden from the menu (AFIT, 16 Nov 2026); /workspaces
+  // still opens it.
+  { to: '/projects', label: 'Workspaces', icon: LayoutGrid, tone: 'blue' },
   { to: '/people', label: 'People', icon: Contact, tone: 'pink' },
   // Filters is hidden from the menu (AFIT, 1 Nov 2026); saved filters still open at /filters.
   { to: '/dashboards', label: 'Dashboards', icon: LayoutDashboard, tone: 'green' },

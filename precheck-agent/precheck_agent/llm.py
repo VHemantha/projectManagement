@@ -141,6 +141,12 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
         "business_nature": {"type": btype, "summary": f"Demo: treated as {btype.replace('_', ' ')}.", "reasoning": "Keywords in the questionnaire.",
                             "sources": q_ids, "facts": [{"text": "Demo fact from the questionnaire.", "sources": q_ids[:1]}]},
         "items": items, "preparer_notes": [], "lessons_applied": lessons,
+        "snapshot": {"business_story": f"Demo: a {btype.replace('_', ' ')} client.", "financial_story": "Demo: last year's results are shown by code.",
+                     "revenue_sources": [{"label": "Main income", "detail": "From the questionnaire.", "sources": q_ids[:1]}],
+                     "events": [{"text": "Demo: an event the questionnaire mentions.", "kind": "other", "status": "inferred", "sources": q_ids[:1]}],
+                     "ownership": {"shareholders": [], "note": "", "sources": []}, "current_accounts": "",
+                     "focus_areas": [{"area": "Last year's balances", "why": "They carry into this year.", "sources": [p[0] for p in by("T")][:1]}],
+                     "understood": [{"text": "Demo: read the questionnaire and last year's accounts.", "status": "confirmed", "sources": q_ids[:1]}]},
     })
     return AIMessage(content=text, usage_metadata=_usage(body, text))
 

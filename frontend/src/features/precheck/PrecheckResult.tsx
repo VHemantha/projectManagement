@@ -1,9 +1,11 @@
-import { AlertTriangle, Check, ChevronDown, ExternalLink, GraduationCap, Mail, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, GraduationCap, Mail, X } from 'lucide-react'
 import { useState } from 'react'
 
 import styles from './PrecheckResult.module.css'
 import { CHECK_TYPES, RULE_ENTITY_TYPES } from './ruleOptions'
+import { JobSnapshot } from './JobSnapshot'
 import { NotesConsidered } from './SpecialNotes'
+import { Source as SharedSource, Sources as SharedSources } from './SourceLinks'
 import { extractErrorMessage } from '@/api/errors'
 import {
   type AccountantAnswer,
@@ -34,24 +36,11 @@ const KIND_LABEL: Record<LessonKind, string> = {
 }
 
 function Source({ source, output }: { source: SourceRef; output: PrecheckOutput }) {
-  const ev = source.evidence_id ? output.evidence[source.evidence_id] : undefined
-  if (!ev) return <span className={styles.source}>{source.label}</span>
-  return (
-    <a className={styles.source} href={ev.drive_url} target="_blank" rel="noreferrer" title={`${ev.file_name} — ${ev.location}: ${ev.quote}`}>
-      {source.label} <ExternalLink size={11} aria-hidden="true" />
-    </a>
-  )
+  return <SharedSource source={source} evidence={output.evidence} />
 }
 
 function Sources({ sources, output }: { sources: SourceRef[]; output: PrecheckOutput }) {
-  if (!sources.length) return null
-  return (
-    <span className={styles.sources}>
-      {sources.map((s) => (
-        <Source key={s.id} source={s} output={output} />
-      ))}
-    </span>
-  )
+  return <SharedSources sources={sources} evidence={output.evidence} />
 }
 
 /** Teach the pre-check from a correction or something it missed. It applies to this client at once;
@@ -289,21 +278,9 @@ export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; job
   const [missedOpen, setMissedOpen] = useState(false)
   return (
     <div className={styles.result}>
-      {/* The email first, folded: what would go to the client, one click away (AFIT, 13 Nov 2026). */}
-      {output.email.body && (
-        <details className={`${styles.collapsible} ${styles.email}`} aria-label="Email to the client">
-          <summary>
-            <ChevronDown size={14} aria-hidden="true" /> <Mail size={13} aria-hidden="true" /> Email to the client (drafted, not sent)
-            <span className={styles.summaryAction} onClick={(e) => e.preventDefault()}>
-              <CopyButton value={`${output.email.subject}
-
-${output.email.body}`} label="email" />
-            </span>
-          </summary>
-          <div className={styles.subject}>{output.email.subject}</div>
-          <pre className={styles.body}>{output.email.body}</pre>
-        </details>
-      )}
+      {/* The Job Snapshot first (AFIT design requirements, 16 Nov 2026): the story of the client and
+          its year, then the findings, then the email (step 4, after the preparer has reviewed them). */}
+      {output.snapshot && <JobSnapshot snapshot={output.snapshot} evidence={output.evidence} />}
       <GapTracker jobKey={jobKey} />
       <section aria-labelledby="pc-key">
         <h3 id="pc-key" className={styles.sectionTitle}>
@@ -383,6 +360,21 @@ ${output.email.body}`} label="email" />
         </section>
       )}
 
+      {/* The email, folded, after the findings it is drafted from (16 Nov 2026). */}
+      {output.email.body && (
+        <details className={`${styles.collapsible} ${styles.email}`} aria-label="Email to the client">
+          <summary>
+            <ChevronDown size={14} aria-hidden="true" /> <Mail size={13} aria-hidden="true" /> Email to the client (drafted, not sent)
+            <span className={styles.summaryAction} onClick={(e) => e.preventDefault()}>
+              <CopyButton value={`${output.email.subject}
+
+${output.email.body}`} label="email" />
+            </span>
+          </summary>
+          <div className={styles.subject}>{output.email.subject}</div>
+          <pre className={styles.body}>{output.email.body}</pre>
+        </details>
+      )}
       {/* Folded: the business nature the pre-check worked to, and why. */}
       {nature && (
         <details className={styles.collapsible} aria-label="Business nature">

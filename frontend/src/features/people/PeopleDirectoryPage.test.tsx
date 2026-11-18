@@ -63,17 +63,23 @@ describe('People page', () => {
   it('shows the list by default and switches to the diagram', async () => {
     renderPage()
     expect(screen.getByRole('button', { name: 'List' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('group', { name: 'Admins' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('group', { name: 'CEO and Team Leads' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Diagram' }))
     expect(screen.getByRole('button', { name: 'Diagram' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('group', { name: 'Admins' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'CEO and Team Leads' })).toBeInTheDocument()
+  })
+
+  it('labels each person Standard, Team Lead or CEO in the list (AFIT, 16 Nov 2026)', () => {
+    renderPage()
+    expect(screen.getByText('Hema').parentElement).toHaveTextContent('Team Lead')
+    expect(screen.getByText('Solo').parentElement).toHaveTextContent('Standard')
   })
 
   it('draws admins on top and people under their teams, leads first', () => {
     renderPage('/people?view=diagram')
-    const admins = screen.getByRole('group', { name: 'Admins' })
+    const admins = screen.getByRole('group', { name: 'CEO and Team Leads' })
     expect(within(admins).getByText('Hema')).toBeInTheDocument()
-    expect(within(admins).getByText('Admin')).toBeInTheDocument()
+    expect(within(admins).getByText('Team Lead')).toBeInTheDocument()
 
     const accounts = screen.getByRole('region', { name: 'Accounts workspace' })
     const names = within(accounts).getAllByRole('button').map((b) => b.textContent)

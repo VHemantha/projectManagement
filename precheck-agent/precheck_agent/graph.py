@@ -486,7 +486,8 @@ def precheck(state: State) -> dict:
         usage.append({"node": "precheck", "task_id": "precheck", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
         cleaned = P.clean(raw, index, body + "\n" + P.system_text(), fixed)
         cache.set_value("precheck", key, cleaned)
-    output, evidence = P.assemble(cleaned, index, state["key"], facts, job.get("client_name", ""))
+    output, evidence = P.assemble(cleaned, index, state["key"], facts, job.get("client_name", ""),
+                                  previous=(job.get("last_precheck_result") or {}).get("snapshot"))
     output["how"] = how
     output["special_notes"] = SN.considered(job, "precheck", cleaned)
     n = {k: len(output[k]) for k in ("requests", "provided", "not_needed")}

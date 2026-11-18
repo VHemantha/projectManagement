@@ -60,7 +60,7 @@ describe('SignupPage', () => {
       error: null,
     }
     renderAt('/signup?invite=tok123')
-    expect(screen.getByText(/Boss invited you to join as a worker in the Payroll workspace/)).toBeInTheDocument()
+    expect(screen.getByText(/Boss invited you to join as a Standard user in the Payroll workspace/)).toBeInTheDocument()
     const email = screen.getByLabelText('Email')
     expect(email).toHaveValue('new@example.com')
     expect(email).toBeDisabled()

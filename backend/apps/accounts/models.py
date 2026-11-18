@@ -68,8 +68,9 @@ class Invitation(models.Model):
     is replaced by a resend, or the invitation is revoked."""
 
     class Role(models.TextChoices):
-        ADMIN = "admin", "Admin"
-        WORKER = "worker", "Worker"
+        # Employee types (AFIT, 16 Nov 2026): Standard, Team Lead (an organisation admin) and the CEO.
+        ADMIN = "admin", "Team Lead"
+        WORKER = "worker", "Standard"
 
     email = models.EmailField()
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.WORKER)

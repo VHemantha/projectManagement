@@ -20,7 +20,8 @@ def test_skills_in_agent_skills_format(env):
                            "nz-gst-reconciliation", "gst-document-reading",  # the WP Agent (8 Nov 2026)
                            "nz-wages-reconciliation", "nz-imputation-reconciliation",  # its wages and ICA agents (10 Nov 2026)
                            "plain-language",  # every report in plain words (13 Nov 2026)
-                           "nz-electronic-workpapers"}  # the WP Agent's electronic workpapers (16 Nov 2026)
+                           "nz-electronic-workpapers",  # the WP Agent's electronic workpapers (16 Nov 2026)
+                           "job-snapshot"}  # the Job Snapshot, shown first (16 Nov 2026)
     for skill in skills.values():
         path = Path(get_settings().skills_dir) / skill.name / "SKILL.md"
         text = path.read_text(encoding="utf-8")

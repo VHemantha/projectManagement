@@ -2,11 +2,13 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { addDays, format, subDays } from 'date-fns'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
+import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AllIssuesBoardPage } from './AllIssuesBoardPage'
 import { TasksSummary } from './TasksSummary'
 import type { IssueListItem } from '@/api/types'
+import { useUiStore } from '@/store/uiStore'
 
 const day = (d: Date) => format(d, 'yyyy-MM-dd')
 const issue = (over: Partial<IssueListItem>) =>
@@ -25,7 +27,7 @@ vi.mock('@/api/issues', () => ({
 vi.mock('@/api/teams', () => ({ useTeams: () => ({ data: [{ id: 4, name: 'Team 4', parent: null }] }) }))
 vi.mock('@/api/clients', () => ({ useClients: () => ({ data: [{ id: 5, name: 'RWCA' }] }) }))
 vi.mock('./crossProjectBoard', () => ({ useCrossProjectBoard: () => ({ columns: [], cardConfigByProject: {}, isLoading: false, resolveStatus: () => null }) }))
-vi.mock('./KanbanBoard', () => ({ KanbanBoard: () => <div>kanban board</div> }))
+vi.mock('./KanbanBoard', () => ({ KanbanBoard: ({ toolbarExtra }: { toolbarExtra?: ReactNode }) => <div>kanban board{toolbarExtra}</div> }))
 vi.mock('@/features/tables/IssueTable', () => ({ IssueTable: ({ issues }: { issues: unknown[] }) => <div>task list of {issues.length}</div> }))
 vi.mock('@/features/projects/CreateClientDialog', () => ({
   CreateClientDialog: ({ open }: { open: boolean }) => {
@@ -59,6 +61,13 @@ describe('The tasks of a workspace / sub-workspace', () => {
     expect(screen.getByText('sub-workspace settings window')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('where')).toHaveTextContent('view=summary')
+  })
+
+  it('has Create task on the board, filled in from the workspace and sub-workspace (AFIT, 16 Nov 2026)', async () => {
+    renderAt('/projects/all-issues?team=4&client=5')
+    await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    expect(useUiStore.getState().createIssueOpen).toBe(true)
+    expect(useUiStore.getState().createIssueDefaults).toMatchObject({ teamId: 4, clientId: 5 })
   })
 
   it('offers Settings only once a sub-workspace is chosen', () => {
