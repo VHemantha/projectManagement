@@ -30,6 +30,13 @@ ENTITY_TYPES = ("Company", "Trust", "Partnership", "Sole trader", "Look-through 
 
 # --- B1: one row per workpaper balance (column G "GL Bal", column K "Prior GL") -------------------------
 B1_BANK_ROWS = list(range(18, 28))  # F1.1 .. F1.10
+# The number of bank reconciliations: the Workbench's "Qty" column (M, headed in row 38) on the F1 row.
+# The template's macro makes one F1 sheet per bank account from it; the agent does the same itself
+# (AFIT, 18 Nov 2026).
+WORKBENCH_BANK_QTY = "M40"
+HIDDEN_F1_COUNT = "S25"  # the F1 group's sheet count in the hidden link table
+HIDDEN_F1_ROW = 26  # the link table's row for F1.1, which F1.2 onwards copy
+F_LEAD_ROWS = [10, 11]  # the F lead sheet's bank rows (F1.1, F1.2)
 B1 = {
     "receivables": 28, "gst_asset": 30, "tax_asset": 31, "stock": 32, "wip": 33, "cash": 34, "prepayments": 35, "other_current_asset": 36,
     "payables": 46, "gst_liability": 47, "tax_liability": 48, "other_current_liability": 49, "term_loan": 116, "hire_purchase": 126,

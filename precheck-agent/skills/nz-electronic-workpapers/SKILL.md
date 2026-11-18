@@ -25,8 +25,14 @@ workbook's input cells and never a formula. GST (L1) is the separate GST reconci
 ## Preparing
 - B1 takes each account's closing balance from the ledger (debit +) and last year's closing as the
   prior-year figure. An account that fits no workpaper is shown for review, never guessed.
-- F1.1: the bank's own statement balance at balance date; the software's reconciliation report is a
-  fallback flagged for review. Unprocessed items are entered as positive amounts.
+- F1: one sheet per bank account (AFIT, 18 Nov 2026). Every bank reconciliation in the task folder and
+  its subfolders is matched to its ledger bank account (by account number, else the ledger code or
+  name); the number of bank accounts goes in the Workbench's bank quantity (M40) and each gets its own
+  sheet, F1.1, F1.2 ..., in the order of B1's bank rows (bank # 1 is F1.1). A reconciliation for an
+  account the ledger doesn't have still gets a sheet, flagged.
+- Each F1 sheet: the bank's own statement balance at balance date; the software's reconciliation report
+  is a fallback flagged for review. Unprocessed items, from that account's reconciliation, are entered
+  as positive amounts. B1 takes each bank account's balance in the accounts on its own row.
 - T2: interest and dividends gross, with RWT and imputation credits; if the ledger holds them net,
   propose a gross-up journal - never post it.
 - Q1/Q3a: IRD's transactions decide what was paid and when; a ledger payment IRD doesn't show is

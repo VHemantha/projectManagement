@@ -194,6 +194,141 @@ def patch(data: bytes, cells: list[dict], protected: dict[str, set[str]] | None 
     return out.getvalue(), refused
 
 
+CT = "http://schemas.openxmlformats.org/package/2006/content-types"
+_COPIED_PARTS = ("comments", "vmlDrawing", "printerSettings")  # a sheet's own parts: each copy gets its own
+
+
+def _next_part(names: set[str], path: str) -> str:
+    """xl/comments4.xml -> the first xl/commentsN.xml not in the package."""
+    stem, ext = re.match(r"^(.*?)(\d*)(\.\w+)$", path).group(1, 3)
+    n = 1
+    while f"{stem}{n}{ext}" in names:
+        n += 1
+    return f"{stem}{n}{ext}"
+
+
+def _rels_path(part: str) -> str:
+    folder, _, name = part.rpartition("/")
+    return f"{folder}/_rels/{name}.rels"
+
+
+def _resolve(base_part: str, target: str) -> str:
+    """A relationship's target, relative to its part's folder, as a package path."""
+    parts = base_part.rpartition("/")[0].split("/")
+    for seg in target.split("/"):
+        if seg == "..":
+            parts.pop()
+        elif seg not in ("", "."):
+            parts.append(seg)
+    return "/".join(parts)
+
+
+def _relative(base_part: str, path: str) -> str:
+    base = base_part.rpartition("/")[0].split("/")
+    target = path.split("/")
+    common = 0
+    while common < min(len(base), len(target)) and base[common] == target[common]:
+        common += 1
+    return "/".join([".."] * (len(base) - common) + target[common:])
+
+
+def clone_sheets(data: bytes, source: str, new_names: list[str]) -> bytes:
+    """Copies of a sheet, as the template's own macro makes them (AFIT, 18 Nov 2026: one bank
+    reconciliation sheet per bank account, F1.2, F1.3 ... after F1.1). Each copy is placed after the
+    one before it and gets everything the original has: its cells and formulas (pointing at itself),
+    its comments, its printer settings, its hyperlinks and its sheet-level names (WPBal1, GLBal ...).
+    Every other part of the workbook is copied byte for byte."""
+    if not new_names:
+        return data
+    src = zipfile.ZipFile(io.BytesIO(data))
+    files = {i.filename: src.read(i.filename) for i in src.infolist()}
+    infos = {i.filename: i for i in src.infolist()}
+    wb = etree.fromstring(files["xl/workbook.xml"])
+    wb_rels = etree.fromstring(files["xl/_rels/workbook.xml.rels"])
+    types = etree.fromstring(files["[Content_Types].xml"])
+    override = {o.get("PartName").lstrip("/"): o.get("ContentType") for o in types.findall(f"{{{CT}}}Override")}
+    paths = sheet_paths(src)
+    if source not in paths:
+        raise ValueError(f"The workbook has no sheet '{source}'.")
+    sheets_el = wb.find(f"{_Q}sheets")
+    sheet_els = sheets_el.findall(f"{_Q}sheet")
+    names = [s.get("name") for s in sheet_els]
+    src_index = names.index(source)
+    src_part = paths[source]
+    src_xml = files[src_part].decode("utf-8")
+    src_rels = files.get(_rels_path(src_part))
+    quoted = f"'{source}'!"
+    defined = wb.find(f"{_Q}definedNames")
+    own_names = [dn for dn in (defined if defined is not None else []) if dn.get("localSheetId") == str(src_index)]
+    after = src_index  # each copy goes after the one before it
+    for name in new_names:
+        if name in names:
+            raise ValueError(f"The workbook already has a sheet '{name}'.")
+        insert_at = after + 1
+        # 1. the sheet's part, its formulas pointing at itself, not the selected tab
+        part = _next_part(set(files), src_part)
+        body = src_xml.replace(quoted, f"'{name}'!")
+        body = re.sub(r'\s+tabSelected="(1|true)"', "", body)
+        files[part] = body.encode("utf-8")
+        infos[part] = None
+        types.append(etree.Element(f"{{{CT}}}Override", PartName="/" + part, ContentType=override[src_part]))
+        # 2. its own comments, VML and printer settings (hyperlinks to the web are shared as they are)
+        if src_rels is not None:
+            rels = etree.fromstring(src_rels)
+            for rel in rels:
+                if not any(rel.get("Type", "").endswith("/" + k) for k in _COPIED_PARTS) or rel.get("TargetMode") == "External":
+                    continue
+                old = _resolve(src_part, rel.get("Target"))
+                new = _next_part(set(files), old)
+                files[new], infos[new] = files[old], None
+                if old in override:
+                    types.append(etree.Element(f"{{{CT}}}Override", PartName="/" + new, ContentType=override[old]))
+                if _rels_path(old) in files:  # a VML drawing's own links (images) are shared
+                    files[_rels_path(new)], infos[_rels_path(new)] = files[_rels_path(old)], None
+                rel.set("Target", _relative(part, new))
+            files[_rels_path(part)], infos[_rels_path(part)] = _xml(rels), None
+        # 3. the workbook: the sheet after the one before it, its relationship and its names
+        ids = [int(re.sub(r"\D", "", r.get("Id")) or 0) for r in wb_rels]
+        rid = f"rId{max(ids, default=0) + 1}"
+        etree.SubElement(wb_rels, f"{{{PKG_REL}}}Relationship", Id=rid, Type=f"{REL}/worksheet", Target=part.removeprefix("xl/"))
+        sheet_id = max(int(s.get("sheetId")) for s in sheets_el.findall(f"{_Q}sheet")) + 1
+        new_el = etree.Element(f"{_Q}sheet", name=name, sheetId=str(sheet_id))
+        new_el.set(f"{{{REL}}}id", rid)
+        sheets_el.findall(f"{_Q}sheet")[after].addnext(new_el)
+        if defined is not None:
+            # Sheet-level names point at their sheet by position: every sheet after the new one moves
+            # up one. The original is always before its copies, so its own names never move.
+            for dn in defined:
+                if dn.get("localSheetId") is not None and int(dn.get("localSheetId")) >= insert_at:
+                    dn.set("localSheetId", str(int(dn.get("localSheetId")) + 1))
+            for dn in own_names:
+                copy = etree.fromstring(etree.tostring(dn))
+                copy.set("localSheetId", str(insert_at))
+                copy.text = (dn.text or "").replace(quoted, f"'{name}'!")
+                defined.append(copy)
+        for view in wb.iter(f"{_Q}workbookView"):
+            if view.get("activeTab") is not None and int(view.get("activeTab")) >= insert_at:
+                view.set("activeTab", str(int(view.get("activeTab")) + 1))
+        names.insert(insert_at, name)
+        after = insert_at
+    files["xl/workbook.xml"], files["xl/_rels/workbook.xml.rels"], files["[Content_Types].xml"] = _xml(wb), _xml(wb_rels), _xml(types)
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as dst:
+        for filename, body in files.items():
+            info = infos.get(filename)
+            if info is not None and filename not in ("xl/workbook.xml", "xl/_rels/workbook.xml.rels", "[Content_Types].xml"):
+                dst.writestr(info, body)
+            else:
+                dst.writestr(filename, body, compress_type=zipfile.ZIP_DEFLATED)
+    return out.getvalue()
+
+
+def column(data: bytes, sheet: str, letter: str, last: int) -> dict[int, object]:
+    """One column's values, rows 1..last (for finding the end of a table)."""
+    got = read(data, sheet, [f"{letter}{r}" for r in range(1, last + 1)])
+    return {int(k[len(letter):]): v for k, v in got.items()}
+
+
 def formula_cells(data: bytes, sheet: str) -> set[str]:
     """The cells of a sheet holding a formula (plain, shared or array)."""
     z = zipfile.ZipFile(io.BytesIO(data))

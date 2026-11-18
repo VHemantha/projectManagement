@@ -123,7 +123,7 @@ def read_all(sources, reader, su) -> dict:
                 return [{"date": day(r.get("date")), "reference": r.get("reference", ""), "description": r.get("description", ""),
                          "amount": abs(amt(r.get("amount")) or ZERO)} for r in rows if amt(r.get("amount"))]
             if g:
-                d["bank_recs"].append({"account": g.get("account", ""), "date": day(g.get("date")), "statement_balance": amt(g.get("statement_balance")),
+                d["bank_recs"].append({"account": g.get("account", ""), "number": g.get("account_number", ""), "date": day(g.get("date")), "statement_balance": amt(g.get("statement_balance")),
                                    "ledger_balance": amt(g.get("ledger_balance")), "withdrawals": items(g.get("outstanding_withdrawals", [])),
                                    "deposits": items(g.get("outstanding_deposits", [])), "source": ref})
         elif k == "fee_statement":
@@ -204,15 +204,60 @@ def template_bytes() -> bytes:
     return C.TEMPLATE.read_bytes()
 
 
+_BANK_SHEET = re.compile(r"^F1\.(\d+)$")
+
+
+def template_sheet(sheet: str) -> str:
+    """The template sheet a sheet was made from: F1.2, F1.3 ... are copies of F1.1."""
+    return "F1.1" if _BANK_SHEET.match(sheet) else sheet
+
+
 def protected(template: bytes, sheets) -> dict[str, set[str]]:
-    return {s: xlsm.formula_cells(template, s) for s in set(sheets)}
+    return {s: xlsm.formula_cells(template, template_sheet(s)) for s in set(sheets)}
+
+
+def bank_links(template: bytes, sheets: list[str]) -> list[dict]:
+    """What the template's macro does when the Workbench's bank quantity goes up (AFIT, 18 Nov 2026),
+    for the sheets the agent made: the F1 group's count and a row per sheet in the hidden link table
+    (so the Workbench and B1 link to them), the F lead sheet's rows, and B1's link to each sheet's
+    workpaper balance (row 18 already links to F1.1)."""
+    if not sheets:
+        return []
+    cells = [{"sheet": "Hidden", "cell": C.HIDDEN_F1_COUNT, "value": len(sheets), "kind": "number"}]
+    extra = sheets[1:]
+    if extra:
+        col_l = xlsm.column(template, "Hidden", "L", 400)
+        last = max(r for r, v in col_l.items() if v not in (None, ""))
+        base = xlsm.read(template, "Hidden", [f"{c}{C.HIDDEN_F1_ROW}" for c in "KMNOP"])
+        for i, name in enumerate(extra, start=1):
+            r = last + i
+            k = int(_BANK_SHEET.match(name).group(1))
+            cells += [{"sheet": "Hidden", "cell": f"K{r}", "value": base[f"K{C.HIDDEN_F1_ROW}"], "kind": "text"},
+                      {"sheet": "Hidden", "cell": f"L{r}", "value": name, "kind": "text"},
+                      {"sheet": "Hidden", "cell": f"M{r}", "value": base[f"M{C.HIDDEN_F1_ROW}"], "kind": "text"},
+                      {"sheet": "Hidden", "cell": f"N{r}", "value": 1, "kind": "number"},
+                      {"sheet": "Hidden", "cell": f"O{r}", "value": round(float(base[f"O{C.HIDDEN_F1_ROW}"] or 15.1) + (k - 1) / 100, 2), "kind": "number"},
+                      {"sheet": "Hidden", "cell": f"P{r}", "value": base[f"P{C.HIDDEN_F1_ROW}"], "kind": "text"},
+                      {"sheet": "Hidden", "cell": f"Q{r}", "value": f'IF($N{r}=1,"#\'{name}\'!A1","#rc")', "kind": "formula"}]
+    for row, name in zip(C.B1_BANK_ROWS[1:], extra):
+        cells.append({"sheet": "B1", "cell": f"H{row}", "value": f"IFERROR('{name}'!WPBal1,0)", "kind": "formula"})
+    for row, name in zip(C.F_LEAD_ROWS[1:], extra):
+        cells += [{"sheet": "F", "cell": f"B{row}", "value": name, "kind": "text"},
+                  {"sheet": "F", "cell": f"C{row}", "value": f"IFERROR('{name}'!nameBank,\"\")", "kind": "formula"},
+                  {"sheet": "F", "cell": f"D{row}", "value": f"IFERROR(SUM('{name}'!bank_statement_bal),\"\")", "kind": "formula"},
+                  {"sheet": "F", "cell": f"H{row}", "value": f"IFERROR('{name}'!GLBal,\"\")", "kind": "formula"}]
+    return cells
 
 
 def write_workbook(result: dict, inventory: list[dict]) -> tuple[bytes, list[dict]]:
     template = template_bytes()
+    sheets = result.get("bank_sheets") or []
+    # One bank reconciliation sheet per bank account: F1.2 onwards are copies of F1.1.
+    book = xlsm.clone_sheets(template, "F1.1", sheets[1:]) if len(sheets) > 1 else template
     cells = [{"sheet": f["sheet"], "cell": f["cell"], "value": f["value"], "kind": f["kind"]} for f in result["fields"] if f["value"] not in (None, "")]
+    cells += bank_links(template, sheets)
     cells += supporting_docs(template, inventory)
-    book, refused = xlsm.patch(template, cells, protected(template, {c["sheet"] for c in cells}))
+    book, refused = xlsm.patch(book, cells, protected(template, {c["sheet"] for c in cells}))
     return book, refused
 
 

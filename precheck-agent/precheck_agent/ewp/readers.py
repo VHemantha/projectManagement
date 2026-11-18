@@ -204,7 +204,7 @@ A.SCHEMAS.update({
     "ewp_dividend_paid": A._obj({"date": _S, "gross": _S, "imputation": _S, "rwt": _S, "net": _S, "source": _S}),
     "ewp_ica": A._obj({"period_end": _S, "ica_closing": _S, "source": _S}),
     "ewp_bank_statement": A._obj({"account_name": _S, "account_number": _S, "closing_date": _S, "closing_balance": _S, "source": _S}),
-    "ewp_bank_rec": A._obj({"account": _S, "date": _S, "ledger_balance": _S, "statement_balance": _S,
+    "ewp_bank_rec": A._obj({"account": _S, "account_number": _S, "date": _S, "ledger_balance": _S, "statement_balance": _S,
                             "outstanding_withdrawals": A._list({"date": _S, "reference": _S, "description": _S, "amount": _S}),
                             "outstanding_deposits": A._list({"date": _S, "reference": _S, "description": _S, "amount": _S}), "source": _S}),
     "ewp_fee_statement": A._obj({"client": _S, "lines": A._list({"date": _S, "description": _S, "reference": _S, "debit": _S, "credit": _S})}),
@@ -222,7 +222,7 @@ A.ASK.update({
                          "dividend, the imputation credits attached, RWT deducted and the net dividend paid.",
     "ewp_ica": "Read the imputation credit account details: the period (balance date) and the ICA closing balance exactly as shown, with its sign.",
     "ewp_bank_statement": "Read this bank statement: the account name and number, the last date it covers and the closing balance on that date.",
-    "ewp_bank_rec": "Read this bank reconciliation report: the account, the date, the balance per the ledger, the expected balance on the bank statement, "
+    "ewp_bank_rec": "Read this bank reconciliation report: the account name and its bank account number (if shown), the date, the balance per the ledger, the expected balance on the bank statement, "
                     "and every outstanding (unpresented) withdrawal and deposit with its date, reference, description and amount.",
     "ewp_fee_statement": "Read this accountant's statement or invoice: the client it is addressed to and every line (date, description, invoice or "
                          "reference number, debit, credit). Dates as YYYY-MM-DD.",

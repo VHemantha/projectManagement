@@ -28,6 +28,28 @@ def _norm(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (text or "").lower()).strip()
 
 
+def _digits(text: str) -> str:
+    """The bank account number in a name ("ANZ 01-0123-0456789-00" -> "0101230456789 00" -> its core)."""
+    found = re.findall(r"\d[\d -]{6,}\d", text or "")
+    return re.sub(r"\D", "", max(found, key=len)) if found else ""
+
+
+def same_account(record: dict, acc: dict) -> bool:
+    """A bank reconciliation or statement and a ledger bank account are the same account: the account
+    number's core (bank, branch and account - the suffix is often left off) matches, else the names do."""
+    theirs = _digits(f"{record.get('number', '')} {record.get('account', '')}")
+    ours = _digits(f"{acc.get('name', '')} {acc.get('code', '')}")
+    if theirs and ours:
+        core = lambda d: d[:13] if len(d) >= 13 else d  # noqa: E731
+        return core(theirs) in ours or core(ours) in theirs
+    text = f"{record.get('number', '')} {record.get('account', '')}"
+    if acc.get("code") and re.search(rf"(?<![\w-]){re.escape(acc['code'])}(?![\w-])", text):
+        return True  # the software's report names the ledger account: "1-1000 Cheque account"
+    words = set(_norm(acc.get("name", "")).split())
+    return bool(record.get("account")) and (same_payer(record["account"], acc.get("name", "")) or
+                                            (bool(words) and words <= set(_norm(text).split())))
+
+
 def same_payer(a: str, b: str) -> bool:
     wa, wb = set(core_words(a)), set(core_words(b))
     return bool(wa and wb and (wa <= set(_norm(b).split()) or wb <= set(_norm(a).split())))
@@ -46,6 +68,8 @@ class Ewp:
         self.tolerance = su.tolerance if su.tolerance else Decimal("1")
         self.groups: dict[str, list[dict]] = {}
         self.unmapped: list[dict] = []
+        self._banks: list[dict] | None = None
+        self.bank_sheets: list[str] = []
         for acc in data.get("accounts", []):
             g = acc.get("group", "")
             (self.groups.setdefault(g, []) if g else self.unmapped).append(acc)
@@ -121,14 +145,28 @@ class Ewp:
                       "The general ledger detail (or trial balance) for the year, exported from the accounting software.", code="no_gl")
             return
         src = (self.d.get("gl_source") or {}).get("name", "the ledger")
-        banks = sorted(self.accounts("bank"), key=lambda a: a["code"])
-        for row, acc in zip(C.B1_BANK_ROWS, banks):
+        # One row per bank account, in the order of their F1 sheets (bank # 1 is F1.1, # 2 is F1.2 ...):
+        # the balance in the accounts (GL Bal) and last year's; the workpaper balance (WP Bal) is the
+        # template's link to that bank's sheet (AFIT, 18 Nov 2026).
+        plan = self.banks()
+        for row, p in zip(C.B1_BANK_ROWS, plan):
             n = row - C.B1_BANK_ROWS[0] + 1
-            self.field("B1", "B1", f"G{row}", f"Bank account # {n} - {acc['code']} {acc['name']}", acc["closing"], source=f"{src}: {self.gl_ref([acc])}")
-            if acc.get("opening") is not None:
-                self.field("B1", "B1", f"K{row}", f"Bank account # {n} - prior year", acc["opening"], source=f"{src}: opening balance")
-        if len(banks) > len(C.B1_BANK_ROWS):
-            self.flag("B1", "review", f"{len(banks)} bank accounts: B1 has rows for {len(C.B1_BANK_ROWS)}.", code="many_banks")
+            acc, rec = p["acc"], p["rec"]
+            if acc is not None:
+                if acc.get("code"):
+                    self.field("B1", "B1", f"C{row}", f"Bank account # {n} - code", acc["code"], "text", f"{src}: {self.gl_ref([acc])}")
+                self.field("B1", "B1", f"D{row}", f"Bank account # {n} - name", acc["name"], "text", f"{src}: {self.gl_ref([acc])}")
+                self.field("B1", "B1", f"G{row}", f"Bank account # {n} - {acc['code']} {acc['name']}", acc["closing"], source=f"{src}: {self.gl_ref([acc])}")
+                if acc.get("opening") is not None:
+                    self.field("B1", "B1", f"K{row}", f"Bank account # {n} - prior year", acc["opening"], source=f"{src}: opening balance")
+            elif rec is not None:
+                self.field("B1", "B1", f"D{row}", f"Bank account # {n} - name", rec["account"] or f"Bank account # {n}", "text", rec["source"], "document",
+                           "review")
+                if rec.get("ledger_balance") is not None:
+                    self.field("B1", "B1", f"G{row}", f"Bank account # {n} - balance per the reconciliation's ledger", rec["ledger_balance"],
+                               source=rec["source"], how="document", status="review")
+        if len(plan) > len(C.B1_BANK_ROWS):
+            self.flag("B1", "review", f"{len(plan)} bank accounts: B1 has rows for {len(C.B1_BANK_ROWS)}.", code="many_banks")
         sums: dict[str, list[dict]] = {}
         for g, accs in self.groups.items():
             if g == "bank":
@@ -156,56 +194,117 @@ class Ewp:
                 self.flag("B1", "review", f"Account {acc['code']} {acc['name']} ({_money(acc['closing'])}) isn't taken to a workpaper: decide where "
                           "it belongs.", "The account's nature (and any journal clearing it).", acc["closing"], code=f"unmapped_{acc['code'] or acc['name']}")
 
-    # --- F1.1: bank reconciliation -------------------------------------------------------------------------
+    # --- F1: one bank reconciliation sheet per bank account (AFIT, 18 Nov 2026) -----------------------------
+    def banks(self) -> list[dict]:
+        """The bank accounts to reconcile, in order: each ledger bank account with its bank reconciliation
+        (found anywhere in the task folder and its subfolders) and its bank statement at balance date,
+        then any reconciliation that matches no ledger account. [{"acc", "rec", "statement"}]."""
+        if self._banks is not None:
+            return self._banks
+        ledger = sorted(self.accounts("bank"), key=lambda a: a["code"])
+        # One reconciliation per account: the one at balance date, else its latest.
+        best: dict[str, dict] = {}
+        for r in sorted(self.d.get("bank_recs", []), key=lambda r: (r.get("date") == self.bd, r.get("date") or date.min)):
+            best[_digits(f"{r.get('number', '')} {r.get('account', '')}") or _norm(r.get("account", "")) or r["source"]] = r
+        plan = [{"acc": a, "rec": None, "statement": None} for a in ledger]
+        unmatched = []
+        for r in best.values():
+            p = next((p for p in plan if p["rec"] is None and same_account(r, p["acc"])), None)
+            if p is not None:
+                p["rec"] = r
+            else:
+                unmatched.append(r)
+        free = [p for p in plan if p["rec"] is None]
+        if len(unmatched) == 1 and len(free) == 1:  # the only reconciliation, the only account without one
+            free[0]["rec"] = unmatched.pop()
+        plan += [{"acc": None, "rec": r, "statement": None} for r in unmatched]
+        statements = [st for st in self.d.get("bank_statements", []) if st.get("closing_date") == self.bd and st.get("closing_balance") is not None]
+        for p in plan:
+            key = p["acc"] or {"name": (p["rec"] or {}).get("account", ""), "code": ""}
+            p["statement"] = next((st for st in statements if same_account(st, key)), None)
+        if len(plan) == 1 and plan[0]["statement"] is None and len(statements) == 1:
+            plan[0]["statement"] = statements[0]  # one bank account, one statement at balance date
+        self._banks = plan
+        return plan
+
     def f11(self) -> None:
-        banks = sorted(self.accounts("bank"), key=lambda a: a["code"])
-        if not banks:
-            self.flag("F1.1", "blocking", "No bank account was found in the ledger.", "The general ledger with the bank account(s).", code="no_bank")
+        plan = self.banks()
+        if not plan:
+            self.flag("F1.1", "blocking", "No bank account was found in the ledger, and no bank reconciliation in the folder.",
+                      "The general ledger with the bank account(s), and each account's bank reconciliation.", code="no_bank")
             return
-        acc = banks[0]
-        if len(banks) > 1:
-            self.flag("F1.1", "review", f"{len(banks)} bank accounts: F1.1 is for {acc['code']} {acc['name']}; add F1.2 onwards in the workbook for "
-                      + ", ".join(f"{b['code']} {b['name']}" for b in banks[1:]) + ".", code="more_banks")
-        self.field("F1.1", "F1.1", "D10", "Bank account name", f"{acc['name']} ({acc['code']})", "text", self.gl_ref([acc]), "ledger")
-        statement = next((s for s in self.d.get("bank_statements", []) if s.get("closing_date") == self.bd and s.get("closing_balance") is not None), None)
-        rec = next((r for r in self.d.get("bank_recs", []) if r.get("date") == self.bd), None)
+        n = min(len(plan), len(C.B1_BANK_ROWS))
+        self.bank_sheets = [f"F1.{k}" for k in range(1, n + 1)]
+        recs = sum(1 for p in plan if p["rec"])
+        # The workbench's quantity of bank reconciliations: the template makes one F1 sheet for each.
+        self.field("Workbench", "Workbench", C.WORKBENCH_BANK_QTY, "Bank reconciliations (F1 sheets)", n, "number",
+                   f"{recs} bank reconciliation(s) found in the folder and its subfolders; {sum(1 for p in plan if p['acc'])} bank account(s) "
+                   "in the ledger", "calculated")
+        if len(plan) > n:
+            self.flag("F1.1", "review", f"{len(plan)} bank accounts: the workbook has room for {n} bank reconciliation sheets.", code="many_banks")
+        if n > 2:
+            self.flag("F1.1", "info", f"The F lead sheet lists F1.1 and F1.2; add rows there in Excel for {', '.join(self.bank_sheets[2:])}.",
+                      code="lead_sheet_rows")
+        for k, p in enumerate(plan[:n], start=1):
+            self._bank_sheet(f"F1.{k}", k, p, many=n > 1)
+
+    def _bank_sheet(self, sheet: str, k: int, p: dict, many: bool) -> None:
+        """One bank account's reconciliation sheet: its name, the bank statement balance at balance date,
+        the unprocessed payments and receipts from its bank reconciliation, and the check against the ledger."""
+        acc, rec, statement = p["acc"], p["rec"], p["statement"]
+        tag = f"{sheet}: " if many else ""
+        code = (lambda c: f"{c}_{k}") if many else (lambda c: c)
+        name = f"{acc['name']} ({acc['code']})" if acc else (rec or {}).get("account") or f"Bank account # {k}"
+        if k > 1:  # the copy's own reference, which its formulas look itself up by (F1.1 has its own)
+            self.field("F1.1", sheet, "H5", f"{tag}sheet reference", sheet, "text", "The workbook", "setup", editable=False)
+        self.field("F1.1", sheet, "D10", f"{tag}Bank account name", name, "text", self.gl_ref([acc]) if acc else (rec or {}).get("source", ""),
+                   "ledger" if acc else "document")
+        if acc is None:
+            self.flag("F1.1", "review", f"{tag}the bank reconciliation for {name} matches no bank account in the ledger.",
+                      "The ledger account this bank account is recorded in.", code=code("no_ledger_account"))
         closing, how, status, source = None, "", "", ""
         if statement:
             closing, how, status, source = statement["closing_balance"], "document", "extracted", statement["source"]
         elif rec and rec.get("statement_balance") is not None:
             closing, how, status, source = rec["statement_balance"], "document", "review", rec["source"]
-            self.flag("F1.1", "review", f"The closing balance {_money(closing)} is the accounting software's expected bank statement balance (bank "
-                      "reconciliation report), not the bank's own statement.", f"The bank statement at {self.bd:%d/%m/%Y}.", code="no_statement")
+            self.flag("F1.1", "review", f"{tag}the closing balance {_money(closing)} is the accounting software's expected bank statement balance "
+                      "(bank reconciliation report), not the bank's own statement.", f"The bank statement at {self.bd:%d/%m/%Y}.",
+                      code=code("no_statement"))
         else:
-            self.flag("F1.1", "blocking", f"No bank statement (or bank reconciliation) at {self.bd:%d/%m/%Y} was found for {acc['name']}.",
-                      f"The bank statement showing the balance at {self.bd:%d/%m/%Y}.", code="no_statement")
-        self.field("F1.1", "F1.1", "H12", "Bank statement date", self.bd, "date", source or "Balance date", "setup" if not source else how,
+            self.flag("F1.1", "blocking", f"{tag}no bank statement (or bank reconciliation) at {self.bd:%d/%m/%Y} was found for {name}.",
+                      f"The bank statement showing the balance at {self.bd:%d/%m/%Y}.", code=code("no_statement"))
+        if rec and rec.get("date") and rec["date"] != self.bd:
+            self.flag("F1.1", "review", f"{tag}the bank reconciliation for {name} is at {rec['date']:%d/%m/%Y}, not the balance date.",
+                      f"The bank reconciliation at {self.bd:%d/%m/%Y}.", code=code("rec_date"))
+        self.field("F1.1", sheet, "H12", f"{tag}Bank statement date", self.bd, "date", source or "Balance date", "setup" if not source else how,
                    status or "missing")
         if closing is not None:
-            self.field("F1.1", "F1.1", "I12", "Closing balance per bank statement", closing, source=source, how=how, status=status)
+            self.field("F1.1", sheet, "I12", f"{tag}Closing balance per bank statement", closing, source=source, how=how, status=status)
         payments = (rec or {}).get("withdrawals", [])
         receipts = (rec or {}).get("deposits", [])
         for items, (first, last), what in ((payments, C.F11_PAYMENTS, "payment"), (receipts, C.F11_RECEIPTS, "receipt")):
             rows = list(range(first, last + 1))
             if len(items) > len(rows):
-                self.flag("F1.1", "review", f"{len(items)} unprocessed {what}s: the workpaper has room for {len(rows)}; the rest are in one line.",
-                          code=f"many_{what}s")
+                self.flag("F1.1", "review", f"{tag}{len(items)} unprocessed {what}s: the workpaper has room for {len(rows)}; the rest are in one line.",
+                          code=code(f"many_{what}s"))
                 rest = items[len(rows) - 1:]
                 items = items[: len(rows) - 1] + [{"date": None, "reference": "", "description": f"{len(rest)} other {what}s",
                                                      "amount": sum((x["amount"] for x in rest), ZERO)}]
             for row, it in zip(rows, items):
-                label = f"Unprocessed {what} {row - first + 1}"
+                label = f"{tag}Unprocessed {what} {row - first + 1}"
                 if it.get("date"):
-                    self.field("F1.1", "F1.1", f"B{row}", f"{label} - date", it["date"], "date", rec["source"], "document", "extracted")
-                self.field("F1.1", "F1.1", f"C{row}", f"{label} - reference", it.get("reference", ""), "text", rec["source"], "document", "extracted")
-                self.field("F1.1", "F1.1", f"D{row}", f"{label} - description", it.get("description", ""), "text", rec["source"], "document", "extracted")
-                self.field("F1.1", "F1.1", f"I{row}", f"{label} - amount", it["amount"], source=rec["source"], how="document", status="extracted")
+                    self.field("F1.1", sheet, f"B{row}", f"{label} - date", it["date"], "date", rec["source"], "document", "extracted")
+                self.field("F1.1", sheet, f"C{row}", f"{label} - reference", it.get("reference", ""), "text", rec["source"], "document", "extracted")
+                self.field("F1.1", sheet, f"D{row}", f"{label} - description", it.get("description", ""), "text", rec["source"], "document", "extracted")
+                self.field("F1.1", sheet, f"I{row}", f"{label} - amount", it["amount"], source=rec["source"], how="document", status="extracted")
+        ledger = acc["closing"] if acc else (rec or {}).get("ledger_balance")
         if closing is not None:
             wp = closing + sum((x["amount"] for x in receipts), ZERO) - sum((x["amount"] for x in payments), ZERO)
-            c = self.check("F1.1", f"Bank {acc['code']}: statement +/- unprocessed items vs ledger", wp, acc["closing"])
+            label = f"Bank {acc['code']}" if acc else name
+            c = self.check("F1.1", f"{tag}{label}: statement +/- unprocessed items vs ledger", wp, ledger)
             if c["status"] == "difference":
-                self.flag("F1.1", "review", f"The bank reconciliation differs from the ledger by {_money(c['variance'])}.",
-                          "The unprocessed items behind the difference.", c["variance"], code="bank_difference")
+                self.flag("F1.1", "review", f"{tag}the bank reconciliation differs from the ledger by {_money(c['variance'])}.",
+                          "The unprocessed items behind the difference.", c["variance"], code=code("bank_difference"))
 
     # --- M1: accounts payable ------------------------------------------------------------------------------
     def m1(self) -> None:
@@ -599,4 +698,5 @@ class Ewp:
                         "residual": next((c["variance"] for c in w["checks"] if c["variance"] is not None), None)} for w in workpapers]
         return {"agent": "ewp", "status": overall, "workpapers": workpapers, "fields": self.fields, "checks": self.checks, "exceptions": flags,
                 "journals": self.journals, "counts": counts, "lines": lines, "conclusions": conclusions, "selected": self.selected,
+                "bank_sheets": self.bank_sheets,
                 "corrections": [{"id": j["id"], "title": j["title"], "lines": j["lines"], "explanation": j["why"], "status": j["status"]} for j in self.journals]}
