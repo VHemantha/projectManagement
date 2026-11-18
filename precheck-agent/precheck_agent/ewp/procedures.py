@@ -265,6 +265,12 @@ class Ewp:
         closing, how, status, source = None, "", "", ""
         if statement:
             closing, how, status, source = statement["closing_balance"], "document", "extracted", statement["source"]
+            expected = (rec or {}).get("statement_balance")
+            if expected is not None and abs(closing - expected) > self.tolerance:
+                # Every document in the folder is used (18 Nov 2026), so say when two of them disagree.
+                self.flag("F1.1", "review", f"{tag}the bank statement shows {_money(closing)}, but the bank reconciliation expects {_money(expected)}: "
+                          "check the statement is this account's.", "The bank statement for this account at balance date.",
+                          closing - expected, code=code("statement_vs_rec"))
         elif rec and rec.get("statement_balance") is not None:
             closing, how, status, source = rec["statement_balance"], "document", "review", rec["source"]
             self.flag("F1.1", "review", f"{tag}the closing balance {_money(closing)} is the accounting software's expected bank statement balance "

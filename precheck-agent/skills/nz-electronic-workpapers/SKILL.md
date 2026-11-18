@@ -12,15 +12,15 @@ You read documents into fixed records and explain results; code computes every f
 workbook's input cells and never a formula. GST (L1) is the separate GST reconciliation agent.
 
 ## Reading documents
-- A document is used only if it names the entity (or its IRD number). Folders often hold other
-  clients' or the owners' personal documents: set them aside, never mix them in.
+- Every document in the job's folder (and its subfolders) is relevant to the job and is used (AFIT,
+  18 Nov 2026): never set one aside because it doesn't name the entity or a supplier.
 - Read amounts exactly as printed, with their sign; dates as YYYY-MM-DD. Keep each figure's place
   (page, sheet and row). Gross, net, RWT and imputation credits are kept apart - never confuse gross
   interest, net interest and withholding tax.
 - IRD's income summary is IRD's record of interest and dividends; a payer's statement agreeing with it
   confirms it. myIR shows an ICA credit balance as a negative figure.
 - A dividend the company paid (minutes, its own dividend statement) is not a dividend received.
-- An accountant's statement counts only when addressed to the entity.
+- An accountant's statement in the folder counts, whoever it is addressed to.
 
 ## Preparing
 - B1 takes each account's closing balance from the ledger (debit +) and last year's closing as the

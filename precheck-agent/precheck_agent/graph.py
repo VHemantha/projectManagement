@@ -166,7 +166,12 @@ def sync_drive(state: State) -> dict:
     ]
     present = {f["id"] for f in listing}
     # A document inside a zip ("<zip id>!<path>") stays for as long as its zip is in the folder.
-    removed = [fid for fid in manifest if container_of(fid) not in present]
+    # A listing cut short (a very large folder) never removes what it did not reach.
+    truncated = bool(getattr(drive, "truncated", False))
+    removed = [] if truncated else [fid for fid in manifest if container_of(fid) not in present]
+    if truncated:
+        emit("read", f"The folder has more than {len(listing)} files: only the first {len(listing)} were read. Move older years "
+             "out of the task folder, or ask an administrator to raise the limit.", "done", documents=len(listing))
     scope = Scope.of(job)
     for fid in removed:
         store.delete_file(job["client_id"], state["job_id"], fid)
@@ -408,11 +413,9 @@ def key_documents(state: State) -> dict:
         key["this_year"] = f"the year to {K.long_date(confirmed['year_end'])}"
         if confirmed.get("year_start"):
             key["this_year"] = f"the year {K.long_date(confirmed['year_start'])} to {K.long_date(confirmed['year_end'])}"
-    # Every workpaper for the pre-check's input; the card shows a few per role.
-    wp = next(k for k in key["documents"] if k["role"] == "last_year_workpapers")
-    if wp["found"] and not wp["set_on_card"]:
-        wp["files_all"] = [d["file"] for d in docs if d["file"].get("year_role") in ("prior",) or (not state["periods"].get("current") and d["file"].get("year_role") == "unknown")]
-        wp["files_all"] = [f for f in wp["files_all"] if f["document_class"] in K.WP_CLASSES]
+    # Every workpaper goes to the pre-check's input (the card shows a few per role): the finder's
+    # own list - last year's workpaper-type files, and everything inside a workpapers folder and all
+    # its subfolders (AFIT, 18 Nov 2026), which a filter on the file's type here used to drop.
     marks = ", ".join(f"{k['label'].lower()} {'found' if k['found'] else 'missing'}" for k in key["documents"])
     emit("compared", f"Key documents: {marks}", missing=len(key["missing"]))
     return {"key": key}

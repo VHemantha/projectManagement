@@ -1,5 +1,6 @@
-"""Running the electronic workpapers (AFIT, 16 Nov 2026): read the Drive folder, keep only the entity's
-own documents, read their figures, run each chosen workpaper's procedure and write the template.
+"""Running the electronic workpapers (AFIT, 16 Nov 2026): read every document in the Drive folder and its
+subfolders (all of them are the job's, 18 Nov 2026), read their figures, run each chosen workpaper's
+procedure and write the template.
 Also applies an accountant's corrections to a finished workbook (the same cell writer)."""
 from __future__ import annotations
 
@@ -15,7 +16,7 @@ from ..wp.base import WpStop, envelope, read_myir, setup_from
 from . import catalogue as C
 from . import readers as X
 from . import xlsm
-from .procedures import Ewp, same_payer
+from .procedures import Ewp
 
 RULES = "ewp-1.0"
 SKILL = "nz-electronic-workpapers"
@@ -58,11 +59,9 @@ def read_all(sources, reader, su) -> dict:
             item.update(status="not used", note={"gst": "GST is the WP Agent's GST reconciliation", "prior_workpapers": "a workpapers file",
                                                   "other": "not a workpaper document"}[src.kind])
             continue
+        # Every document in the job's folder is the job's (AFIT, 18 Nov 2026): none is set aside for not
+        # naming the client or a supplier. Whether it names the client is still noted, for information.
         item["entity"] = X.entity_check(src, su.entity, su.ird_number, src.kind)
-        if item["entity"] != "confirmed":
-            item.update(status="excluded", note=(f"another taxpayer's IRD document (not {su.entity}'s)" if src.kind in X.IRD_KINDS
-                                                 else f"doesn't name {su.entity} (or its IRD number): another entity's document"))
-            continue
         fp = X.fingerprint(src)
         if fp in seen:
             item.update(status="duplicate", note=f"same content as {seen[fp]}")
@@ -127,10 +126,7 @@ def read_all(sources, reader, su) -> dict:
                                    "ledger_balance": amt(g.get("ledger_balance")), "withdrawals": items(g.get("outstanding_withdrawals", [])),
                                    "deposits": items(g.get("outstanding_deposits", [])), "source": ref})
         elif k == "fee_statement":
-            g = extract("ewp_fee_statement", src)
-            if g.get("client") and not same_payer(g["client"], su.entity):
-                item.update(status="excluded", note=f"addressed to {g['client']}")
-                continue
+            g = extract("ewp_fee_statement", src)  # used whoever it is addressed to: it is in the job's folder
             invoices = [{"date": day(r.get("date")), "reference": r.get("reference", ""), "amount": amt(r.get("debit")), "source": ref}
                         for r in g.get("lines", []) if amt(r.get("debit")) and re.search(r"invoice|inv\b|fee", f"{r.get('description', '')} {r.get('reference', '')}", re.I)]
             if g:
@@ -287,10 +283,10 @@ def execute(run_id: str, job_id: str, options: dict, pm, check=lambda: None) -> 
     check()
     X.classify(sources, reader)
     emit("read", f"{len(sources)} documents found", "done", documents=len(sources))
-    emit("checked", f"Reading {su.entity}'s documents (others are set aside)")
+    emit("checked", "Reading every document in the folder and its subfolders")
     data = read_all(sources, reader, su)
     used = sum(1 for i in data["inventory"] if i["status"] == "used")
-    emit("checked", f"{used} of {len(sources)} documents are {su.entity}'s and were read", "done")
+    emit("checked", f"{used} of {len(sources)} documents were read and used", "done")
     check()
     emit("compared", "Preparing the workpapers: " + ", ".join(selected))
     result = Ewp(su, data, selected).run()

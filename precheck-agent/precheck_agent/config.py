@@ -57,7 +57,8 @@ class Settings(BaseSettings):
     google_service_account_file: str = ""  # path to the key file mounted from the secret manager
     google_service_account_json: str = ""  # or the key itself, injected as a secret env var
     local_drive_root: str = "./fixtures"
-    max_files_per_folder: int = 400
+    # Every file in the task folder and all its subfolders (AFIT, 18 Nov 2026); 400 left deep subfolders out.
+    max_files_per_folder: int = 3000
     max_file_bytes: int = 25_000_000
     # Zip archives in a job folder are opened and each file inside is read as its own document.
     max_zip_bytes: int = 100_000_000

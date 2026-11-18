@@ -48,6 +48,7 @@ DECISIONS = ["request", "already_provided", "not_needed", "ask_accountant"]
 PRIORITIES = ["blocking", "normal"]
 # plain-language: every agent writes so anyone can understand it (AFIT, 13 Nov 2026).
 SKILLS = ["precheck-method", "nz-residential-rental", "nz-general-business", "nz-investment", "job-snapshot", "plain-language"]
+MAX_WORKPAPERS = 300  # last year's workpaper files listed for the model (all of them, in practice)
 SOURCE_KINDS = {"Q": "questionnaire", "F": "last_year_fs", "T": "last_year_tb", "W": "workpaper", "D": "document",
                 "B": "bank", "C": "check", "N": "direction", "R": "received", "G": "general_ledger"}
 
@@ -169,12 +170,19 @@ def build_input(job: dict, key: dict, docs: list[dict], files: dict, periods: di
     tb = [(f"{_line(ln['label'], 90)} | {ln.get('type') or ln['section']} | {_fmt(ln['amount'])} | year before {_fmt(ln['comparative'])}",
            {"kind": "last_year_tb", "file": ln["file"], "block": ln["block"], "label": ln["label"]}) for ln in facts.get("all_prior_lines", [])]
     section("LAST YEAR'S TRIAL BALANCE (code: debit positive, credit negative)", "T", tb, caps["T"])
-    wp_rows = []
-    for f in next(k for k in key["documents"] if k["role"] == "last_year_workpapers")["files_all"]:
+    # Every one of last year's workpapers, subfolders included (AFIT, 18 Nov 2026): the first lines of
+    # each while the input has room, then the rest by name and place, so none is left unseen.
+    wp_rows, budget = [], caps["W"]
+    workpapers = next(k for k in key["documents"] if k["role"] == "last_year_workpapers")["files_all"]
+    for f in sorted(workpapers, key=lambda f: ((f.get("path") or "").lower(), f["name"].lower()))[:MAX_WORKPAPERS]:
         blocks = parsed.get(f["file_id"], {}).get("blocks", [])
-        head = " / ".join(_line(b["text"], 90) for b in blocks[:8])
-        wp_rows.append((f"{display_name(f)} | {f['document_class'].replace('_', ' ')} | {head}", {"kind": "workpaper", "file": f, "block": blocks[0] if blocks else None}))
-    section("LAST YEAR'S WORKPAPERS (first lines of each)", "W", wp_rows, caps["W"] // 8 or 1)
+        shown = blocks[: min(8, max(budget, 0))]
+        budget -= len(shown)
+        head = " / ".join(_line(b["text"], 90) for b in shown) or "(read in full in the knowledge store; first lines not shown here)"
+        where = f" [{f['path'].rstrip('/')}]" if f.get("path") else ""
+        wp_rows.append((f"{display_name(f)}{where} | {f['document_class'].replace('_', ' ')} | {head}",
+                        {"kind": "workpaper", "file": f, "block": blocks[0] if blocks else None}))
+    section(f"LAST YEAR'S WORKPAPERS ({len(workpapers)} files, subfolders included; first lines of each)", "W", wp_rows, MAX_WORKPAPERS)
     doc_rows = []
     for f in sorted(files.values(), key=lambda f: (f.get("year") or 0, f["name"].lower()), reverse=True):
         if f.get("document_class") == "archive" and not f.get("error"):

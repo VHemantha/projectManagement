@@ -17,6 +17,9 @@ from .archives import SEP, display_name
 QUESTIONNAIRE = re.compile(r"questionnaire|\bcq\b|year[\s_-]*end[\s_-]*checklist|client (information|details|checklist)|information (sheet|form)", re.I)
 FS_CLASSES = ("financial_statements", "prior_year_statements")
 WP_CLASSES = ("workpaper", "trial_balance", "general_ledger", "schedule", "reconciliation")
+# A folder of workpapers (AFIT, 18 Nov 2026): every file in it and in all its subfolders is a
+# workpaper, whatever its contents look like (a bank statement, a schedule, an email ...).
+WP_FOLDER = re.compile(r"(^|/)[^/]*(work\s*papers?|working\s*papers?|workings|\bw\s*/\s*p\b|\bwps?\b)[^/]*/", re.I)
 
 KEY = {
     "questionnaire": {
@@ -92,6 +95,11 @@ def placed(docs: list[dict], text: str, folders: dict | None = None) -> tuple[li
     return out, unmatched
 
 
+def in_workpapers_folder(f: dict) -> bool:
+    """The file is inside a workpapers folder, at any depth ("2025/Workpapers/Bank/ANZ.pdf")."""
+    return bool(WP_FOLDER.search((f.get("path") or "").replace("\\", "/")))
+
+
 def find(docs: list[dict], periods: dict, paths: dict | None = None, folders: dict | None = None) -> dict:
     """{"documents": [{role, label, found, files, note, set_on_card}], "missing": [roles],
     "wrong_place": [roles]}. `docs` are {"file", "parsed"} with the file row carrying year_role
@@ -114,6 +122,8 @@ def find(docs: list[dict], periods: dict, paths: dict | None = None, folders: di
         if f["document_class"] in FS_CLASSES and (last_year or f["document_class"] == "prior_year_statements"):
             by_role["last_year_fs"].append(f)
         elif f["document_class"] in WP_CLASSES and last_year:
+            by_role["last_year_workpapers"].append(f)
+        elif in_workpapers_folder(f) and role in ("prior", "unknown") and f["document_class"] not in FS_CLASSES:
             by_role["last_year_workpapers"].append(f)
     out, wrong_place = [], []
     for role, files in by_role.items():

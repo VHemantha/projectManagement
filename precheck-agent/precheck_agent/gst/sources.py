@@ -14,7 +14,9 @@ from ..drive import DriveError, DriveFile, get_drive
 from ..parsing import parse_file
 
 MAX_ROWS = 200_000  # a year's general ledger fits
-MAX_FILES = 80
+# Every file in the folder and its subfolders (AFIT, 18 Nov 2026): at 80, files in subfolders (sorted
+# after the folder's own) were left out without a word. Any beyond this are listed as not read.
+MAX_FILES = 600
 TABLE_EXT = ("xlsx", "xlsm", "csv")
 _FILE = re.compile(r"/file/d/([\w-]{10,})|/(?:document|spreadsheets|presentation)/d/([\w-]{10,})|[?&]id=([\w-]{10,})")
 _FOLDER = re.compile(r"/folders/([\w-]{10,})")
@@ -175,6 +177,11 @@ def gather(links: str, extra: dict[str, str] | None = None, drive=None) -> list[
             src = read(f, data, name, mime, f"S{n}")
         src.role = role
         sources.append(src)
+    for n, (f, role) in enumerate(found[MAX_FILES:], start=MAX_FILES + 1):
+        sources.append(Source(sid=f"S{n}", name=f.name, path=f.path, url=f.web_url, version=f.version, ext="",
+                              error=f"Not read: the folder has more than {MAX_FILES} files."))
+    if getattr(drive, "truncated", False):
+        raise SourceProblem("The folder holds more files than can be listed. Link a smaller folder (this year's documents).")
     return sources
 
 

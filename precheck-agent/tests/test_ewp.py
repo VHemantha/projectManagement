@@ -174,9 +174,11 @@ def test_the_workpapers_are_prepared_from_the_entitys_own_documents(tmc):
     assert final["status"] == "complete" and final["mode"] == "ewp", final
     g = final["gst"]
     inv = {i["name"]: i for i in g["inventory"]}
-    # Another client's statement and bank history, and an owner's personal IRD summary, are set aside.
+    # Every document in the job's folder is the job's (AFIT, 18 Nov 2026): none is set aside for the
+    # names in it - not even one addressed to another company, or an owner's own IRD summary.
+    assert all(i["status"] != "excluded" for i in inv.values())
     for other in ("V5 - Accountancy Fee Statement.txt", "F1.1 - 38-9000-0391612-00_16Apr.txt", "AM IRD Earnings FY26.txt"):
-        assert inv[other]["status"] == "excluded", inv[other]
+        assert inv[other]["status"] == "used", inv[other]
     assert inv["TMC Ltd MYOB GL Detail FY26.xlsx"]["status"] == "used"
     f = by_cell(g)
     D = Decimal
@@ -185,9 +187,10 @@ def test_the_workpapers_are_prepared_from_the_entitys_own_documents(tmc):
     assert f[("B1", "G28")]["value"] == D("12458.50") and f[("B1", "G161")]["value"] == D("-15653.65") and f[("B1", "G197")]["value"] == D("3913.61")
     codes = {x["code"] for x in g["exceptions"]}
     assert {"unmapped_3-1400", "unmapped_3-9999"} <= codes  # a tax appropriation in equity and a balancing account: for review
-    # F1.1: the software's expected statement balance, flagged - not the bank's own statement.
-    assert f[("F1.1", "I12")]["value"] == D("101868.92") and "no_statement" in codes
-    assert next(c for c in g["checks"] if c["wp"] == "F1.1")["status"] == "agrees"
+    # F1.1: the folder's bank statement at balance date is used (every document in it is the job's);
+    # it disagrees with the bank reconciliation and with the ledger, and both are flagged for review.
+    assert f[("F1.1", "I12")]["value"] == D("63876.90") and {"statement_vs_rec", "bank_difference"} <= codes
+    assert next(c for c in g["checks"] if c["wp"] == "F1.1")["status"] == "difference"
     # T2: IRD's income summary, confirmed by the payers' statements; the ledger has them net -> gross-up journals.
     assert (f[("T2", "C17")]["value"], f[("T2", "G17")]["value"], f[("T2", "H17")]["value"]) == ("MARINE AND GENERAL 2021 LIMITED", D("21741.18"),
                                                                                               D("6087.53"))
@@ -224,7 +227,7 @@ def test_the_workpapers_are_prepared_from_the_entitys_own_documents(tmc):
     changed = {n for n in a.namelist() if a.read(n) != b.read(n)}
     assert changed <= {"xl/workbook.xml"} | {p for p in xlsm.sheet_paths(a).values()}
     cells = xlsm.read(book, "F1.1", ["I12", "I18", "D10"])
-    assert cells["I12"] == 101868.92 and cells["I18"].startswith("=SUM(") and cells["D10"] == "Cheque account (1-1000)"
+    assert cells["I12"] == 63876.9 and cells["I18"].startswith("=SUM(") and cells["D10"] == "Cheque account (1-1000)"
     assert xlsm.read(book, "T2", ["G17"])["G17"] == 21741.18
     docs = xlsm.read(book, "Supporting Docs", [f"{c}{r}" for r in range(1, 330) for c in "BH"])
     t2_row = next(r for r in range(1, 330) if docs[f"H{r}"] == "T2")

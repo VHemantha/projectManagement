@@ -76,6 +76,7 @@ class GoogleDrive:
         from googleapiclient.errors import HttpError
 
         files: list[DriveFile] = []
+        self.truncated = False
         queue = [(folder_id, "")]
         self.folders = {folder_id: ""}  # folder id -> its path inside the task folder
         try:
@@ -121,6 +122,7 @@ class GoogleDrive:
                     f"The pre-check cannot open this Drive folder. Share it (Viewer) with {self.account_email}."
                 ) from exc
             raise DriveError(f"Google Drive returned an error ({exc.resp.status}).") from exc
+        self.truncated = bool(queue) or len(files) > self._max_files  # folders or files left unread
         return files[: self._max_files]
 
     def get_file(self, file_id: str) -> DriveFile:
@@ -166,6 +168,8 @@ class LocalDrive:
 
     def __init__(self, settings: Settings):
         self.root = Path(settings.local_drive_root)
+        self._max_files = settings.max_files_per_folder  # the same limit as Drive, so tests see what Drive does
+        self.truncated = False
 
     def _folder(self, folder_id: str) -> Path:
         folder = (self.root / folder_id).resolve()
@@ -193,7 +197,8 @@ class LocalDrive:
                     path=rel[: -len(path.name)],
                 )
             )
-        return files
+        self.truncated = len(files) > self._max_files
+        return files[: self._max_files]
 
     def get_file(self, file_id: str) -> DriveFile:
         """file id: "<folder>:<path inside it>"."""
