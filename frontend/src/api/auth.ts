@@ -36,6 +36,22 @@ export function useSignup() {
   })
 }
 
+/** Ask for a link to set a new password (the answer is the same whether or not the email has an account). */
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: async (payload: { email: string }) =>
+      (await apiClient.post<{ detail: string }>('/auth/password-reset/', payload)).data,
+  })
+}
+
+/** Set a new password with the emailed link's uid and token (the link works once). */
+export function useConfirmPasswordReset() {
+  return useMutation({
+    mutationFn: async (payload: { uid: string; token: string; password: string }) =>
+      (await apiClient.post<{ detail: string; email: string }>('/auth/password-reset/confirm/', payload)).data,
+  })
+}
+
 export function useCurrentUser() {
   const accessToken = useAuthStore((s) => s.accessToken)
   const setUser = useAuthStore((s) => s.setUser)

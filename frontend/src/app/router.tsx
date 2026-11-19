@@ -6,6 +6,7 @@ import { PlaceholderPage } from './PlaceholderPage'
 import { ProtectedRoute } from './ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { SignupPage } from '@/features/auth/SignupPage'
+import { ForgotPasswordPage, ResetPasswordPage } from '@/features/auth/PasswordResetPages'
 import { ProfilePage } from '@/features/profile/ProfilePage'
 import { EpicBoardPage } from '@/features/board/EpicBoardPage'
 import { MyWorkPage } from '@/features/board/MyWorkPage'
@@ -33,6 +34,8 @@ import { TimesheetGridPage } from '@/features/timesheets/TimesheetGridPage'
 export const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   { path: '/signup', element: <SignupPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     element: <ProtectedRoute />,
     children: [
