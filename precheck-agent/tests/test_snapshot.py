@@ -85,3 +85,18 @@ def test_the_chat_can_find_the_snapshot(env):
     texts = [e["text"] for e in memory.precheck_entries(p)]
     assert any(t.startswith("Job Snapshot figures, worked out by code from last year's trial balance: Revenue 31,200.00") for t in texts)
     assert any(t.startswith("Job Snapshot - how it is funded, by code: Bank borrowing") for t in texts)
+
+
+def test_the_precheck_answer_shape_stays_small_enough_for_the_api():
+    """With the Job Snapshot in it the API refused the pre-check's answer shape ("the compiled grammar is too
+    large", 19 Nov 2026): every list of ids is now one shared definition, which the API accepts."""
+    from precheck_agent.precheck import SCHEMA
+
+    def raw_id_lists(v) -> int:
+        if isinstance(v, dict):
+            here = 1 if v.get("type") == "array" and v.get("items") == {"type": "string"} else 0
+            return here + sum(raw_id_lists(x) for k, x in v.items() if k != "$defs")
+        return sum(raw_id_lists(x) for x in v) if isinstance(v, list) else 0
+
+    assert raw_id_lists(SCHEMA) == 0 and SCHEMA["$defs"]["ids"] == {"type": "array", "items": {"type": "string"}}
+    assert "snapshot" in SCHEMA["required"] and SCHEMA["properties"]["items"]["items"]["properties"]["sources"] == {"$ref": "#/$defs/ids"}
