@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({ gaps: undefined as unknown, gapAction: vi.fn()
 
 // The pre-check's chat has its own test (16 Nov 2026).
 vi.mock('./PrecheckChat', () => ({ PrecheckChat: () => <div>pre-check chat</div> }))
+// The job's bar: the task and its client (AFIT wireframe, 19 Nov 2026).
+vi.mock('@/api/issues', () => ({ useIssue: () => ({ data: { summary: 'FS & Tax – Annual', project: 'ACME', project_name: 'Acme' } }) }))
+vi.mock('@/api/projects', () => ({ useProject: () => ({ data: { client: { name: 'RWCA Limited' } } }) }))
 vi.mock('@/api/precheck', () => ({
   useJobPrecheck: () => ({ data: mocks.data, isLoading: false, isError: false }),
   useJobGaps: () => ({ data: mocks.gaps }),
@@ -191,8 +194,12 @@ describe('PrecheckPanel states', () => {
   it('never run: one button starts it', async () => {
     mocks.data = panel(null)
     render(<PrecheckPanel jobKey="ACME-1" />)
-    expect(screen.getByText(/Not run yet/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Run pre-check' }))
+    // The Pre-Check Agent's header and the job's bar (AFIT wireframe, 19 Nov 2026).
+    expect(screen.getByRole('heading', { name: 'Pre-Check Agent' })).toBeInTheDocument()
+    expect(screen.getByText('RWCA Limited')).toBeInTheDocument()
+    expect(screen.getByText('FS & Tax – Annual')).toBeInTheDocument()
+    expect(screen.getByText(/Not run yet\. Press Run Pre-Check above/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Run Pre-Check' }))
     expect(mocks.start).toHaveBeenCalled()
   })
 
@@ -209,7 +216,7 @@ describe('PrecheckPanel states', () => {
     const steps = screen.getAllByRole('listitem')
     expect(steps.map((s) => s.getAttribute('data-state'))).toEqual(['done', 'running', 'waiting', 'waiting', 'waiting'])
     expect(steps[0]).toHaveTextContent('14 documents, 3 changed since last run')
-    expect(screen.queryByRole('button', { name: /^Run (again|pre-check)$/ })).not.toBeInTheDocument() // one run at a time
+    expect(screen.getByRole('button', { name: 'Running…' })).toBeDisabled() // one run at a time
   })
 
   it('running: a person can stop it', async () => {
@@ -282,7 +289,7 @@ describe('PrecheckPanel states', () => {
     mocks.data = panel(null, { ...setup, direction_items: [], missing: ['direction_note'] })
     const { unmount } = render(<PrecheckPanel jobKey="ACME-1" />)
     expect(screen.getByText(/reads whatever is in the folder/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Run pre-check' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Run Pre-Check' }))
     expect(mocks.start).toHaveBeenCalled()
     await userEvent.click(screen.getByRole('button', { name: 'Edit folder, documents, type and instructions' }))
     await userEvent.click(screen.getByRole('button', { name: 'Draft with AI' }))
@@ -336,12 +343,17 @@ describe('PrecheckPanel states', () => {
         <PrecheckPanel jobKey="ACME-1" />
       </TooltipProvider>,
     )
-    expect(screen.getByText('Requests to send', { selector: 'div' })).toBeInTheDocument()
+    // Where it stands, in the job's bar; the points with their tallies (AFIT wireframe, 19 Nov 2026).
+    expect(screen.getByText('Requests to send', { selector: 'strong' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: '1 of 3 needed items received' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Items')).toHaveTextContent('2 to request')
+    expect(screen.getByRole('heading', { name: 'Pre-Check Results (Points)' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Section A — Information required from the client (2)' })).toBeInTheDocument()
     expect(screen.queryByText('Nothing found that needs attention.')).not.toBeInTheDocument()
-    expect(screen.getByText('pre-check chat')).toBeInTheDocument() // its own chat, under the latest result
+    expect(screen.getByText('pre-check chat')).toBeInTheDocument() // its own chat, beside the points
+    // How the AI got here and the run's details are under "Your information".
+    expect(screen.queryByRole('button', { name: /Checked/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Your Information' }))
+    expect(screen.getByRole('heading', { name: 'How the AI got here' })).toBeInTheDocument()
   })
 
   it('complete with nothing found', () => {

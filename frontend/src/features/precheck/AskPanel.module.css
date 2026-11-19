@@ -261,3 +261,55 @@ a.source:hover {
   border-color: var(--tf-primary);
   color: var(--tf-text);
 }
+
+/* The Pre-Check Agent's chat (AFIT wireframe, 19 Nov 2026): the agent's replies beside its mark, a
+   rounded message box. Ask on the task card keeps the plain layout. */
+.ask[data-variant='chat'] .conversation {
+  max-height: 380px;
+  padding-right: 4px;
+}
+.ask[data-variant='chat'] .question {
+  max-width: 85%;
+  border-radius: 14px 14px 4px 14px;
+}
+.ask[data-variant='chat'] .answer {
+  position: relative;
+  max-width: calc(100% - 38px);
+  margin-left: 38px;
+  border-color: transparent;
+  border-radius: 14px 14px 14px 4px;
+  background: var(--tf-surface-sunken);
+}
+.ask[data-variant='chat'] .answer::before {
+  content: '✦';
+  position: absolute;
+  top: 0;
+  left: -38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  font-size: 14px;
+}
+.ask[data-variant='chat'] .form {
+  align-items: center;
+  padding: 4px 4px 4px 12px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+}
+.ask[data-variant='chat'] .form textarea {
+  border: none;
+  padding: 6px 0;
+  resize: none;
+  min-height: 32px;
+}
+.ask[data-variant='chat'] .form textarea:focus {
+  outline: none;
+}
+.ask[data-variant='chat'] .form:focus-within {
+  border-color: var(--tf-border-focus);
+}

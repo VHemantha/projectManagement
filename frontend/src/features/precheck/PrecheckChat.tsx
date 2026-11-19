@@ -38,14 +38,16 @@ export function PrecheckChat({ jobKey, running }: { jobKey: string; running: boo
 
   return (
     <section className={styles.chat} aria-label="Pre-Check Agent chat">
-      <h3 className={styles.title}>
-        <MessagesSquare size={17} aria-hidden="true" /> Ask the Pre-Check Agent
-      </h3>
-      <AskPanel
-        jobKey={jobKey}
-        suggestions={SUGGESTIONS}
-        lead="Ask why something was highlighted, how a figure was worked out or which document it comes from, or challenge an assumption. It answers from this task's documents, the Job Snapshot and the findings."
-      />
+      <div className={styles.head}>
+        <span className={styles.icon} aria-hidden="true">
+          <MessagesSquare size={20} />
+        </span>
+        <div>
+          <h3 className={styles.title}>Chat with Pre-Check Agent</h3>
+          <p className={styles.lead}>Discuss, clarify or challenge a point. It answers from this job&apos;s documents, the Snapshot and the points.</p>
+        </div>
+      </div>
+      <AskPanel jobKey={jobKey} suggestions={SUGGESTIONS} variant="chat" lead="" placeholder="Type a message to the Pre-Check Agent…" />
       <form className={styles.correct} onSubmit={submit}>
         <label htmlFor="pc-correction" className={styles.correctLabel}>
           <RotateCcw size={14} aria-hidden="true" /> Correct the pre-check and run it again

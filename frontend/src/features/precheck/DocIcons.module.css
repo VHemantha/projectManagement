@@ -1,0 +1,93 @@
+/* Supporting-document icons (AFIT reference icons, 19 Nov 2026): a document outline, a maroon badge
+   saying what it is, and its year. */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tf-text-subtle);
+}
+.doc {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  width: 46px;
+  height: 52px;
+  padding-top: 4px;
+  border: 1px solid var(--tf-primary-subtle);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  color: var(--tf-primary);
+  text-decoration: none;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease;
+}
+a.doc:hover {
+  border-color: var(--tf-primary);
+  box-shadow: var(--tf-shadow-sm);
+  transform: translateY(-1px);
+}
+a.doc:focus-visible {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: 2px;
+}
+.badge {
+  margin-top: -5px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.year {
+  margin-top: 1px;
+  padding: 0 3px;
+  border: 1px solid var(--tf-primary);
+  border-radius: 3px;
+  background: var(--tf-surface);
+  color: var(--tf-primary);
+  font-size: 9.5px;
+  font-weight: 800;
+  line-height: 12px;
+}
+.more {
+  border: none;
+  border-radius: var(--tf-radius-full);
+  padding: 4px 10px;
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.more:focus-visible {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: 2px;
+}
+
+/* Inline, beside a sentence: smaller icons, no label. */
+.inline {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.inline .doc {
+  width: 34px;
+  height: 38px;
+}
+.inline .doc svg {
+  width: 17px;
+  height: 17px;
+}

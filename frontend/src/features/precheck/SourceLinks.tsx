@@ -1,28 +1,16 @@
-import { ExternalLink } from 'lucide-react'
-
-import styles from './PrecheckResult.module.css'
+import { DocIcon, DocIcons } from './DocIcons'
+import { classify } from './docKinds'
 import type { PrecheckOutput, SourceRef } from '@/api/precheck'
 
 type Evidence = PrecheckOutput['evidence']
 
-/** One source behind a statement or figure: opens the document at the quoted line when there is one. */
+/** One source behind a statement or figure, as its document icon (AFIT reference icons, 19 Nov
+ * 2026): it opens the document at the quoted line when there is one. */
 export function Source({ source, evidence }: { source: SourceRef; evidence: Evidence }) {
-  const ev = source.evidence_id ? evidence[source.evidence_id] : undefined
-  if (!ev) return <span className={styles.source}>{source.label}</span>
-  return (
-    <a className={styles.source} href={ev.drive_url} target="_blank" rel="noreferrer" title={`${ev.file_name} — ${ev.location}: ${ev.quote}`}>
-      {source.label} <ExternalLink size={11} aria-hidden="true" />
-    </a>
-  )
+  return <DocIcon doc={classify(source, evidence)} />
 }
 
+/** The sources behind a statement, inline: an icon each (one per document), "+N more" past four. */
 export function Sources({ sources, evidence }: { sources: SourceRef[]; evidence: Evidence }) {
-  if (!sources.length) return null
-  return (
-    <span className={styles.sources}>
-      {sources.map((s) => (
-        <Source key={s.id || s.label} source={s} evidence={evidence} />
-      ))}
-    </span>
-  )
+  return <DocIcons sources={sources} evidence={evidence} label="" max={4} />
 }

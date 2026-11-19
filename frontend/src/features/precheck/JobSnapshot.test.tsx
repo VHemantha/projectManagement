@@ -74,7 +74,10 @@ describe('Job Snapshot (AFIT design requirements, 16 Nov 2026)', () => {
     await userEvent.click(screen.getByText('Property'))
     expect(screen.getByText('12 Kauri Street', { selector: 'li' })).toBeInTheDocument()
     // A figure opens the document at its line.
-    expect(screen.getByRole('link', { name: /Last year's trial balance: Rental income/ })).toHaveAttribute('href', 'https://drive.example/tb')
+    // A figure opens the document at its line, through its document icon (19 Nov 2026).
+    const tb = screen.getByRole('link', { name: /^Trial balance: Final TB 2025\.xlsx, row 6/ })
+    expect(tb).toHaveAttribute('href', 'https://drive.example/tb')
+    expect(tb).toHaveTextContent('TB')
   })
 
   it('keeps ownership apart from current accounts, and marks each event confirmed or inferred', () => {

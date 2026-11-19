@@ -174,7 +174,8 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
 
       <Dialog open={open === 'precheck'} onOpenChange={(o) => !o && setOpen(null)}>
         {/* The pre-check panel has its own title row (with earlier runs), so the window's title is for screen readers. */}
-        <DialogContent title="AI pre-check" maxWidth={1040} hideTitle>
+        {/* Wide: the points beside the agent's chat (AFIT wireframe, 19 Nov 2026). */}
+        <DialogContent title="AI pre-check" maxWidth={1360} hideTitle>
           <PrecheckPanel jobKey={jobKey} />
         </DialogContent>
       </Dialog>

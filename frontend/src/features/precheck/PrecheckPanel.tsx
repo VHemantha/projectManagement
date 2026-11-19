@@ -2,8 +2,11 @@ import * as RadixDialog from '@radix-ui/react-dialog'
 import { format } from 'date-fns'
 import {
   AlertTriangle,
+  Building2,
+  CalendarDays,
   Check,
   ChevronDown,
+  CircleCheck,
   ClipboardCheck,
   ExternalLink,
   FileSearch,
@@ -11,6 +14,7 @@ import {
   FolderOpen,
   FolderSearch,
   Gauge,
+  Layers,
   ListChecks,
   Loader2,
   RotateCcw,
@@ -61,6 +65,8 @@ import {
   useSavePrecheckSetup,
   useSetDisposition,
 } from '@/api/precheck'
+import { useIssue } from '@/api/issues'
+import { useProject } from '@/api/projects'
 import { Button, Skeleton, keepOpenForSelect } from '@/design-system'
 import { monthEnd } from '@/lib/monthEnd'
 
@@ -91,7 +97,7 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
   if (isLoading) {
     return (
       <section className={styles.panel} aria-label="AI pre-check" aria-busy="true">
-        <Skeleton width={160} height={14} style={{ marginBottom: 16 }} />
+        <AgentHeader />
         <Skeleton height={64} />
       </section>
     )
@@ -99,7 +105,7 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
   if (isError || !data) {
     return (
       <section className={styles.panel} aria-label="AI pre-check">
-        <PanelTitle />
+        <AgentHeader />
         <p className={styles.muted}>The pre-check could not be loaded. Refresh the page to try again.</p>
       </section>
     )
@@ -122,25 +128,44 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
       {start.isPending ? 'Starting…' : label}
     </Button>
   )
+  const history =
+    data.history.length > 1 ? (
+      <label className={styles.history}>
+        <span className={styles.srOnly}>Earlier runs</span>
+        <select value={run?.run_id ?? ''} onChange={(e) => setViewing(e.target.value)}>
+          {data.history.map((h, i) => (
+            <option key={h.run_id} value={h.run_id}>
+              {format(new Date(h.created_at), 'd MMM, HH:mm')}
+              {i === 0 ? ' (latest)' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+    ) : null
 
   return (
     <section className={styles.panel} aria-label="AI pre-check">
-      <div className={styles.titleRow}>
-        <PanelTitle />
-        {data.history.length > 1 && (
-          <label className={styles.history}>
-            <span className={styles.srOnly}>Earlier runs</span>
-            <select value={run?.run_id ?? ''} onChange={(e) => setViewing(e.target.value)}>
-              {data.history.map((h, i) => (
-                <option key={h.run_id} value={h.run_id}>
-                  {format(new Date(h.created_at), 'd MMM, HH:mm')}
-                  {i === 0 ? ' (latest)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-      </div>
+      <AgentHeader />
+      <JobBar
+        jobKey={jobKey}
+        yearEnd={data.setup.settings?.year_end ?? ''}
+        run={run ?? null}
+        history={history}
+        button={
+          <Button
+            variant="primary"
+            className={styles.runBig}
+            disabled={!data.setup.ready || start.isPending || running}
+            onClick={() => {
+              setViewing(null)
+              start.mutate()
+            }}
+          >
+            <Sparkles size={16} aria-hidden="true" />
+            {start.isPending ? 'Starting…' : running ? 'Running…' : 'Run Pre-Check'}
+          </Button>
+        }
+      />
 
       {start.isError && (
         <div role="alert" className={styles.notice} data-tone="danger">
@@ -160,11 +185,7 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
           onDone={data.setup.ready ? () => setEditingSetup(false) : undefined}
         />
       ) : !run ? (
-        <NeverRun
-          setup={data.setup}
-          button={runButton('Run pre-check')}
-          onEdit={() => setEditingSetup(true)}
-        />
+        <NeverRun setup={data.setup} onEdit={() => setEditingSetup(true)} />
       ) : (
         <RunView
           jobKey={jobKey}
@@ -179,14 +200,89 @@ export function PrecheckPanel({ jobKey }: { jobKey: string }) {
   )
 }
 
-function PanelTitle() {
+/** "Pre-Check Agent" and what it does (AFIT wireframe, 19 Nov 2026). */
+function AgentHeader() {
   return (
-    <h2 className={styles.title}>
-      <span className={styles.titleIcon} aria-hidden="true">
-        <Sparkles size={15} />
-      </span>
-      AI pre-check
-    </h2>
+    <div className={styles.agentHead}>
+      <div className={styles.agentTitleRow}>
+        <h2 className={styles.agentTitle}>Pre-Check Agent</h2>
+        <span className={styles.aiBadge}>
+          <Sparkles size={13} aria-hidden="true" /> AI-Powered
+        </span>
+      </div>
+      <p className={styles.agentLead}>Run pre-checks, review points, resolve questions, and generate the client request.</p>
+    </div>
+  )
+}
+
+const STATUS_WORDS = { running: 'Running', failed: 'Did not finish', complete: 'Complete', partial: 'Partly done' } as const
+
+/** The job at a glance: client, year end, the job, the run button and where the pre-check stands
+ * (with its earlier runs). */
+function JobBar({ jobKey, yearEnd, run, history, button }: {
+  jobKey: string
+  yearEnd: string
+  run: Run | null
+  history: React.ReactNode
+  button: React.ReactNode
+}) {
+  const { data: issue } = useIssue(jobKey)
+  const { data: project } = useProject(issue?.project)
+  const client = project?.client?.name ?? issue?.project_name ?? ''
+  let end = ''
+  try {
+    end = yearEnd ? format(new Date(`${yearEnd}T00:00:00`), 'd MMM yyyy') : ''
+  } catch {
+    end = ''
+  }
+  const status = !run ? 'Not run yet' : run.status === 'complete' || run.status === 'partial' ? run.readiness || STATUS_WORDS[run.status] : STATUS_WORDS[run.status as keyof typeof STATUS_WORDS] ?? run.status
+  const tone = !run ? 'idle' : run.status === 'failed' ? 'failed' : run.status === 'running' ? 'running' : 'done'
+  return (
+    <div className={styles.jobBar}>
+      <div className={styles.jobFacts}>
+        <div className={styles.jobFact}>
+          <Building2 size={26} aria-hidden="true" />
+          <div>
+            <span>Client</span>
+            <strong>{client || '—'}</strong>
+          </div>
+        </div>
+        <div className={styles.jobFact}>
+          <CalendarDays size={26} aria-hidden="true" />
+          <div>
+            <span>Year end</span>
+            <strong>{end || 'Not set'}</strong>
+          </div>
+        </div>
+        <div className={styles.jobFact}>
+          <Layers size={26} aria-hidden="true" />
+          <div>
+            <span>Job</span>
+            <strong>{issue?.summary ?? jobKey}</strong>
+          </div>
+        </div>
+        <div className={styles.jobRun}>{button}</div>
+      </div>
+      <div className={styles.statusCard} data-tone={tone}>
+        {tone === 'running' ? (
+          <Loader2 size={24} className={styles.spin} aria-hidden="true" />
+        ) : tone === 'failed' ? (
+          <AlertTriangle size={24} aria-hidden="true" />
+        ) : (
+          <CircleCheck size={24} aria-hidden="true" />
+        )}
+        <div>
+          <span>Pre-check status</span>
+          <strong>{status}</strong>
+          {run?.precheck && (run.status === 'complete' || run.status === 'partial') && (
+            <small role="img" aria-label={`${run.coverage.addressed} of ${run.coverage.total} needed items received`}>
+              {run.coverage.addressed} of {run.coverage.total} needed items received
+            </small>
+          )}
+        </div>
+        {history}
+      </div>
+    </div>
   )
 }
 
@@ -492,15 +588,15 @@ function SetupLine({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void
   )
 }
 
-function NeverRun({ setup, button, onEdit }: { setup: PrecheckSetup; button: React.ReactNode; onEdit: () => void }) {
+function NeverRun({ setup, onEdit }: { setup: PrecheckSetup; onEdit: () => void }) {
   return (
     <div className={styles.empty}>
       <p className={styles.lead}>
-        Not run yet. The pre-check reads whatever is in the folder — this year&apos;s client questionnaire and last year&apos;s
-        financial statements and workpapers matter most, and any that are missing are requested first. It lists everything
-        still needed for this year&apos;s accounts, with the reason for each, and drafts the email to the client.
+        Not run yet. Press Run Pre-Check above. The pre-check reads whatever is in the folder — this year&apos;s client
+        questionnaire and last year&apos;s financial statements and workpapers matter most, and any that are missing are requested
+        first. It lists everything still needed for this year&apos;s accounts, with the reason for each, and drafts the email to the
+        client.
       </p>
-      <div className={styles.actionsRow}>{button}</div>
       <SetupLine setup={setup} onEdit={onEdit} />
     </div>
   )
@@ -557,7 +653,7 @@ function RunView({
         </div>
       )}
 
-      {finished && <VerdictHeader run={run} action={isLatest ? button : null} />}
+      {finished && !run.precheck && <VerdictHeader run={run} action={isLatest ? button : null} />}
 
       {run.status === 'partial' && (
         <div className={styles.notice} data-tone="warning" role="status">
@@ -572,11 +668,25 @@ function RunView({
         </div>
       )}
 
-      {run.status !== 'failed' && <Trail run={run} />}
+      {run.status !== 'failed' && !(finished && run.precheck) && <Trail run={run} />}
 
-      {finished && run.precheck && <PrecheckResult output={run.precheck} jobKey={jobKey} />}
-      {/* The Pre-Check Agent's own chat, under the latest result (16 Nov 2026). */}
-      {finished && run.precheck && isLatest && <PrecheckChat jobKey={jobKey} running={false} />}
+      {/* The redesigned result (AFIT wireframe, 19 Nov 2026): the points, the email, the agent's own
+          chat (latest run) and its learning; how the AI got here goes under "Your information". */}
+      {finished && run.precheck && (
+        <PrecheckResult
+          output={run.precheck}
+          jobKey={jobKey}
+          chat={isLatest ? <PrecheckChat jobKey={jobKey} running={false} /> : null}
+          information={
+            <>
+              <p className={styles.summary}>{run.summary}</p>
+              <Trail run={run} />
+              {isLatest && <SetupLine setup={setup} onEdit={onEdit} />}
+              <Footer run={run} />
+            </>
+          }
+        />
+      )}
       {finished && !run.precheck && run.direction_items.length > 0 && <DirectionChecklist run={run} />}
 
       {finished && !run.precheck && (
@@ -621,8 +731,12 @@ function RunView({
         </>
       )}
 
-      <Footer run={run} />
-      {isLatest && run.status !== 'running' && <SetupLine setup={setup} onEdit={onEdit} />}
+      {!(finished && run.precheck) && (
+        <>
+          <Footer run={run} />
+          {isLatest && run.status !== 'running' && <SetupLine setup={setup} onEdit={onEdit} />}
+        </>
+      )}
       <EvidenceDrawer finding={openFinding} run={run} onClose={() => setOpenFinding(null)} />
     </>
   )

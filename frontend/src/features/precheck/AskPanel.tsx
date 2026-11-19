@@ -36,7 +36,14 @@ const SUGGESTIONS = [
 /** Ask the AI about this task or the accounting and tax around it. Answers draw first on this
  * task's documents, then NZ standards and law, then general knowledge — and each point says which,
  * so the accountant can see where the AI went beyond the folder and NZ sources. */
-export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead }: { jobKey: string; suggestions?: string[]; lead?: string }) {
+export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead, variant, placeholder }: {
+  jobKey: string
+  suggestions?: string[]
+  lead?: string
+  /** "chat": the Pre-Check Agent's chat bubbles (19 Nov 2026); Ask itself is unchanged. */
+  variant?: 'chat'
+  placeholder?: string
+}) {
   const { data, isLoading, isError } = useConversation(jobKey)
   const ask = useAsk(jobKey)
   const [question, setQuestion] = useState('')
@@ -52,11 +59,13 @@ export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead }: { jobKey: 
   if (isError || !data) return <p className={styles.muted}>The conversation could not be loaded. Refresh the page to try again.</p>
 
   return (
-    <div className={styles.ask}>
-      <p className={styles.lead}>
-        {lead ??
-          "Ask about this task, or a general accounting or tax question. The AI answers from this task's documents first, then NZ standards, IRD law and company law, and general knowledge last — each point says which."}
-      </p>
+    <div className={styles.ask} data-variant={variant}>
+      {lead !== '' && (
+        <p className={styles.lead}>
+          {lead ??
+            "Ask about this task, or a general accounting or tax question. The AI answers from this task's documents first, then NZ standards, IRD law and company law, and general knowledge last — each point says which."}
+        </p>
+      )}
       {data.questions.length === 0 ? (
         <div className={styles.suggestions} role="group" aria-label="Suggested questions">
           {suggestions.map((s) => (
@@ -86,7 +95,7 @@ export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead }: { jobKey: 
           id={`ask-${jobKey}`}
           rows={2}
           value={question}
-          placeholder="e.g. How much was the property sold for, and when did it settle?"
+          placeholder={placeholder ?? "e.g. How much was the property sold for, and when did it settle?"}
           onChange={(e) => setQuestion(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

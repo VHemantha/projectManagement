@@ -1,14 +1,35 @@
-import { AlertTriangle, Check, ChevronDown, GraduationCap, Mail, X } from 'lucide-react'
-import { useState } from 'react'
+import {
+  AlertTriangle,
+  BookOpenCheck,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleCheck,
+  ClipboardList,
+  Eye,
+  Info,
+  Mail,
+  MessageSquareText,
+  Pencil,
+  Plus,
+  Save,
+  Send,
+  Sparkles,
+  X,
+} from 'lucide-react'
+import { type ReactNode, useState } from 'react'
 
+import { DocIcons } from './DocIcons'
+import { GapChip, GapTracker } from './GapTracker'
+import { JobSnapshot } from './JobSnapshot'
 import styles from './PrecheckResult.module.css'
 import { CHECK_TYPES, RULE_ENTITY_TYPES } from './ruleOptions'
-import { JobSnapshot } from './JobSnapshot'
 import { NotesConsidered } from './SpecialNotes'
-import { Source as SharedSource, Sources as SharedSources } from './SourceLinks'
+import { Sources as SharedSources } from './SourceLinks'
 import { extractErrorMessage } from '@/api/errors'
 import {
   type AccountantAnswer,
+  type Lesson,
   type LessonKind,
   type PrecheckItem,
   type PrecheckOutput,
@@ -16,11 +37,11 @@ import {
   useAccountantAnswers,
   useAnswerQuestion,
   useLessons,
+  useRunPrecheck,
   useSetLessonStatus,
   useTeachLesson,
 } from '@/api/precheck'
-import { Button, CopyButton } from '@/design-system'
-import { GapChip, GapTracker } from './GapTracker'
+import { Button, CopyButton, Dialog, DialogContent, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 
 const FLAG_TEXT: Record<string, string> = {
   no_source: 'The AI gave no source for this',
@@ -35,46 +56,67 @@ const KIND_LABEL: Record<LessonKind, string> = {
   other: 'Other',
 }
 
-function Source({ source, output }: { source: SourceRef; output: PrecheckOutput }) {
-  return <SharedSource source={source} evidence={output.evidence} />
-}
+const norm = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
 function Sources({ sources, output }: { sources: SourceRef[]; output: PrecheckOutput }) {
   return <SharedSources sources={sources} evidence={output.evidence} />
 }
 
+/** The lesson someone saved for a point (a correction), if any: the latest for the same item. */
+function lessonFor(lessons: Lesson[], item: string): Lesson | undefined {
+  const key = norm(item)
+  return lessons.filter((l) => l.status !== 'disabled' && norm(l.item) === key).at(-1)
+}
+
+// ---- correcting a point ------------------------------------------------------------------------
+
 /** Teach the pre-check from a correction or something it missed. It applies to this client at once;
  * for every client it waits for a lead or admin (unless one is teaching it). The type of check (and
- * entity type) it is for decides which later pre-checks are given it (AFIT, 29 Oct 2026). */
+ * entity type) it is for decides which later pre-checks are given it (AFIT, 29 Oct 2026). "Save and
+ * re-run" also runs the pre-check again, so the list and the client email follow the correction. */
 function TeachForm({
   jobKey,
   item,
   kind: initialKind,
   natureType,
   onDone,
+  onCancel,
 }: {
   jobKey: string
   item: string
   kind: LessonKind
   /** The business nature this run worked to: the type of check offered first. */
   natureType: string
-  onDone: () => void
+  onDone: (rerun: boolean) => void
+  onCancel: () => void
 }) {
   const teach = useTeachLesson(jobKey)
+  const run = useRunPrecheck(jobKey)
   const [kind, setKind] = useState<LessonKind>(initialKind)
   const [itemText, setItemText] = useState(item)
   const [note, setNote] = useState('')
   const [firmWide, setFirmWide] = useState(false)
   const [checkType, setCheckType] = useState(CHECK_TYPES.some((t) => t.value === natureType) ? natureType : '')
   const [entity, setEntity] = useState('')
+  const [more, setMore] = useState(false)
   const typeLabel = CHECK_TYPES.find((t) => t.value === checkType)?.label ?? 'Every type of check'
+  const save = (rerun: boolean) =>
+    teach.mutate(
+      { kind, item: itemText, note, firm_wide: firmWide, precheck_type: checkType, entity_type: entity },
+      {
+        onSuccess: () => {
+          if (rerun) run.mutate()
+          onDone(rerun)
+        },
+      },
+    )
 
   return (
     <form
       className={styles.teach}
       onSubmit={(e) => {
         e.preventDefault()
-        teach.mutate({ kind, item: itemText, note, firm_wide: firmWide, precheck_type: checkType, entity_type: entity }, { onSuccess: onDone })
+        save(false)
       }}
     >
       <label>
@@ -87,39 +129,43 @@ function TeachForm({
           ))}
         </select>
       </label>
-      <label>
-        <span>Item</span>
-        <input value={itemText} onChange={(e) => setItemText(e.target.value)} placeholder="e.g. Home office details" />
-      </label>
+      {(!item || more) && (
+        <label>
+          <span>Item</span>
+          <input value={itemText} onChange={(e) => setItemText(e.target.value)} placeholder="e.g. Home office details" />
+        </label>
+      )}
       <label>
         <span>What the pre-check should do instead, and why</span>
         <textarea
-          rows={2}
+          rows={3}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="e.g. Not needed when every property is run by a property manager: no home office is claimed."
+          placeholder="e.g. This property was sold in February 2026, so no council rates are needed for the full year."
         />
       </label>
-      <label>
-        <span>Type of check it is for</span>
-        <select value={checkType} onChange={(e) => setCheckType(e.target.value)} aria-label="Type of check">
-          {CHECK_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>Entity type</span>
-        <select value={entity} onChange={(e) => setEntity(e.target.value)} aria-label="Entity type">
-          {RULE_ENTITY_TYPES.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className={styles.teachRow}>
+        <label>
+          <span>Type of check it is for</span>
+          <select value={checkType} onChange={(e) => setCheckType(e.target.value)} aria-label="Type of check">
+            {CHECK_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span>Entity type</span>
+          <select value={entity} onChange={(e) => setEntity(e.target.value)} aria-label="Entity type">
+            {RULE_ENTITY_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <label className={styles.check}>
         <input type="checkbox" checked={firmWide} onChange={(e) => setFirmWide(e.target.checked)} />
         <span>
@@ -127,16 +173,24 @@ function TeachForm({
           {entity ? ` of a ${RULE_ENTITY_TYPES.find((t) => t.value === entity)?.label}` : ''} (a lead or admin approves it first)
         </span>
       </label>
-      {teach.isError && (
+      {item && !more && (
+        <button type="button" className={styles.linkButton} onClick={() => setMore(true)}>
+          Change the item&apos;s wording
+        </button>
+      )}
+      {(teach.isError || run.isError) && (
         <div role="alert" className={styles.error}>
-          {extractErrorMessage(teach.error)}
+          {extractErrorMessage(teach.error ?? run.error)}
         </div>
       )}
       <div className={styles.teachActions}>
-        <Button type="submit" variant="primary" size="sm" disabled={teach.isPending || note.trim().length < 5}>
+        <Button type="button" variant="primary" size="sm" disabled={teach.isPending || note.trim().length < 5} onClick={() => save(true)}>
+          <Sparkles size={13} aria-hidden="true" /> Save and re-run
+        </Button>
+        <Button type="submit" variant="secondary" size="sm" disabled={teach.isPending || note.trim().length < 5}>
           {teach.isPending ? 'Saving…' : 'Save lesson'}
         </Button>
-        <Button type="button" variant="subtle" size="sm" onClick={onDone}>
+        <Button type="button" variant="subtle" size="sm" onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -144,82 +198,432 @@ function TeachForm({
   )
 }
 
-function ItemRow({
+/** What the agent does with a correction, said plainly: nothing changes in the accounts. */
+function AiAction({ saved, rerun, lesson }: { saved: boolean; rerun: boolean; lesson?: Lesson }) {
+  const done = saved || !!lesson
+  const firm = lesson?.status === 'pending'
+  const steps = [
+    { text: firm ? 'Saved as a learning; a lead approves it for other clients.' : 'Saved as a learning for this client and similar cases.', done },
+    {
+      text: rerun ? 'Re-running the pre-check: the request list and the email update when it finishes.' : 'The next pre-check run removes or rewords this request and its email line.',
+      done: rerun,
+    },
+  ]
+  return (
+    <div className={styles.aiAction}>
+      <h5 className={styles.aiActionTitle}>
+        <Sparkles size={13} aria-hidden="true" /> AI action (auto-update)
+      </h5>
+      {done ? (
+        <ul>
+          {steps.map((s) => (
+            <li key={s.text} data-done={s.done || undefined}>
+              {s.done ? <CircleCheck size={14} aria-hidden="true" /> : <span className={styles.pendingDot} aria-hidden="true" />} {s.text}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={styles.muted}>
+          Write what is wrong and save it. The pre-check keeps it as a lesson for this client, and the request list and the client email
+          follow it on the next run.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ---- the points --------------------------------------------------------------------------------
+
+function PointRow({
+  n,
   item,
   output,
   jobKey,
   teachAs,
+  lesson,
 }: {
+  n: number
   item: PrecheckItem
   output: PrecheckOutput
   jobKey: string
   teachAs: LessonKind
+  lesson?: Lesson
 }) {
+  const [open, setOpen] = useState(false)
   const [teaching, setTeaching] = useState(false)
-  const [taught, setTaught] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [rerun, setRerun] = useState(false)
+  const corrected = saved || !!lesson
+  const docs = [...item.documents, ...item.sources]
+  const toggle = () => setOpen((v) => !v)
   return (
-    <li className={styles.item}>
-      <div className={styles.itemHead}>
-        <span className={styles.itemTitle}>{item.item}</span>
-        {item.priority === 'blocking' && item.decision === 'request' && <span className={styles.blocking}>Blocks preparation</span>}
-        {item.gap && <GapChip status={item.gap.status} />}
-        {!teaching && (
-          <button type="button" className={styles.teachButton} onClick={() => setTeaching(true)} aria-label={`Correct: ${item.item}`}>
-            <GraduationCap size={13} aria-hidden="true" /> {taught ? 'Lesson saved' : 'Correct this'}
+    <li className={styles.point} data-open={open || undefined} data-corrected={corrected || undefined}>
+      <div className={styles.pointRow}>
+        <span className={styles.pointNo} aria-hidden="true">
+          {n}
+        </span>
+        <div className={styles.pointMain}>
+          <button type="button" className={styles.pointTitle} onClick={toggle} aria-expanded={open}>
+            {item.item}
+          </button>
+          <p className={styles.pointReason}>{item.reason}</p>
+          {!open && <DocIcons sources={docs} evidence={output.evidence} max={4} />}
+        </div>
+        <span className={styles.status} data-status={corrected ? 'corrected' : 'review'}>
+          {corrected ? (
+            <>
+              Corrected <Check size={12} aria-hidden="true" />
+            </>
+          ) : (
+            'To review'
+          )}
+        </span>
+        {corrected ? (
+          <button type="button" className={styles.rowButton} onClick={() => setOpen(true)}>
+            <MessageSquareText size={13} aria-hidden="true" /> View comment
+          </button>
+        ) : (
+          <button
+            type="button"
+            className={styles.rowButton}
+            data-primary
+            aria-label={`Correct: ${item.item}`}
+            onClick={() => (setOpen(true), setTeaching(true))}
+          >
+            <Check size={13} aria-hidden="true" /> Correct
           </button>
         )}
+        <button type="button" className={styles.chevron} onClick={toggle} aria-label={`${open ? 'Hide' : 'Show'} details: ${item.item}`} aria-expanded={open}>
+          {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+        </button>
       </div>
-      <p className={styles.reason}>{item.reason}</p>
-      {item.documents.length > 0 && (
-        <div className={styles.provided}>
-          Provided by: <Sources sources={item.documents} output={output} />
+      {open && (
+        <div className={styles.pointDetail}>
+          <div className={styles.pointMeta}>
+            {item.group && <span className={styles.groupTag}>{item.group}</span>}
+            {item.priority === 'blocking' && item.decision === 'request' && <span className={styles.blocking}>Blocks preparation</span>}
+            {item.gap && <GapChip status={item.gap.status} />}
+            {item.flags.includes('key_document') && <span className={styles.muted}>Not in the folder: requested first.</span>}
+            {item.flags
+              .filter((f) => f !== 'key_document')
+              .map((f) => (
+                <span key={f} className={styles.flag}>
+                  <AlertTriangle size={11} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
+                </span>
+              ))}
+          </div>
+          {item.documents.length > 0 && <DocIcons sources={item.documents} evidence={output.evidence} label="Provided by" max={8} />}
+          <DocIcons sources={item.sources} evidence={output.evidence} max={8} />
+          <div className={styles.correction}>
+            <div className={styles.comment}>
+              <h5 className={styles.commentTitle}>
+                <MessageSquareText size={13} aria-hidden="true" /> Your comment / correction
+              </h5>
+              {teaching ? (
+                <TeachForm
+                  jobKey={jobKey}
+                  item={item.item}
+                  kind={teachAs}
+                  natureType={output.business_nature?.type ?? ''}
+                  onCancel={() => setTeaching(false)}
+                  onDone={(again) => (setTeaching(false), setSaved(true), setRerun(again))}
+                />
+              ) : lesson ? (
+                <blockquote className={styles.commentText}>
+                  {lesson.note}
+                  <footer>
+                    {KIND_LABEL[lesson.kind]}
+                    {lesson.created_by ? ` · ${lesson.created_by}` : ''}
+                    {lesson.status === 'pending' ? ' · waiting for a lead to apply it to every client' : ''}
+                  </footer>
+                </blockquote>
+              ) : saved ? (
+                <p className={styles.commentText}>Lesson saved.</p>
+              ) : (
+                <button type="button" className={styles.addComment} onClick={() => setTeaching(true)} aria-label={`Correct: ${item.item}`}>
+                  <Pencil size={13} aria-hidden="true" /> Add a comment or correction
+                </button>
+              )}
+            </div>
+            <AiAction saved={saved} rerun={rerun} lesson={lesson} />
+          </div>
         </div>
-      )}
-      <Sources sources={item.sources} output={output} />
-      {item.flags.includes('key_document') && <span className={styles.muted}>Not in the folder: requested first.</span>}
-      {item.flags
-        .filter((f) => f !== 'key_document')
-        .map((f) => (
-          <span key={f} className={styles.flag}>
-            <AlertTriangle size={11} aria-hidden="true" /> {FLAG_TEXT[f] ?? f}
-          </span>
-        ))}
-      {teaching && (
-        <TeachForm
-          jobKey={jobKey}
-          item={item.item}
-          kind={teachAs}
-          natureType={output.business_nature?.type ?? ''}
-          onDone={() => {
-            setTeaching(false)
-            setTaught(true)
-          }}
-        />
       )}
     </li>
   )
 }
 
-function grouped(items: PrecheckItem[]): [string, PrecheckItem[]][] {
-  const groups = new Map<string, PrecheckItem[]>()
-  for (const i of items) groups.set(i.group, [...(groups.get(i.group) ?? []), i])
-  return [...groups.entries()]
+function PointList({ items, output, jobKey, teachAs, lessons, start = 1 }: {
+  items: PrecheckItem[]
+  output: PrecheckOutput
+  jobKey: string
+  teachAs: LessonKind
+  lessons: Lesson[]
+  start?: number
+}) {
+  return (
+    <ol className={styles.points}>
+      {items.map((i, k) => (
+        <PointRow key={`${i.group}-${i.item}`} n={start + k} item={i} output={output} jobKey={jobKey} teachAs={teachAs} lesson={lessonFor(lessons, i.item)} />
+      ))}
+    </ol>
+  )
 }
 
-function ItemList(props: { items: PrecheckItem[]; output: PrecheckOutput; jobKey: string; teachAs: LessonKind }) {
+function PointsCard({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
+  const lessons = useLessons(jobKey).data?.lessons ?? []
+  const [missedOpen, setMissedOpen] = useState(false)
+  const corrected = output.requests.filter((r) => lessonFor(lessons, r.item)).length
+  const nature = output.business_nature
   return (
-    <>
-      {grouped(props.items).map(([group, rows]) => (
-        <div key={group} className={styles.group}>
-          <h4 className={styles.groupTitle}>{group}</h4>
-          <ul className={styles.items}>
-            {rows.map((i) => (
-              <ItemRow key={i.item} {...props} item={i} />
-            ))}
-          </ul>
+    <section className={styles.card} aria-labelledby="pc-points">
+      <div className={styles.cardHead}>
+        <span className={styles.cardIcon} aria-hidden="true">
+          <ClipboardList size={22} />
+        </span>
+        <div className={styles.cardHeadText}>
+          <h3 id="pc-points" className={styles.cardTitle}>
+            Pre-Check Results (Points)
+          </h3>
+          <p className={styles.cardLead}>
+            Review each point and correct it if needed. The client request email is drafted from these points.
+          </p>
         </div>
-      ))}
-    </>
+        <dl className={styles.tallies}>
+          <div>
+            <dt>Total points</dt>
+            <dd>{output.requests.length}</dd>
+          </div>
+          <div data-tone="review">
+            <dt>To review</dt>
+            <dd>{output.requests.length - corrected}</dd>
+          </div>
+          <div data-tone="corrected">
+            <dt>Corrected</dt>
+            <dd>{corrected}</dd>
+          </div>
+        </dl>
+      </div>
+      <h4 className={styles.srOnly}>Section A — Information required from the client ({output.requests.length})</h4>
+      <div className={styles.tableHead} aria-hidden="true">
+        <span>#</span>
+        <span>Pre-check point</span>
+        <span>Status</span>
+      </div>
+      {output.requests.length === 0 ? (
+        <p className={styles.empty}>Nothing to request from the client.</p>
+      ) : (
+        <PointList items={output.requests} output={output} jobKey={jobKey} teachAs="not_needed" lessons={lessons} />
+      )}
+      {/* Whether the "not found" list is still provisional, after the points it is about. */}
+      <div className={styles.gaps}>
+        <GapTracker jobKey={jobKey} />
+      </div>
+      <div className={styles.cardFoot}>
+        {nature && (
+          <button type="button" className={styles.linkButton} onClick={() => setMissedOpen((v) => !v)}>
+            <Plus size={13} aria-hidden="true" /> Something was missed
+          </button>
+        )}
+      </div>
+      {missedOpen && (
+        <TeachForm
+          jobKey={jobKey}
+          item=""
+          kind="missed"
+          natureType={nature?.type ?? ''}
+          onCancel={() => setMissedOpen(false)}
+          onDone={() => setMissedOpen(false)}
+        />
+      )}
+      {output.provided.length > 0 && (
+        <details className={styles.collapsible}>
+          <summary>
+            <ChevronDown size={14} aria-hidden="true" /> Already provided ({output.provided.length})
+          </summary>
+          <PointList items={output.provided} output={output} jobKey={jobKey} teachAs="wrong_reason" lessons={lessons} />
+        </details>
+      )}
+      {output.not_needed.length > 0 && (
+        <details className={styles.collapsible}>
+          <summary>
+            <ChevronDown size={14} aria-hidden="true" /> Not needed ({output.not_needed.length})
+          </summary>
+          <PointList items={output.not_needed} output={output} jobKey={jobKey} teachAs="wrong_reason" lessons={lessons} />
+        </details>
+      )}
+    </section>
+  )
+}
+
+// ---- the client email ----------------------------------------------------------------------------
+
+interface Draft {
+  base: string
+  subject: string
+  body: string
+}
+
+const draftKey = (jobKey: string) => `tasko.precheck.email-draft.${jobKey}`
+
+function readDraft(jobKey: string, base: string): Draft | null {
+  try {
+    const raw = window.localStorage.getItem(draftKey(jobKey))
+    const d = raw ? (JSON.parse(raw) as Draft) : null
+    return d && d.base === base ? d : null // a draft of an earlier run's email is not this one's
+  } catch {
+    return null
+  }
+}
+
+/** The client request email, drafted by code from the points (never sent by the AI). The preparer can
+ * edit it, keep the edit as a draft in this browser, preview it, copy it, or open it in their email app. */
+function EmailCard({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
+  const base = `${output.email.subject}\n${output.email.body}`
+  const [draft, setDraft] = useState<Draft | null>(() => readDraft(jobKey, base))
+  const [editing, setEditing] = useState(false)
+  const [preview, setPreview] = useState(false)
+  const [savedNote, setSavedNote] = useState('')
+  const [subject, setSubject] = useState(draft?.subject ?? output.email.subject)
+  const [body, setBody] = useState(draft?.body ?? output.email.body)
+  const edited = subject !== output.email.subject || body !== output.email.body
+
+  const saveDraft = () => {
+    const d = { base, subject, body }
+    try {
+      window.localStorage.setItem(draftKey(jobKey), JSON.stringify(d))
+      setDraft(d)
+      setSavedNote('Draft saved in this browser.')
+    } catch {
+      setSavedNote('The draft could not be saved in this browser.')
+    }
+    setEditing(false)
+  }
+  const discard = () => {
+    try {
+      window.localStorage.removeItem(draftKey(jobKey))
+    } catch {
+      /* nothing saved */
+    }
+    setDraft(null)
+    setSubject(output.email.subject)
+    setBody(output.email.body)
+    setSavedNote('')
+  }
+  const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+  return (
+    <section className={styles.card} aria-label="Email to the client">
+      <div className={styles.cardHead}>
+        <span className={styles.cardIcon} aria-hidden="true">
+          <Mail size={22} />
+        </span>
+        <div className={styles.cardHeadText}>
+          <h3 className={styles.cardTitle}>Client Request Email (drafted, not sent)</h3>
+          <p className={styles.cardLead}>Drafted from the points above. Review and edit it before you send it.</p>
+        </div>
+        <span className={styles.synced}>
+          <Check size={13} aria-hidden="true" /> {draft || edited ? 'Edited by you' : 'Drafted from the points'}
+        </span>
+      </div>
+      <div className={styles.emailGrid}>
+        <div className={styles.emailBox}>
+          {editing ? (
+            <>
+              <label className={styles.emailField}>
+                <span>Subject</span>
+                <input value={subject} onChange={(e) => setSubject(e.target.value)} />
+              </label>
+              <label className={styles.emailField}>
+                <span>Message</span>
+                <textarea rows={12} value={body} onChange={(e) => setBody(e.target.value)} />
+              </label>
+            </>
+          ) : (
+            <>
+              <div className={styles.subject}>
+                <span>Subject:</span> {subject}
+              </div>
+              <pre className={styles.body}>{body}</pre>
+            </>
+          )}
+        </div>
+        <div className={styles.emailActions}>
+          <a className={styles.sendButton} href={mailto} title="Opens your email app with this email, ready to address and send">
+            <Send size={14} aria-hidden="true" /> Send to client
+          </a>
+          {editing ? (
+            <Button variant="secondary" size="sm" onClick={saveDraft}>
+              <Save size={14} aria-hidden="true" /> Save as draft
+            </Button>
+          ) : (
+            <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
+              <Pencil size={14} aria-hidden="true" /> Edit
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" onClick={() => setPreview(true)}>
+            <Eye size={14} aria-hidden="true" /> Preview
+          </Button>
+          <span className={styles.copyRow}>
+            <CopyButton value={`${subject}\n\n${body}`} label="email" /> Copy email
+          </span>
+          {(draft || edited) && !editing && (
+            <button type="button" className={styles.linkButton} onClick={discard}>
+              Back to the drafted email
+            </button>
+          )}
+          {savedNote && <span className={styles.muted}>{savedNote}</span>}
+        </div>
+      </div>
+      <Dialog open={preview} onOpenChange={setPreview}>
+        <DialogContent title="Email preview" maxWidth={640}>
+          <div className={styles.subject}>
+            <span>Subject:</span> {subject}
+          </div>
+          <pre className={styles.body}>{body}</pre>
+        </DialogContent>
+      </Dialog>
+    </section>
+  )
+}
+
+// ---- learning ------------------------------------------------------------------------------------
+
+function LearningCard({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
+  const lessons = useLessons(jobKey).data?.lessons ?? []
+  const active = lessons.filter((l) => l.status !== 'disabled')
+  return (
+    <section className={styles.card} aria-labelledby="pc-learning">
+      <div className={styles.cardHead}>
+        <span className={styles.cardIcon} aria-hidden="true">
+          <BookOpenCheck size={20} />
+        </span>
+        <h3 id="pc-learning" className={styles.cardTitle}>
+          Learning &amp; Continuous Improvement
+        </h3>
+        <span className={styles.infoIcon} title="Corrections are kept as lessons. The pre-check follows them on this client's later runs, and on every client's once a lead approves them.">
+          <Info size={16} aria-label="How learning works" />
+        </span>
+      </div>
+      <ul className={styles.learning}>
+        <li>
+          <CircleCheck size={15} aria-hidden="true" />{' '}
+          {active.length
+            ? `${active.length} correction${active.length === 1 ? ' is' : 's are'} kept as learning for this client.`
+            : 'Corrections you save are kept as learning for this client.'}
+        </li>
+        <li>
+          <CircleCheck size={15} aria-hidden="true" /> The agent considers them in similar future jobs.
+        </li>
+        {output.lessons_applied.map((l) => (
+          <li key={l.id}>
+            <CircleCheck size={15} aria-hidden="true" /> Applied in this run: {l.text}
+          </li>
+        ))}
+      </ul>
+      <NotesConsidered notes={output.special_notes} />
+      <PendingLessons jobKey={jobKey} />
+    </section>
   )
 }
 
@@ -271,144 +675,55 @@ export function PendingLessons({ jobKey }: { jobKey: string }) {
   )
 }
 
-/** The pre-check's result: the decision and its reason, the key documents, the business nature,
- * every item still needed (with its reason and sources), and the email to send. */
-export function PrecheckResult({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
+// ---- your information ------------------------------------------------------------------------------
+
+function Information({ output, extra }: { output: PrecheckOutput; extra?: ReactNode }) {
   const nature = output.business_nature
-  const [missedOpen, setMissedOpen] = useState(false)
   return (
-    <div className={styles.result}>
-      {/* The Job Snapshot first (AFIT design requirements, 16 Nov 2026): the story of the client and
-          its year, then the findings, then the email (step 4, after the preparer has reviewed them). */}
-      {output.snapshot && <JobSnapshot snapshot={output.snapshot} evidence={output.evidence} />}
-      <GapTracker jobKey={jobKey} />
-      <section aria-labelledby="pc-key">
-        <h3 id="pc-key" className={styles.sectionTitle}>
+    <div className={styles.infoGrid}>
+      <section className={styles.card} aria-labelledby="pc-key">
+        <h3 id="pc-key" className={styles.cardTitle}>
           Key documents
         </h3>
         <ul className={styles.keyDocs}>
           {output.key_documents.map((k) => (
             <li key={k.role}>
-              {k.found ? <Check size={14} className={styles.pass} aria-label="Found" /> : <X size={14} className={styles.fail} aria-label="Missing" />}
+              {k.found ? <Check size={15} className={styles.pass} aria-label="Found" /> : <X size={15} className={styles.fail} aria-label="Missing" />}
               <span className={styles.keyLabel}>{k.label}</span>
-              {k.files.map((f) => (
-                <Source key={f.name} source={{ id: f.name, label: f.name, evidence_id: f.evidence_id }} output={output} />
-              ))}
+              {k.files.length > 0 && (
+                <DocIcons sources={k.files.map((f) => ({ id: f.name, label: f.name, evidence_id: f.evidence_id }))} evidence={output.evidence} label="Files" />
+              )}
               {!k.found && <span className={styles.muted}>{k.note || 'Not in the folder'}</span>}
             </li>
           ))}
         </ul>
       </section>
-
-      <section aria-labelledby="pc-requests">
-        <div className={styles.sectionHead}>
-          <h3 id="pc-requests" className={styles.sectionTitle}>
-            Section A — Information required from the client ({output.requests.length})
+      {nature && (
+        <section className={styles.card} aria-label="Business nature">
+          <h3 className={styles.cardTitle}>
+            Business nature: {nature.label}
+            {nature.fixed && <span className={styles.muted}> (set on the task)</span>}
           </h3>
-          {nature && (
-            <button type="button" className={styles.teachButton} onClick={() => setMissedOpen((v) => !v)}>
-              <GraduationCap size={13} aria-hidden="true" /> Something was missed
-            </button>
-          )}
-        </div>
-        {missedOpen && <TeachForm jobKey={jobKey} item="" kind="missed" natureType={nature?.type ?? ''} onDone={() => setMissedOpen(false)} />}
-        {output.requests.length === 0 ? (
-          <p className={styles.muted}>Nothing to request.</p>
-        ) : (
-          <ItemList items={output.requests} output={output} jobKey={jobKey} teachAs="not_needed" />
-        )}
-      </section>
-
-      {output.provided.length > 0 && (
-        <details className={styles.collapsible}>
-          <summary>
-            <ChevronDown size={14} aria-hidden="true" /> Already provided ({output.provided.length})
-          </summary>
-          <ItemList items={output.provided} output={output} jobKey={jobKey} teachAs="wrong_reason" />
-        </details>
-      )}
-      {output.not_needed.length > 0 && (
-        <details className={styles.collapsible}>
-          <summary>
-            <ChevronDown size={14} aria-hidden="true" /> Not needed ({output.not_needed.length})
-          </summary>
-          <ItemList items={output.not_needed} output={output} jobKey={jobKey} teachAs="wrong_reason" />
-        </details>
-      )}
-
-      {(output.preparer_notes.length > 0 || (output.accountant_questions?.length ?? 0) > 0) && (
-        <section aria-labelledby="pc-notes" className={styles.internal}>
-          <h3 id="pc-notes" className={styles.sectionTitle}>
-            Section B — Internal analysis and accountant questions
-          </h3>
-          <p className={styles.muted}>For the team only: never sent to the client.</p>
-          {(output.accountant_questions?.length ?? 0) > 0 && (
-            <AccountantQuestions jobKey={jobKey} questions={output.accountant_questions!} output={output} />
-          )}
-          {output.preparer_notes.length > 0 && (
-            <>
-              <h4 className={styles.subTitle}>Notes for the preparer</h4>
-              <ul className={styles.facts}>
-                {output.preparer_notes.map((n) => (
-                  <li key={n.text}>
-                    {n.text} <Sources sources={n.sources} output={output} />
-                  </li>
-                ))}
-              </ul>
-            </>
+          {nature.summary && <p className={styles.summary}>{nature.summary}</p>}
+          {nature.reasoning && <p className={styles.reason}>{nature.reasoning}</p>}
+          <Sources sources={nature.sources} output={output} />
+          {nature.facts.length > 0 && (
+            <ul className={styles.facts}>
+              {nature.facts.map((f) => (
+                <li key={f.text}>
+                  {f.text} <Sources sources={f.sources} output={output} />
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}
-
-      {/* The email, folded, after the findings it is drafted from (16 Nov 2026). */}
-      {output.email.body && (
-        <details className={`${styles.collapsible} ${styles.email}`} aria-label="Email to the client">
-          <summary>
-            <ChevronDown size={14} aria-hidden="true" /> <Mail size={13} aria-hidden="true" /> Email to the client (drafted, not sent)
-            <span className={styles.summaryAction} onClick={(e) => e.preventDefault()}>
-              <CopyButton value={`${output.email.subject}
-
-${output.email.body}`} label="email" />
-            </span>
-          </summary>
-          <div className={styles.subject}>{output.email.subject}</div>
-          <pre className={styles.body}>{output.email.body}</pre>
-        </details>
-      )}
-      {/* Folded: the business nature the pre-check worked to, and why. */}
-      {nature && (
-        <details className={styles.collapsible} aria-label="Business nature">
-          <summary>
-            <ChevronDown size={14} aria-hidden="true" /> Business nature: {nature.label}
-            {nature.fixed && <span className={styles.muted}> (set on the task)</span>}
-          </summary>
-          <div className={styles.nature}>
-            {nature.summary && <p className={styles.summary}>{nature.summary}</p>}
-            {nature.reasoning && <p className={styles.reason}>{nature.reasoning}</p>}
-            <Sources sources={nature.sources} output={output} />
-            {nature.facts.length > 0 && (
-              <ul className={styles.facts}>
-                {nature.facts.map((f) => (
-                  <li key={f.text}>
-                    {f.text} <Sources sources={f.sources} output={output} />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </details>
-      )}
-      <NotesConsidered notes={output.special_notes} />
-      {output.lessons_applied.length > 0 && (
-        <p className={styles.muted}>
-          Lessons applied: {output.lessons_applied.map((l) => l.text).join(' · ')}
-        </p>
-      )}
-      <PendingLessons jobKey={jobKey} />
+      {extra && <section className={`${styles.card} ${styles.wide}`}>{extra}</section>}
     </div>
   )
 }
 
+// ---- AI to human questions ---------------------------------------------------------------------------
 
 /** Questions the pre-check has for the accountant. An answer is kept with the task and given to
  * every later run, so the question is not asked again. */
@@ -420,8 +735,7 @@ function AccountantQuestions({ jobKey, questions, output }: { jobKey: string; qu
       <h4 className={styles.subTitle}>Questions for the accountant ({questions.length})</h4>
       <ul className={styles.items}>
         {questions.map((q) => (
-          <AccountantQuestion key={q.item} jobKey={jobKey} q={q} output={output}
-            answer={answers.filter((a) => a.question === q.item).at(-1)} />
+          <AccountantQuestion key={q.item} jobKey={jobKey} q={q} output={output} answer={answers.filter((a) => a.question === q.item).at(-1)} />
         ))}
       </ul>
     </>
@@ -440,24 +754,24 @@ function AccountantQuestion({ jobKey, q, output, answer }: { jobKey: string; q: 
         <span className={styles.muted}>{q.group}</span>
       </div>
       <p className={styles.reason}>{q.reason}</p>
-      <Sources sources={q.sources} output={output} />
+      <DocIcons sources={q.sources} evidence={output.evidence} />
       {answer ? (
         <p className={styles.answer}>
           <strong>Answered by {answer.answered_by}:</strong> {answer.answer}
         </p>
       ) : open ? (
         <form
-          className={styles.teachForm}
+          className={styles.teach}
           onSubmit={(e) => {
             e.preventDefault()
             save.mutate({ question: q.item, answer: text.trim() }, { onSuccess: () => setOpen(false) })
           }}
         >
-          <label className={styles.teachLabel}>
-            Your answer (the next pre-check will use it and not ask again)
+          <label>
+            <span>Your answer (the next pre-check will use it and not ask again)</span>
             <textarea rows={2} value={text} onChange={(e) => setText(e.target.value)} />
           </label>
-          {save.isError && <p className={styles.flag}>{extractErrorMessage(save.error)}</p>}
+          {save.isError && <p className={styles.error}>{extractErrorMessage(save.error)}</p>}
           <div className={styles.teachActions}>
             <Button type="submit" size="sm" variant="primary" disabled={text.trim().length < 2 || save.isPending}>
               Save answer
@@ -468,7 +782,7 @@ function AccountantQuestion({ jobKey, q, output, answer }: { jobKey: string; q: 
           </div>
         </form>
       ) : (
-        <button type="button" className={styles.teachButton} onClick={() => setOpen(true)} aria-label={`Answer: ${q.item}`}>
+        <button type="button" className={styles.rowButton} data-primary onClick={() => setOpen(true)} aria-label={`Answer: ${q.item}`}>
           Answer
         </button>
       )}
@@ -476,3 +790,94 @@ function AccountantQuestion({ jobKey, q, output, answer }: { jobKey: string; q: 
   )
 }
 
+function Questions({ output, jobKey }: { output: PrecheckOutput; jobKey: string }) {
+  const questions = output.accountant_questions ?? []
+  return (
+    <section className={`${styles.card} ${styles.internal}`} aria-labelledby="pc-questions">
+      <h3 id="pc-questions" className={styles.cardTitle}>
+        Section B — Internal analysis and accountant questions
+      </h3>
+      <p className={styles.muted}>For the team only: never sent to the client.</p>
+      {questions.length > 0 ? (
+        <AccountantQuestions jobKey={jobKey} questions={questions} output={output} />
+      ) : (
+        <p className={styles.empty}>The pre-check has no questions for the team.</p>
+      )}
+      {output.preparer_notes.length > 0 && (
+        <>
+          <h4 className={styles.subTitle}>Notes for the preparer</h4>
+          <ul className={styles.facts}>
+            {output.preparer_notes.map((n) => (
+              <li key={n.text}>
+                {n.text} <Sources sources={n.sources} output={output} />
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  )
+}
+
+// ---- the whole result ----------------------------------------------------------------------------
+
+type Tab = 'points' | 'snapshot' | 'info' | 'questions'
+
+/** The pre-check's result as the preparer works through it (AFIT wireframe, 19 Nov 2026): the points
+ * to review and correct with their supporting documents as icons, the client email drafted from them,
+ * the agent's chat and what it has learned; then the Job Snapshot, the information the run worked
+ * from, and the questions the AI has for the team. Every action is the pre-check's own: a correction
+ * is a lesson, an answer is kept for later runs; nothing is sent to the client by the AI. */
+export function PrecheckResult({ output, jobKey, chat, information }: {
+  output: PrecheckOutput
+  jobKey: string
+  /** The Pre-Check Agent's chat (the latest run only). */
+  chat?: ReactNode
+  /** More for "Your information": how the AI got here, the setup, the run's details. */
+  information?: ReactNode
+}) {
+  const [tab, setTab] = useState<Tab>('points')
+  const answers = useAccountantAnswers(jobKey).data?.answers ?? []
+  const open = (output.accountant_questions ?? []).filter((q) => !answers.some((a) => a.question === q.item)).length
+  return (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+      <div className={styles.tabs}>
+        <TabsList aria-label="Pre-check views">
+          <TabsTrigger value="points">Pre-Check Results (Points)</TabsTrigger>
+          <TabsTrigger value="snapshot">Snapshot</TabsTrigger>
+          <TabsTrigger value="info">Your Information</TabsTrigger>
+          <TabsTrigger value="questions">
+            AI to Human Questions
+            {open > 0 && <span className={styles.openBadge}>{open} open</span>}
+          </TabsTrigger>
+        </TabsList>
+      </div>
+      <TabsContent value="points" className={styles.tabBody}>
+        <div className={styles.layout}>
+          <div className={styles.mainColumn}>
+            <PointsCard output={output} jobKey={jobKey} />
+            {/* Keyed by the email: a new run's email starts afresh (with its own saved draft, if any). */}
+            {output.email.body && <EmailCard key={`${output.email.subject}|${output.email.body}`} output={output} jobKey={jobKey} />}
+          </div>
+          <aside className={styles.sideColumn}>
+            {chat && <section className={styles.card}>{chat}</section>}
+            <LearningCard output={output} jobKey={jobKey} />
+          </aside>
+        </div>
+      </TabsContent>
+      <TabsContent value="snapshot" className={styles.tabBody}>
+        {output.snapshot ? (
+          <JobSnapshot snapshot={output.snapshot} evidence={output.evidence} />
+        ) : (
+          <p className={styles.empty}>This run has no Job Snapshot. Run the pre-check again to get one.</p>
+        )}
+      </TabsContent>
+      <TabsContent value="info" className={styles.tabBody}>
+        <Information output={output} extra={information} />
+      </TabsContent>
+      <TabsContent value="questions" className={styles.tabBody}>
+        <Questions output={output} jobKey={jobKey} />
+      </TabsContent>
+    </Tabs>
+  )
+}
