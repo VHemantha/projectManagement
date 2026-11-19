@@ -61,7 +61,7 @@ describe('Workspace page', () => {
   it('opens on the Kanban tab, first in the tab bar', () => {
     renderAt('/projects/Pochin')
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((t) => t.textContent)).toEqual(['Kanban', 'Tasks', 'Timeline', 'Settings'])
+    expect(tabs.map((t) => t.textContent)).toEqual(['Kanban', 'Settings', 'Tasks', 'Timeline'])
     expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('tab-page')).toHaveTextContent('board for Pochin')
     expect(screen.getByRole('complementary', { name: 'Workspace dashboard' })).toBeInTheDocument()

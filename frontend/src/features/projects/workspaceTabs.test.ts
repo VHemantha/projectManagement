@@ -14,19 +14,19 @@ afterEach(() => {
 
 describe('workspace tabs', () => {
   it('puts Kanban first and hides Scrum views and Summary by default', () => {
-    expect(ids(kanban)).toEqual(['kanban', 'tasks', 'timeline', 'settings'])
+    expect(ids(kanban)).toEqual(['kanban', 'settings', 'tasks', 'timeline'])
     // A Scrum workspace looks like a Kanban one while the Scrum feature is off.
-    expect(ids(scrum)).toEqual(['kanban', 'tasks', 'timeline', 'settings'])
+    expect(ids(scrum)).toEqual(['kanban', 'settings', 'tasks', 'timeline'])
     expect(workspaceTabs(scrum)[0].label).toBe('Kanban')
   })
 
   it('restores the Scrum views and Summary when their flags are on', () => {
     FEATURES.scrum = true
     FEATURES.summary = true
-    expect(ids(scrum)).toEqual(['kanban', 'summary', 'backlog', 'tasks', 'timeline', 'reports', 'settings'])
+    expect(ids(scrum)).toEqual(['kanban', 'summary', 'settings', 'backlog', 'tasks', 'timeline', 'reports'])
     expect(workspaceTabs(scrum)[0].label).toBe('Sprint board')
     // Kanban workspaces never get the sprint-only tabs.
-    expect(ids(kanban)).toEqual(['kanban', 'summary', 'tasks', 'timeline', 'settings'])
+    expect(ids(kanban)).toEqual(['kanban', 'summary', 'settings', 'tasks', 'timeline'])
   })
 
   it('falls back to Kanban for missing, unknown or hidden tabs', () => {
