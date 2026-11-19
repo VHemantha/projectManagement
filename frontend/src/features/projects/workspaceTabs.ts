@@ -3,7 +3,8 @@ import { Calendar, ClipboardList, LayoutDashboard, ListTodo, type LucideIcon, Se
 import type { ProjectDetail } from '@/api/types'
 import { FEATURES } from '@/lib/features'
 
-/** The sections of a project page, picked with ?tab=. Kanban comes first and is the default. */
+/** The sections of a project page, picked with ?tab=. Kanban comes first and is the default; Settings
+ * follows Summary. */
 export type WorkspaceTab = 'kanban' | 'summary' | 'backlog' | 'tasks' | 'timeline' | 'reports' | 'settings'
 
 export const DEFAULT_TAB: WorkspaceTab = 'kanban'
@@ -25,11 +26,12 @@ export function workspaceTabs(project: Pick<ProjectDetail, 'project_type'>): Wor
   return [
     { id: 'kanban', label: scrum ? 'Sprint board' : 'Kanban', icon: SquareKanban },
     ...(FEATURES.summary ? [{ id: 'summary' as const, label: 'Summary', icon: LayoutDashboard }] : []),
+    // Settings next to Summary (AFIT, 18 Nov 2026): last in the row, it scrolled out of sight.
+    { id: 'settings', label: 'Settings', icon: Settings },
     ...(scrum ? [{ id: 'backlog' as const, label: 'Backlog', icon: ListTodo }] : []),
     { id: 'tasks', label: 'Tasks', icon: ClipboardList },
     { id: 'timeline', label: 'Timeline', icon: Calendar },
     ...(scrum ? [{ id: 'reports' as const, label: 'Reports', icon: TrendingDown }] : []),
-    { id: 'settings', label: 'Settings', icon: Settings },
   ]
 }
 

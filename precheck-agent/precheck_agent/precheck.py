@@ -95,6 +95,24 @@ SCHEMA = {
     },
 }
 
+_ID_LIST = {"type": "array", "items": {"type": "string"}}
+
+
+def _shared_id_lists(node):
+    """Every list of ids as one shared definition ($ref). The API compiles the answer shape into a grammar,
+    and with the Job Snapshot added it refused the shape as too large (every pre-check failed, 19 Nov
+    2026); the same lists, defined once, compile small enough. The answer's shape doesn't change."""
+    if node == _ID_LIST:
+        return {"$ref": "#/$defs/ids"}
+    if isinstance(node, dict):
+        return {k: _shared_id_lists(v) for k, v in node.items()}
+    if isinstance(node, list):
+        return [_shared_id_lists(v) for v in node]
+    return node
+
+
+SCHEMA = {**_shared_id_lists(SCHEMA), "$defs": {"ids": _ID_LIST}}
+
 ANSWER = """Answer in the JSON shape given.
 - business_nature: the type, a one-sentence summary, your reasoning (at most 80 words) and the facts that drive what is needed, each with its sources.
 - items: everything this year's accounts need. decision: request (not found, or not complete, in what you are shown: say which, and what would show it), already_provided (list the D ids that provide it in "documents"), not_needed (say why), or ask_accountant (an internal question for the accountant: uncertain applicability, something the team may hold internally; never sent to the client). "priority": blocking when the gap stops preparation, else normal. "group" is the property, bank account, loan or area (e.g. "12 Kauri Street", "ANZ 01-0702-0311954-00", "Tax"). "reason": at most 60 words, plain language a client understands, saying why it is needed and where that comes from. "sources": the ids (Q, F, T, W, D, R, B, G, C, N, P, M) the reason rests on.
