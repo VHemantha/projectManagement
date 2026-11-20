@@ -1,18 +1,22 @@
-import { Plus, Settings } from 'lucide-react'
+import { Columns3, Plus, Settings } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import styles from './AllIssuesBoardPage.module.css'
+import { BoardColumnsDialog } from './BoardColumnsDialog'
 import { useCrossProjectBoard } from './crossProjectBoard'
 import { defaultsFromColumn } from './createFromBoard'
 import { KanbanBoard } from './KanbanBoard'
 import { TasksSummary } from './TasksSummary'
 import { useClients } from '@/api/clients'
 import { useAllIssues, useMoveIssue } from '@/api/issues'
-import { useTeams } from '@/api/teams'
+import { useTeam, useTeams } from '@/api/teams'
 import { Button, Tabs, TabsList, TabsTrigger } from '@/design-system'
 import { CreateClientDialog } from '@/features/projects/CreateClientDialog'
 import { type GroupByOption, IssueTable } from '@/features/tables/IssueTable'
+import { TeamGoalsTab } from '@/features/teams/TeamGoalsTab'
+import { TeamMembersTab } from '@/features/teams/TeamMembersTab'
+import { TeamSubWorkspacesTab } from '@/features/teams/TeamSubWorkspacesTab'
 import { useUiStore } from '@/store/uiStore'
 
 const NONE = 'none'
@@ -21,7 +25,14 @@ const VIEWS = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'summary', label: 'Summary' },
 ] as const
-type View = (typeof VIEWS)[number]['id']
+// A workspace's own tabs, from its page in the old Workspaces section (now hidden from the menu,
+// AFIT, 20 Nov 2026): shown while one workspace is picked.
+const WORKSPACE_VIEWS = [
+  { id: 'sub-workspaces', label: 'Sub-workspaces' },
+  { id: 'goals', label: 'Goals' },
+  { id: 'members', label: 'Members' },
+] as const
+type View = (typeof VIEWS)[number]['id'] | (typeof WORKSPACE_VIEWS)[number]['id']
 const SETTINGS = 'settings' // a tab that opens the sub-workspace's settings, not a view
 
 /** The tasks of the Projects section — on a Kanban, as a task list, or as a summary report —
@@ -52,10 +63,15 @@ export function AllIssuesBoardPage() {
   const { data: clients } = useClients()
   const moveIssue = useMoveIssue()
   const [clientSettingsOpen, setClientSettingsOpen] = useState(false)
+  const [columnsOpen, setColumnsOpen] = useState(false)
   const [groupBy, setGroupBy] = useState<GroupByOption>('project')
   const selectedClient = clientId ? clients?.find((c) => String(c.id) === clientId) : undefined
   const selectedTeam = teamId ? teams?.find((t) => String(t.id) === teamId) : undefined
-  const view: View = (VIEWS.find((v) => v.id === searchParams.get('view'))?.id ?? 'kanban') as View
+  // One workspace picked: its own tabs (sub-workspaces, goals, members) join the views.
+  const workspaceId = teamId && !noTeam ? teamId : undefined
+  const { data: workspace } = useTeam(workspaceId)
+  const views = workspaceId ? [...VIEWS, ...WORKSPACE_VIEWS] : VIEWS
+  const view: View = (views.find((v) => v.id === searchParams.get('view'))?.id ?? 'kanban') as View
   const setView = (next: string) => {
     const params = new URLSearchParams(searchParams)
     if (next === 'kanban') params.delete('view')
@@ -89,6 +105,8 @@ export function AllIssuesBoardPage() {
   const total = issuesPage?.count ?? 0
 
   const board = useCrossProjectBoard(issues)
+  const canChangeColumns = board.projectKeys.some((k) => board.boards[k]?.can_configure)
+  const projectNames = useMemo(() => Object.fromEntries(issues.map((i) => [i.project_key, i.project_name])), [issues])
 
   // Groups first, each followed by its sub-teams, so the dropdown reads like the tree.
   const teamOptions = useMemo(() => {
@@ -115,7 +133,7 @@ export function AllIssuesBoardPage() {
             in a window, so the view behind it stays as it was. */}
         <Tabs value={view} onValueChange={(next) => (next === SETTINGS ? setClientSettingsOpen(true) : setView(next))}>
           <TabsList aria-label="Views">
-            {VIEWS.map((v) => (
+            {views.map((v) => (
               <TabsTrigger key={v.id} value={v.id}>
                 {v.label}
               </TabsTrigger>
@@ -178,6 +196,14 @@ export function AllIssuesBoardPage() {
           )}
         </div>
       </div>
+      <BoardColumnsDialog
+        open={columnsOpen}
+        onOpenChange={setColumnsOpen}
+        projectKeys={board.projectKeys}
+        boards={board.boards}
+        projectNames={projectNames}
+        columnNames={board.columns.map((c) => c.name)}
+      />
       <CreateClientDialog open={clientSettingsOpen} onOpenChange={setClientSettingsOpen} client={selectedClient} />
       {view === 'tasks' && (
         <div className={styles.panel}>
@@ -192,6 +218,21 @@ export function AllIssuesBoardPage() {
             showProjectColumn
             emptyMessage={filtersActive ? 'No tasks match this workspace/sub-workspace.' : 'No tasks yet.'}
           />
+        </div>
+      )}
+      {view === 'sub-workspaces' && workspace && (
+        <div className={styles.panel}>
+          <TeamSubWorkspacesTab team={workspace} />
+        </div>
+      )}
+      {view === 'goals' && workspace && (
+        <div className={styles.panel}>
+          <TeamGoalsTab team={workspace} />
+        </div>
+      )}
+      {view === 'members' && workspace && (
+        <div className={styles.panel}>
+          <TeamMembersTab team={workspace} />
         </div>
       )}
       {view === 'summary' && (
@@ -209,9 +250,17 @@ export function AllIssuesBoardPage() {
           onCreateIssue={(ctx) => openCreateIssue({ ...filterDefaults, ...defaultsFromColumn(ctx) })}
           // On the right of the board's toolbar (AFIT, 16 Nov 2026), filled in from the filters.
           toolbarExtra={
-            <Button variant="primary" size="sm" onClick={() => openCreateIssue(filterDefaults)}>
-              <Plus size={14} /> Create task
-            </Button>
+            <>
+              <Button variant="primary" size="sm" onClick={() => openCreateIssue(filterDefaults)}>
+                <Plus size={14} /> Create task
+              </Button>
+              {/* Adding and editing columns, as on a project's own board (AFIT, 20 Nov 2026). */}
+              {canChangeColumns && (
+                <Button variant="subtle" size="sm" onClick={() => setColumnsOpen(true)}>
+                  <Columns3 size={14} /> Columns
+                </Button>
+              )}
+            </>
           }
           onMoveIssue={({ issue, column, beforeId, afterId }) => {
             const statusId = board.resolveStatus(issue, column)

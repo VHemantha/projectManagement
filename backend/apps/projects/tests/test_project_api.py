@@ -145,3 +145,17 @@ def test_project_wording_in_validation_errors(api_client):
     assert resp.status_code == 400
     assert "another project" in str(resp.data["key"][0])
     assert Project._meta.verbose_name == "project"
+
+
+def test_project_board_says_whether_the_user_can_configure_it(api_client):
+    api_client.post("/api/projects/", {"key": "Cfg", "name": "Cfg", "project_type": "kanban"}, format="json")
+    assert api_client.get("/api/projects/Cfg/board/").data["can_configure"] is True
+
+    other = User.objects.create_user(username="other", email="other@example.com", password="x")
+    project = Project.objects.get(key="Cfg")
+    ProjectMembership.objects.create(project=project, user=other, role="member")
+    client = APIClient()
+    client.force_authenticate(user=other)
+    resp = client.get("/api/projects/Cfg/board/")
+    assert resp.status_code == 200
+    assert resp.data["can_configure"] is False

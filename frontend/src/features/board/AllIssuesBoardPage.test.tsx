@@ -15,7 +15,8 @@ const issue = (over: Partial<IssueListItem>) =>
   ({ id: 1, key: 'RWCA-1', project_key: 'RWCA', summary: 'Job', status: { id: 1, name: 'To do', category: 'todo' }, priority: 'medium',
      assignee: { id: 2, display_name: 'Pat' }, due_date: null, budgeted_hours: null, actual_hours: 0, group: '', ...over }) as unknown as IssueListItem
 
-const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown>, issues: [] as unknown[], settingsOpen: false }))
+const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown>, issues: [] as unknown[], settingsOpen: false,
+  boards: {} as Record<string, { can_configure?: boolean }>, columnsOpen: false }))
 
 vi.mock('@/api/issues', () => ({
   useAllIssues: (q: Record<string, unknown>) => {
@@ -24,9 +25,22 @@ vi.mock('@/api/issues', () => ({
   },
   useMoveIssue: () => ({ mutate: vi.fn() }),
 }))
-vi.mock('@/api/teams', () => ({ useTeams: () => ({ data: [{ id: 4, name: 'Team 4', parent: null }] }) }))
+vi.mock('@/api/teams', () => ({
+  useTeams: () => ({ data: [{ id: 4, name: 'Team 4', parent: null }] }),
+  useTeam: (id?: string) => ({ data: id ? { id: Number(id), name: 'Team 4' } : undefined }),
+}))
+vi.mock('@/features/teams/TeamSubWorkspacesTab', () => ({ TeamSubWorkspacesTab: ({ team }: { team: { name: string } }) => <div>sub-workspaces of {team.name}</div> }))
+vi.mock('@/features/teams/TeamGoalsTab', () => ({ TeamGoalsTab: () => <div>goals tab</div> }))
+vi.mock('@/features/teams/TeamMembersTab', () => ({ TeamMembersTab: () => <div>members tab</div> }))
+vi.mock('./BoardColumnsDialog', () => ({
+  BoardColumnsDialog: ({ open }: { open: boolean }) => {
+    mocks.columnsOpen = open
+    return open ? <div>columns window</div> : null
+  },
+}))
 vi.mock('@/api/clients', () => ({ useClients: () => ({ data: [{ id: 5, name: 'RWCA' }] }) }))
-vi.mock('./crossProjectBoard', () => ({ useCrossProjectBoard: () => ({ columns: [], cardConfigByProject: {}, isLoading: false, resolveStatus: () => null }) }))
+vi.mock('./crossProjectBoard', () => ({ useCrossProjectBoard: () => ({ columns: [], projectKeys: Object.keys(mocks.boards), boards: mocks.boards,
+  cardConfigByProject: {}, isLoading: false, resolveStatus: () => null }) }))
 vi.mock('./KanbanBoard', () => ({ KanbanBoard: ({ toolbarExtra }: { toolbarExtra?: ReactNode }) => <div>kanban board{toolbarExtra}</div> }))
 vi.mock('@/features/tables/IssueTable', () => ({ IssueTable: ({ issues }: { issues: unknown[] }) => <div>task list of {issues.length}</div> }))
 vi.mock('@/features/projects/CreateClientDialog', () => ({
@@ -56,7 +70,7 @@ describe('The tasks of a workspace / sub-workspace', () => {
     mocks.issues = [issue({})]
     renderAt('/projects/all-issues?team=4&client=5&view=summary')
     const tabs = within(screen.getByRole('tablist', { name: 'Views' })).getAllByRole('tab').map((t) => t.textContent)
-    expect(tabs).toEqual(['Kanban', 'Tasks', 'Summary', 'Settings'])
+    expect(tabs).toEqual(['Kanban', 'Tasks', 'Summary', 'Sub-workspaces', 'Goals', 'Members', 'Settings'])
     await userEvent.click(screen.getByRole('tab', { name: 'Settings' }))
     expect(screen.getByText('sub-workspace settings window')).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Summary' })).toHaveAttribute('aria-selected', 'true')
@@ -68,6 +82,36 @@ describe('The tasks of a workspace / sub-workspace', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Create task' }))
     expect(useUiStore.getState().createIssueOpen).toBe(true)
     expect(useUiStore.getState().createIssueDefaults).toMatchObject({ teamId: 4, clientId: 5 })
+  })
+
+  it("brings a workspace's own tabs (sub-workspaces, goals, members) onto the board (AFIT, 20 Nov 2026)", async () => {
+    renderAt('/projects/all-issues?team=4')
+    await userEvent.click(screen.getByRole('tab', { name: 'Sub-workspaces' }))
+    expect(screen.getByText('sub-workspaces of Team 4')).toBeInTheDocument()
+    expect(screen.getByTestId('where')).toHaveTextContent('team=4&view=sub-workspaces')
+    await userEvent.click(screen.getByRole('tab', { name: 'Goals' }))
+    expect(screen.getByText('goals tab')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('tab', { name: 'Members' }))
+    expect(screen.getByText('members tab')).toBeInTheDocument()
+  })
+
+  it('has no workspace tabs until one workspace is picked', () => {
+    renderAt('/projects/all-issues?view=members')
+    const tabs = within(screen.getByRole('tablist', { name: 'Views' })).getAllByRole('tab').map((t) => t.textContent)
+    expect(tabs).toEqual(['Kanban', 'Tasks', 'Summary'])
+    expect(screen.getByRole('tab', { name: 'Kanban' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('offers Columns on the board to someone who can change a board in view', async () => {
+    mocks.boards = { RWCA: { can_configure: false } }
+    const { unmount } = renderAt('/projects/all-issues?team=4')
+    expect(screen.queryByRole('button', { name: 'Columns' })).not.toBeInTheDocument()
+    unmount()
+    mocks.boards = { RWCA: { can_configure: true } }
+    renderAt('/projects/all-issues?team=4')
+    await userEvent.click(screen.getByRole('button', { name: 'Columns' }))
+    expect(screen.getByText('columns window')).toBeInTheDocument()
+    mocks.boards = {}
   })
 
   it('offers Settings only once a sub-workspace is chosen', () => {

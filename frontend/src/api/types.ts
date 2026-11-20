@@ -176,6 +176,8 @@ export interface Board {
   card_color_style: CardColorStyle
   filters: number | null
   statuses: BoardStatus[]
+  /** Whether the current user may change this board's columns (project lead/admin or staff). */
+  can_configure?: boolean
 }
 
 export interface BoardConfig {

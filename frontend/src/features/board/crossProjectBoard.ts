@@ -87,6 +87,9 @@ export function useCrossProjectBoard(issues: IssueListItem[]) {
 
   return {
     columns,
+    // The projects in view and their boards, for the board's column settings.
+    projectKeys,
+    boards,
     cardConfigByProject,
     resolveStatus,
     // The columns depend on the projects' board settings, so wait for them.

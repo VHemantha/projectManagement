@@ -59,7 +59,9 @@ class ProjectViewSet(viewsets.ModelViewSet):
         board = project.boards.first()
         if not board:
             return Response({"detail": "No board configured for this project."}, status=404)
-        return Response(BoardSerializer(board).data)
+        # can_configure: whether this user may change the columns (the Workspaces board offers
+        # its column settings only for boards the user can configure).
+        return Response({**BoardSerializer(board).data, "can_configure": can_manage_project(request.user, project)})
 
 
 class ProjectMembershipListCreateView(generics.ListCreateAPIView):
