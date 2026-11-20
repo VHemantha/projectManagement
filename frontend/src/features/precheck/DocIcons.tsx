@@ -36,7 +36,7 @@ export function DocIcon({ doc }: { doc: DocRef }) {
   const Icon = ICON[doc.kind]
   const face = (
     <>
-      <Icon size={24} strokeWidth={1.6} aria-hidden="true" />
+      <Icon size={12} strokeWidth={1.8} aria-hidden="true" />
       <span className={styles.badge}>{DOC_BADGE[doc.kind]}</span>
       {doc.year && <span className={styles.year}>{doc.year}</span>}
     </>

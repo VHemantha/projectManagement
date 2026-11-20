@@ -4,7 +4,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 8px;
+  gap: 4px;
 }
 .label {
   font-size: 12px;
@@ -17,11 +17,12 @@
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-  width: 46px;
-  height: 52px;
-  padding-top: 4px;
+  /* Half the first size (AFIT, 20 Nov 2026); the badge text stays just big enough to read. */
+  width: 23px;
+  height: 26px;
+  padding-top: 2px;
   border: 1px solid var(--tf-primary-subtle);
-  border-radius: var(--tf-radius-md);
+  border-radius: var(--tf-radius-sm);
   background: var(--tf-surface);
   color: var(--tf-primary);
   text-decoration: none;
@@ -37,27 +38,27 @@ a.doc:focus-visible {
   outline-offset: 2px;
 }
 .badge {
-  margin-top: -5px;
-  padding: 0 4px;
-  border-radius: 3px;
+  margin-top: -3px;
+  padding: 0 1px;
+  border-radius: 2px;
   background: var(--tf-primary);
   color: var(--tf-text-inverse);
-  font-size: 10px;
+  font-size: 6px;
   font-weight: 800;
-  line-height: 14px;
-  letter-spacing: 0.02em;
+  line-height: 8px;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 .year {
-  margin-top: 1px;
-  padding: 0 3px;
-  border: 1px solid var(--tf-primary);
-  border-radius: 3px;
+  margin-top: 0;
+  padding: 0 1px;
+  border: none;
+  border-radius: 2px;
   background: var(--tf-surface);
   color: var(--tf-primary);
-  font-size: 9.5px;
+  font-size: 6px;
   font-weight: 800;
-  line-height: 12px;
+  line-height: 7px;
 }
 .more {
   border: none;
@@ -84,10 +85,16 @@ a.doc:focus-visible {
   vertical-align: middle;
 }
 .inline .doc {
-  width: 34px;
-  height: 38px;
+  width: 17px;
+  height: 19px;
+  padding-top: 1px;
 }
 .inline .doc svg {
-  width: 17px;
-  height: 17px;
+  width: 9px;
+  height: 9px;
+}
+.inline .badge,
+.inline .year {
+  font-size: 5px;
+  line-height: 6px;
 }
