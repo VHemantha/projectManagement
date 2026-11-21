@@ -349,3 +349,66 @@ class RatingsView(APIView):
             },
             "people": rows,
         })
+
+
+class VoiceView(APIView):
+    """POST /api/coordinator/voice/ (multipart "audio") — speech to text for a message to the Practice Manager AI
+    (AFIT, 21 Nov 2026), by Amazon Transcribe. Returns {"text"} for the person to check and send."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        from .voice import MAX_BYTES, VoiceUnavailable, media_format, transcribe
+
+        audio = request.FILES.get("audio")
+        if audio is None:
+            return Response({"audio": ["Send the recording."]}, status=status.HTTP_400_BAD_REQUEST)
+        if audio.size > MAX_BYTES:
+            return Response({"audio": ["The recording is too long: keep it under about ten minutes."]}, status=status.HTTP_400_BAD_REQUEST)
+        fmt = media_format(audio.content_type, audio.name)
+        if fmt is None:
+            return Response({"audio": ["This kind of recording can't be read."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            text = transcribe(audio.read(), fmt)
+        except VoiceUnavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        services.audit(request.user, "voice_message", allowed=True, seconds=round(audio.size / 16000))
+        return Response({"text": text})
+
+
+def _report_dict(r) -> dict:
+    return {"id": r.id, "title": r.title, "summary": r.summary, "request": r.request, "sections": r.spec.get("sections", []),
+            "period_days": r.spec.get("period_days"), "created_at": r.created_at}
+
+
+class ReportListView(APIView):
+    """GET /api/coordinator/reports/ — the reports the CEO asked the Practice Manager AI for (CEO only)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .models import CeoReport
+
+        if not services.is_ceo(request.user):
+            services.audit(request.user, "view_reports", allowed=False)
+            return Response({"detail": "Only the CEO can see these reports."}, status=status.HTTP_403_FORBIDDEN)
+        return Response({"reports": [_report_dict(r) for r in CeoReport.objects.defer("pdf")[:100]]})
+
+
+class ReportPdfView(APIView):
+    """GET /api/coordinator/reports/<id>/pdf/ — one report's PDF (CEO only)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+
+        from .models import CeoReport
+
+        if not services.is_ceo(request.user):
+            services.audit(request.user, "view_report", str(pk), allowed=False)
+            return Response({"detail": "Only the CEO can see these reports."}, status=status.HTTP_403_FORBIDDEN)
+        report = get_object_or_404(CeoReport, pk=pk)
+        response = HttpResponse(bytes(report.pdf), content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="report-{report.pk}.pdf"'
+        return response

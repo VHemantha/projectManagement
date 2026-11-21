@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import close_old_connections, transaction
 from django.utils import timezone
 
-from . import inquiries, llm, policies, services
+from . import inquiries, jobs as job_creation, llm, policies, reports, services
 from .facts import job_facts, leads_for, local_now, open_jobs, responsible
 from .models import AgentAction, AgentCase, Commitment, CoordinatorSettings
 from .texts import group_for_person
@@ -39,7 +39,7 @@ SCHEMA = {
     },
 }
 
-SYSTEM = """You are the TASKO Coordinator, the AI project coordinator inside AFIT Connect's practice-management software. You work with the accountants on their client jobs (pre-checks, preparing financial statements, review) and you report to the CEO.
+SYSTEM = """You are the Practice Manager AI, the AI practice manager inside AFIT Connect's practice-management software. You work with the accountants on their client jobs (pre-checks, preparing financial statements, review) and you report to the CEO.
 
 You are talking with {name}{role}. Today is {today} (New Zealand).
 
@@ -59,13 +59,14 @@ Also list in "updates" each job the person gives news about, with what they said
 
 
 def schema_for(*, ceo: bool, asking: bool) -> dict:
-    """The answer's shape: the CEO's answer can ask the agent to contact someone; a person the CEO
-    asked about gets their findings recorded for the CEO."""
-    if not (ceo or asking):
-        return SCHEMA
+    """The answer's shape: anyone can ask for jobs to be created (AFIT, 21 Nov 2026); the CEO's answer can
+    ask the agent to contact someone or make a report; a person the CEO asked about gets their findings
+    recorded for the CEO."""
     props, required = dict(SCHEMA["properties"]), list(SCHEMA["required"])
+    props["create_jobs"], required = job_creation.CREATE_SCHEMA, required + ["create_jobs"]
     if ceo:
         props["contact"], required = inquiries.CONTACT_SCHEMA, required + ["contact"]
+        props["report"], required = reports.REPORT_SCHEMA, required + ["report"]
     if asking:
         props["inquiries"], required = inquiries.ANSWER_SCHEMA, required + ["inquiries"]
     return {**SCHEMA, "properties": props, "required": required}
@@ -125,6 +126,9 @@ def _context(person, channel, jobs, asking=()) -> str:
         lines += ["\n== PEOPLE YOU CAN MESSAGE (person_id: name — job title) =="] + inquiries.people_lines(person)
         lines += ["\n== YOUR REQUESTS TO STAFF (latest first) =="] + inquiries.requests_lines(person)
     lines += inquiries.person_context(list(asking))
+    # Where jobs can be created, and who can be put on them (AFIT, 21 Nov 2026). The CEO's people are
+    # already listed above, as PEOPLE YOU CAN MESSAGE.
+    lines += job_creation.context_lines(person, with_people=not services.is_ceo(person))
     cases = AgentCase.objects.filter(person=person).exclude(state=AgentCase.State.RESOLVED).select_related("issue")
     if services.is_ceo(person):
         cases = AgentCase.objects.exclude(state=AgentCase.State.RESOLVED).select_related("issue", "person")
@@ -225,17 +229,22 @@ def reply_to(message_id: int) -> None:
     # The CEO asked the agent to find something out from this person (AFIT, 12 Nov 2026).
     asking = [] if is_ceo else inquiries.open_for(person)
     jobs += [q.issue for q in asking if q.issue_id and q.issue_id not in {i.pk for i in jobs}]
-    extra = (inquiries.CEO_RULES if is_ceo else "") + (inquiries.PERSON_RULES.format(first=inquiries.first_name(person)) if asking else "")
+    extra = ((inquiries.CEO_RULES + reports.RULES if is_ceo else "") + job_creation.RULES
+             + (inquiries.PERSON_RULES.format(first=inquiries.first_name(person)) if asking else ""))
+    if is_ceo:  # the CEO's people list is PEOPLE YOU CAN MESSAGE: the same ids are used for a job's people
+        extra = extra.replace("from PEOPLE (-1 if not given)", "from PEOPLE YOU CAN MESSAGE (-1 if not given)")
     system = SYSTEM.format(name=person.display_name, role=" (the CEO)" if is_ceo else "", today=f"{today:%A %d %B %Y}", extra=extra,
                            scope=("You may discuss anyone's jobs: this is the CEO." if is_ceo
                                   else "Talk only about this person's own jobs; say you cannot share anyone else's."))
-    cost_usd, updates, contacts, answers = 0.0, [], [], None
+    cost_usd, updates, contacts, answers, to_create, report_spec = 0.0, [], [], None, [], None
     try:
         answer, cost_usd = llm.structured(system, [{"role": "user", "content": _context(person, channel, jobs, asking)}],
                                           schema_for(ceo=is_ceo, asking=bool(asking)), max_tokens=2500 if (is_ceo or asking) else 1500)
         reply, updates = str(answer.get("reply", "")).strip(), answer.get("updates") or []
         contacts = (answer.get("contact") or []) if is_ceo else []
         answers = answer.get("inquiries") if asking else None
+        to_create = answer.get("create_jobs") or []
+        report_spec = answer.get("report") if is_ceo and (answer.get("report") or {}).get("wanted") else None
     except llm.Unavailable as exc:
         logger.info("Coordinator reply without the model: %s", exc)
         reply = ("Thanks, noted. I can't read the details automatically just now, so for each job please give me the hours you "
@@ -260,11 +269,27 @@ def reply_to(message_id: int) -> None:
         if contacts:  # sent by code, so the CEO is told only what really went out
             text += "\n\n" + "\n\n".join(inquiries.start(person, contacts, jobs, message, cost_usd=cost_usd))
             cost_usd = 0.0
+        created = []
+        if to_create:  # created by code, so the reply says only what really was created (AFIT, 21 Nov 2026)
+            created, created_lines = job_creation.create(person, to_create)
+            text += "\n\n" + "\n".join(created_lines)
+        report = None
+        if report_spec:  # the CEO's report: a PDF made by code, attached to the reply (AFIT, 21 Nov 2026)
+            try:
+                report, report_cost = reports.make(person, report_spec, _text_of(message.body))
+                cost_usd += report_cost
+                text += f"\n\nYour report is attached: {report.title} (PDF)."
+            except Exception:
+                logger.exception("CEO report failed")
+                text += "\n\nI couldn't make the report this time. Please ask again."
         sent = services.post_as_agent(channel, text.strip() or "Thanks, noted.")
+        if report is not None:
+            reports.attach(report, sent)
         if asking:
             inquiries.record(person, answers, asking, reply, _text_of(message.body))
         AgentAction.objects.create(trigger="reply", target=person, reason=f"Replied to {person.display_name}", message=sent, cost_usd=cost_usd,
-                                   detail={"updates": len(recorded)})
+                                   detail={"updates": len(recorded), "created": [i.key for i in created],
+                                           **({"report": report.pk} if report is not None else {})})
         for issue, note in to_lead:
             _tell_lead(issue, person, note, shadow=s.shadow_mode)
 

@@ -1,4 +1,4 @@
-"""AFIT, 12 Nov 2026: when the CEO asks the TASKO Coordinator to chat with someone and find out the
+"""AFIT, 12 Nov 2026: when the CEO asks the Practice Manager AI to chat with someone and find out the
 reasons, or to guide them, the agent really sends the questions (it never only says it will), guides
 the person from what the CEO said and what it knows, and reports what it found back to the CEO."""
 from datetime import timedelta

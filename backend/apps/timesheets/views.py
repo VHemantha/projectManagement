@@ -249,3 +249,43 @@ class TimeReportCsvView(APIView):
                 ]
             )
         return response
+
+
+class ActivityTasksView(APIView):
+    """GET /api/timesheets/activities/ — the hidden cards for time not on a job (AFIT, 21 Nov 2026):
+    idle, administration and training, to choose when logging time."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from .activities import LABEL, activity_tasks
+
+        return Response([{"id": i.id, "key": i.key, "activity": i.activity, "label": LABEL[i.activity]} for i in activity_tasks(request.user)])
+
+
+class EfficiencyView(APIView):
+    """GET /api/timesheets/efficiency/?days=10&user=<id> — the efficiency tracker (AFIT, 21 Nov 2026): each
+    working day's hours against the 7.5 expected, on jobs and not, and the open jobs' hours against budget.
+    ?team=1 — each person the user leads (everyone, for the CEO and admins), most under-logged first."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from apps.accounts.models import User
+
+        from .efficiency import MAX_DAYS, TARGET_HOURS, person_tracker, team_tracker
+
+        try:
+            days = max(1, min(int(request.query_params.get("days") or 10), MAX_DAYS))
+        except ValueError:
+            raise ValidationError({"days": "Give a number of days."})
+        end = timezone.localdate()
+        if request.query_params.get("team") in ("1", "true"):
+            people = list(led_people(request.user))
+            return Response({"target": TARGET_HOURS, "days": days, "people": team_tracker(people, end, days)})
+        user = request.user
+        if request.query_params.get("user"):
+            user = get_object_or_404(User, pk=request.query_params["user"])
+            if user.id != request.user.id and not led_people(request.user).filter(id=user.id).exists():
+                raise PermissionDenied("You can see the efficiency of the people you lead only.")
+        return Response(person_tracker(user, end, days))

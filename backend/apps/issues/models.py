@@ -38,6 +38,9 @@ class Issue(models.Model):
     # A free-text group the task belongs to (AFIT, 25 Oct 2026), set when the task is created.
     group = models.CharField(max_length=100, blank=True, default="")
     description = models.JSONField(null=True, blank=True)
+    # A hidden card for time that is not on a job (AFIT, 21 Nov 2026): idle, administration or training.
+    # Never shown on a Kanban view; chosen when logging time. "" for every real task.
+    activity = models.CharField(max_length=20, blank=True, default="", db_index=True)
 
     status = models.ForeignKey("workflow.WorkflowStatus", on_delete=models.PROTECT, related_name="issues")
     priority = models.CharField(max_length=10, choices=Priority.choices, default=Priority.MEDIUM)

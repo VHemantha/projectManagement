@@ -185,6 +185,12 @@ def test_the_workpapers_are_prepared_from_the_entitys_own_documents(tmc):
     # B1 from the ledger (debit +), prior year from the opening balances.
     assert f[("B1", "G18")]["value"] == D("101868.92") and f[("B1", "K18")]["value"] == D("65067.15")
     assert f[("B1", "G28")]["value"] == D("12458.50") and f[("B1", "G161")]["value"] == D("-15653.65") and f[("B1", "G197")]["value"] == D("3913.61")
+    # B1 in the system view (21 Nov 2026): one row per balance, the GL and prior GL cells side by side, the
+    # workpaper's own balance where it has a check against the ledger.
+    rows = {r["row"]: r for r in g["b1_rows"]}
+    assert (rows[18]["workpaper"], rows[18]["gl"], rows[18]["prior"]) == ("F1.1", f[("B1", "G18")]["id"], f[("B1", "K18")]["id"])
+    assert rows[197]["description"] == "Accounting fees" and rows[197]["workpaper"] == "V5" and D(rows[197]["wp_balance"]) == D("3847.62")
+    assert [r["row"] for r in g["b1_rows"]] == sorted(rows)
     codes = {x["code"] for x in g["exceptions"]}
     assert {"unmapped_3-1400", "unmapped_3-9999"} <= codes  # a tax appropriation in equity and a balancing account: for review
     # F1.1: the folder's bank statement at balance date is used (every document in it is the job's);
@@ -255,3 +261,15 @@ def test_without_a_ledger_nothing_is_compared_and_it_says_so(tmc, env):
     (env.drive_root / "tmc" / "TMC Ltd MYOB GL Detail FY26.xlsx").unlink()
     g = run(tmc)["gst"]
     assert "no_gl" in {x["code"] for x in g["exceptions"]} and not any(f["sheet"] == "B1" for f in g["fields"])
+
+
+def test_a_workpaper_is_saved_to_the_tasks_drive_folder_with_a_link(env):
+    """AFIT, 21 Nov 2026: the prepared workpaper goes to the task's Drive folder; saving again replaces it."""
+    from precheck_agent.drive import upload_workpaper
+
+    (env.drive_root / "task-folder").mkdir()
+    out = upload_workpaper("task-folder", "EWP TMC 2026.xlsm", b"one", "application/vnd.ms-excel.sheet.macroEnabled.12")
+    saved = env.drive_root / "task-folder" / "Workpapers" / "EWP TMC 2026.xlsm"
+    assert saved.read_bytes() == b"one" and out["web_url"].startswith("file:") and out["name"] == "EWP TMC 2026.xlsm"
+    upload_workpaper("task-folder", "EWP TMC 2026.xlsm", b"two", "application/vnd.ms-excel.sheet.macroEnabled.12")
+    assert saved.read_bytes() == b"two"

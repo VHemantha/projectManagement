@@ -195,3 +195,23 @@ def flush_job(body: FlushRequest):
     if not body.client_id or not body.job_id:
         raise HTTPException(status_code=400, detail="job_id and client_id are both needed.")
     return runner.flush_job(body.client_id, body.job_id)
+
+
+class DriveUpload(BaseModel):
+    folder_id: str
+    name: str
+    workbook_b64: str
+    mime_type: str = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+@app.post("/precheck/drive/upload", dependencies=[Depends(require_token)])
+def drive_upload(body: DriveUpload) -> dict:
+    """Save a prepared workpaper into the task's Google Drive folder (AFIT, 21 Nov 2026); returns its link."""
+    import base64
+
+    from .drive import DriveError, upload_workpaper
+
+    try:
+        return upload_workpaper(body.folder_id, body.name, base64.b64decode(body.workbook_b64), body.mime_type)
+    except DriveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

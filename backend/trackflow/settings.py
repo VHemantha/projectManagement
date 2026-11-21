@@ -225,6 +225,13 @@ COORDINATOR_ANTHROPIC_API_KEY = env("COORDINATOR_ANTHROPIC_API_KEY", "") or env(
 PRECHECK_ENV_FILE = env("PRECHECK_ENV_FILE", "/srv/trackflow/shared/precheck.env")
 # Replies in the coordinator's conversations run in a background thread (tests: inline).
 COORDINATOR_REPLY_ASYNC = env_bool("COORDINATOR_REPLY_ASYNC", True)
+# The Practice Manager AI's daily note of who logged under 7.5 hours (AFIT, 21 Nov 2026).
+COORDINATOR_LOW_HOURS = env_bool("COORDINATOR_LOW_HOURS", True)
+# Speaking to the Practice Manager AI (AFIT, 21 Nov 2026): Amazon Transcribe, through a private S3 bucket the
+# server's instance role may use. Empty: the microphone says voice isn't set up.
+VOICE_TRANSCRIBE_BUCKET = env("VOICE_TRANSCRIBE_BUCKET", "")
+VOICE_TRANSCRIBE_REGION = env("VOICE_TRANSCRIBE_REGION", "ap-south-1")
+VOICE_TRANSCRIBE_LANGUAGE = env("VOICE_TRANSCRIBE_LANGUAGE", "en-NZ")
 
 # Email (invitations). Console by default: messages are printed to the server log. For real
 # delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend and the EMAIL_* values

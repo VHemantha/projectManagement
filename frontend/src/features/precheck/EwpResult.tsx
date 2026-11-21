@@ -2,9 +2,10 @@ import { format, parseISO } from 'date-fns'
 import { FileSpreadsheet, Save, Undo2 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { DriveSave } from './DriveSave'
 import styles from './WpAgentPanel.module.css'
 import { extractErrorMessage } from '@/api/errors'
-import { downloadWorkpaper, type EwpField, type WpRun, useSaveWorkpaper } from '@/api/wpAgent'
+import { downloadWorkpaper, type EwpB1Row, type EwpField, type WpRun, useSaveWorkpaper } from '@/api/wpAgent'
 import { Button } from '@/design-system'
 
 const TONE: Record<string, string> = {
@@ -77,6 +78,7 @@ export function EwpResult({ run, jobKey }: { run: WpRun; jobKey: string }) {
             <FileSpreadsheet size={14} aria-hidden="true" /> {busy ? 'Preparing…' : 'Download workbook (.xlsm)'}
           </Button>
         )}
+        <DriveSave run={run} jobKey={jobKey} disabled={dirty > 0} />
       </div>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {g.summary && <p className={styles.summary}>{g.summary}</p>}
@@ -128,7 +130,10 @@ export function EwpResult({ run, jobKey }: { run: WpRun; jobKey: string }) {
               </tbody>
             </table>
           )}
-          {fields.length === 0 ? (
+          {tab === 'B1' && (g.b1_rows?.length ?? 0) > 0 && (
+            <B1Table rows={g.b1_rows!} fields={g.fields ?? []} shown={shown} edit={edit} tolerance={Number(run.options.setup?.tolerance || 0)} />
+          )}
+          {tab === 'B1' && (g.b1_rows?.length ?? 0) > 0 ? null : fields.length === 0 ? (
             <p className={styles.muted}>Nothing was entered on {tab}: see the exceptions for what is needed.</p>
           ) : (
             <table className={styles.table} aria-label={`${tab} cells`}>
@@ -198,5 +203,75 @@ export function EwpResult({ run, jobKey }: { run: WpRun; jobKey: string }) {
         on opening. Journals on D1 are proposals, not posted. Task {jobKey}.
       </p>
     </section>
+  )
+}
+
+const num = (v: string | null | undefined): number | null => {
+  if (v === null || v === undefined || String(v).trim() === '') return null
+  const n = Number(String(v).replace(/[,$\s]/g, '').replace(/^\((.*)\)$/, '-$1'))
+  return Number.isNaN(n) ? null : n
+}
+
+/** B1 in the system view (AFIT, 21 Nov 2026), as the template lays it out: one row per balance with its
+ * code, description and workpaper, the GL balance, the workpaper's balance, whether they reconcile and the
+ * variance, and last year's GL with the variance on it - each worked out in the row, as the accountant
+ * types, the way the template's formulas do (G - H, G - K). */
+function B1Table({ rows, fields, shown, edit, tolerance }: {
+  rows: EwpB1Row[]
+  fields: EwpField[]
+  shown: (f: EwpField) => string
+  edit: (f: EwpField, value: string) => void
+  tolerance: number
+}) {
+  const byId = new Map(fields.map((f) => [f.id, f]))
+  const cell = (id: string | null, label: string) => {
+    const f = id ? byId.get(id) : undefined
+    if (!f) return <span className={styles.muted}>—</span>
+    return f.editable ? (
+      <input className={styles.cellInput} aria-label={`${label} (${f.sheet}!${f.cell})`} inputMode="decimal" value={shown(f)}
+        onChange={(e) => edit(f, e.target.value)} title={f.source} />
+    ) : (
+      <span title={f.source}>{money(f.value)}</span>
+    )
+  }
+  return (
+    <table className={styles.table} aria-label="B1 review summary">
+      <thead>
+        <tr>
+          <th>Code</th><th>Description</th><th>Workpaper</th>
+          <th className={styles.num}>GL Bal</th><th className={styles.num}>WP Bal</th><th>Reconciled</th><th className={styles.num}>Variance</th>
+          <th className={styles.num}>Prior GL</th><th className={styles.num}>Variance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => {
+          const glField = r.gl ? byId.get(r.gl) : undefined
+          const priorField = r.prior ? byId.get(r.prior) : undefined
+          const gl = glField ? num(shown(glField)) : null
+          const prior = priorField ? num(shown(priorField)) : null
+          const wp = num(r.wp_balance)
+          const wpVariance = gl !== null && wp !== null ? gl - wp : null
+          const yearVariance = gl !== null && prior !== null ? gl - prior : null
+          const reconciled = wpVariance === null ? null : Math.abs(wpVariance) <= tolerance
+          return (
+            <tr key={r.row} data-row={r.row}>
+              <td className={styles.note}>{r.code}</td>
+              <th scope="row">{r.description}</th>
+              <td>{r.workpaper}</td>
+              <td className={styles.num}>{cell(r.gl, `${r.description} GL balance`)}</td>
+              <td className={styles.num}>{money(r.wp_balance)}</td>
+              <td>
+                {reconciled === null ? '' : (
+                  <span className={styles.status} data-tone={reconciled ? 'success' : 'danger'}>{reconciled ? 'Yes' : 'No'}</span>
+                )}
+              </td>
+              <td className={styles.num} data-testid={`b1-variance-${r.row}`}>{wpVariance === null ? '—' : money(wpVariance.toFixed(2))}</td>
+              <td className={styles.num}>{cell(r.prior, `${r.description} prior GL`)}</td>
+              <td className={styles.num} data-testid={`b1-year-variance-${r.row}`}>{yearVariance === null ? '—' : money(yearVariance.toFixed(2))}</td>
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
   )
 }

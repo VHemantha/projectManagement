@@ -7,6 +7,7 @@ from apps.clients.models import Client
 from apps.issues.models import Issue
 from apps.projects.models import Project
 from apps.teams.models import Team
+from apps.timesheets.activities import ACTIVITY_PROJECT_KEY  # never in the tree (AFIT, 21 Nov 2026)
 from apps.timesheets.budget import issue_actual_hours, project_actual_hours, project_effective_cost
 
 NO_TEAM_LABEL = "No workspace"
@@ -89,7 +90,7 @@ def _tree_by_team():
             }
         )
 
-    orphans = list(Project.objects.exclude(id__in=seen_project_ids).order_by("key"))
+    orphans = list(Project.objects.exclude(id__in=seen_project_ids).exclude(key=ACTIVITY_PROJECT_KEY).order_by("key"))
     if orphans:
         nodes.append(
             {
@@ -124,7 +125,7 @@ def _tree_by_group():
             }
         )
 
-    orphans = list(Project.objects.exclude(id__in=seen_project_ids).order_by("key"))
+    orphans = list(Project.objects.exclude(id__in=seen_project_ids).exclude(key=ACTIVITY_PROJECT_KEY).order_by("key"))
     if orphans:
         nodes.append(
             {
@@ -148,7 +149,7 @@ def _tree_by_client():
             )
         )
 
-    orphan_count = Project.objects.filter(client__isnull=True).count()
+    orphan_count = Project.objects.filter(client__isnull=True).exclude(key=ACTIVITY_PROJECT_KEY).count()
     if orphan_count:
         nodes.append(_client_leaf("client-none", NO_CLIENT_LABEL, {"no_client": True}, orphan_count))
     return nodes

@@ -10,7 +10,7 @@ def rename_to_tasko(apps, schema_editor):
     Organization.objects.filter(name="Loca").update(name="TASKO")
     agent = User.objects.filter(email="coordinator@loca.internal").first()
     if agent is not None and not User.objects.filter(email="coordinator@tasko.internal").exists():
-        agent.email, agent.display_name = "coordinator@tasko.internal", "TASKO Coordinator"
+        agent.email, agent.display_name = "coordinator@tasko.internal", "Practice Manager AI"
         if not User.objects.filter(username="tasko-coordinator").exists():
             agent.username = "tasko-coordinator"
         agent.save(update_fields=["email", "display_name", "username"])

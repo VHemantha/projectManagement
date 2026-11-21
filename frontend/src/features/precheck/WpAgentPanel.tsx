@@ -2,8 +2,10 @@ import { format, parseISO } from 'date-fns'
 import { AlertTriangle, CheckCircle2, FileSpreadsheet, Loader2, Play, RotateCcw, Upload } from 'lucide-react'
 import { type FormEvent, useRef, useState } from 'react'
 
+import { DriveSave } from './DriveSave'
 import { EwpResult } from './EwpResult'
 import { StopRun } from './StopRun'
+import { EWP_WORKPAPERS, WorkpaperWizard } from './WorkpaperWizard'
 import styles from './WpAgentPanel.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import {
@@ -93,13 +95,6 @@ const AGENTS: { key: WpAgentKey; name: string; lead: string; fields: { key: stri
     ],
   },
 ]
-/** The electronic workpapers the agent can prepare (L1 GST is the GST reconciliation agent). */
-const EWP_WORKPAPERS: { key: string; title: string }[] = [
-  { key: 'B1', title: 'Review summary' }, { key: 'F1.1', title: 'Bank reconciliation' }, { key: 'M1', title: 'Accounts payable' },
-  { key: 'Q1', title: 'Taxation due' }, { key: 'Q3a', title: 'Imputation credit account' }, { key: 'S2', title: 'Income reconciliation' },
-  { key: 'T2', title: 'Investment income' }, { key: 'V1', title: 'Expenses' }, { key: 'V2', title: 'Use of home as office' },
-  { key: 'V5', title: 'Accounting fees' }, { key: 'D1', title: 'Journals' },
-]
 const agentOf = (key: WpAgentKey) => AGENTS.find((a) => a.key === key) ?? AGENTS[0]
 
 function fileName(run: WpRun) {
@@ -164,20 +159,27 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
   const [choices, setChoices] = useState(defaults.choices ?? {})
   const isEwp = agent === 'ewp'
   const [workpapers, setWorkpapers] = useState<string[]>(defaults.workpapers ?? EWP_WORKPAPERS.map((w) => w.key))
-  const toggle = (key: string) => setWorkpapers((w) => (w.includes(key) ? w.filter((k) => k !== key) : [...w, key]))
+  // The workpapers are chosen in a pop-up, one at a time (AFIT, 21 Nov 2026); it opens on the first
+  // "Prepare" of a new run, and from "Choose workpapers" at any time.
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [chosenOnce, setChosenOnce] = useState(Boolean(latest))
   const arRef = useRef<HTMLInputElement>(null)
   const apRef = useRef<HTMLInputElement>(null)
   const running = latest?.status === 'running'
   const detected = latest?.gst?.detected
 
   const set = <K extends keyof GstSetup>(key: K, value: GstSetup[K]) => setSetup((s) => ({ ...s, [key]: value }))
-  const start = (extra: Partial<WpOptions['choices']> = {}) => {
+  const start = (extra: Partial<WpOptions['choices']> = {}, chosen: string[] = workpapers) => {
     const next = { ...choices, ...extra }
     setChoices(next)
-    run.mutate({ drive_link: link.trim(), ar_link: arLink.trim(), ap_link: apLink.trim(), setup, choices: next, ...(isEwp ? { workpapers } : {}) })
+    run.mutate({ drive_link: link.trim(), ar_link: arLink.trim(), ap_link: apLink.trim(), setup, choices: next, ...(isEwp ? { workpapers: chosen } : {}) })
   }
   const submit = (e: FormEvent) => {
     e.preventDefault()
+    if (isEwp && !chosenOnce) {
+      setWizardOpen(true)
+      return
+    }
     start()
   }
 
@@ -279,13 +281,28 @@ function WpForm({ jobKey, agent, defaults, latest }: { jobKey: string; agent: Wp
       {isEwp && (
         <fieldset className={styles.wpChoices}>
           <legend>Workpapers to prepare</legend>
-          {EWP_WORKPAPERS.map((w) => (
-            <button key={w.key} type="button" className={styles.wpTab} aria-pressed={workpapers.includes(w.key)} onClick={() => toggle(w.key)}
-              title={w.title}>
+          {EWP_WORKPAPERS.filter((w) => workpapers.includes(w.key)).map((w) => (
+            <span key={w.key} className={styles.wpTab} aria-pressed="true" title={w.purpose}>
               {w.key} {w.title}
-            </button>
+            </span>
           ))}
+          <Button type="button" variant="subtle" size="sm" onClick={() => setWizardOpen(true)}>
+            Choose workpapers…
+          </Button>
         </fieldset>
+      )}
+      {isEwp && (
+        <WorkpaperWizard
+          open={wizardOpen}
+          onOpenChange={setWizardOpen}
+          value={workpapers}
+          onDone={(chosen, prepare) => {
+            setWorkpapers(chosen)
+            setChosenOnce(true)
+            setWizardOpen(false)
+            if (prepare) start({}, chosen)
+          }}
+        />
       )}
       {(choices.ar_gl_fallback || choices.ap_gl_fallback) && (
         <p className={styles.muted}>
@@ -426,6 +443,7 @@ function Result({ run, jobKey }: { run: WpRun; jobKey: string }) {
             <FileSpreadsheet size={14} aria-hidden="true" /> {busy ? 'Preparing…' : 'Download workpaper (Excel)'}
           </Button>
         )}
+        <DriveSave run={run} jobKey={jobKey} />
       </div>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {g.summary && <p className={styles.summary}>{g.summary}</p>}

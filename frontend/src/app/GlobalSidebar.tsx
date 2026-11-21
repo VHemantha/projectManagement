@@ -37,8 +37,8 @@ const NAV_ITEMS = [
   // Everyone's morning plan, and the plans of the people one leads (AFIT, 1 Nov 2026).
   { to: '/plans', label: 'Morning plans', icon: Target, tone: 'orange' },
   { to: '/chat', label: 'Chat', icon: MessageSquare, tone: 'violet' },
-  // The AI project coordinator: everyone's private conversation with it, in Messages.
-  { to: '/coordinator', label: 'Coordinator', icon: Bot, tone: 'blue', end: true },
+  // The Practice Manager AI (renamed from the coordinator, AFIT 21 Nov 2026): everyone's private conversation with it, in Messages.
+  { to: '/coordinator', label: 'Practice Manager AI', icon: Bot, tone: 'blue', end: true },
   // What the pre-check agent has been taught, and a place to teach it more.
   { to: '/ai-rules', label: 'AI rules', icon: GraduationCap, tone: 'teal' },
   { to: '/timesheets', label: 'Timesheets', icon: Clock, tone: 'orange' },

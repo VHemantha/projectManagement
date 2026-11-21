@@ -26,15 +26,17 @@ interface DialogContentProps {
   title: string
   maxWidth?: number
   hideTitle?: boolean
+  /** The whole window, less a small margin (the WP Agent's workpapers, 21 Nov 2026). */
+  fullScreen?: boolean
 }
 
-export function DialogContent({ children, title, maxWidth, hideTitle }: DialogContentProps) {
+export function DialogContent({ children, title, maxWidth, hideTitle, fullScreen }: DialogContentProps) {
   return (
     <RadixDialog.Portal>
       <RadixDialog.Overlay className={styles.overlay} />
       <RadixDialog.Content
-        className={styles.content}
-        style={maxWidth ? { maxWidth } : undefined}
+        className={fullScreen ? `${styles.content} ${styles.fullScreen}` : styles.content}
+        style={maxWidth && !fullScreen ? { maxWidth } : undefined}
         onEscapeKeyDown={keepOpenForSelect}
       >
         <div className={styles.header}>

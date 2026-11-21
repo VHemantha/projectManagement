@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 
 import styles from './TimesheetGridPage.module.css'
 import { LogTimeModal } from './LogTimeModal'
-import { useGetOrCreateTimesheet, useSubmitTimesheet, useTimeEntries } from '@/api/timesheets'
+import { useActivityTasks, useGetOrCreateTimesheet, useSubmitTimesheet, useTimeEntries } from '@/api/timesheets'
 import type { TimeEntry, Timesheet } from '@/api/types'
 import { Button, IssueKey, Skeleton } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
@@ -23,6 +23,8 @@ interface RowGroup {
   label: string
   issueId: number | null
   entriesByDate: Map<string, TimeEntry[]>
+  /** A row for time not on a job (Idle, Administration, Training). */
+  activity?: boolean
 }
 
 export function TimesheetGridPage() {
@@ -53,8 +55,12 @@ export function TimesheetGridPage() {
     !!currentUser,
   )
 
+  const { data: activities } = useActivityTasks()
   const rows = useMemo<RowGroup[]>(() => {
     const groups = new Map<string, RowGroup>()
+    // Time not on a job always has its rows - Idle, Administration, Training - to log to (AFIT, 21 Nov 2026).
+    const standing = (activities ?? []).map((a) => [`issue-${a.id}`, a.label] as const)
+    for (const [key, label] of standing) groups.set(key, { key, label, issueId: Number(key.slice(6)), entriesByDate: new Map(), activity: true })
     for (const entry of entries ?? []) {
       const key = entry.issue ? `issue-${entry.issue.id}` : 'general'
       if (!groups.has(key)) {
@@ -70,8 +76,11 @@ export function TimesheetGridPage() {
       list.push(entry)
       group.entriesByDate.set(entry.work_date, list)
     }
-    return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label))
-  }, [entries])
+    const isStanding = (r: RowGroup) => standing.some(([key]) => key === r.key)
+    // Jobs first (by name), then the three rows for time not on a job, in their own order.
+    return [...[...groups.values()].filter((r) => !isStanding(r)).sort((a, b) => a.label.localeCompare(b.label)),
+      ...standing.map(([key]) => groups.get(key)!)]
+  }, [entries, activities])
 
   const hoursFor = (list: TimeEntry[] | undefined) =>
     !list ? 0 : list.reduce((sum, e) => sum + e.duration_seconds, 0) / 3600
@@ -122,7 +131,7 @@ export function TimesheetGridPage() {
           <Button
             variant="primary"
             size="sm"
-            disabled={isLocked || rows.length === 0 || submitTimesheet.isPending}
+            disabled={isLocked || (entries?.length ?? 0) === 0 || submitTimesheet.isPending}
             onClick={() => timesheet && submitTimesheet.mutate(timesheet.id, { onSuccess: setTimesheet })}
           >
             {isLocked ? 'Submitted' : 'Submit for approval'}
@@ -159,7 +168,7 @@ export function TimesheetGridPage() {
               </td>
             </tr>
           )}
-          {!entriesLoading && rows.length === 0 && (
+          {!entriesLoading && (entries?.length ?? 0) === 0 && (
             <tr>
               <td colSpan={9} className={styles.empty}>
                 No time logged this week yet.
@@ -170,8 +179,8 @@ export function TimesheetGridPage() {
             <tr key={row.key}>
               <td>
                 <div className={styles.rowLabel}>
-                  {row.issueId ? <IssueKey value={row.label.split(' ')[0]} /> : null}
-                  <span>{row.issueId ? row.label.slice(row.label.indexOf(' ') + 1) : row.label}</span>
+                  {row.issueId && !row.activity ? <IssueKey value={row.label.split(' ')[0]} /> : null}
+                  <span>{row.issueId && !row.activity ? row.label.slice(row.label.indexOf(' ') + 1) : row.label}</span>
                 </div>
               </td>
               {weekDays.map((d) => {

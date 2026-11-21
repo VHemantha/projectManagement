@@ -132,7 +132,7 @@ describe('Sidebar', () => {
   it('gives everyone the coordinator and leave, and only the CEO the console', () => {
     useAuthStore.setState({ user: user('member') })
     const { unmount } = sidebar()
-    expect(screen.getByRole('link', { name: 'Coordinator' })).toHaveAttribute('href', '/coordinator')
+    expect(screen.getByRole('link', { name: 'Practice Manager AI' })).toHaveAttribute('href', '/coordinator')
     expect(screen.getByRole('link', { name: 'Leave' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'CEO console' })).not.toBeInTheDocument()
     unmount()

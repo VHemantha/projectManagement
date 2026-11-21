@@ -18,7 +18,7 @@ def test_the_live_organisation_and_the_coordinator_take_the_new_name():
     rename(apps, None)
     old.refresh_from_db()
     assert Organization.get_solo().name == "TASKO"
-    assert (old.email, old.username, old.display_name) == ("coordinator@tasko.internal", "tasko-coordinator", "TASKO Coordinator")
+    assert (old.email, old.username, old.display_name) == ("coordinator@tasko.internal", "tasko-coordinator", "Practice Manager AI")
     assert services.agent_user() == old  # the same account, so every conversation with it is kept
 
 

@@ -71,5 +71,5 @@ def shadow_digest(digest: list[tuple]) -> str:
     parts = [f"Shadow mode — I would have sent {len(digest)} message{'s' if len(digest) != 1 else ''} just now. Nothing went to the team."]
     for person, text in digest:
         parts.append(f"To {person.display_name}:\n{text}")
-    parts.append("Turn shadow mode off in the coordinator console when you're happy with these.")
+    parts.append("Turn shadow mode off in the Practice Manager AI console when you're happy with these.")
     return "\n\n".join(parts)

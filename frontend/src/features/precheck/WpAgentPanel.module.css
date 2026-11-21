@@ -322,3 +322,13 @@ tr[data-changed='yes'] .cellInput { border-color: var(--tf-warning, #d97706); }
   color: var(--tf-text);
   padding: 0 4px;
 }
+
+/* The workpaper in Google Drive (21 Nov 2026) */
+.driveLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--tf-font-size-sm);
+  font-weight: 600;
+  color: var(--tf-primary);
+}

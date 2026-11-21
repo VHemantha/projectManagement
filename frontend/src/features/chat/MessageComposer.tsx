@@ -4,8 +4,10 @@ import { useRef, useState } from 'react'
 
 import styles from './ChatPage.module.css'
 import { channelDisplayName } from './channelDisplay'
+import { VoiceButton } from './VoiceButton'
 import { extractPlainText } from './richTextPlainText'
 import { useChannelMembers, useSendMessageWithAttachment } from '@/api/chat'
+import { useCoordinatorMe } from '@/api/coordinator'
 import type { Channel, User } from '@/api/types'
 import {
   Avatar,
@@ -37,6 +39,14 @@ export function MessageComposer({ channel, onSend, onTyping }: MessageComposerPr
   const sendWithAttachment = useSendMessageWithAttachment(channel.id)
   const lastTypingSentAt = useRef(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // The person's conversation with the Practice Manager AI takes spoken messages (AFIT, 21 Nov 2026).
+  const { data: agent } = useCoordinatorMe()
+  const withAgent = agent?.conversation_id === channel.id
+  const putText = (text: string) => {
+    const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text }] }] } as JSONContent
+    setDraft(doc)
+    setResetKey((k) => k + 1)
+  }
 
   const handleChange = (json: JSONContent) => {
     setDraft(json)
@@ -142,6 +152,7 @@ export function MessageComposer({ channel, onSend, onTyping }: MessageComposerPr
           hidden
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
         />
+        {withAgent && <VoiceButton onText={putText} />}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="subtle" size="sm" iconOnly aria-label="Mention someone">

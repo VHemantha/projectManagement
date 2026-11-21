@@ -124,7 +124,11 @@ def tick(now: datetime | None = None) -> dict:
     from . import ratings_report
 
     ratings = ratings_report.send_if_due(now)
-    return {"cases_open": len(live), "closed": closed, **sent, "briefing": briefing, "ratings": ratings, "sending": sending}
+    from . import low_hours
+
+    # Who logged under 7.5 hours on the last working day, to the CEO and their team leads (AFIT, 21 Nov 2026).
+    low = low_hours.send_if_due(now)
+    return {"cases_open": len(live), "closed": closed, **sent, "briefing": briefing, "ratings": ratings, "low_hours": low, "sending": sending}
 
 
 def _close(case: AgentCase, reason: str, now) -> None:

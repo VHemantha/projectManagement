@@ -25,6 +25,7 @@ import {
   useUpdateCoordinatorSettings,
 } from '@/api/coordinator'
 import { extractErrorMessage } from '@/api/errors'
+import { ReportsTab } from './ReportsTab'
 import { Button, Skeleton, Tabs, TabsContent, TabsList, TabsTrigger } from '@/design-system'
 import { useAuthStore } from '@/store/authStore'
 
@@ -38,24 +39,25 @@ export function CoordinatorConsolePage() {
   if (role !== 'ceo') {
     return (
       <div className={styles.page}>
-        <h1 className={styles.title}>Coordinator console</h1>
-        <p className={styles.lead}>Only the CEO can open the coordinator console. You can chat with the TASKO Coordinator in Messages.</p>
+        <h1 className={styles.title}>Practice Manager AI console</h1>
+        <p className={styles.lead}>Only the CEO can open the coordinator console. You can chat with the Practice Manager AI in Messages.</p>
       </div>
     )
   }
   return (
     <div className={styles.page}>
-      <h1 className={styles.title}>Coordinator console</h1>
+      <h1 className={styles.title}>Practice Manager AI console</h1>
       <p className={styles.lead}>
-        The TASKO Coordinator follows up jobs, hours and timesheets with the team in Messages and reports to you. Here you set its rules
+        The Practice Manager AI follows up jobs, hours and timesheets with the team in Messages and reports to you. Here you set its rules
         and controls; every change is logged.
       </p>
       <Tabs defaultValue="controls">
-        <TabsList aria-label="Coordinator console">
+        <TabsList aria-label="Practice Manager AI console">
           <TabsTrigger value="controls">Controls</TabsTrigger>
           <TabsTrigger value="names">Names</TabsTrigger>
           <TabsTrigger value="cases">Follow-ups</TabsTrigger>
           <TabsTrigger value="ratings">Ratings</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
           <TabsTrigger value="rules">Rules</TabsTrigger>
           <TabsTrigger value="leave">Leave</TabsTrigger>
           <TabsTrigger value="hours">Working hours</TabsTrigger>
@@ -67,6 +69,7 @@ export function CoordinatorConsolePage() {
         <TabsContent value="names"><OrganisationNames /></TabsContent>
         <TabsContent value="cases"><FollowUps /></TabsContent>
         <TabsContent value="ratings"><RatingsTab /></TabsContent>
+        <TabsContent value="reports"><ReportsTab /></TabsContent>
         <TabsContent value="rules"><Rules /></TabsContent>
         <TabsContent value="leave"><LeaveApprovals /></TabsContent>
         <TabsContent value="hours"><WorkingHours /></TabsContent>

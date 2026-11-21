@@ -10,6 +10,9 @@ vi.mock('@/api/timesheets', () => ({
   useCreateTimeEntry: () => ({ mutate: mocks.create, isPending: false, error: null }),
   useUpdateTimeEntry: () => ({ mutate: vi.fn(), isPending: false, error: null }),
   useOnBehalfPeople: () => ({ data: mocks.people }),
+  useActivityTasks: () => ({ data: [{ id: 91, key: 'NONJOB-1', activity: 'idle', label: 'Idle' },
+                                    { id: 92, key: 'NONJOB-2', activity: 'administration', label: 'Administration' },
+                                    { id: 93, key: 'NONJOB-3', activity: 'training', label: 'Training' }] }),
 }))
 vi.mock('@/api/issues', () => ({ useIssues: () => ({ data: undefined }) }))
 
@@ -32,5 +35,18 @@ describe('Log time for someone else (AFIT, 1 Nov 2026)', () => {
     await userEvent.type(screen.getByLabelText('Hours'), '1')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     expect(mocks.create.mock.calls[0][0]).not.toHaveProperty('user_id')
+  })
+
+  it('logs time that is not on a job to Idle, Administration or Training (AFIT, 21 Nov 2026)', async () => {
+    mocks.people = []
+    mocks.create.mockClear()
+    render(<LogTimeModal open onOpenChange={vi.fn()} defaultDate="2026-11-01" />)
+    const group = screen.getByRole('group', { name: 'Time not on a job' })
+    expect(group).toHaveTextContent('IdleAdministrationTraining')
+    await userEvent.click(screen.getByRole('button', { name: 'Training' }))
+    expect(screen.getByRole('button', { name: 'Training' })).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.type(screen.getByLabelText('Hours'), '1.5')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(mocks.create.mock.calls[0][0]).toMatchObject({ issue_id: 93, hours: 1.5 })
   })
 })

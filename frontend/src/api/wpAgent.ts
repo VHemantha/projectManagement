@@ -137,12 +137,27 @@ export interface GstResult {
   lines: WpLine[]
   /** Electronic workpapers (16 Nov 2026). */
   workpapers: EwpWorkpaper[]
+  /** B1 as the template lays it out, one row per balance (21 Nov 2026); runs before then have none. */
+  b1_rows?: EwpB1Row[]
   fields: EwpField[]
   checks: EwpCheck[]
   inventory: EwpDocument[]
   journals: { id: string; wp: string; title: string; narration: string; why: string; status: string;
     lines: { account: string; code: string; debit: string; credit: string }[] }[]
   edits: { at: string; by: string; id: string; sheet: string; cell: string; label: string; from: string | null; to: string | null }[]
+  /** Where the workpaper was saved in Google Drive, when someone saved it there (21 Nov 2026). */
+  drive_file?: { name: string; url: string; id: string; saved_at: string; saved_by: string }
+}
+
+/** One B1 row: its cells (GL balance G, prior GL K) by field id, and the workpaper's own balance (H). */
+export interface EwpB1Row {
+  row: number
+  code: string
+  description: string
+  workpaper: string
+  gl: string | null
+  prior: string | null
+  wp_balance: string | null
 }
 
 /** One cell the agent filled, with where it came from; the accountant can correct it. */
@@ -251,6 +266,15 @@ export function useSaveWorkpaper(jobKey: string, runId: string) {
   return useMutation({
     mutationFn: async (cells: { id: string; value: string | null }[]) =>
       (await apiClient.patch<WpRun & { errors: Record<string, string> }>(`/precheck/runs/${runId}/workpaper/`, { cells })).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
+  })
+}
+
+/** Save the run's workpaper into the task's Google Drive folder (21 Nov 2026); the run then carries its link. */
+export function useSaveToDrive(jobKey: string, runId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => (await apiClient.post<WpRun>(`/precheck/runs/${runId}/workpaper/drive/`)).data,
     onSettled: () => queryClient.invalidateQueries({ queryKey: ['precheck', jobKey] }),
   })
 }

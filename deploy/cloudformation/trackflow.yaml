@@ -222,6 +222,22 @@ Resources:
       ManagedPolicyArns:
         # Lets you open a shell from the AWS console (Session Manager) without SSH.
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        # Speaking to the Practice Manager AI (AFIT, 21 Nov 2026): Amazon Transcribe reads a recording from the
+        # private voice bucket and writes its transcript back; the app deletes both straight after.
+        - PolicyName: practice-manager-voice
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                  - transcribe:GetTranscriptionJob
+                  - transcribe:DeleteTranscriptionJob
+                Resource: "*"
+              - Effect: Allow
+                Action: [s3:PutObject, s3:GetObject, s3:DeleteObject]
+                Resource: !Sub "${VoiceBucket.Arn}/voice/*"
 
   AppInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -390,6 +406,26 @@ Resources:
   # ---------------------------------------------------------------------------
   # Frontend: private S3 bucket, readable only by CloudFront (Origin Access Control)
   # ---------------------------------------------------------------------------
+  # Recordings for Amazon Transcribe (AFIT, 21 Nov 2026): private, encrypted, and anything left is removed
+  # after a day. Transcribe reads it as the caller (the instance role), so no bucket policy is needed.
+  VoiceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-recordings
+            Status: Enabled
+            Prefix: voice/
+            ExpirationInDays: 1
+
   FrontendBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -543,6 +579,9 @@ Outputs:
     Value: !Ref Distribution
   FrontendBucketName:
     Value: !Ref FrontendBucket
+  VoiceBucketName:
+    Description: Set as VOICE_TRANSCRIBE_BUCKET in /srv/trackflow/shared/.env for speaking to the Practice Manager AI.
+    Value: !Ref VoiceBucket
   InstanceId:
     Value: !Ref AppInstance
   InstancePublicIp:

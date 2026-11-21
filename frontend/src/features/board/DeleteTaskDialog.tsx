@@ -47,7 +47,7 @@ export function DeleteTaskDialog({ issue, open, onOpenChange, onDeleted }: {
         >
           <p style={{ margin: '0 0 8px' }}>
             <strong>{issue.summary}</strong> ({issue.key}) will be deleted permanently, with its sub-tasks, comments, attachments,
-            history, AI pre-check runs and coordinator follow-ups. This can&apos;t be undone.
+            history, AI pre-check runs and Practice Manager AI follow-ups. This can&apos;t be undone.
           </p>
           <p style={{ margin: '0 0 12px', color: 'var(--tf-text-secondary)', fontSize: 13 }}>
             Hours already logged on it stay in timesheets, without the task. To keep the task&apos;s record, move it to To be

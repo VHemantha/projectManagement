@@ -95,7 +95,7 @@ describe("The CEO's team snapshot (AFIT, 5 Nov 2026)", () => {
     expect(mocks.openIssueModal).toHaveBeenCalledWith('ABC-12')
     expect(screen.getByRole('region', { name: "Today's morning plan" })).toHaveTextContent('7h today')
     expect(screen.getByRole('region', { name: 'Completed, last 30 days' })).toHaveTextContent('Year end')
-    expect(screen.getByRole('region', { name: 'Coordinator follow-ups open' })).toHaveTextContent('Preparation overdue')
+    expect(screen.getByRole('region', { name: 'Practice Manager AI follow-ups open' })).toHaveTextContent('Preparation overdue')
     expect(screen.getByText('12h')).toBeInTheDocument()
   })
 

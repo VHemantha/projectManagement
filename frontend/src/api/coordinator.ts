@@ -295,3 +295,34 @@ export function useRatings(days?: number) {
     queryFn: () => get<Ratings>(`/coordinator/ratings/${days ? `?days=${days}` : ''}`),
   })
 }
+
+// --- speaking to the Practice Manager AI, and the CEO's reports (AFIT, 21 Nov 2026) -----------------------
+
+/** A recording turned into text by Amazon Transcribe, for the person to check and send. */
+export async function transcribeVoice(audio: Blob): Promise<string> {
+  const form = new FormData()
+  const type = audio.type || 'audio/webm'
+  form.append('audio', new File([audio], `message.${type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'mp4' : 'webm'}`, { type }))
+  const { data } = await apiClient.post<{ text: string }>('/coordinator/voice/', form, { headers: { 'Content-Type': 'multipart/form-data' } })
+  return data.text
+}
+
+export interface CeoReport {
+  id: number
+  title: string
+  summary: string
+  request: string
+  sections: string[]
+  period_days: number
+  created_at: string
+}
+
+/** The reports the CEO asked the Practice Manager AI for (CEO only). */
+export function useCeoReports(enabled = true) {
+  return useQuery({ queryKey: ['coordinator', 'reports'], enabled, queryFn: () => get<{ reports: CeoReport[] }>('/coordinator/reports/') })
+}
+
+export async function openCeoReport(id: number) {
+  const { data } = await apiClient.get<Blob>(`/coordinator/reports/${id}/pdf/`, { responseType: 'blob' })
+  window.open(URL.createObjectURL(data), '_blank', 'noopener')
+}

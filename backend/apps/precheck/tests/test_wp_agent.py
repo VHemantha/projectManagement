@@ -217,3 +217,35 @@ def test_the_electronic_workpapers_run_with_the_chosen_workpapers_and_are_correc
     xlsm = api(pat).get(f"/api/precheck/runs/{run.run_id}/workpaper.xlsx")
     assert xlsm["Content-Type"] == "application/vnd.ms-excel.sheet.macroEnabled.12" and xlsm["Content-Disposition"].endswith('.xlsm"')
     assert services.job_payload(issue)["last_ewp"]["status"] == "Prepared - review"
+
+
+def test_the_workpaper_is_saved_to_the_tasks_drive_folder_and_its_link_kept(agent, monkeypatch):
+    """AFIT, 21 Nov 2026: "Save to Google Drive" puts the run's workpaper in the task's Drive folder."""
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    r = api(pat).post(f"/api/precheck/jobs/{issue.key}/wp-agent/", FORM, format="json")
+    complete(r.data["run_id"], {"status": "Reconciled", "paused": {}})
+    sent = []
+
+    def upload(path, body, **kw):
+        sent.append((path, body))
+        return {"id": "f1", "name": body["name"], "web_url": "https://drive.google.com/file/d/f1/view"}
+
+    monkeypatch.setattr(services, "_call_agent", upload)
+    out = api(pat).post(f"/api/precheck/runs/{r.data['run_id']}/workpaper/drive/")
+    assert out.status_code == 200 and out.data["gst"]["drive_file"]["url"] == "https://drive.google.com/file/d/f1/view"
+    assert out.data["gst"]["drive_file"]["saved_by"] == "Pat" and out.data["gst"]["status"] == "Reconciled"
+    path, body = sent[0]
+    assert path == "/precheck/drive/upload" and body["folder_id"] == issue.drive_folder.folder_id
+    assert body["name"].endswith("Smith Rentals Ltd 2026-03-31.xlsx") and base64.b64decode(body["workbook_b64"]) == workbook_bytes()
+
+    def refused(path, body, **kw):
+        raise services.AgentRefused("share the task's Drive folder with the service account as an Editor")
+
+    monkeypatch.setattr(services, "_call_agent", refused)
+    no = api(pat).post(f"/api/precheck/runs/{r.data['run_id']}/workpaper/drive/")
+    assert no.status_code == 400 and "Editor" in no.data["detail"]
+    # The same rule as the download: only someone who can open the task may save its workpaper.
+    eve = person("eve")
+    if not services.can_open_job(eve, issue):
+        assert api(eve).post(f"/api/precheck/runs/{r.data['run_id']}/workpaper/drive/").status_code == 403

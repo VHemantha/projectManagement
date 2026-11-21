@@ -198,7 +198,7 @@ function Body({ data }: { data: PersonDashboard }) {
           )}
         </Card>
 
-        <Card title="Coordinator follow-ups open">
+        <Card title="Practice Manager AI follow-ups open">
           {data.follow_ups.length === 0 ? (
             <p className={dash.empty}>Nothing being followed up with them.</p>
           ) : (

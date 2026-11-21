@@ -3,8 +3,9 @@
 Sign-in is done here, in code, with a Google service account that has the read-only Drive
 scope and has been given access to the job folder. The key comes from the secret manager
 (a mounted file or an injected environment value) — never from a skill, a prompt or the
-repository. This service never writes to Drive: the only API calls are files.list, files.get
-(one file's metadata, for a file link), files.get_media and files.export.
+repository. Reading uses only files.list, files.get (one file's metadata, for a file link),
+files.get_media and files.export. The one write is `upload_workpaper` (AFIT, 21 Nov 2026): a prepared
+workpaper saved to the task's folder, when a person asks for it, with its own write-scoped sign-in.
 
 `LocalDrive` treats a directory as a folder, for tests and the demo mode.
 """
@@ -232,3 +233,50 @@ def link_to_place(file: dict, block: dict) -> str:
 
         return f"{base}#range={quote(rng)}"
     return url
+
+
+# --- saving a workpaper to the task's Drive folder (AFIT, 21 Nov 2026) --------------------------------
+
+WRITE_SCOPE = "https://www.googleapis.com/auth/drive"
+
+
+def upload_workpaper(folder_id: str, name: str, data: bytes, mime_type: str, settings: Settings | None = None) -> dict:
+    """Save a prepared workpaper into a Drive folder: the one call that writes to Drive, made only when a
+    person asks for it. A file of the same name in the folder is replaced (a new version, same link).
+    Returns {"id", "name", "web_url"}. Needs the service account to be an editor of the folder."""
+    s = settings or get_settings()
+    if s.drive_mode == "local":
+        folder = LocalDrive(s)._folder(folder_id)
+        target = folder / "Workpapers" / name
+        target.parent.mkdir(exist_ok=True)
+        target.write_bytes(data)
+        return {"id": f"local:{folder_id}/Workpapers/{name}", "name": name, "web_url": target.resolve().as_uri()}
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+    from googleapiclient.http import MediaIoBaseUpload
+
+    if s.google_service_account_json:
+        creds = service_account.Credentials.from_service_account_info(json.loads(s.google_service_account_json), scopes=[WRITE_SCOPE])
+    elif s.google_service_account_file:
+        creds = service_account.Credentials.from_service_account_file(s.google_service_account_file, scopes=[WRITE_SCOPE])
+    else:
+        raise DriveError("The pre-check service has no Google service account key configured.")
+    svc = build("drive", "v3", credentials=creds, cache_discovery=False)
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype=mime_type, resumable=False)
+    safe = name.replace("'", "\'")
+    try:
+        same = svc.files().list(q=f"'{folder_id}' in parents and name = '{safe}' and trashed = false", fields="files(id)",
+                                supportsAllDrives=True, includeItemsFromAllDrives=True).execute().get("files", [])
+        if same:
+            f = svc.files().update(fileId=same[0]["id"], media_body=media, fields="id, name, webViewLink", supportsAllDrives=True).execute()
+        else:
+            f = svc.files().create(body={"name": name, "parents": [folder_id]}, media_body=media, fields="id, name, webViewLink",
+                                   supportsAllDrives=True).execute()
+    except HttpError as exc:
+        status = getattr(exc.resp, "status", 0)
+        if status in (403, 404):
+            raise DriveError(f"The workpaper could not be saved: share the task's Drive folder with {creds.service_account_email} as an "
+                             "Editor (it has view access only), then try again.") from exc
+        raise DriveError("Google Drive refused the workpaper. Try again in a moment.") from exc
+    return {"id": f["id"], "name": f.get("name", name), "web_url": f.get("webViewLink", "")}

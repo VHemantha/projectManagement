@@ -8,7 +8,7 @@ changed is posted under the task's Pre-check stage, so its history shows it:
     "Found: Applicant annual income — Payslip summary.txt (Annual income: $50,000)"
     "Confirmed missing: ANZ statement for March 2026"
 
-Posted by the TASKO Coordinator (the agent's account), since no person did it.
+Posted by the Practice Manager AI (the agent's account), since no person did it.
 """
 from django.utils import timezone
 

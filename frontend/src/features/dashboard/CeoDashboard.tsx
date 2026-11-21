@@ -204,10 +204,10 @@ function Dashboard({ data }: { data: Data }) {
           <SingleBars rows={data.prechecks} nameKey="result" valueKey="runs" name="Runs" />
         </ChartCard>
 
-        <section className={styles.card} aria-label="Coordinator follow-ups">
+        <section className={styles.card} aria-label="Practice Manager AI follow-ups">
           <header className={styles.cardHeader}>
             <div>
-              <h2 className={styles.cardTitle}>Coordinator follow-ups</h2>
+              <h2 className={styles.cardTitle}>Practice Manager AI follow-ups</h2>
               <p className={styles.hint}>Open cases now; revised dates over the last 90 days</p>
             </div>
             <Link to="/coordinator/console" className={styles.toggle}>Open console</Link>

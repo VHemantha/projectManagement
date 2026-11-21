@@ -60,7 +60,7 @@ describe('CEO home page (AFIT, 28 Oct 2026)', () => {
     expect(screen.getByText('Overdue').parentElement).toHaveTextContent('3')
     expect(screen.getByText('Hours logged this month').parentElement).toHaveTextContent('182.5h')
     expect(screen.getByRole('region', { name: 'Over budget' })).toHaveTextContent('RWCA-7Smith FY26Pat8h11.5h3.5h')
-    expect(screen.getByRole('region', { name: 'Coordinator follow-ups' })).toHaveTextContent('75%')
+    expect(screen.getByRole('region', { name: 'Practice Manager AI follow-ups' })).toHaveTextContent('75%')
     expect(screen.getByText(/On leave today/).parentElement).toHaveTextContent('Sam')
   })
 

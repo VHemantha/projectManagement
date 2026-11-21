@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { WpAgentPanel } from './WpAgentPanel'
 
-const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}), agents: [] as string[], save: vi.fn() }))
+const mocks = vi.hoisted(() => ({ state: undefined as unknown, run: vi.fn(), download: vi.fn(async () => {}), agents: [] as string[], save: vi.fn(), drive: vi.fn() }))
 
 vi.mock('@/api/wpAgent', () => ({
   useWpAgent: (_key: string, agent = 'gst') => {
@@ -14,6 +14,7 @@ vi.mock('@/api/wpAgent', () => ({
   useRunWpAgent: (_key: string, agent = 'gst') => ({ mutate: (o: object) => mocks.run({ ...o, agent }), isPending: false, isError: false }),
   downloadWorkpaper: mocks.download,
   useSaveWorkpaper: () => ({ mutate: mocks.save, isPending: false, isError: false, data: undefined }),
+  useSaveToDrive: () => ({ mutate: mocks.drive, isPending: false, isError: false }),
 }))
 vi.mock('./StopRun', () => ({ StopRun: () => null }))
 
@@ -152,21 +153,81 @@ describe('WP Agent panel (AFIT, 8 Nov 2026)', () => {
     expect(mocks.download).toHaveBeenCalledWith('r1', 'Wages (PAYE) reconciliation Acme Trading Ltd 2026-03-31.xlsx')
   })
 
-  it('the electronic workpapers agent takes the workpapers chosen by toggle buttons (16 Nov 2026)', async () => {
+  it('chooses the electronic workpapers in a pop-up, one at a time, then prepares them (AFIT, 21 Nov 2026)', async () => {
     render(<WpAgentPanel jobKey="ACME-1" />)
     await userEvent.click(screen.getByRole('radio', { name: 'Electronic workpapers (CCH)' }))
     expect(mocks.agents.at(-1)).toBe('ewp')
     const form = screen.getByRole('form', { name: 'WP Agent inputs' })
-    const choices = within(form).getByRole('group', { name: 'Workpapers to prepare' })
-    expect(within(choices).queryByRole('button', { name: /L1/ })).toBeNull()  // GST is its own agent
-    await userEvent.click(within(choices).getByRole('button', { name: /V2 Use of home/ }))
-    expect(within(choices).getByRole('button', { name: /V2 Use of home/ })).toHaveAttribute('aria-pressed', 'false')
     await userEvent.type(within(form).getByLabelText(/Google Drive link/), 'https://drive.google.com/drive/folders/TMC')
+    // The first "Prepare" opens the pop-up instead of running.
     await userEvent.click(within(form).getByRole('button', { name: 'Prepare workpapers' }))
+    expect(mocks.run).not.toHaveBeenCalled()
+    const dialog = screen.getByRole('dialog', { name: 'Choose the workpapers to prepare' })
+    expect(within(dialog).getByText('Workpaper 1 of 11')).toBeInTheDocument()
+    expect(within(dialog).getByRole('region', { name: 'B1 Review summary' })).toBeInTheDocument()
+    expect(within(dialog).queryByText(/L1/)).toBeNull() // GST is its own agent
+    // Every workpaper comes in turn: include (Next) or leave out.
+    for (let i = 0; i < 8; i++) await userEvent.click(within(dialog).getByRole('button', { name: /^Next/ }))
+    expect(within(dialog).getByRole('region', { name: 'V2 Use of home as office' })).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave out and next' }))
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Next/ }))
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Next/ }))
+    const summary = within(dialog).getByRole('region', { name: 'Summary' })
+    expect(summary).toHaveTextContent('10 of 11 workpapers to prepare')
+    expect(summary).not.toHaveTextContent('V2')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Prepare 10 workpapers' }))
     const sent = mocks.run.mock.calls.at(-1)![0]
     expect(sent.agent).toBe('ewp')
     expect(sent.workpapers).not.toContain('V2')
     expect(sent.workpapers).toContain('F1.1')
+    // The choice shows on the form, and can be changed again.
+    const choices = within(form).getByRole('group', { name: 'Workpapers to prepare' })
+    expect(choices).not.toHaveTextContent('V2 Use of home')
+    expect(within(choices).getByRole('button', { name: 'Choose workpapers…' })).toBeInTheDocument()
+  })
+
+  it('shows B1 one row per balance with the differences worked out in the row, and saves the workpaper to Drive (AFIT, 21 Nov 2026)', async () => {
+    mocks.drive.mockClear()
+    const fields = [
+      { id: 'g18', wp: 'B1', sheet: 'B1', cell: 'G18', label: 'Bank account # 1', value: '101868.92', agent_value: '101868.92', kind: 'money',
+        source: 'GL', how: 'ledger', status: 'verified', note: '', editable: true },
+      { id: 'k18', wp: 'B1', sheet: 'B1', cell: 'K18', label: 'Bank account # 1 - prior year', value: '65067.15', agent_value: '65067.15', kind: 'money',
+        source: 'GL', how: 'ledger', status: 'verified', note: '', editable: true },
+      { id: 'g197', wp: 'B1', sheet: 'B1', cell: 'G197', label: 'Accounting fees', value: '3913.61', agent_value: '3913.61', kind: 'money',
+        source: 'GL', how: 'ledger', status: 'verified', note: '', editable: true },
+    ]
+    mocks.state = {
+      latest: {
+        ...run({
+          status: 'Prepared - review', summary: '', exceptions: [], fields, edits: [], journals: [], inventory: [],
+          workpapers: [{ key: 'B1', title: 'Review summary', purpose: 'GL balances', status: 'Prepared', fields: 3, checks: [], exceptions: [] }],
+          b1_rows: [
+            { row: 18, code: '1-1000', description: 'Cheque account', workpaper: 'F1.1', gl: 'g18', prior: 'k18', wp_balance: '101868.92' },
+            { row: 197, code: '', description: 'Accounting fees', workpaper: 'V5', gl: 'g197', prior: null, wp_balance: '3847.62' },
+          ],
+          drive_file: { name: 'EWP.xlsm', url: 'https://drive.google.com/file/d/f1/view', id: 'f1', saved_at: '2026-11-21T09:00:00Z', saved_by: 'Pat' },
+        }),
+        kind: 'ewp',
+      },
+      history: [], defaults: { drive_link: '', ar_link: '', ap_link: '', choices: {}, setup: SETUP, workpapers: ['B1'] },
+    }
+    render(<WpAgentPanel jobKey="ACME-1" />)
+    await userEvent.click(screen.getByRole('radio', { name: 'Electronic workpapers (CCH)' }))
+    const b1 = screen.getByRole('table', { name: 'B1 review summary' })
+    const bank = within(b1).getByRole('row', { name: /Cheque account/ })
+    expect(bank).toHaveTextContent('1-1000Cheque accountF1.1')
+    expect(bank).toHaveTextContent('101,868.92Yes0.00')
+    expect(within(b1).getByTestId('b1-year-variance-18')).toHaveTextContent('36,801.77')
+    expect(within(b1).getByTestId('b1-variance-197')).toHaveTextContent('65.99')
+    expect(within(within(b1).getByRole('row', { name: /Accounting fees/ })).getByText('No')).toBeInTheDocument()
+    // A changed GL balance changes the differences in the same row.
+    const gl = within(bank).getByLabelText(/Cheque account GL balance/)
+    await userEvent.clear(gl)
+    await userEvent.type(gl, '101900.92')
+    expect(within(b1).getByTestId('b1-variance-18')).toHaveTextContent('32.00')
+    expect(within(b1).getByTestId('b1-year-variance-18')).toHaveTextContent('36,833.77')
+    // The workpaper in Google Drive.
+    expect(screen.getByRole('link', { name: /Open in Google Drive/ })).toHaveAttribute('href', 'https://drive.google.com/file/d/f1/view')
   })
 
   it('the electronic workpapers are shown by workpaper, corrected cell by cell, saved, then downloaded', async () => {

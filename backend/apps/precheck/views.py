@@ -788,6 +788,50 @@ class WorkpaperView(APIView):
         return response
 
 
+def _workpaper_name(run) -> tuple[str, str]:
+    """(file name, content type) of a run's workpaper."""
+    import re
+
+    setup = (run.options or {}).get("setup") or {}
+    label = WP_AGENTS.get(run.kind, WP_AGENTS["gst"])["name"]
+    title = f"{label} {setup.get('entity') or run.issue.key} {setup.get('balance_date') or ''}"
+    name = " ".join(re.sub(r"[^\w .()-]+", "", title).split())[:120] or label
+    macro = run.kind == AIPrecheck.Kind.EWP
+    content_type = "application/vnd.ms-excel.sheet.macroEnabled.12" if macro else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    return f"{name}.{'xlsm' if macro else 'xlsx'}", content_type
+
+
+class WorkpaperDriveView(APIView):
+    """POST /api/precheck/runs/<run_id>/workpaper/drive/ — save the run's workpaper into the task's Google Drive
+    folder (AFIT, 21 Nov 2026) and keep its link on the run. Saving again replaces the file (same link)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, run_id):
+        import base64
+
+        run = get_object_or_404(AIPrecheck.objects.select_related("issue__project", "issue__drive_folder"), run_id=run_id, kind__in=AIPrecheck.WP_KINDS)
+        if not services.can_open_job(request.user, run.issue):
+            raise PermissionDenied("You can't open this task.")
+        if not run.workbook:
+            return Response({"detail": "This run has no workpaper."}, status=status.HTTP_404_NOT_FOUND)
+        folder = getattr(run.issue, "drive_folder", None)
+        if folder is None or not folder.folder_id:
+            return Response({"detail": "Link the task's Google Drive folder first."}, status=status.HTTP_400_BAD_REQUEST)
+        name, content_type = _workpaper_name(run)
+        try:
+            saved = services._call_agent("/precheck/drive/upload", {"folder_id": folder.folder_id, "name": name, "mime_type": content_type,
+                                                                     "workbook_b64": base64.b64encode(bytes(run.workbook)).decode()}, timeout=120)
+        except services.AgentRefused as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except services.AgentUnavailable:
+            return Response({"detail": "The WP Agent is not reachable just now. Try again shortly."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        run.gst = {**(run.gst or {}), "drive_file": {"name": saved.get("name", name), "url": saved.get("web_url", ""), "id": saved.get("id", ""),
+                                                     "saved_at": timezone.now().isoformat(), "saved_by": request.user.display_name}}
+        run.save(update_fields=["gst"])
+        return Response(wp_dict(run))
+
+
 class WorkpaperEditView(APIView):
     """PATCH /api/precheck/runs/<run_id>/workpaper/ {cells: [{id, value}]} — correct the electronic
     workpapers' cells the agent filled; the workbook is rewritten (input cells only) and every change

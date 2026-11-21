@@ -667,6 +667,41 @@ class Ewp:
         if self.journals:
             self.flag("D1", "info", f"{len(self.journals)} proposed journal(s) on D1: not posted - the accountant decides.", code="proposed")
 
+    def b1_rows(self) -> list[dict]:
+        """B1 as the template lays it out (AFIT, 21 Nov 2026), one row per balance: code, description, workpaper,
+        GL balance (G), workpaper balance (H, from the workpaper's own check against the ledger), prior GL (K);
+        the screen works out both variances (G - H and G - K) in the row, as the template's formulas do."""
+        by_row: dict[int, dict[str, dict]] = {}
+        for f in self.fields:
+            if f["sheet"] != "B1":
+                continue
+            m = re.match(r"([A-Z]+)(\d+)$", f["cell"])
+            if m:
+                by_row.setdefault(int(m.group(2)), {})[m.group(1)] = f
+        key_of = {row: key for key, row in C.B1.items()}
+        out = []
+        for row in sorted(by_row):
+            cells = by_row[row]
+            if row in C.B1_BANK_ROWS:
+                workpaper = "F1.1" if row == C.B1_BANK_ROWS[0] else f"F1.{row - C.B1_BANK_ROWS[0] + 1}"
+                description = (cells.get("D") or {}).get("value") or f"Bank account # {row - C.B1_BANK_ROWS[0] + 1}"
+                check_wp = "F1.1"
+            else:
+                key = key_of.get(row, "")
+                workpaper = C.B1_WP.get(key, "")
+                description = C.B1_LABEL.get(key, (cells.get("G") or {}).get("label", ""))
+                check_wp = workpaper
+            gl = (cells.get("G") or {}).get("value")
+            wp_balance = None
+            if gl not in (None, "") and check_wp:
+                for c in self.checks:
+                    if c["wp"] == check_wp and c["ledger"] is not None and c["workpaper"] is not None and abs(Decimal(str(c["ledger"])) - Decimal(str(gl))) <= self.tolerance:
+                        wp_balance = c["workpaper"]
+                        break
+            out.append({"row": row, "code": (cells.get("C") or {}).get("value") or "", "description": description, "workpaper": workpaper,
+                        "gl": (cells.get("G") or {}).get("id"), "prior": (cells.get("K") or {}).get("id"), "wp_balance": wp_balance})
+        return out
+
     # --- the run -------------------------------------------------------------------------------------------
     def run(self) -> dict:
         self.workbench()
@@ -703,6 +738,7 @@ class Ewp:
         conclusions = [{"label": f"{w['key']} {w['title']}", "status": w["status"],
                         "residual": next((c["variance"] for c in w["checks"] if c["variance"] is not None), None)} for w in workpapers]
         return {"agent": "ewp", "status": overall, "workpapers": workpapers, "fields": self.fields, "checks": self.checks, "exceptions": flags,
+                "b1_rows": self.b1_rows(),
                 "journals": self.journals, "counts": counts, "lines": lines, "conclusions": conclusions, "selected": self.selected,
                 "bank_sheets": self.bank_sheets,
                 "corrections": [{"id": j["id"], "title": j["title"], "lines": j["lines"], "explanation": j["why"], "status": j["status"]} for j in self.journals]}

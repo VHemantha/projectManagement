@@ -1,0 +1,126 @@
+.wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-3);
+}
+.progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.progress button {
+  min-width: 38px;
+  padding: 3px 6px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-surface);
+  color: var(--tf-text-subtle);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.progress [data-state='in'] button {
+  border-color: var(--tf-success);
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.progress [data-state='out'] button {
+  text-decoration: line-through;
+}
+.progress [data-state='current'] button {
+  border-color: var(--tf-primary);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  text-decoration: none;
+}
+.progress button:focus-visible {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: 1px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  padding: var(--tf-space-4);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+}
+.count {
+  margin: 0;
+  font-size: 12px;
+  color: var(--tf-text-subtle);
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--tf-font-size-md);
+  color: var(--tf-text);
+}
+.title svg {
+  color: var(--tf-primary);
+}
+.purpose {
+  margin: 0;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.choice {
+  display: flex;
+  gap: var(--tf-space-2);
+  margin: var(--tf-space-2) 0;
+}
+.choice label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 2px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+  font-weight: 700;
+  cursor: pointer;
+}
+.choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.choice label:focus-within {
+  outline: 2px solid var(--tf-border-focus);
+  outline-offset: 1px;
+}
+.choice label[data-on]:first-child {
+  border-color: var(--tf-success);
+  color: var(--tf-success);
+}
+.choice label[data-on]:last-child {
+  border-color: var(--tf-danger);
+  color: var(--tf-danger);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--tf-space-2);
+}
+.spacer {
+  flex: 1;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 4px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--tf-font-size-sm);
+}

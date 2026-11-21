@@ -178,7 +178,7 @@ def build() -> bytes:
     stats = [["Open tasks", t["open"]], ["Overdue", t["overdue"]], ["Due in the next 7 days", t["due_this_week"]],
              ["Completed in the last 30 days", t["completed_30_days"]], ["Hours logged this month", t["hours_this_month"]],
              ["Timesheets waiting for approval", t["timesheets_to_approve"]],
-             ["Coordinator follow-ups waiting for a reply", data["follow_ups"]["waiting"]],
+             ["Practice Manager AI follow-ups waiting for a reply", data["follow_ups"]["waiting"]],
              ["Escalated to a team lead", data["follow_ups"]["escalated"]],
              ["Revised dates kept (90 days)", f"{data['commitments_90_days']['kept']} of {data['commitments_90_days']['kept'] + data['commitments_90_days']['missed']}"],
              ["On leave today", ", ".join(data["on_leave_today"]) or "No one"]]
@@ -285,9 +285,9 @@ def build() -> bytes:
         ("Overdue", "Open tasks whose due date has passed."),
         ("Project status", "Overdue: a task is overdue. Due soon: a task is due within 7 days. On track: open, nothing due soon. Done: no open tasks."),
         ("Hours", "Hours logged in timesheets against the task or project."),
-        ("Ratings", "The coordinator's weighted KPI rating (see the coordinator console's Ratings tab for the formula and weights). "
+        ("Ratings", "The Practice Manager AI's weighted KPI rating (see its console's Ratings tab for the formula and weights). "
                     "A blank KPI had too little data to count."),
-        ("Follow-ups", "What the coordinator is following up now, with the latest reason the person gave."),
+        ("Follow-ups", "What the Practice Manager AI is following up now, with the latest reason the person gave."),
     ]
     _table(wa, 1, 1, ["Item", "How it is worked out"], [list(n) for n in notes], {0: 18, 1: 110})
     for row in range(2, len(notes) + 2):

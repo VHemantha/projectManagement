@@ -132,8 +132,8 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
         <Tile icon={<ClipboardCheck size={20} />} name="Review" purpose="Check draft financial statements" status={reviewStatus}
           action={reviewDone ? 'Open review' : 'Start review'} next={next === 'review'} onOpen={() => setOpen('review')} />
       </div>
-      <SpecialNotes jobKey={jobKey} />
-
+      {/* Ask and the special notes side by side, the same size (AFIT, 21 Nov 2026). */}
+      <div className={styles.pair}>
       <div className={styles.ask}>
         <div className={styles.askHead}>
           <span className={styles.askIcon} aria-hidden="true">
@@ -171,6 +171,8 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
         </div>
         {ask.isError && <p className={styles.error}>{extractErrorMessage(ask.error)}</p>}
       </div>
+      <SpecialNotes jobKey={jobKey} />
+      </div>
 
       <Dialog open={open === 'precheck'} onOpenChange={(o) => !o && setOpen(null)}>
         {/* The pre-check panel has its own title row (with earlier runs), so the window's title is for screen readers. */}
@@ -185,7 +187,7 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
         </DialogContent>
       </Dialog>
       <Dialog open={open === 'wp'} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent title="WP Agent — reconciliations" maxWidth={1040}>
+        <DialogContent title="WP Agent — workpapers and reconciliations" fullScreen>
           <WpAgentPanel jobKey={jobKey} />
         </DialogContent>
       </Dialog>

@@ -10,8 +10,11 @@ from .views import (
     MeView,
     PolicyListView,
     RatingsView,
+    ReportListView,
+    ReportPdfView,
     ScheduleView,
     SettingsView,
+    VoiceView,
 )
 
 urlpatterns = [
@@ -22,6 +25,9 @@ urlpatterns = [
     path("actions/", ActionsView.as_view(), name="coordinator-actions"),
     path("cases/", CaseListView.as_view(), name="coordinator-cases"),
     path("ratings/", RatingsView.as_view(), name="coordinator-ratings"),
+    path("voice/", VoiceView.as_view(), name="coordinator-voice"),
+    path("reports/", ReportListView.as_view(), name="coordinator-reports"),
+    path("reports/<int:pk>/pdf/", ReportPdfView.as_view(), name="coordinator-report-pdf"),
     path("leave/", LeaveListView.as_view(), name="coordinator-leave"),
     path("leave/<int:pk>/", LeaveDetailView.as_view(), name="coordinator-leave-detail"),
     path("leave/<int:pk>/decide/", LeaveDetailView.as_view(), name="coordinator-leave-decide"),

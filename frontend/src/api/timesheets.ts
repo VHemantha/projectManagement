@@ -192,3 +192,73 @@ export function useRejectTimesheet() {
     },
   })
 }
+
+// --- time not on a job, and the efficiency tracker (AFIT, 21 Nov 2026) -------------------------------------
+
+export interface ActivityTask {
+  id: number
+  key: string
+  activity: 'idle' | 'administration' | 'training'
+  label: string
+}
+
+/** The hidden cards for time not on a job: Idle, Administration, Training (never on a Kanban view). */
+export function useActivityTasks(enabled = true) {
+  return useQuery({
+    queryKey: ['timesheets', 'activities'],
+    enabled,
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => (await apiClient.get<ActivityTask[]>('/timesheets/activities/')).data,
+  })
+}
+
+export interface EfficiencyDay {
+  date: string
+  expected: number
+  logged: number
+  jobs: number
+  idle: number
+  administration: number
+  training: number
+  under: boolean
+}
+
+export interface EfficiencySummary {
+  expected: number
+  logged: number
+  jobs: number
+  non_job: number
+  efficiency_pct: number | null
+  on_jobs_pct: number | null
+  days_under: number
+  working_days: number
+}
+
+export interface EfficiencyTracker {
+  user: { id: number; name: string }
+  target: number
+  days: EfficiencyDay[]
+  summary: EfficiencySummary
+  jobs: { key: string; summary: string; budget: number | null; logged: number; used_pct: number | null }[]
+}
+
+export interface TeamEfficiency {
+  target: number
+  days: number
+  people: { user: { id: number; name: string }; summary: EfficiencySummary; last_day: EfficiencyDay | null }[]
+}
+
+export function useEfficiency(days = 10, userId?: number) {
+  return useQuery({
+    queryKey: ['timesheets', 'efficiency', days, userId ?? 'me'],
+    queryFn: async () => (await apiClient.get<EfficiencyTracker>('/timesheets/efficiency/', { params: { days, ...(userId ? { user: userId } : {}) } })).data,
+  })
+}
+
+export function useTeamEfficiency(days = 10, enabled = true) {
+  return useQuery({
+    queryKey: ['timesheets', 'efficiency', 'team', days],
+    enabled,
+    queryFn: async () => (await apiClient.get<TeamEfficiency>('/timesheets/efficiency/', { params: { days, team: 1 } })).data,
+  })
+}

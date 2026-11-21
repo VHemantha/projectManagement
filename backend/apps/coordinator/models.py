@@ -277,3 +277,20 @@ class Inquiry(models.Model):
     class Meta:
         ordering = ["-opened_at", "-id"]
         indexes = [models.Index(fields=["person", "state"])]
+
+
+
+class CeoReport(models.Model):
+    """A report the CEO asked the Practice Manager AI for (AFIT, 21 Nov 2026): the CEO's request, the sections
+    chosen, and the PDF made from them - charts and tables drawn by code from the records. CEO only."""
+
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    request = models.TextField(max_length=2000)
+    title = models.CharField(max_length=200)
+    summary = models.TextField(max_length=2000, blank=True)
+    spec = models.JSONField(default=dict)  # {sections: [...], period_days, person_ids}
+    pdf = models.BinaryField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 import { extractErrorMessage } from '@/api/errors'
-import { useCreateTimeEntry, useOnBehalfPeople, useUpdateTimeEntry } from '@/api/timesheets'
+import { useActivityTasks, useCreateTimeEntry, useOnBehalfPeople, useUpdateTimeEntry } from '@/api/timesheets'
 import { useIssues } from '@/api/issues'
 import type { TimeEntry } from '@/api/types'
 import { Button, Dialog, DialogContent, Input } from '@/design-system'
@@ -34,6 +34,7 @@ export function LogTimeModal({
   const [onBehalf, setOnBehalf] = useState(false)
   const [personId, setPersonId] = useState('')
   const { data: people } = useOnBehalfPeople(open && !existingEntry)
+  const { data: activities } = useActivityTasks(open)
   const { data: issueResults } = useIssues({ project: projectKey, search: issueSearch, page_size: 6 }, issueSearch.length >= 2)
   const createEntry = useCreateTimeEntry()
   const updateEntry = useUpdateTimeEntry()
@@ -113,9 +114,20 @@ export function LogTimeModal({
           {!existingEntry && (
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Task (optional)</label>
+              {/* Time not on a job (AFIT, 21 Nov 2026): hidden cards, never on a board. */}
+              {activities && activities.length > 0 && (
+                <div role="group" aria-label="Time not on a job" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
+                  {activities.map((a) => (
+                    <Button key={a.id} type="button" size="sm" variant={issueId === a.id ? 'primary' : 'subtle'} aria-pressed={issueId === a.id}
+                      onClick={() => (setIssueId(issueId === a.id ? null : a.id), setIssueSearch(''))}>
+                      {a.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
               {issueId ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                  Selected issue #{issueId}
+                  {activities?.find((a) => a.id === issueId)?.label ?? `Selected issue #${issueId}`}
                   <Button type="button" variant="subtle" size="sm" onClick={() => setIssueId(null)}>
                     Clear
                   </Button>
