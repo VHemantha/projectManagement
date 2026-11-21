@@ -1,144 +1,116 @@
 ---
 name: nz-preparation-guide
-description: How AFIT's AI writes the preparation guide after a pre-check - an eight-section briefing for the accountant (snapshot with the FS preparation period, significant events and possible risk areas, prior-year continuity, risks, starting sequence, judgments, queries to be asked, completion checklist and roll-forward) within one to one-and-a-half A4 pages.
+description: How AFIT's AI writes the preparation guide after a pre-check - points, never questions - areas of caution, job snapshot, prior-year continuity, risks, steps by phase to finalisation, areas needing judgment, points, checklist and roll-forward.
 metadata:
-  version: "2.1"
-  source: "AFIT (21 Oct 2026): the agreed guide structure; 24 Oct 2026: section names, the FS preparation period, findings rolled forward"
+  version: "3.0"
+  source: "AFIT (21 Oct 2026): the agreed guide structure; 24 Oct 2026: the FS preparation period, findings rolled forward; 21 Nov 2026: points not questions, cautions, steps to finalisation, judgment areas, tables and charts"
 ---
 
 # Preparation guide (New Zealand)
 
 The pre-check has established what is in the folder and what the client still has to send. The
-guide is the briefing an experienced manager would hand the accountant before they start: what this
-job is and the period being prepared, what happened this year that changes the accounts, what
-carried over from last year, where the real risks are, where to start, which decisions need
-judgment, what to ask whom, how to know the job is finished, and what next year must pick up. It is read in a few minutes, so it is short and specific to this job.
+guide is the briefing an experienced manager would hand the accountant before they start: where to
+be careful, what this job is and the period being prepared, what carried over from last year, where
+the real risks are, every step from the start of preparation to finalisation, which decisions need
+judgment, what to note, how to know the job is finished, and what next year must pick up.
 
-## The eight sections
+**The guide gives points, never questions.** Every item is a statement or an instruction to the
+accountant: "Agree the ASB loan to the annual summary", not "Has the loan been agreed?". Do not
+write questions for the accountant, the manager or the client. Where something is uncertain, say
+what to do about it: "Confirm the purchase date from the settlement statement." Anything worded as
+a question is removed by code.
 
-1. **Job snapshot** (`snapshot`) — one sentence each: the business activities; significant assets
+Code shows the guide as tables and charts (the cautions by level, the steps as a flow chart by
+phase, the checklist's progress), so keep each field to one plain sentence that reads well in a
+table cell.
+
+## The sections
+
+1. **Areas of caution** (`cautions`) — the summary of the job, read first: two to six areas where
+   the accountant must be careful on this job, most serious first. `area` (one to three words, e.g.
+   "Loan refinance", "Private use", "Opening balances"), `caution` (one sentence: what to be careful
+   of and why), and `level`: `high` (could materially misstate the accounts or the tax), `medium`
+   or `low`. Earned from this job's facts, not a generic list.
+
+2. **Job snapshot** (`snapshot`) — one sentence each: the business activities; significant assets
    and how they are funded; the records available (name them, e.g. "ANZ and ASB bank exports for
    the full year, last year's signed statements, no general ledger"); the bookkeeping condition
    (coded ledger, bank exports only, shoebox); and the **FS preparation period** (`period`): the
    period these financial statements cover, with its start and end dates and the balance date,
    e.g. "Year ended 31 March 2026 (1 April 2025 to 31 March 2026); comparatives for the year ended
-   31 March 2025". Take it from the questionnaire, last year's statements and the bank exports'
-   date ranges. Say so when the period is not a full year (a first year, a change of balance date,
-   a cessation). When the input does not establish it, say what is missing and that the balance
-   date must be confirmed; never guess a date.
+   31 March 2025". Say so when the period is not a full year. When the input does not establish
+   it, say that the balance date must be confirmed; never guess a date.
 
-2. **Significant events and possible risk areas** (`events`) — the major transactions or changes
-   this year, and the possible risk areas they open. Look actively for:
-   - property acquisition, disposal, subdivision or change of use;
-   - loan settlement, refinancing, new borrowing or changed funding arrangements;
-   - major machinery, vehicle, software or other asset purchases;
-   - a new business activity, major contract or discontinued operation;
-   - significant investment purchases, disposals or portfolio changes;
-   - changes in ownership, shareholder funding or distributions;
-   - major damage, insurance claims, disputes or unusual transactions.
+3. **Significant events** (`events`) — worked out for the follow-through, **not shown as a section
+   of their own**. The major transactions or changes this year: property acquisition or disposal,
+   refinancing or new borrowing, major asset purchases, a new activity or contract, investment
+   changes, ownership or funding changes, damage, claims or disputes. Find them in the
+   questionnaire, this year's documents, large bank payments by payee (B lines), the largest ledger
+   entries (G lines) and movements against last year's balances (F and T lines). Each: `event`,
+   `status` (`confirmed` only when a document shows it; otherwise `suspected`), `why_it_matters`,
+   `action`, `effect` (amounts only from the input). Give each an id (`E1`, `E2`, ...). Every event is
+   followed through: at least one step and one checklist line for every event, and for a suspected
+   event a point saying how to confirm it (list the event id in their `events`).
 
-   Find them in the questionnaire answers, this year's documents (settlement statements, loan
-   letters, invoices), large bank payments and receipts by payee (B lines), the largest general
-   ledger entries (G lines), and movements against last year's balances (F and T lines).
+4. **Prior-year findings and continuity** (`prior_year`) — previous errors, reviewer points (the
+   lessons from earlier corrections, L lines), unresolved matters (P lines), relevant accounting
+   policies and balances that need follow-through (loans, current accounts, accruals, provisional
+   tax). Take up every matter the client's earlier guide rolled forward (Y lines), cite it in
+   `sources`, and say in `follow_through` what to do. `kind`: `error`, `reviewer_point`,
+   `unresolved`, `policy` or `balance`.
 
-   Each alert is one compact chain: **what happened → why it matters → what the accountant must
-   do.**
-   - `event`: what happened, naming the asset, lender, counterparty and date where the input has
-     them.
-   - `status`: `confirmed` only when a document in the input shows it happened (a settlement
-     statement, a loan letter, the client's own answer). Otherwise `suspected`, and the alert says
-     what points to it. Example: a single large payment to ASB may indicate a loan settlement;
-     flag it for confirmation, never state that the loan was settled.
-   - `why_it_matters`: the accounting or tax consequence, in one line.
-   - `action`: what the accountant must check or do. For example:
+5. **Priority risks and material areas** (`risks`) — the three to five risks specific to this job:
+   `area`, `what_could_be_wrong`, what to `examine`, and the `evidence` that clears it.
 
-     | Event | What the accountant must do |
-     |---|---|
-     | Property acquired | Check ownership, settlement documents, funding, allocation of acquisition costs, GST treatment and the date rental activity commenced. |
-     | Loan refinanced | Reconcile settlement of the old loan and drawdown of the new loan; trace any additional funds; review fees and the interest allocation. |
-     | Loan settled | Confirm the closing balance is cleared, reconcile final interest and charges, and establish the source of the settlement funds. |
-     | Major machinery purchased | Inspect the invoice and terms; assess capitalisation, the date available for use, depreciation, GST and any applicable tax incentive (e.g. Investment Boost). |
+6. **Steps to finalisation** (`steps`) — the whole preparation, step by step, from the start until
+   the job is finalised, in simple points. Each step is one short action (at most 20 words) with:
+   - `phase`, in this order: `start` (open the job, agree the opening balances to last year's
+     signed statements), `records` (code and complete the records), `reconcile` (bank, loan and
+     other reconciliations), `income_expenses` (income, expenses, private use), `assets_liabilities`
+     (fixed assets and depreciation, debtors, creditors, loans, current accounts), `adjustments`
+     (accruals, prepayments, year-end journals), `tax` (income tax, GST, provisional tax,
+     imputation), `draft` (prepare the draft statements and the tax return), `review` (review with
+     the reviewer, clear the review points), `finalise` (client approval and signature, filing,
+     workpapers filed, roll forward).
+   - `depends_on` (a document still to come, another step, or "nothing"), `can_start_now`, and
+     `escalate` when something should go to the manager early (otherwise empty).
+   Every job reaches `review` and `finalise`. Typically eight to sixteen steps; put work that can
+   proceed now ahead of work that waits, within each phase.
 
-   - `effect`: the likely effect on the figures where the input supports it, e.g. "Fixed assets and
-     borrowings up by the purchase price on the settlement statement; cash down; interest expense
-     higher from March", with the amount when the input has it. Use only
-     amounts that appear in the input. When the amount cannot yet be established, say so in words
-     ("not yet quantifiable: settlement statement outstanding") and give no figure.
+7. **Areas needing judgment** (`judgments`) — the decisions that need the accountant's judgment on
+   this job: `area` (e.g. "Fixed assets", "Interest", "Private use", "Going concern"), the
+   `judgment` (e.g. repairs versus capital improvement, the allocation of a property's purchase
+   price, the private-use percentage, the interest apportionment), the `evidence` that supports it,
+   whether it needs `manager_approval`, and the `reference` (NZ standard, Act and section, or IRD
+   guidance, e.g. "Income Tax Act 2007, s DB 6"; "IR 264"; "PBE IPSAS 17"). Apply the NZ rules in
+   the other skills (interest deductibility, building depreciation at 0%, the bright-line test,
+   ring-fencing, Investment Boost) as judgments, not as conclusions.
 
-   Give each event an id (`E1`, `E2`, …). Every later section that deals with an event lists that id
-   in its `events`, so each alert is followed through to resolution: at least one step in the
-   starting sequence and one checklist line for every event, and a client or manager query for
-   every suspected event.
+8. **Points to note** (`points`) — up to ten points for the accountant: `action` (something to do),
+   `note` (something to keep in mind) or `escalate` (something to raise with the manager). Each a
+   statement, never a question. **Do not list the documents still requested from the client**:
+   code lists them from the pre-check's result.
 
-3. **Prior-year findings and continuity** (`prior_year`) — previous errors, reviewer points (the
-   lessons from earlier corrections, L lines), unresolved matters (requests from the previous
-   pre-check, P lines), relevant accounting policies (from last year's statements) and balances that
-   need follow-through (loans, shareholder or owner current accounts, accruals, provisional tax).
-   Above all, every matter the client's earlier guide rolled forward to this year (Y lines): take up
-   each Y line here, cite it in `sources`, and say whether this year's documents resolve it or what
-   to do. `kind` is one of `error`, `reviewer_point`, `unresolved`, `policy`, `balance`. Say what to
-   do with each in `follow_through`. If the input shows none, return an empty list.
+9. **Completion and handover checklist** (`checklist`) — the checks that show the job is finished,
+   each with a `status`: `done` (the input shows it), `open` or `na`. Cover the events, the
+   reconciliations, the judgments, the review and the handover.
 
-4. **Priority risks and material areas** (`risks`) — the three to five risks specific to this job,
-   most important first: `what_could_be_wrong`, what to `examine`, and the `evidence` needed to
-   clear it. Not a generic audit list: a risk earns its place from this job's facts (an event, a
-   large or unusual balance, a change from last year, a gap in the records).
-
-5. **Starting sequence** (`sequence`) — where to start and the main preparation steps in order,
-   each with what it `depends_on` (a document still to come, another step, or "nothing"), whether it
-   `can_start_now`, and an `escalate` point when something should go to the manager early (otherwise
-   empty). Put work that can proceed now ahead of work that waits. One action per step, with the
-   figures and names from the input.
-
-6. **Judgments, assumptions and references** (`judgments`) — decisions that need judgment (e.g.
-   repairs versus capital improvement, the allocation of a property's purchase price, private-use
-   apportionment, going concern), the `evidence` that supports them, whether they need
-   `manager_approval`, and the `reference`: the NZ standard, Act and section or IRD guidance (e.g.
-   "Income Tax Act 2007, s DB 6 and subpart DE"; "IR 264"; "PBE IPSAS 17"). Apply the NZ rules in the
-   other skills (interest deductibility, building depreciation at 0%, the bright-line test,
-   ring-fencing, Investment Boost) as judgments for the accountant, not as conclusions.
-
-7. **Queries to be asked** (`queries`) — one list; each query's `to` says who it is for, and
-   nothing is repeated:
-   - `manager`: technical decisions for the manager;
-   - `client`: factual questions only the client can answer;
-   - `outstanding`: documents still requested from the client. Take these from the latest
-     pre-check's result ("Still requested from the client"); do not ask them again as client
-     questions.
-
-8. **Completion and handover checklist** (`checklist`) — the checks that show the job is finished,
-   each with a `status`: `done` (the input shows it is complete), `open` or `na`. Cover the
-   significant events, the bank and loan reconciliations, the judgments, the open queries and the
-   handover to the reviewer.
-
-   **Roll forward to next year** (`roll_forward`) — this year's findings that next year's preparer
-   must pick up: events not yet resolved, judgments that will recur (e.g. a purchase price
-   allocation, a private-use percentage), balances to watch (loans, current accounts, provisional
-   tax, losses carried forward), reviewer points and agreed policies. One line each with `why`.
-   Next year's guide for this client receives this list and must take up each item.
+   **Roll forward to next year** (`roll_forward`) — this year's findings next year's preparer must
+   pick up, one line each with `why`.
 
 ## Length and balance
 
-The whole guide fits on one to one-and-a-half A4 pages: at most 800 words in total, counting every
-section including the roll-forward list. Give the space to this job's real risks: a simple rental
-with no events gets a short guide; a year with a property purchase and a refinance spends its words
-on those. Short sentences; no preamble, no generic advice, no repetition between sections — a matter
-already set out in an event alert is referred to by its id elsewhere, not described again.
+Give the space to this job's real risks: a simple rental with no events gets a short guide; a
+year with a property purchase and a refinance spends its words on those. Short sentences; no
+preamble, no generic advice, no repetition between sections — a matter set out once is referred to
+by its event id elsewhere, not described again. At most about 1,100 words in all.
 
-A budget for a busy year, to be cut where the job has less: snapshot 90 words, events 200,
-prior-year 90, risks 110, sequence 110, judgments 70, queries 70, checklist and roll-forward 60.
-If the guide would run over, shorten the lower-risk sections first, never the event alerts.
-
-Each field is one sentence. As a guide: snapshot lines, an event, why it matters and its effect
-about 25 words each; an action about 35; a step or a query about 30; anything else about 20. A
-field that would need more is a sign to split it or to drop the detail.
-
-An amount you calculate (a difference, a total) is shown with the figures it comes from, e.g. the
-debtors schedule total and the trial balance figure side by side with their difference, so the
+An amount you calculate (a difference, a total) is shown with the figures it comes from, so the
 accountant can see how it was reached.
 
 ## Rules
 
+- Points, not questions.
 - Use only figures, names and dates that appear in the input; never invent an amount, a document
   or an event.
 - Cite in `sources` the ids each item rests on (Q, F, T, W, D, R, B, G, C, P, M, N, L lines), and

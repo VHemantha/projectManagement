@@ -67,8 +67,50 @@ export interface GuideV2 {
   how?: string
 }
 
+export type GuidePhase =
+  | 'start'
+  | 'records'
+  | 'reconcile'
+  | 'income_expenses'
+  | 'assets_liabilities'
+  | 'adjustments'
+  | 'tax'
+  | 'draft'
+  | 'review'
+  | 'finalise'
+
+export type GuideLevel = 'high' | 'medium' | 'low'
+
+/** The preparation guide, format 3 (AFIT, 21 Nov 2026): points, never questions; the job's areas of
+ * caution first; the steps from the start of preparation to finalisation, by phase; the areas needing
+ * judgment; the events are worked out (and followed through) but not shown as a section. */
+export interface GuideV3 {
+  format: 3
+  summary: string
+  decision: { state: string; label: string; reason: string }
+  cautions: (GuideItem & { area: string; caution: string; level: GuideLevel })[]
+  snapshot: GuideV2['snapshot']
+  events: GuideEvent[]
+  prior_year: GuideV2['prior_year']
+  risks: GuideV2['risks']
+  steps: (GuideItem & { n: number; phase: GuidePhase; step: string; depends_on: string; can_start_now: boolean; escalate: string })[]
+  judgments: (GuideItem & { area: string; judgment: string; evidence: string; manager_approval: boolean; reference: string })[]
+  points: (GuideItem & { kind: 'action' | 'note' | 'escalate'; text: string })[]
+  /** The documents still to come from the client, from the pre-check (listed by code). */
+  outstanding: { group: string; item: string; flags: string[] }[]
+  checklist: GuideV2['checklist']
+  roll_forward: (GuideItem & { item: string; why: string })[]
+  phase_labels: Partial<Record<GuidePhase, string>>
+  questions_dropped?: number
+  words: number
+  flags: string[]
+  special_notes?: NoteConsidered[]
+  evidence: Evidence
+  how?: string
+}
+
 export interface GuideState {
-  latest: (Run & { kind: string; guide: GuideOutput | GuideV2 | Record<string, never> }) | null
+  latest: (Run & { kind: string; guide: GuideOutput | GuideV2 | GuideV3 | Record<string, never> }) | null
   history: { run_id: string; status: string; created_at: string }[]
   has_precheck: boolean
 }

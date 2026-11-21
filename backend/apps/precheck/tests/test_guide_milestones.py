@@ -133,6 +133,42 @@ def test_the_eight_section_guide_is_posted_section_by_section(agent):
     assert "Repairs versus capital. Evidence: Invoices. Reference: IR 264 (manager approval)" in text
 
 
+GUIDE_V3 = {
+    "format": 3, "summary": "Rental.", "decision": {"state": "guide", "label": "Preparation guide",
+                                                   "reason": "1 area of caution (1 high); 2 steps to finalisation; 1 judgment; 1 open check."},
+    "cautions": [{"area": "Loan", "caution": "The ASB payment may have settled the loan.", "level": "high", "sources": [], "flags": []}],
+    "snapshot": {"activities": "One rental.", "assets_and_funding": "", "records": "", "bookkeeping": "", "period": "Year to 31 March 2026.",
+                 "sources": [], "flags": []},
+    "events": [{"id": "E1", "event": "Large payment to ASB.", "status": "suspected", "why_it_matters": "", "action": "", "effect": "",
+                "sources": [], "flags": [], "not_followed_through": []}],
+    "prior_year": [], "risks": [],
+    "steps": [{"n": 1, "phase": "reconcile", "step": "Reconcile the ASB loan.", "depends_on": "Annual loan summary", "can_start_now": False,
+               "escalate": "", "events": ["E1"], "sources": [], "flags": []},
+              {"n": 2, "phase": "finalise", "step": "File the return.", "depends_on": "", "can_start_now": False, "escalate": "", "events": [],
+               "sources": [], "flags": []}],
+    "judgments": [{"area": "Fixed assets", "judgment": "Repairs versus capital.", "evidence": "Invoices.", "manager_approval": True,
+                   "reference": "IR 264", "events": [], "sources": [], "flags": []}],
+    "points": [{"kind": "action", "text": "Agree the ASB payment to the loan statement.", "events": ["E1"], "sources": [], "flags": []}],
+    "outstanding": [{"group": "ASB loan", "item": "Annual loan summary", "flags": []}],
+    "checklist": [{"check": "Loan settlement confirmed.", "status": "open", "events": ["E1"], "flags": []}],
+    "roll_forward": [], "phase_labels": {"reconcile": "Bank and reconciliations", "finalise": "Finalisation"},
+    "evidence": {}, "words": 80, "flags": [],
+}
+
+
+def test_the_format_3_guide_is_posted_with_points_steps_and_cautions_and_no_events_section(agent):
+    pat = person("pat")
+    issue = make_job(pat, "Smith", "SmithRent")
+    run = services.start_run(issue, pat, kind=AIPrecheck.Kind.GUIDE)
+    finish(run.run_id, mode="guide", guide=GUIDE_V3)
+    text = comment_text(Comment.objects.get(issue=issue))
+    assert "[High] Loan: The ASB payment may have settled the loan." in text
+    assert "1. [Bank and reconciliations] Reconcile the ASB loan. (waits on: Annual loan summary)" in text
+    assert "Fixed assets: Repairs versus capital. Evidence: Invoices. Reference: IR 264 (manager approval)" in text
+    assert "[Action] Agree the ASB payment to the loan statement." in text and "ASB loan: Annual loan summary" in text
+    assert "Significant events" not in text and "Queries" not in text and "?" not in text
+
+
 def test_a_result_is_posted_once_and_a_failed_run_not_at_all(agent):
     pat = person("pat")
     issue = make_job(pat, "Smith", "SmithRent")

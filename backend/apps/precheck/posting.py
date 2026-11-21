@@ -49,6 +49,8 @@ def _lines(run: AIPrecheck) -> tuple[str, list[tuple[str, list[str]]]]:
         return f"{decision.get('label', run.readiness)} — {decision.get('reason', run.summary)}", sections
     if run.kind == AIPrecheck.Kind.GUIDE:
         g = run.guide or {}
+        if g.get("format") == 3:
+            return (g.get("decision") or {}).get("reason", ""), _guide_v3_sections(g)
         if g.get("format") == 2:
             return (g.get("decision") or {}).get("reason", ""), _guide_sections(g)
         steps = [f"{s.get('area', '')}: {s.get('step', '')}" + (" (waits on the client)" if s.get("waits_on_client") else "")
@@ -79,6 +81,35 @@ def _join(*parts: str) -> str:
 
 def _ev(item: dict) -> str:
     return f" [{', '.join(item['events'])}]" if item.get("events") else ""
+
+
+def _guide_v3_sections(g: dict) -> list[tuple[str, list[str]]]:
+    """The preparation guide, format 3 (AFIT, 21 Nov 2026): points, never questions; the areas of caution
+    first; the steps from the start to finalisation, by phase; the events are not a section of their own."""
+    snap = g.get("snapshot") or {}
+    labels = g.get("phase_labels") or {}
+    level = {"high": "High", "medium": "Medium", "low": "Low"}
+    cautions = [f"[{level.get(c.get('level'), 'Medium')}] {c.get('area', '')}: {c.get('caution', '')}" for c in g.get("cautions") or []]
+    snapshot = [f"{label}: {snap[k]}" for k, label in (("period", "FS preparation period"), ("activities", "Business"),
+                ("assets_and_funding", "Assets and funding"), ("records", "Records available"), ("bookkeeping", "Bookkeeping")) if snap.get(k)]
+    prior = [_join(f"{p.get('item', '')} —", p.get("follow_through", "")) for p in g.get("prior_year") or []]
+    risks = [_join(f"{r.get('area', '')}: {r.get('what_could_be_wrong', '')}", f"Examine: {r.get('examine', '')}",
+                   f"Evidence: {r.get('evidence', '')}") for r in g.get("risks") or []]
+    steps = [_join(f"{s.get('n', n)}. [{labels.get(s.get('phase'), s.get('phase', ''))}] {s.get('step', '')}",
+                   "" if s.get("can_start_now") else f"(waits on: {s.get('depends_on', '')})",
+                   f"Escalate: {s['escalate']}" if s.get("escalate") else "") for n, s in enumerate(g.get("steps") or [], start=1)]
+    judgments = [_join(f"{j.get('area', '')}: {j.get('judgment', '')}", f"Evidence: {j.get('evidence', '')}",
+                       f"Reference: {j['reference']}" if j.get("reference") else "", "(manager approval)" if j.get("manager_approval") else "")
+                 for j in g.get("judgments") or []]
+    kind = {"action": "Action", "note": "Note", "escalate": "Escalate"}
+    points = [f"[{kind.get(x.get('kind'), 'Note')}] {x.get('text', '')}" for x in g.get("points") or []]
+    outstanding = [_join(f"{x.get('group', '')}:" if x.get("group") else "", x.get("item", "")) for x in g.get("outstanding") or []]
+    checklist = [f"[{ {'done': 'Done', 'na': 'N/A'}.get(c.get('status'), 'Open') }] {c.get('check', '')}" for c in g.get("checklist") or []]
+    roll = [_join(r.get("item", ""), f"— {r['why']}" if r.get("why") else "") for r in g.get("roll_forward") or []]
+    return [("Areas of caution", cautions), ("1. Job snapshot", snapshot), ("2. Prior-year findings and continuity", prior),
+            ("3. Priority risks", risks), ("4. Steps to finalisation", steps), ("5. Areas needing judgment", judgments),
+            ("6. Points to note", points), ("6. Still to come from the client", outstanding),
+            ("7. Completion and handover checklist", checklist), ("7. To roll forward to next year", roll)]
 
 
 def _guide_sections(g: dict) -> list[tuple[str, list[str]]]:

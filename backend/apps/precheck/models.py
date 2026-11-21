@@ -59,6 +59,9 @@ class JobFolder(models.Model):
     # evidence. Provisional until the agent finalises the case. Updated by runs and by its re-checks.
     gap_report = models.JSONField(default=dict, blank=True)
     gap_report_at = models.DateTimeField(null=True, blank=True)
+    # When the agent freed this task's memory (its documents and results in the knowledge store),
+    # three days after its final review (AFIT, 20 Nov 2026). Cleared when it is run again.
+    memory_flushed_at = models.DateTimeField(null=True, blank=True)
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -508,3 +511,60 @@ class AgentNote(models.Model):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class PrecheckPolicy(models.Model):
+    """A pre-check policy (AFIT, 20 Nov 2026): the firm's written standard for what a pre-check asks for,
+    set by an accountant for one client (a sub-workspace), one client group (the task's group, e.g.
+    "Lummis group"), one location (the location set on the task's pre-check), or every task. After a
+    pre-check has produced its points, the agent checks each one against the policies that apply to the
+    task and adjusts the result to follow them. Feedback on a policy has the AI revise it; each earlier
+    wording is kept in `history`."""
+
+    class Scope(models.TextChoices):
+        CLIENT = "client", "Client"
+        GROUP = "group", "Group"
+        LOCATION = "location", "Location"
+        ALL = "all", "Every task"
+
+    scope = models.CharField(max_length=10, choices=Scope.choices)
+    client = models.ForeignKey("clients.Client", null=True, blank=True, on_delete=models.CASCADE, related_name="precheck_policies")
+    group = models.CharField(max_length=100, blank=True, default="")
+    location = models.CharField(max_length=100, blank=True, default="")
+    # The type of check it is for (a business nature), or "" for every type.
+    precheck_type = models.CharField(max_length=30, blank=True, default="")
+    title = models.CharField(max_length=150)
+    text = models.TextField(max_length=2000)
+    active = models.BooleanField(default=True)
+    version = models.PositiveIntegerField(default=1)
+    # Earlier wordings, oldest first: [{"version", "title", "text", "changed_by", "changed_at", "why"}].
+    history = models.JSONField(default=list, blank=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["scope", "title", "id"]
+
+
+class PolicyFeedback(models.Model):
+    """A person's feedback on a pre-check policy, often given on a point of a pre-check result. The AI
+    revises the policy from it; the revision applies at once and is shown with what changed."""
+
+    class Status(models.TextChoices):
+        REVISING = "revising", "Being revised"
+        REVISED = "revised", "Revised"
+        FAILED = "failed", "Could not be revised"
+
+    policy = models.ForeignKey(PrecheckPolicy, on_delete=models.CASCADE, related_name="feedback")
+    issue = models.ForeignKey("issues.Issue", null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    text = models.TextField(max_length=1000)
+    context = models.TextField(max_length=1000, blank=True, default="")  # the point it was given on
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.REVISING)
+    summary = models.TextField(max_length=500, blank=True, default="")  # what the AI changed
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

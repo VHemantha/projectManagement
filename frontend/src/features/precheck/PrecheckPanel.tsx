@@ -381,6 +381,16 @@ function SetupForm({
           </select>
         </label>
         <YearEndPicker value={confirmed.year_end} onChange={(year_end) => setConfirmed({ ...confirmed, year_end })} />
+        {/* For the pre-check policies set for a location (AFIT, 20 Nov 2026). */}
+        <label className={styles.field}>
+          <span>Location</span>
+          <input
+            value={confirmed.location ?? ''}
+            maxLength={100}
+            placeholder="e.g. Auckland"
+            onChange={(e) => setConfirmed({ ...confirmed, location: e.target.value })}
+          />
+        </label>
       </div>
       {precheckType !== 'residential_rental' && <AccountantSettingsFields value={confirmed} onChange={setConfirmed} />}
       <fieldset className={styles.keyPaths}>
@@ -525,7 +535,7 @@ function YearEndPicker({ value, onChange }: { value: string; onChange: (isoDate:
   )
 }
 
-const NO_SETTINGS: AccountantSettings = { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' }
+const NO_SETTINGS: AccountantSettings = { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '', location: '' }
 
 const ENTITY_TYPES: { value: EntityType; label: string }[] = [
   { value: 'trust', label: 'Trust' },

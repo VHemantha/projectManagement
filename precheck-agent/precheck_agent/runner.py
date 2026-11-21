@@ -11,6 +11,7 @@ from .config import get_settings
 from .graph import PrecheckStop, build_graph, build_sweep_graph
 from .pm_client import PMError, get_pm
 from .store import get_store
+from .textutil import sha
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,44 @@ def learn_now(body: dict) -> dict:
         logger.exception("Drafting lesson %s failed", body.get("lesson_id"))
         pm.send_event(run_id, {"type": "ai_learning.failed", "job_id": body.get("job_id", ""), "reason": "The rule could not be drafted."})
         return {}
+
+
+def revise_policy_now(body: dict) -> dict:
+    """Rewrite a pre-check policy after a person's feedback and send it to the PM application (blocking)."""
+    from . import policy as PO
+
+    pm, run_id = get_pm(), f"policy-{body['feedback_id']}"
+    try:
+        revised, _ = PO.revise(body)
+        pm.send_event(run_id, {"type": "ai_policy.revised", "job_id": body.get("job_id", ""), "result": revised})
+        return revised
+    except Exception:  # the feedback is kept; the policy stays as it was until it is revised
+        logger.exception("Revising policy %s failed", body.get("policy_id"))
+        pm.send_event(run_id, {"type": "ai_policy.failed", "job_id": body.get("job_id", ""), "reason": "The policy could not be revised."})
+        return {}
+
+
+def start_policy_revision(body: dict) -> None:
+    threading.Thread(target=revise_policy_now, args=(body,), name=f"policy-{body['feedback_id']}", daemon=True).start()
+
+
+def flush_job(client_id: str, job_id: str) -> dict:
+    """Free a task's memory after its final review (AFIT, 20 Nov 2026): everything the knowledge store
+    holds for it, its file list, its documents' parsed text and their embeddings. Its runs' results
+    stay with the PM application; a later run reads the folder again from the start."""
+    from .embeddings import get_embedder
+    from .graph import INDEXED_NS, PENDING_NS, _pending_key
+    from .knowledge import get_knowledge
+
+    store = get_store()
+    file_ids = list(store.get_manifest(client_id, job_id))
+    entries, texts = get_knowledge().delete_task(client_id, job_id)
+    name = get_embedder().name
+    embedding_keys = list({sha(name, sha(t)) for t in texts})
+    node_keys = [(ns, _pending_key(client_id, job_id, fid)) for fid in file_ids for ns in (PENDING_NS, INDEXED_NS)]
+    counts = store.flush_job(client_id, job_id, node_keys, embedding_keys)
+    logger.info("Freed the memory of task %s: %s entries, %s", job_id, entries, counts)
+    return {"job_id": job_id, "entries": entries, **counts}
 
 
 @lru_cache

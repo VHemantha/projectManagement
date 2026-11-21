@@ -89,6 +89,32 @@ export interface PrecheckItem {
   flags: string[]
   /** The item's missing-information gap: the AI keeps checking every document for it (12 Nov 2026). */
   gap?: { gap_id: string; status: GapStatus; still_needed: string }
+  /** What the policy check did to the point (20 Nov 2026): checked against these policies, and kept,
+   * changed (with what it was before) or added because a policy requires it. */
+  policy?: PointPolicy
+}
+
+export interface PolicyRef {
+  id: number
+  title: string
+  scope_label: string
+}
+
+export interface PointPolicy {
+  changed: boolean
+  added?: boolean
+  policies: PolicyRef[]
+  note?: string
+  was?: { decision: PrecheckItem['decision']; label: string; priority: string; reason: string }
+}
+
+/** The run's check of every point against the firm's pre-check policies (20 Nov 2026). */
+export interface PolicyCheck {
+  checked: number
+  changed: number
+  added: number
+  error?: string
+  policies: { id: number; title: string; text: string; scope: PolicyScope; scope_label: string; applied_to: number }[]
 }
 
 /** A "not found" is provisional: OPEN until found (RESOLVED, or partly), or until the task's folder
@@ -168,6 +194,40 @@ export interface JobSnapshot {
   current_accounts?: string
   focus_areas?: { area: string; why: string; sources: SourceRef[] }[]
   understood?: { text: string; status: SnapshotStatus; sources: SourceRef[] }[]
+  /** The findings under the firm's eleven headings, in order (21 Nov 2026); older runs have none. */
+  sections?: SnapshotSection[]
+  /** Company background facts from the task card (21 Nov 2026). */
+  background?: { label: string; value: string }[]
+}
+
+export type SnapshotSectionKey =
+  | 'company_background'
+  | 'nature_of_business'
+  | 'business_environment'
+  | 'management_governance'
+  | 'financial_performance'
+  | 'financial_position'
+  | 'significant_events'
+  | 'accounting_policies'
+  | 'key_risks'
+  | 'prior_year_matters'
+  | 'going_concern'
+
+export interface SnapshotFinding {
+  label: string
+  text: string
+  status: SnapshotStatus
+  /** Key accounting risks only: how significant the risk of misstatement is. */
+  level: 'high' | 'medium' | 'low' | 'none'
+  sources: SourceRef[]
+  flags: string[]
+}
+
+export interface SnapshotSection {
+  key: SnapshotSectionKey
+  title: string
+  summary: string
+  findings: SnapshotFinding[]
 }
 
 export interface PrecheckOutput {
@@ -196,6 +256,8 @@ export interface PrecheckOutput {
   email: { subject: string; body: string }
   evidence: Record<string, { file_name: string; location: string; quote: string; drive_url: string }>
   how?: string
+  /** Runs from 20 Nov 2026 with a policy that applies. */
+  policy_check?: PolicyCheck
 }
 
 export type LessonKind = 'not_needed' | 'wrong_reason' | 'missed' | 'other'
@@ -284,6 +346,8 @@ export interface AccountantSettings {
   xero_complete: YesNoUnknown
   ird_access: YesNoUnknown
   related_records: YesNoUnknown
+  /** Where the client is (20 Nov 2026), for the pre-check policies set for a location. */
+  location?: string
 }
 
 export interface AccountantAnswer {
@@ -540,5 +604,108 @@ export function useSetRuleStatus() {
     mutationFn: async ({ id, status }: { id: number; status: 'active' | 'disabled' }) =>
       (await apiClient.patch<Lesson>(`/precheck/lessons/${id}/`, { status })).data,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck'] }),
+  })
+}
+
+// --- pre-check policies (AFIT, 20 Nov 2026) ------------------------------------------------------
+
+export type PolicyScope = 'client' | 'group' | 'location' | 'all'
+
+export interface PolicyFeedback {
+  id: number
+  text: string
+  context: string
+  status: 'revising' | 'revised' | 'failed'
+  summary: string
+  task: string
+  by: string
+  created_at: string
+}
+
+export interface PrecheckPolicy {
+  id: number
+  scope: PolicyScope
+  scope_label: string
+  client: { id: number; name: string } | null
+  group: string
+  location: string
+  precheck_type: string
+  precheck_type_label: string
+  title: string
+  text: string
+  active: boolean
+  version: number
+  history: { version: number; title: string; text: string; changed_by: string; changed_at: string; why: string }[]
+  created_by: string
+  updated_by: string
+  updated_at: string
+  can_change: boolean
+  feedback?: PolicyFeedback[]
+}
+
+export interface PolicyLibrary {
+  policies: PrecheckPolicy[]
+  scopes: { value: PolicyScope; label: string }[]
+  clients: { id: number; name: string }[]
+  groups: string[]
+  locations: string[]
+  precheck_types: { value: string; label: string }[]
+}
+
+export interface PolicyInput {
+  scope: PolicyScope
+  client_id?: number | null
+  group?: string
+  location?: string
+  precheck_type?: string
+  title: string
+  text: string
+  active?: boolean
+}
+
+/** The firm's pre-check policies; with `task`, those that apply to that task. */
+export function usePolicies(filters: { task?: string; q?: string; scope?: string } = {}) {
+  return useQuery({
+    queryKey: ['precheck', 'policies', filters],
+    queryFn: async () => (await apiClient.get<PolicyLibrary>('/precheck/policies/', { params: filters })).data,
+  })
+}
+
+export function usePolicy(id: number | null) {
+  return useQuery({
+    queryKey: ['precheck', 'policies', 'one', id],
+    enabled: id !== null,
+    queryFn: async () => (await apiClient.get<PrecheckPolicy>(`/precheck/policies/${id}/`)).data,
+    // A revision from feedback arrives a few seconds later.
+    refetchInterval: (q) => (q.state.data?.feedback?.some((f) => f.status === 'revising') ? 3000 : false),
+  })
+}
+
+export function useSavePolicy() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: Partial<PolicyInput> & { id?: number }) =>
+      (id ? await apiClient.patch<PrecheckPolicy>(`/precheck/policies/${id}/`, payload) : await apiClient.post<PrecheckPolicy>('/precheck/policies/', payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', 'policies'] }),
+  })
+}
+
+export function useDeletePolicy() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiClient.delete(`/precheck/policies/${id}/`)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', 'policies'] }),
+  })
+}
+
+/** Feedback on a policy: the AI revises the policy from it, keeping the old wording. */
+export function usePolicyFeedback() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...payload }: { id: number; text: string; task?: string; context?: string }) =>
+      (await apiClient.post<PolicyFeedback>(`/precheck/policies/${id}/feedback/`, payload)).data,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['precheck', 'policies'] }),
   })
 }

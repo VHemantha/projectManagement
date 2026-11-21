@@ -67,7 +67,26 @@ def safely(fn, *args) -> int:
 
 # --- the pre-check -----------------------------------------------------------------------------------
 
-DECISIONS = {"request": "to request from the client", "already_provided": "already provided", "not_needed": "not needed"}
+DECISIONS = {"request": "to request from the client", "already_provided": "already provided", "not_needed": "not needed",
+             "ask_accountant": "to ask the accountant"}
+
+
+def policy_words(policy: dict | None) -> str:
+    """What the policy check did to a point, in words the chat can explain."""
+    if not policy or not policy.get("policies"):
+        return ""
+    names = ", ".join(f'"{p.get("title", "")}"' for p in policy["policies"])
+    if policy.get("added"):
+        return f" Added by the policy check because of the policy {names}."
+    if policy.get("changed"):
+        was = policy.get("was") or {}
+        return (f" Changed by the policy check because of the policy {names}: {policy.get('note', '')} "
+                f"Before the change it was {was.get('label', '')}, reason: {was.get('reason', '')}")
+    return f" Checked against the policy {names} and kept."
+
+
+def gap_words(gap: dict | None) -> str:
+    return f" Search of every document: {gap.get('label') or gap.get('status')}." if isinstance(gap, dict) and (gap.get("label") or gap.get("status")) else ""
 
 
 def precheck_entries(p: dict) -> list[dict]:
@@ -81,13 +100,20 @@ def precheck_entries(p: dict) -> list[dict]:
         out.append({"key": "nature", "text": f"Pre-check: business nature {nature.get('label') or nature.get('type', '')}. "
                                             f"{nature.get('summary', '')} Reasoning: {nature.get('reasoning', '')}"})
     out += snapshot_entries(p.get("snapshot") or {})
-    for group, rows in (("request", requests), ("already_provided", p.get("provided") or []), ("not_needed", p.get("not_needed") or [])):
+    for group, rows in (("request", requests), ("already_provided", p.get("provided") or []), ("not_needed", p.get("not_needed") or []),
+                        ("ask_accountant", p.get("accountant_questions") or [])):
         for n, r in enumerate(rows, start=1):
             out.append({"key": f"{group}-{n}", "ref": r.get("item", "")[:60],
                         "text": f"Pre-check item {DECISIONS[group]}: {r.get('item', '')} ({r.get('group', '')}). "
-                                f"{'Priority ' + r['priority'] + '. ' if r.get('priority') else ''}Reason: {r.get('reason', '')}"})
-    for n, q in enumerate(p.get("accountant_questions") or [], start=1):
-        out.append({"key": f"question-{n}", "text": f"Pre-check question for the accountant: {q.get('question') or q.get('text') or q}"})
+                                f"{'Priority ' + r['priority'] + '. ' if r.get('priority') else ''}Reason: {r.get('reason', '')}"
+                                f"{policy_words(r.get('policy'))}{gap_words(r.get('gap'))}"})
+    pc = p.get("policy_check") or {}
+    for n, pol in enumerate(pc.get("policies") or [], start=1):
+        out.append({"key": f"policy-{n}", "text": f"Pre-check policy applied to this task ({pol.get('scope_label', '')}): {pol.get('title', '')}. "
+                                                  f"{pol.get('text', '')} It bore on {pol.get('applied_to', 0)} point(s)."})
+    if pc:
+        out.append({"key": "policy-check", "text": f"Pre-check policy check: {pc.get('checked', 0)} points checked against the firm's pre-check "
+                                                   f"policies, {pc.get('changed', 0)} changed and {pc.get('added', 0)} added. {pc.get('error', '')}"})
     for n, note in enumerate(p.get("preparer_notes") or [], start=1):
         out.append({"key": f"note-{n}", "text": f"Pre-check note for the preparer: {note.get('text') if isinstance(note, dict) else note}"})
     for n, k in enumerate(p.get("key_documents") or [], start=1):
@@ -132,6 +158,13 @@ def snapshot_entries(s: dict) -> list[dict]:
         out.append({"key": f"snapshot-event-{n}", "text": f"Job Snapshot event ({e.get('status', '')}): {e.get('text', '')}"})
     for n, a in enumerate(s.get("focus_areas") or [], start=1):
         out.append({"key": f"snapshot-focus-{n}", "text": f"Job Snapshot - focus for the preparer: {a.get('area', '')}. {a.get('why', '')}"})
+    for sec in s.get("sections") or []:  # the firm's eleven headings (21 Nov 2026)
+        if sec.get("summary"):
+            out.append({"key": f"snapshot-{sec['key']}", "text": f"Job Snapshot - {sec.get('title', sec['key'])}: {sec['summary']}"})
+        for n, f in enumerate(sec.get("findings") or [], start=1):
+            level = f" Risk: {f['level']}." if f.get("level") not in (None, "", "none") else ""
+            out.append({"key": f"snapshot-{sec['key']}-{n}",
+                        "text": f"Job Snapshot - {sec.get('title', sec['key'])}, {f.get('label', '')} ({f.get('status', '')}): {f.get('text', '')}{level}"})
     for n, u in enumerate(s.get("understood") or [], start=1):
         out.append({"key": f"snapshot-understood-{n}", "text": f"Job Snapshot - what the AI understood ({u.get('status', '')}): {u.get('text', '')}"})
     return out
@@ -163,8 +196,21 @@ def guide_entries(g: dict) -> list[dict]:
     for n, x in enumerate(g.get("sequence") or [], start=1):
         out.append({"key": f"step-{n}", "text": f"Guide starting sequence, step {n}: {x.get('step', '')} Depends on: {x.get('depends_on', '') or 'nothing'}. "
                                                 f"{'Can start now.' if x.get('can_start_now') else 'Cannot start yet.'} {x.get('escalate', '')}"})
+    for n, x in enumerate(g.get("cautions") or [], start=1):  # format 3 (21 Nov 2026)
+        out.append({"key": f"caution-{n}", "text": f"Guide area of caution ({x.get('level', '')}) — {x.get('area', '')}: {x.get('caution', '')}"})
+    labels = g.get("phase_labels") or {}
+    for x in g.get("steps") or []:
+        if "phase" not in x:
+            continue  # a guide written before 21 Oct 2026: below
+        out.append({"key": f"step3-{x.get('n', '')}", "text": f"Guide step {x.get('n', '')} to finalisation ({labels.get(x['phase'], x['phase'])}): {x.get('step', '')} "
+                                                       f"Depends on: {x.get('depends_on', '') or 'nothing'}. {'Can start now.' if x.get('can_start_now') else 'Cannot start yet.'} "
+                                                       f"{x.get('escalate', '')}"})
+    for n, x in enumerate(g.get("points") or [], start=1):
+        out.append({"key": f"point-{n}", "text": f"Guide point ({x.get('kind', '')}): {x.get('text', '')}"})
+    for n, x in enumerate(g.get("outstanding") or [], start=1):
+        out.append({"key": f"outstanding-{n}", "text": f"Guide: still to come from the client: {x.get('group', '')} — {x.get('item', '')}"})
     for n, x in enumerate(g.get("judgments") or [], start=1):
-        out.append({"key": f"judgment-{n}", "text": f"Guide judgment: {x.get('judgment', '')} Evidence: {x.get('evidence', '')}"
+        out.append({"key": f"judgment-{n}", "text": f"Guide judgment ({x.get('area', '') or 'general'}): {x.get('judgment', '')} Evidence: {x.get('evidence', '')}"
                                                     f"{' Needs manager approval.' if x.get('manager_approval') else ''} {x.get('reference', '')}"})
     queries = g.get("queries") or {}
     for who in ("manager", "client", "outstanding"):
@@ -174,7 +220,7 @@ def guide_entries(g: dict) -> list[dict]:
         out.append({"key": f"check-{n}", "text": f"Guide completion checklist ({x.get('status', '')}): {x.get('check', '')}"})
     for n, x in enumerate(g.get("roll_forward") or [], start=1):
         out.append({"key": f"roll-{n}", "text": f"Guide roll-forward to next year: {x.get('item', '')} Why: {x.get('why', '')}"})
-    for n, x in enumerate(g.get("steps") or [], start=1):  # a guide written before 21 Oct 2026
+    for n, x in enumerate((s for s in g.get("steps") or [] if "phase" not in s), start=1):  # a guide written before 21 Oct 2026
         out.append({"key": f"legacy-{n}", "text": f"Guide step {n} ({x.get('area', '')}): {x.get('step', '')} Check: {x.get('check', '')}"
                                                   f"{' Waits on the client.' if x.get('waits_on_client') else ''}"})
     return out

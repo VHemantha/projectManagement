@@ -20,14 +20,54 @@ import re
 from .textutil import clip_words
 
 STATUSES = ("confirmed", "inferred", "unresolved")
+# The snapshot's findings under the firm's headings, in this order (AFIT, 21 Nov 2026).
+SECTIONS = (
+    ("company_background", "Company background",
+     "company name, incorporation, starting date, legal structure, ownership and shareholding, principal activities, locations and reporting period"),
+    ("nature_of_business", "Nature of business",
+     "main products or services, how revenue is generated, key customers, suppliers and the business model"),
+    ("business_environment", "Business environment",
+     "industry conditions, competition, economic factors, regulatory requirements and significant external changes"),
+    ("management_governance", "Management and governance",
+     "directors, shareholders, key management personnel, governance structure and management changes"),
+    ("financial_performance", "Financial performance",
+     "revenue, gross profit, net profit, major expenses, comparison with the prior year and significant fluctuations"),
+    ("financial_position", "Financial position",
+     "major assets, liabilities, equity, working capital, borrowings, liquidity and unusual balances"),
+    ("significant_events", "Significant transactions and events",
+     "major asset purchases, loans, investments, related-party transactions, restructuring, litigation and unusual transactions"),
+    ("accounting_policies", "Accounting policies and reporting framework",
+     "the applicable framework (NZ IFRS, PBE standards, special purpose or tax-only reporting), significant accounting policies, changes in "
+     "policies, estimates and judgements"),
+    ("key_risks", "Key accounting risks",
+     "significant risks of material misstatement, revenue recognition, management override and other account-specific risks"),
+    ("prior_year_matters", "Prior-year accounting matters",
+     "previous accounting judgements, adjustments, management letter points, unresolved matters and recurring issues"),
+    ("going_concern", "Going concern and future outlook",
+     "cash flows, financial stability, financing arrangements, future business plans and going concern uncertainties"),
+)
+SECTION_KEYS = [k for k, _, _ in SECTIONS]
+LEVELS = ("high", "medium", "low", "none")
+MAX_FINDINGS = 5
 EVENT_KINDS = ("purchase", "disposal", "financing", "dividend", "investment", "trading", "structure", "other")
 
 _STR = {"type": "string"}
 _IDS = {"type": "array", "items": _STR}
 SCHEMA = {
     "type": "object", "additionalProperties": False,
-    "required": ["business_story", "revenue_sources", "financial_story", "events", "ownership", "current_accounts", "focus_areas", "understood"],
+    "required": ["business_story", "revenue_sources", "financial_story", "events", "ownership", "current_accounts", "focus_areas", "understood",
+                 "sections"],
     "properties": {
+        "sections": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False, "required": ["key", "summary", "findings"],
+            "properties": {
+                "key": {"type": "string", "enum": SECTION_KEYS},
+                "summary": _STR,
+                "findings": {"type": "array", "items": {
+                    "type": "object", "additionalProperties": False, "required": ["label", "text", "status", "level", "sources"],
+                    "properties": {"label": _STR, "text": _STR, "status": {"type": "string", "enum": list(STATUSES)},
+                                   "level": {"type": "string", "enum": list(LEVELS)}, "sources": _IDS}}},
+            }}},
         "business_story": _STR,
         "revenue_sources": {"type": "array", "items": {
             "type": "object", "additionalProperties": False, "required": ["label", "detail", "sources"],
@@ -60,6 +100,12 @@ ANSWER = """- snapshot: the Job Snapshot, shown to the preparer BEFORE the findi
   events: the year's significant purchases, disposals, financing, dividends, investments and changes in trading or structure, each "confirmed" (a document shows it), "inferred" (the records suggest it: say what would confirm it) or "unresolved".
   ownership: shareholders with their percentage only where a document states it (percent -1 when it is not shown); never confuse ownership with current-account balances. current_accounts: one or two sentences on the shareholder current accounts, if the records show any.
   focus_areas: 2-4 areas the preparer should pay attention to, and why. understood: 1-2 statements linking the story to the records examined, with any material assumption or gap.
+  sections: the snapshot's findings under the firm's eleven headings, one entry per heading, in this order:
+""" + "\n".join(f"    {k}: {d}." for k, _, d in SECTIONS) + """
+    Each: "summary" one plain sentence (at most 30 words); "findings" 0-5, each a "label" (1-5 words), "text" (at most 30 words), a status
+    (confirmed, inferred, unresolved) and the sources. "level": for key_risks, how significant the risk of misstatement is (high, medium,
+    low); "none" everywhere else. Where the records say nothing on a heading, say so in the summary ("Not shown in the documents read")
+    with no findings: never fill a heading with guesses. Code shows every figure as a chart beside your words: do not calculate any.
   Every statement cites its sources."""
 
 # What each balance is, from its label (and its trial balance section).
@@ -257,12 +303,46 @@ def clean(raw: dict | None, valid, figures_ok) -> dict | None:
     understood = [{"text": sentence(u.get("text"), 40), "status": u.get("status") if u.get("status") in STATUSES else "inferred",
                    "sources": valid(u.get("sources", []))} for u in (raw.get("understood") or []) if str(u.get("text", "")).strip()][:2]
     accounts = sentence(raw.get("current_accounts"), 50)
+    sections = {}
+    for sec in raw.get("sections") or []:
+        key = sec.get("key")
+        if key not in SECTION_KEYS or key in sections:
+            continue
+        found = []
+        for f in (sec.get("findings") or [])[:MAX_FINDINGS]:
+            text = sentence(f.get("text"), 34)
+            if not text:
+                continue
+            sources = valid(f.get("sources", []))
+            status = f.get("status") if f.get("status") in STATUSES else "inferred"
+            if status == "confirmed" and not sources:
+                status = "inferred"  # said to be shown by a document, but cites none
+            level = f.get("level") if key == "key_risks" and f.get("level") in LEVELS[:3] else "none"
+            found.append({"label": sentence(f.get("label"), 6), "text": text, "status": status, "level": level, "sources": sources,
+                          "flags": flags(text)})
+        summary = sentence(sec.get("summary"), 34)
+        sections[key] = {"key": key, "summary": summary if figures_ok(summary) else "", "findings": found}
+    ordered = [{**(sections.get(k) or {"key": k, "summary": "", "findings": []}), "title": title} for k, title, _ in SECTIONS] if sections else []
     return {
+        "sections": ordered,
         "business_story": story, "story_flags": flags(story), "revenue_sources": revenue,
         "financial_story": fin, "financial_flags": flags(fin), "events": events,
         "ownership": {"shareholders": holders, "note": sentence(own.get("note"), 30), "sources": valid(own.get("sources", []))},
         "current_accounts": accounts if figures_ok(accounts) else "", "focus_areas": focus, "understood": understood,
     }
+
+
+def background(job: dict, key: dict, nature: str) -> list[dict]:
+    """Company background facts the task card itself gives (AFIT, 21 Nov 2026): never the model's."""
+    from .precheck import ENTITY_TYPES
+
+    s = job.get("settings") or {}
+    rows = [("Client", job.get("client_name") or ""), ("Task", job.get("title") or ""), ("Group", job.get("group") or ""),
+            ("Legal structure", ENTITY_TYPES.get(s.get("entity_type", ""), "")), ("Business nature", nature),
+            ("Reporting period", (f"{s['year_start']} to {s['year_end']}" if s.get("year_start") and s.get("year_end") else
+                                  f"Year ending {s['year_end']}" if s.get("year_end") else key.get("this_year") or "")),
+            ("Location", s.get("location", ""))]
+    return [{"label": label, "value": str(value)} for label, value in rows if str(value or "").strip()]
 
 
 def changes(now: dict, before: dict | None) -> list[str]:

@@ -14,6 +14,7 @@ import sqlalchemy as sa
 from langgraph.cache.base import BaseCache
 
 from .config import get_settings
+from .textutil import sha
 
 metadata = sa.MetaData()
 
@@ -75,6 +76,11 @@ def _tables():
     return manifest, parsed, emb, node_cache, runs
 
 
+def _chunks(items: list, size: int = 500):
+    for i in range(0, len(items), size):
+        yield items[i:i + size]
+
+
 class Store:
     def __init__(self, url: str):
         self.is_pg = url.startswith("postgresql")
@@ -103,6 +109,21 @@ class Store:
         m = self.manifest
         with self.engine.begin() as conn:
             conn.execute(sa.delete(m).where(m.c.client_id == client_id, m.c.job_id == job_id, m.c.file_id == file_id))
+
+    def flush_job(self, client_id: str, job_id: str, node_keys: list[tuple[str, str]], embedding_keys: list[str]) -> dict:
+        """A task's own rows, when its memory is freed (AFIT, 20 Nov 2026): its file list, its files'
+        parsed text, the given node-cache entries and embeddings. A later run reads the folder again."""
+        m, rows = self.manifest, self.get_manifest(client_id, job_id)
+        parsed_keys = [sha(r["file_id"], r["version"], r["parser_version"]) for r in rows.values()]
+        with self.engine.begin() as conn:
+            conn.execute(sa.delete(m).where(m.c.client_id == client_id, m.c.job_id == job_id))
+            for chunk in _chunks(parsed_keys):
+                conn.execute(sa.delete(self.parsed).where(self.parsed.c.key.in_(chunk)))
+            for chunk in _chunks(embedding_keys):
+                conn.execute(sa.delete(self.emb).where(self.emb.c.key.in_(chunk)))
+            for ns, key in node_keys:
+                conn.execute(sa.delete(self.node_cache).where(self.node_cache.c.ns == ns, self.node_cache.c.key == key))
+        return {"files": len(rows), "parsed": len(parsed_keys), "embeddings": len(embedding_keys)}
 
     # -- exact-match caches (token rule 6) -----------------------------------------------------
     def _get_blob(self, table, key: str):

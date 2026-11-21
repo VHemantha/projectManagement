@@ -92,6 +92,7 @@ ANSWER = """Answer in the JSON shape given.
 - resolved: earlier findings (R ids) the draft now shows dealt with, with the reason and sources.
 - assumption_reviews: one per A item: supported, challenged or needs_evidence, the reason (at most 50 words) and sources.
 - lessons_applied: the L ids you applied.
+- The P lines are what the pre-check already concluded for this task (what it asked the client for, found, judged not needed, and what the firm's pre-check policies changed). Build on them: do not raise again an item the pre-check already asked for unless the draft shows it is still not dealt with, and cite the P id when a finding rests on the pre-check.
 Never raise again a finding the reviewer closed as not an issue unless the input shows something new, and then say what. Never invent a figure, file or fact."""
 
 
@@ -159,7 +160,7 @@ def _fmt(n) -> str:
 
 def build_input(job: dict, scope: Scope, key: dict, docs: list[dict], files: dict, draft: list[dict], checks: list[dict],
                 settings: Settings, caps: dict | None = None) -> tuple[str, dict]:
-    caps = caps or {"S": 400, "T": 300, "F": 400, "A": 60, "E": 120, "E_per_query": 3, "Q": 400, "D": 300, "R": 80}
+    caps = caps or {"S": 400, "T": 300, "F": 400, "A": 60, "E": 120, "E_per_query": 3, "Q": 400, "D": 300, "R": 80, "P": 80}
     review = job.get("review") or {}
     index: dict[str, dict] = {}
     out: list[str] = []
@@ -238,6 +239,11 @@ def build_input(job: dict, scope: Scope, key: dict, docs: list[dict], files: dic
     section("EVIDENCE FROM THIS YEAR'S DOCUMENTS (found for the assumptions, open findings and largest lines)", "E", e_rows, caps["E"])
 
     section("THIS YEAR'S CLIENT QUESTIONNAIRE", "Q", blocks_of("questionnaire", "questionnaire"), caps["Q"])
+    # What the pre-check already concluded for this task (AFIT, 20 Nov 2026), from the knowledge store,
+    # so the review builds on it - what was asked for, found, not needed, and changed by the firm's
+    # policies - instead of working it out again from the documents.
+    section("WHAT THE PRE-CHECK CONCLUDED FOR THIS TASK (from the knowledge store; the documents were read once, by the pre-check)",
+            "P", precheck_rows(scope, caps.get("P", 80)), caps.get("P", 80))
     out.append("\n== CHECKS DONE BY CODE ==")
     for n, c in enumerate(checks, start=1):
         index[f"C{n}"] = {"kind": "check", "check": c}
@@ -263,8 +269,24 @@ def build_input(job: dict, scope: Scope, key: dict, docs: list[dict], files: dic
     return "\n".join(out), index
 
 
+_PRECHECK_ORDER = ("summary", "nature", "policy", "request", "ask_accountant", "already_provided", "not_needed", "snapshot", "note", "check", "bank", "keydoc")
+
+
+def precheck_rows(scope: Scope, cap: int) -> list[tuple[str, dict]]:
+    """The pre-check's result for this task as the knowledge store holds it (memory.precheck_entries):
+    the summary and the decisions first; never its draft email."""
+    entries = [e for e in get_knowledge().get(scope, source_types=["precheck_result"]) if not e["id"].endswith(":email")]
+
+    def rank(e: dict) -> int:
+        key = e["id"].rsplit(":", 1)[-1]
+        return next((n for n, p in enumerate(_PRECHECK_ORDER) if key.startswith(p)), len(_PRECHECK_ORDER))
+
+    entries.sort(key=lambda e: (rank(e), e["id"]))
+    return [(_line(e["text"], 400), {"kind": "precheck_result", "entry": e}) for e in entries[:cap]]
+
+
 def fit_input(build, settings: Settings) -> tuple[str, dict]:
-    caps = {"S": 400, "T": 300, "F": 400, "A": 60, "E": 120, "E_per_query": 3, "Q": 400, "D": 300, "R": 80}
+    caps = {"S": 400, "T": 300, "F": 400, "A": 60, "E": 120, "E_per_query": 3, "Q": 400, "D": 300, "R": 80, "P": 80}
     body, index = build(caps)
     while est_tokens(body) > settings.precheck_max_input_tokens and caps["F"] > 60:
         caps = {k: (v if k in ("S", "A", "R", "E_per_query") else max(int(v * 0.75), 40)) for k, v in caps.items()}
@@ -365,6 +387,8 @@ def _source_view(sid: str, index: dict, ev) -> dict:
         return {"id": sid, "label": f"Check: {c['label']}", "evidence_id": ev(evidence_from(first[0], [first[1]])) if first else None}
     if kind == "special_note":
         return {"id": sid, "label": SN.label(item), "evidence_id": None}
+    if kind == "precheck_result":
+        return {"id": sid, "label": f"Pre-check result: {_line(item['entry']['text'], 80)}", "evidence_id": None}
     return {"id": sid, "label": sid, "evidence_id": None}
 
 

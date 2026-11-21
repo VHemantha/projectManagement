@@ -1,5 +1,7 @@
 from django.urls import path
 
+from .policy_views import PolicyDetailView, PolicyFeedbackView, PolicyListView
+
 from .views import (
     JobAgentNoteDetailView,
     JobAgentNotesView,
@@ -41,6 +43,9 @@ urlpatterns = [
     path("jobs/<str:key>/draft/", JobDraftView.as_view(), name="precheck-draft"),
     path("jobs/<str:key>/lessons/", JobLessonsView.as_view(), name="precheck-lessons"),
     path("lessons/", LessonLibraryView.as_view(), name="precheck-lesson-library"),
+    path("policies/", PolicyListView.as_view(), name="precheck-policies"),
+    path("policies/<int:pk>/", PolicyDetailView.as_view(), name="precheck-policy"),
+    path("policies/<int:pk>/feedback/", PolicyFeedbackView.as_view(), name="precheck-policy-feedback"),
     path("lessons/<int:pk>/", LessonDetailView.as_view(), name="precheck-lesson"),
     path("jobs/<str:key>/ask/", JobAskView.as_view(), name="precheck-ask"),
     path("jobs/<str:key>/guide/", JobGuideView.as_view(), name="precheck-guide"),

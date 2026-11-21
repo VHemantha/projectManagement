@@ -493,10 +493,54 @@ def precheck(state: State) -> dict:
                                   previous=(job.get("last_precheck_result") or {}).get("snapshot"))
     output["how"] = how
     output["special_notes"] = SN.considered(job, "precheck", cleaned)
+    if output.get("snapshot"):  # the company background facts the task card gives (AFIT, 21 Nov 2026)
+        from . import snapshot as JS
+
+        output["snapshot"]["background"] = JS.background(job, state["key"], (output.get("business_nature") or {}).get("label", ""))
     n = {k: len(output[k]) for k in ("requests", "provided", "not_needed")}
     emit("judged", f"{output['business_nature']['label']}: {n['requests']} to request, {n['provided']} already provided, {n['not_needed']} not needed",
          **n)
     return {"precheck": output, "evidence": evidence, "usage": usage}
+
+
+# --- verify_policies (model: Sonnet, one call; only when policies apply) -------------------------------
+
+def verify_policies(state: State) -> dict:
+    """Every point the pre-check produced, checked against AFIT's pre-check policies for this task
+    (client, group, location, or every task), and the result adjusted to follow them (policy.py).
+    Before the gaps are tracked, so the gaps follow the adjusted requests."""
+    from . import policy as PO
+
+    s, job, run_id, out = get_settings(), state["job"], state["run_id"], state["precheck"]
+    policies = [p for p in job.get("policies") or [] if str(p.get("text", "")).strip()]
+    if not policies:
+        return {}
+    emit("judged", f"Checking every point against {len(policies)} pre-check polic{'ies' if len(policies) != 1 else 'y'}", "running")
+    body, pol, points = PO.build_input(job, out, policies)
+    cache, key = StoreCache(get_store()), PO.cache_key(job, body, s)
+    usage = []
+    raw = cache.get_value("policy", key)
+    if raw is None:
+        reason = budget_for(run_id).can_call(est_tokens(PO.system_text()) + est_tokens(body))
+        if reason:
+            out = {**out, "policy_check": PO.unchecked(policies, f"Not checked against the policies: {reason}.")}
+            emit("judged", "Not checked against the policies: the run's budget is used up")
+            return {"precheck": out}
+        try:
+            raw, u = PO.call_model(body, s)
+        except Exception as exc:  # the pre-check stands; it says it was not checked
+            logger.warning("Policy check failed: %s", exc)
+            out = {**out, "policy_check": PO.unchecked(policies, "The policy check could not run this time. Run the pre-check again to check it.")}
+            emit("judged", "The policy check could not run this time")
+            return {"precheck": out}
+        budget_for(run_id).add(u)
+        usage.append({"node": "verify_policies", "task_id": "policy", "model": model_id("policy", s), "calls": 1, "run_id": run_id, **u})
+        cache.set_value("policy", key, raw)
+    checked = P.decide(PO.apply(out, raw, body, pol, points), state["key"], job.get("client_name", ""))
+    c = checked["policy_check"]
+    emit("judged", f"Checked {c['checked']} points against the policies: {c['changed']} changed, {c['added']} added",
+         changed=c["changed"], added=c["added"])
+    return {"precheck": checked, "usage": usage}
 
 
 # --- track_gaps (code + verifier) --------------------------------------------------------------------
@@ -566,7 +610,7 @@ def guide(state: State) -> dict:
             raise PrecheckStop(f"{exc} Nothing was changed. Please try again.") from exc
         budget_for(run_id).add(u)
         usage.append({"node": "guide", "task_id": "guide", "model": model_id("precheck", s), "calls": 1, "run_id": run_id, **u})
-        cleaned = G.clean(raw, index, body + "\n" + G.system_text())
+        cleaned = G.clean(raw, index, body + "\n" + G.system_text(), G.outstanding_from(job.get("last_precheck")))
         cache.set_value("guide", key, cleaned)
     output, evidence = G.assemble(cleaned, index)
     output["how"] = how
@@ -844,7 +888,7 @@ def publish(state: State) -> dict:
 def build_graph(checkpointer=None):
     g = StateGraph(State)
     for name, fn in [("load_job", load_job), ("sync_drive", sync_drive), ("index", index), ("run_rules", run_rules),
-                     ("key_documents", key_documents), ("precheck", precheck), ("track_gaps", track_gaps), ("review", review), ("guide", guide),
+                     ("key_documents", key_documents), ("precheck", precheck), ("verify_policies", verify_policies), ("track_gaps", track_gaps), ("review", review), ("guide", guide),
                      ("draft_directions", draft_directions),
                      ("publish", publish)]:
         g.add_node(name, fn)
@@ -855,7 +899,8 @@ def build_graph(checkpointer=None):
     g.add_conditional_edges("run_rules", route_after_rules, ["draft_directions", "key_documents"])
     g.add_conditional_edges("key_documents", route_after_key, ["publish", "precheck", "review", "guide"])
     g.add_edge("guide", "publish")
-    g.add_edge("precheck", "track_gaps")
+    g.add_edge("precheck", "verify_policies")
+    g.add_edge("verify_policies", "track_gaps")
     g.add_edge("track_gaps", "publish")
     g.add_edge("review", "publish")
     g.add_edge("draft_directions", END)

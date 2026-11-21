@@ -70,6 +70,7 @@ Answer from three kinds of knowledge, in this order of priority, and label every
 2. nz_standards_law — New Zealand standards and law: NZ IFRS and PBE standards and other XRB pronouncements, the Income Tax Act 2007, the Goods and Services Tax Act 1985, the Tax Administration Act 1994, Inland Revenue guidance, the Companies Act 1993 and the Financial Reporting Act 2013; also the skills below. Give the reference (act and section, standard and paragraph, or IRD publication) in "reference".
 3. general_knowledge — anything beyond those: other countries' rules, general accounting or business practice, general facts. Say in "reference" what it is and where it comes from (e.g. "IFRS as issued by the IASB", "Australian tax law", "general practice"), so the accountant knows exactly where you went beyond the folder and NZ standards.
 - Passages labelled "Pre-check result", "Preparation guide" or "WP Agent (...)" (GST, wages or imputation reconciliation) are what those agents concluded for this task: answer a question about their work from them (they count as task_documents) and say whose work a point comes from. The QUESTION AREA line says which area the question was put in; if the passages show it belongs elsewhere, answer from what fits.
+- A question about one of the pre-check's points names it in quotes: answer about that point first, from its "Pre-check result" passage (its decision, reason, the policy check and the search of every document), then from the documents it rests on.
 - "answer": a short overall answer (at most 120 words). "points": each statement with its basis (at most 8 points, each at most 60 words). Never present a point from your own knowledge as coming from the task's documents.
 - "outside_job": true when the question is not about this task or its client (a general question). Answer it anyway, from standards, law or general knowledge.
 - "status": answered, partial (part of it), or not_found (neither the documents nor your knowledge answer it reliably: say what is missing and where it would be found).
@@ -150,6 +151,18 @@ def areas_of(question: str) -> list[str]:
     return [key for key, _, pattern in AREAS if re.search(pattern, q)]
 
 
+# A question about one point of the pre-check's result (AFIT, 20 Nov 2026): the result's "Ask about
+# this point" starts the question with the point's words in quotes, e.g.
+#   About the pre-check point "Council rates for 12 Kauri Street": why is this needed?
+_POINT = re.compile(r"\bpoint\s*[:-]?\s*[“”\"]([^“”\"]{3,160})[“”\"]", re.I)
+
+
+def point_asked(question: str) -> str:
+    """The point of the pre-check a question names, or ""."""
+    m = _POINT.search(question)
+    return " ".join(m.group(1).split()) if m else ""
+
+
 def tag_filters(question: str) -> dict:
     """The tags a question names: which year, which kinds of document."""
     q = question.lower()
@@ -188,6 +201,7 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
     vec = embedder.embed([question])[0]
     found: dict[str, dict] = {}
     areas = areas if areas is not None else areas_of(question)
+    point = point_asked(question)
 
     def add(hits, how):
         for h in hits:
@@ -196,6 +210,14 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
             elif how.startswith("words") and not found[h["id"]]["how"].startswith("words"):
                 found[h["id"]]["how"] = how  # found by meaning, and it has the exact words too
 
+    if point:  # the point itself, by its exact words, then what the result says close to it
+        words = point[:60]
+        for form in dict.fromkeys((words, words.capitalize(), words.lower())):
+            hits = kn.search(scope, embedder.embed([point])[0], 3, source_types=["precheck_result"], contains=form)
+            if hits:
+                add(hits, "the point asked about")
+                break
+        add(kn.search(scope, embedder.embed([point])[0], 4, source_types=["precheck_result"]), "area: the pre-check")
     # The question's own area first: that agent's conclusions (or the review's record), by meaning and
     # by the question's exact words; then the other agents' results a little, in case it fits there.
     for area in areas:
@@ -233,10 +255,11 @@ def retrieve(scope: Scope, question: str, files: dict, settings: Settings, k: in
     hits.sort(key=lambda h: -h.get("score", 0))
     # The question's area comes first; then an exact match on a name, an address or an amount the
     # question asked about, kept even when passages closer in meaning would fill the list.
-    in_area = [h for h in hits if h["how"].startswith("area:")][:10]
-    exact = [h for h in hits if h["how"].startswith("words") and h not in in_area][:8]
-    rest = [h for h in hits if h not in in_area and h not in exact]
-    return (in_area + exact + rest)[:18]
+    asked = [h for h in hits if h["how"] == "the point asked about"]
+    in_area = [h for h in hits if h["how"].startswith("area:") and h not in asked][:10]
+    exact = [h for h in hits if h["how"].startswith("words") and h not in in_area and h not in asked][:8]
+    rest = [h for h in hits if h not in in_area and h not in exact and h not in asked]
+    return (asked + in_area + exact + rest)[:18]
 
 
 def build_input(job: dict, question: str, history: list[dict], hits: list[dict], files: dict, areas: list[str] | None = None) -> tuple[str, dict]:
@@ -329,6 +352,8 @@ def answer(job: dict, question: str, history: list[dict] | None = None, settings
     read = bool(files) and bool(get_knowledge().count(scope))
     has_results = bool(get_knowledge().count(scope, source_types=RESULT_KINDS))
     areas = areas_of(question)
+    if point_asked(question) and "precheck_result" not in areas:
+        areas = ["precheck_result", *areas]  # a question about one of the pre-check's points
     hits = retrieve(scope, question, files, s, lessons=job.get("lessons") or [], areas=areas) if (read or has_results) else []
     body, index = build_input(job, question, history or [], hits, files, areas)
     if not read and not hits:

@@ -134,7 +134,7 @@ describe('PrecheckPanel states', () => {
     await userEvent.selectOptions(screen.getByLabelText("Xero holds the full year's bank transactions"), 'yes')
     await userEvent.click(screen.getByRole('button', { name: 'Save without running' }))
     expect(mocks.save).toHaveBeenLastCalledWith(
-      expect.objectContaining({ settings: { entity_type: 'ltc', year_start: '', year_end: '2026-06-30', xero_complete: 'yes', ird_access: 'no', related_records: '' } }),
+      expect.objectContaining({ settings: { entity_type: 'ltc', year_start: '', year_end: '2026-06-30', xero_complete: 'yes', ird_access: 'no', related_records: '', location: '' } }),
       expect.anything(),
     )
     await userEvent.selectOptions(screen.getByLabelText(/Pre-check type/), 'residential_rental')
@@ -163,7 +163,7 @@ describe('PrecheckPanel states', () => {
         direction_items: ['Agree bank', 'Check accruals'],
         precheck_type: 'residential_rental',
         key_paths: { questionnaire: '', last_year_fs: '', last_year_workpapers: 'Smith.zip/2025/Workpapers', draft_fs: '', general_ledger: '' },
-        settings: { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '' },
+        settings: { entity_type: '', year_start: '', year_end: '', xero_complete: '', ird_access: '', related_records: '', location: '' },
       },
       expect.anything(),
     )

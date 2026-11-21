@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AiRulesPage } from './AiRulesPage'
@@ -20,6 +21,7 @@ vi.mock('@/api/precheck', () => ({
   useAddRule: () => ({ mutate: mocks.add, isPending: false, isError: false }),
   useSetRuleStatus: () => ({ mutate: mocks.setStatus, isPending: false }),
 }))
+vi.mock('./PoliciesPanel', () => ({ PoliciesPanel: () => <div>the policies panel</div> }))
 
 const LIBRARY = (canApprove: boolean): RuleLibrary => ({
   can_approve: canApprove,
@@ -39,7 +41,7 @@ const LIBRARY = (canApprove: boolean): RuleLibrary => ({
 describe('AI rules (AFIT, 29 Oct 2026)', () => {
   it('teaches the AI something it missed, for a type of check and an entity type', async () => {
     mocks.library = LIBRARY(true)
-    render(<AiRulesPage />)
+    render(<MemoryRouter><AiRulesPage /></MemoryRouter>)
     await userEvent.click(screen.getByRole('button', { name: /Teach the AI/ }))
     const form = screen.getByRole('form', { name: 'New AI rule' })
     expect(within(form).getByRole('button', { name: 'Save rule' })).toBeDisabled()
@@ -57,7 +59,7 @@ describe('AI rules (AFIT, 29 Oct 2026)', () => {
 
   it('shows each rule as the AI wrote it up, and a lead approves one waiting', async () => {
     mocks.library = LIBRARY(true)
-    render(<AiRulesPage />)
+    render(<MemoryRouter><AiRulesPage /></MemoryRouter>)
     const rules = within(screen.getByRole('list', { name: 'Rules' })).getAllByRole('listitem')
     expect(rules[0]).toHaveTextContent('Landlord insurance')
     expect(rules[0]).toHaveTextContent('Residential rental')
@@ -71,7 +73,7 @@ describe('AI rules (AFIT, 29 Oct 2026)', () => {
 
   it('anyone else proposes a rule and cannot approve', async () => {
     mocks.library = LIBRARY(false)
-    render(<AiRulesPage />)
+    render(<MemoryRouter><AiRulesPage /></MemoryRouter>)
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Teach the AI/ }))
     expect(screen.getByRole('button', { name: 'Propose rule' })).toBeInTheDocument()
@@ -81,8 +83,16 @@ describe('AI rules (AFIT, 29 Oct 2026)', () => {
   it('filters by type of check', async () => {
     mocks.library = LIBRARY(true)
     mocks.filters = []
-    render(<AiRulesPage />)
+    render(<MemoryRouter><AiRulesPage /></MemoryRouter>)
     await userEvent.selectOptions(screen.getAllByLabelText('Type of check')[0], 'investment')
     expect(mocks.filters.at(-1)).toEqual({ q: undefined, type: 'investment', status: undefined })
+  })
+
+  it('has the pre-check policies on their own tab (AFIT, 20 Nov 2026)', async () => {
+    mocks.library = LIBRARY(true)
+    render(<MemoryRouter><AiRulesPage /></MemoryRouter>)
+    await userEvent.click(screen.getByRole('tab', { name: 'Pre-check policies' }))
+    expect(screen.getByText('the policies panel')).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Rules' })).not.toBeInTheDocument()
   })
 })

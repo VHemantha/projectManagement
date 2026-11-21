@@ -32,7 +32,8 @@ def client_scope(issue) -> str:
     return f"client-{project.client_id}" if project.client_id else f"workspace-{project.id}"
 
 
-SETTING_KEYS = ("entity_type", "year_start", "year_end", "xero_complete", "ird_access", "related_records")
+# location (AFIT, 20 Nov 2026): where the client is, free text ("Auckland"), for the pre-check policies set for a location.
+SETTING_KEYS = ("entity_type", "year_start", "year_end", "xero_complete", "ird_access", "related_records", "location")
 # The entity types AFIT sets on a task (27 Oct 2026).
 ENTITY_TYPES = [("trust", "Trust"), ("close_company", "Close Company"), ("ltc", "LTC"), ("sole_trader", "Sole Trader"),
                 ("partnership", "Partnership"), ("body_corporate", "Body Corporate")]
@@ -255,6 +256,12 @@ def can_approve_lessons(user, issue) -> bool:
     return bool(project.primary_team_id) and TeamMembership.objects.filter(team_id=project.primary_team_id, user=user, role="lead").exists()
 
 
+def policies_for(issue) -> list[dict]:
+    from .policies import policies_for as applying
+
+    return applying(issue)
+
+
 def job_payload(issue) -> dict:
     """What the agent's load_job node reads: the job card, its Direction Note items, the Drive
     folder and the client boundary. Approved knowledge is not built yet, so none is in scope."""
@@ -284,6 +291,11 @@ def job_payload(issue) -> dict:
         "rolled_forward": rolled_forward(issue),
         "accountant_answers": [{"question": a.question, "answer": a.answer} for a in issue.accountant_answers.all()[:60]],
         "lessons": lessons_for(issue),
+        # The task's client group (e.g. "Lummis group"), and the pre-check policies that apply to it - its
+        # client's, its group's, its location's and every task's - which every point is checked against
+        # (AFIT, 20 Nov 2026).
+        "group": issue.group,
+        "policies": policies_for(issue),
         # For a review round: the preparer's assumptions and every finding with the reviewer's response.
         "review": review_record.payload(issue),
         "direction_items": setup["direction_items"],
@@ -597,6 +609,10 @@ def record_event(event: dict) -> bool:
         return _record_answer(event)
     if str(event.get("type", "")).startswith("ai_learning."):
         return _record_rule(event)
+    if str(event.get("type", "")).startswith("ai_policy."):
+        from .policies import record_revision
+
+        return record_revision(event)
     if event.get("type") == "ai_precheck.gaps_updated":
         return _record_gaps(event)
     run = AIPrecheck.objects.select_for_update().select_related("issue__project").filter(run_id=event.get("run_id")).first()

@@ -106,7 +106,7 @@ class JobSetupView(APIView):
             if problem:
                 errors["settings"] = [problem]
             else:
-                clean = {k: str(raw.get(k) or "") for k in services.SETTING_KEYS}
+                clean = {k: " ".join(str(raw.get(k) or "").split())[:100] for k in services.SETTING_KEYS}
                 clean = {k: v for k, v in clean.items() if v}
                 if not JobFolder.objects.filter(issue=issue).update(accountant_settings=clean) and clean:
                     errors["settings"] = ["Link the task's Drive folder first."]
@@ -144,6 +144,8 @@ def _settings_problem(raw) -> str:
     for k in ("xero_complete", "ird_access", "related_records"):
         if raw.get(k) not in (None, "", "yes", "no"):
             return "Answer yes, no or leave it unknown."
+    if len(str(raw.get("location") or "")) > 100:
+        return "Keep the location to 100 characters."
     if raw.get("entity_type") not in (None, "", *(v for v, _ in services.ENTITY_TYPES)):
         return "Choose the entity type: " + ", ".join(label for _, label in services.ENTITY_TYPES) + "."
     return ""

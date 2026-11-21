@@ -54,18 +54,20 @@ export function DocIcon({ doc }: { doc: DocRef }) {
 
 /** "Supporting documents:" and an icon per document behind a point (the AFIT reference icons, 19 Nov
  * 2026), in place of the documents' names; past `max`, "+N more" shows the rest. */
-export function DocIcons({ sources, evidence, max = 5, label = 'Supporting documents' }: {
+export function DocIcons({ sources, evidence, max = 5, label = 'Supporting documents', variant }: {
   sources: SourceRef[]
   evidence: PrecheckOutput['evidence']
   max?: number
   label?: string
+  /** "row": the icons at their full size even without a label (the Job Snapshot, 21 Nov 2026). */
+  variant?: 'row' | 'inline'
 }) {
   const [all, setAll] = useState(false)
   const docs = docRefs(sources, evidence)
   if (!docs.length) return null
   const shown = all ? docs : docs.slice(0, max)
   return (
-    <div className={label ? styles.row : styles.inline} role="group" aria-label={label || 'Sources'}>
+    <div className={(variant ? variant === 'row' : !!label) ? styles.row : styles.inline} role="group" aria-label={label || 'Sources'}>
       {label && <span className={styles.label}>{label}:</span>}
       {shown.map((d) => (
         <DocIcon key={`${d.source.id}-${d.title}`} doc={d} />

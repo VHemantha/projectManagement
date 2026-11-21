@@ -1,0 +1,328 @@
+/* The preparation guide, format 3 (AFIT, 21 Nov 2026): tables and charts throughout. */
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-4);
+  min-width: 0;
+}
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-text);
+}
+.muted {
+  margin: 0;
+  color: var(--tf-text-subtle);
+  font-size: var(--tf-font-size-sm);
+}
+.section,
+.cautions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  min-width: 0;
+}
+.cautions {
+  padding: var(--tf-space-3);
+  border: 1px solid var(--tf-border);
+  border-left: 4px solid var(--tf-danger);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+}
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--tf-font-size-md);
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.sectionTitle svg {
+  color: var(--tf-primary);
+}
+.sectionNo {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-primary);
+  color: var(--tf-text-inverse);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* tables */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text);
+  table-layout: auto;
+}
+.table caption {
+  caption-side: top;
+  padding: 0 0 6px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--tf-text-secondary);
+}
+.table th,
+.table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.table thead th {
+  background: var(--tf-surface-sunken);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tf-text-secondary);
+  white-space: nowrap;
+}
+.table tbody th {
+  font-weight: 600;
+}
+.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+@media (max-width: 720px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* chips */
+.tag,
+.level,
+.pointKind,
+.check,
+.approval {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: var(--tf-radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tag {
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+}
+.level[data-level='high'] {
+  background: var(--tf-danger);
+  color: var(--tf-text-inverse);
+}
+.level[data-level='medium'] {
+  background: var(--tf-solid-orange);
+  color: var(--tf-text-inverse);
+}
+.level[data-level='low'] {
+  background: var(--tf-success);
+  color: var(--tf-text-inverse);
+}
+.pointKind {
+  background: var(--tf-blue-subtle);
+  color: var(--tf-text);
+}
+.pointKind[data-kind='escalate'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.check[data-status='done'] {
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.check[data-status='open'] {
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+}
+.check[data-status='na'] {
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-subtle);
+}
+.approval {
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+}
+.now,
+.waitsChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.now {
+  color: var(--tf-success);
+}
+.waitsChip {
+  color: var(--tf-warning-text);
+}
+.escalate,
+.flag {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.escalate {
+  color: var(--tf-primary);
+}
+.flag {
+  color: var(--tf-warning-text);
+}
+
+/* charts: one stacked bar */
+.meter {
+  display: flex;
+  height: 20px;
+  border-radius: var(--tf-radius-full);
+  overflow: hidden;
+  font-size: 11px;
+  font-weight: 700;
+}
+.meter span {
+  display: grid;
+  place-items: center;
+  min-width: 60px;
+  color: var(--tf-text-inverse);
+}
+.meter [data-level='high'] {
+  background: var(--tf-danger);
+}
+.meter [data-level='medium'] {
+  background: var(--tf-solid-orange);
+}
+.meter [data-level='low'],
+.meter [data-status='done'] {
+  background: var(--tf-success);
+}
+.meter [data-status='open'] {
+  background: var(--tf-solid-orange);
+}
+.meter [data-status='na'] {
+  background: var(--tf-solid-grey);
+}
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.progress .muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* the flow chart */
+.flow {
+  margin: 0;
+  padding: var(--tf-space-3);
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface-sunken);
+}
+.flowCaption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--tf-space-2);
+  font-size: var(--tf-font-size-sm);
+  font-weight: 600;
+  color: var(--tf-text-secondary);
+}
+.flowList,
+.phaseSteps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.flowItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.phase {
+  width: min(100%, 560px);
+  border: 1px solid var(--tf-border);
+  border-top: 3px solid var(--tf-primary);
+  border-radius: var(--tf-radius-md);
+  background: var(--tf-surface);
+}
+.phase[data-phase='review'],
+.phase[data-phase='finalise'] {
+  border-top-color: var(--tf-success);
+}
+.phaseHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  font-size: var(--tf-font-size-sm);
+  font-weight: 700;
+  color: var(--tf-text);
+}
+.phaseNo {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--tf-radius-full);
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+  font-size: 10px;
+}
+.phaseSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+}
+.phaseSteps li {
+  display: flex;
+  gap: 8px;
+  font-size: var(--tf-font-size-sm);
+  line-height: 1.45;
+  color: var(--tf-text);
+}
+.stepNo {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-warning-bg);
+  color: var(--tf-warning-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+.phaseSteps li[data-now] .stepNo {
+  background: var(--tf-success-bg);
+  color: var(--tf-success);
+}
+.waits {
+  color: var(--tf-text-subtle);
+}
+.arrow {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  color: var(--tf-primary);
+}

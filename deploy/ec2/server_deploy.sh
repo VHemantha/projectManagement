@@ -98,6 +98,9 @@ echo '*/15 * * * * root /usr/local/bin/trackflow-manage coordinator_tick >> /var
 # Tasks completed (a done stage, or the board's last column) for 7 days are archived, nightly.
 echo '15 2 * * * root /usr/local/bin/trackflow-manage auto_archive_tasks >> /var/log/trackflow-archive.log 2>&1' \
   > /etc/cron.d/trackflow-archive
+# The AI agent's memory of a task (its documents and results) is freed three days after the task's
+# final review, nightly.
+echo '45 2 * * * root /usr/local/bin/trackflow-manage flush_job_memory >> /var/log/trackflow-flush.log 2>&1'   > /etc/cron.d/trackflow-flush
 systemctl daemon-reload
 systemctl enable --quiet trackflow trackflow-ws
 

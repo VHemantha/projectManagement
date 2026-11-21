@@ -160,3 +160,44 @@
   color: var(--tf-danger);
   font-size: var(--tf-font-size-sm);
 }
+
+/* Pre-check policies (20 Nov 2026) */
+.tabBody {
+  margin-top: var(--tf-space-3);
+}
+.feedback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--tf-space-2);
+  margin-top: var(--tf-space-2);
+  padding: var(--tf-space-2);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface-sunken, var(--tf-bg));
+}
+.feedback label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--tf-font-size-sm);
+  color: var(--tf-text-secondary);
+}
+.feedback textarea {
+  font: inherit;
+  font-size: var(--tf-font-size-sm);
+  padding: 6px 8px;
+  border: 1px solid var(--tf-border);
+  border-radius: var(--tf-radius-sm);
+  background: var(--tf-surface);
+  color: var(--tf-text);
+}
+.history {
+  margin-top: var(--tf-space-2);
+  font-size: var(--tf-font-size-sm);
+}
+.history ol {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}

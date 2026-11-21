@@ -84,14 +84,15 @@ def demo_vision(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
 
 
 def demo_guide(body: str, by) -> AIMessage:
-    """Stand-in for the guide (demo mode and tests): the eight sections, with the first bank payee
-    raised as a suspected event and followed through to the sequence, a query and the checklist."""
+    """Stand-in for the guide (demo mode and tests): the format-3 guide, with the first bank payee
+    raised as a suspected event and followed through to a step, a point and the checklist."""
     banks, tb = by("B"), by("T")
     payees = [ln.split(" | ") for ln in body.splitlines() if re.match(r"^B\d+\.\d+ \| ", ln)]
-    outstanding = [ln.split(" — ", 1)[-1] for ln in body.splitlines() if ln.startswith("Still requested from the client: ")]
     first = payees[0] if payees else None
     e1 = "E1" if first else ""
-    answer = {  # ids as comma-separated strings and one list of queries, as the real answer shape
+    answer = {  # ids as comma-separated strings, as the real answer shape
+        "cautions": [{"area": "Bank", "caution": "Reconcile every bank account before relying on the figures.", "level": "medium",
+                      "sources": banks[0][0] if banks else ""}],
         "snapshot": {"activities": "Demo client.", "assets_and_funding": "As in last year's accounts.",
                      "records": f"{len(banks)} bank export(s); last year's trial balance.", "bookkeeping": "Bank exports only.",
                      "period": "Year to 31 March.", "sources": ", ".join([p[0] for p in banks[:1]] + [p[0] for p in tb[:1]])},
@@ -101,11 +102,14 @@ def demo_guide(body: str, by) -> AIMessage:
                        for p in tb[:2]],
         "risks": [{"area": "Bank", "what_could_be_wrong": f"{p[1]} is not reconciled.", "examine": "The year-end balance.",
                    "evidence": "The bank statement.", "events": "", "sources": p[0]} for p in banks[:3]],
-        "sequence": [{"step": f"Reconcile {p[1]} to its year-end balance.", "depends_on": "nothing", "can_start_now": True, "escalate": "",
-                      "events": e1 if i == 0 else "", "sources": p[0]} for i, p in enumerate(banks[:3])],
-        "judgments": [],
-        "queries": [{"to": "client", "text": "What were the payments to the first payee for?", "events": e1, "sources": ""}]
-                   + [{"to": "outstanding", "text": item, "events": "", "sources": ""} for item in outstanding],
+        "steps": [{"phase": "start", "step": "Agree the opening balances to last year's trial balance.", "depends_on": "nothing",
+                   "can_start_now": True, "escalate": "", "events": "", "sources": tb[0][0] if tb else ""}]
+                 + [{"phase": "reconcile", "step": f"Reconcile {p[1]} to its year-end balance.", "depends_on": "nothing", "can_start_now": True,
+                     "escalate": "", "events": e1 if i == 0 else "", "sources": p[0]} for i, p in enumerate(banks[:3])],
+        "judgments": [{"area": "Expenses", "judgment": "Whether the larger repairs are capital.", "evidence": "The invoices.",
+                       "manager_approval": False, "reference": "Income Tax Act 2007, s DA 2", "events": "", "sources": ""}],
+        "points": [{"kind": "action", "text": "Confirm what the payments to the first payee were for from the invoices.", "events": e1, "sources": ""},
+                   {"kind": "note", "text": "What were the payments for?", "events": "", "sources": ""}],  # a question: code drops it
         "checklist": [{"check": "Significant events resolved.", "status": "open", "events": e1},
                       {"check": "Bank accounts reconciled.", "status": "open", "events": ""}],
         "roll_forward": [{"item": f"Confirm the payments to {first[1]}.", "why": "Not resolved this year.", "sources": first[0]}] if first else [],
@@ -146,7 +150,15 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
                      "events": [{"text": "Demo: an event the questionnaire mentions.", "kind": "other", "status": "inferred", "sources": q_ids[:1]}],
                      "ownership": {"shareholders": [], "note": "", "sources": []}, "current_accounts": "",
                      "focus_areas": [{"area": "Last year's balances", "why": "They carry into this year.", "sources": [p[0] for p in by("T")][:1]}],
-                     "understood": [{"text": "Demo: read the questionnaire and last year's accounts.", "status": "confirmed", "sources": q_ids[:1]}]},
+                     "understood": [{"text": "Demo: read the questionnaire and last year's accounts.", "status": "confirmed", "sources": q_ids[:1]}],
+                     "sections": [
+                         {"key": "nature_of_business", "summary": f"Demo: a {btype.replace('_', ' ')} client.",
+                          "findings": [{"label": "Main income", "text": "Demo: the questionnaire names the main income.", "status": "confirmed",
+                                        "level": "none", "sources": q_ids[:1]}]},
+                         {"key": "key_risks", "summary": "Demo: the balances carried from last year.",
+                          "findings": [{"label": "Opening balances", "text": "Demo: last year's balances carry into this year.", "status": "inferred",
+                                        "level": "medium", "sources": [p[0] for p in by("T")][:1]}]},
+                         {"key": "going_concern", "summary": "Not shown in the documents read.", "findings": []}]},
     })
     return AIMessage(content=text, usage_metadata=_usage(body, text))
 
@@ -225,7 +237,9 @@ def demo_gst(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
 def _fake_model(role: str) -> ScriptedChatModel:
     if role not in _fake:
         set_fake(role, {"drafter": demo_drafter, "vision": demo_vision, "precheck": demo_precheck, "assistant": demo_assistant,
-                        "gst": demo_gst, "verifier": demo_verifier}[role])
+                        "gst": demo_gst, "verifier": demo_verifier,
+                        # The policy checker in demo mode changes nothing (an empty answer keeps every point).
+                        "policy": demo_gst}[role])
     return _fake[role]
 
 
@@ -236,7 +250,8 @@ def model_id(role: str, settings: Settings | None = None) -> str:
     if s.llm_mode == "fake":
         return f"fake-{role}"
     return {"vision": s.vision_model or s.reader_model, "drafter": s.judge_model, "assistant": s.judge_model, "precheck": s.precheck_model,
-            "gst": s.gst_model or s.judge_model, "verifier": s.judge_model}[role]
+            "gst": s.gst_model or s.judge_model, "verifier": s.judge_model,
+            "policy": s.judge_model}[role]
 
 
 def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
@@ -263,7 +278,7 @@ def get_model(role: str, settings: Settings | None = None) -> BaseChatModel:
         if s.judge_effort:
             extra_v["effort"] = s.judge_effort
         return ChatAnthropic(model=s.judge_model, max_tokens=s.verifier_max_tokens, **extra_v, **common)
-    if role == "drafter":
+    if role in ("drafter", "policy"):  # policy: checking a pre-check against the firm's policies (policy.py)
         extra: dict[str, Any] = {}
         if s.judge_thinking:
             extra["thinking"] = {"type": s.judge_thinking}

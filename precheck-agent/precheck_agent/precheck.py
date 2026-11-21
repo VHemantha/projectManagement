@@ -479,6 +479,7 @@ def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: st
     snap = cleaned.get("snapshot")
     if snap:
         snap = {**snap, **{k: [{**x, "sources": views(x["sources"])} for x in snap[k]] for k in ("revenue_sources", "events", "focus_areas", "understood")},
+                "sections": [{**sec, "findings": [{**x, "sources": views(x["sources"])} for x in sec["findings"]]} for sec in snap.get("sections") or []],
                 "ownership": {**snap["ownership"], "sources": views(snap["ownership"]["sources"]),
                               "shareholders": [{**h, "sources": views(h["sources"])} for h in snap["ownership"]["shareholders"]]}}
     snapshot = JS.assemble(snap, JS.figures(facts, t_ids), figure_source, previous)
@@ -503,17 +504,7 @@ def assemble(cleaned: dict, index: dict, key: dict, facts: dict, client_name: st
     model_requests.sort(key=lambda r: r.get("priority") != "blocking")
     out["requests"] = key_requests + model_requests
     out["preparer_notes"] = notes + out["preparer_notes"]
-    requests = out["requests"]
-    missing = [K.KEY[r]["label"].lower() for r in key.get("missing", [])]
-    out["decision"] = ({"state": "requests", "label": "Requests to send",
-                        "reason": f"{len(requests)} item{'s are' if len(requests) != 1 else ' is'} still needed before this year's accounts can be prepared."}
-                       if requests else
-                       {"state": "nothing", "label": "Nothing to request",
-                        "reason": "Everything this year's accounts need appears to have been received."})
-    if missing:
-        out["decision"]["reason"] += f" Worked without {' and '.join(missing)}: the list may grow once {'they arrive' if len(missing) > 1 else 'it arrives'}."
-        out["decision"]["provisional"] = True
-    out["email"] = email(requests, client_name, key)
+    decide(out, key, client_name)
     out["evidence"] = {k: {f: e[f] for f in ("file_name", "location", "quote", "drive_url")} for k, e in evidence.items()}
     return out, evidence
 
@@ -554,6 +545,23 @@ def key_views(key: dict, ev) -> list[dict]:
 def bank_views(facts: dict) -> list[dict]:
     return [{"account": e["account"] or e["file"]["name"], "from": f"{e['from']:%d %b %Y}", "to": f"{e['to']:%d %b %Y}",
              "opening": e["opening"], "closing": e["closing"]} for e in facts.get("exports", [])]
+
+
+def decide(out: dict, key: dict, client_name: str) -> dict:
+    """The overall decision and the client email, from the requests as they stand (again after the
+    policy check changes them)."""
+    requests = out["requests"]
+    missing = [K.KEY[r]["label"].lower() for r in key.get("missing", [])]
+    out["decision"] = ({"state": "requests", "label": "Requests to send",
+                        "reason": f"{len(requests)} item{'s are' if len(requests) != 1 else ' is'} still needed before this year's accounts can be prepared."}
+                       if requests else
+                       {"state": "nothing", "label": "Nothing to request",
+                        "reason": "Everything this year's accounts need appears to have been received."})
+    if missing:
+        out["decision"]["reason"] += f" Worked without {' and '.join(missing)}: the list may grow once {'they arrive' if len(missing) > 1 else 'it arrives'}."
+        out["decision"]["provisional"] = True
+    out["email"] = email(requests, client_name, key)
+    return out
 
 
 def email(requests: list[dict], client_name: str, key: dict) -> dict:

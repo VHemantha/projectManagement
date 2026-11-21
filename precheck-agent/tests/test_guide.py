@@ -1,15 +1,19 @@
-"""The preparation guide (AFIT's agreed structure, 21 Oct 2026): eight sections, from the job snapshot
-to the completion checklist. Code checks every figure and source, keeps "confirmed" for events a
-document shows, follows every event through, and keeps queries from repeating each other."""
+"""The preparation guide, format 3 (AFIT, 21 Nov 2026): points, never questions; the job's areas of
+caution as its summary; the significant events worked out but not shown as a section; a step-by-step
+plan from the start of preparation to finalisation, by phase; the areas that need judgment; and the
+completion checklist. Code checks every figure and source, keeps "confirmed" for events a document
+shows, follows every event through, drops anything worded as a question, lists the documents still to
+come from the pre-check, and makes sure the steps reach review and finalisation."""
 import json
 
 from langchain_core.messages import AIMessage
 
 from precheck_agent import llm
+from precheck_agent.guide import PHASES
 
 from .test_precheck import ACCOUNT, ready_folder
 
-SECTIONS = ["snapshot", "events", "prior_year", "risks", "sequence", "judgments", "queries", "checklist"]
+SECTIONS = ["cautions", "snapshot", "prior_year", "risks", "steps", "judgments", "points", "outstanding", "checklist", "roll_forward"]
 
 
 def scripted(answer: dict):
@@ -21,16 +25,17 @@ def scripted(answer: dict):
 
 def answer(**over) -> dict:
     base = {
+        "cautions": [],
         "snapshot": {"activities": "Residential rental at 43 Te Wharo Drive.", "assets_and_funding": "One rental property funded by an ASB loan.",
                      "records": "ANZ bank export for the year; last year's statements.", "bookkeeping": "Bank exports only, no ledger.",
                      "period": "Year to 31 March 2026.", "sources": "B1, Z9"},
-        "events": [], "prior_year": [], "risks": [], "sequence": [], "judgments": [], "queries": [], "checklist": [], "roll_forward": [],
+        "events": [], "prior_year": [], "risks": [], "steps": [], "judgments": [], "points": [], "checklist": [], "roll_forward": [],
     }
     base.update(over)
     return base
 
 
-def test_the_guide_has_the_eight_sections_and_reads_the_precheck_and_its_result(env):
+def test_the_guide_reads_the_precheck_and_gives_points_steps_to_finalisation_and_cautions(env):
     ready_folder(env)
     env.pm.add_job("1", "client-s", "smith", direction=[])
     env.pm.jobs["1"]["last_precheck"] = {"business_nature": {"label": "Residential rental"},
@@ -40,26 +45,38 @@ def test_the_guide_has_the_eight_sections_and_reads_the_precheck_and_its_result(
     assert result["status"] == "complete" and result["mode"] == "guide" and len(env.precheck.calls) == 1
     body = env.precheck.calls[0]["messages"][-1].content
     system = env.precheck.calls[0]["messages"][0].content
-    assert "# Skill: nz-preparation-guide" in system and "what happened → why it matters" in system.replace("**", "")
+    assert "# Skill: nz-preparation-guide" in system and "never questions" in system
     assert f"B1 | {ACCOUNT}" in body and "Still requested from the client: ASB loan — Annual loan summary" in body
-    assert "Note for the preparer: Interest is fully deductible from 1 April 2025." in body
+    assert "Write statements and instructions, never questions" in body
     assert "items: everything this year's accounts need" not in body  # the pre-check's answer instructions are replaced
     guide = result["guide"]
-    assert guide["format"] == 2 and all(s in guide for s in SECTIONS)
-    (event,) = guide["events"]
-    assert event["id"] == "E1" and event["status"] == "suspected" and event["not_followed_through"] == []  # step, query and checklist
-    assert guide["queries"]["outstanding"][0]["item"] == "Annual loan summary"
-    assert guide["sequence"][0]["sources"][0]["id"] == "B1" and guide["sequence"][0]["events"] == ["E1"]
-    assert guide["decision"]["reason"] == "1 significant event (1 to confirm); 1 priority risk; 2 open checks."
+    assert guide["format"] == 3 and all(s in guide for s in SECTIONS)
+    (event,) = guide["events"]  # worked out (not shown), and followed through
+    assert event["id"] == "E1" and event["status"] == "suspected" and event["not_followed_through"] == []
+    # The documents still to come are listed by code from the pre-check.
+    assert guide["outstanding"] == [{"group": "ASB loan", "item": "Annual loan summary", "flags": []}]
+    # A point worded as a question is dropped; the guide says so.
+    assert [p["text"] for p in guide["points"]] == ["Confirm what the payments to the first payee were for from the invoices."]
+    assert guide["questions_dropped"] == 1 and "questions_dropped" in guide["flags"]
+    # The steps run in phase order through review to finalisation (code writes in what the model left out).
+    phases = [s["phase"] for s in guide["steps"]]
+    assert phases == sorted(phases, key=PHASES.index) and phases[-2:] == ["review", "finalise"]
+    assert [s["n"] for s in guide["steps"]] == list(range(1, len(phases) + 1))
+    assert guide["steps"][-1]["flags"] == ["added_by_code"] and guide["steps"][-2]["flags"] == ["added_by_code"] and guide["phase_labels"]["finalise"] == "Finalisation"
+    assert guide["judgments"][0]["area"] == "Expenses" and guide["cautions"][0]["level"] == "medium"
+    assert guide["decision"]["reason"] == f"1 area of caution; {len(phases)} steps to finalisation; 1 judgment; 2 open checks."
     assert result["readiness"] == "Preparation guide" and "review" not in result
     again = env.run("1", mode="guide")
     assert len(env.precheck.calls) == 1 and again["guide"]["how"] == "cache"  # nothing changed: not paid again
 
 
-def test_code_checks_figures_confirmations_follow_through_and_repeated_queries(env):
+def test_code_checks_figures_confirmations_follow_through_and_questions(env):
     ready_folder(env)
     env.pm.add_job("1", "client-s", "smith", direction=[])
     env.precheck = llm.set_fake("precheck", scripted(answer(
+        cautions=[{"area": "Loan", "caution": "The refinance changes the interest.", "level": "medium", "sources": ""},
+                  {"area": "Assets", "caution": "Machinery may be capital.", "level": "high", "sources": ""},
+                  {"area": "Bank", "caution": "Has the bank been reconciled?", "level": "low", "sources": ""}],
         events=[
             # Confirmed with no document behind it: becomes suspected. Followed through everywhere.
             {"id": "a", "event": "Loan refinanced with ASB.", "status": "confirmed", "why_it_matters": "Interest and the loan balance change.",
@@ -69,11 +86,14 @@ def test_code_checks_figures_confirmations_follow_through_and_repeated_queries(e
              "action": "Inspect the invoice.", "effect": "Fixed assets up.", "sources": "B1.2"},
             {"id": "c", "event": "Loan refinanced with ASB.", "status": "suspected", "why_it_matters": "Duplicate.", "action": "x", "effect": "", "sources": ""},
         ],
-        sequence=[{"step": "Reconcile the ASB loan statements.", "depends_on": "Annual loan summary", "can_start_now": False,
-                   "escalate": "", "events": "a, zz", "sources": "B1"}],
-        queries=[{"to": "client", "text": "Annual loan summary", "events": "", "sources": ""},  # repeats an outstanding request
-                 {"to": "client", "text": "Was the ASB loan refinanced, and on what date?", "events": "a", "sources": ""},
-                 {"to": "outstanding", "text": "Annual loan summary", "events": "a", "sources": ""}],
+        steps=[{"phase": "finalise", "step": "File the return.", "depends_on": "the review", "can_start_now": False, "escalate": "", "events": "", "sources": ""},
+               {"phase": "reconcile", "step": "Reconcile the ASB loan statements.", "depends_on": "Annual loan summary", "can_start_now": False,
+                "escalate": "", "events": "a, zz", "sources": "B1"},
+               {"phase": "nowhere", "step": "Open the folder.", "depends_on": "nothing", "can_start_now": True, "escalate": "", "events": "", "sources": ""}],
+        points=[{"kind": "action", "text": "Agree the refinance to the bank's settlement letter.", "events": "a", "sources": ""},
+                {"kind": "note", "text": "Was the ASB loan refinanced, and on what date?", "events": "a", "sources": ""}],
+        judgments=[{"area": "", "judgment": "Repairs or capital for the deck.", "evidence": "The invoice.", "manager_approval": True,
+                    "reference": "IR 264", "events": "", "sources": ""}],
         checklist=[{"check": "Refinance reconciled.", "status": "open", "events": "a"},
                    {"check": "Bank reconciled.", "status": "maybe", "events": ""}],
     )))
@@ -82,12 +102,19 @@ def test_code_checks_figures_confirmations_follow_through_and_repeated_queries(e
     assert (refinance["id"], refinance["status"], refinance["sources"]) == ("E1", "suspected", [])
     assert "confirmation_not_documented" in refinance["flags"] and refinance["not_followed_through"] == []
     assert machinery["id"] == "E2" and machinery["status"] == "confirmed" and machinery["sources"][0]["id"] == "B1.2"
-    assert "figure_not_in_documents" in machinery["flags"] and machinery["not_followed_through"] == ["sequence", "checklist"]
-    assert guide["sequence"][0]["events"] == ["E1"]  # an unknown event reference is dropped
-    assert [c["question"] for c in guide["queries"]["client"]] == ["Was the ASB loan refinanced, and on what date?"]
+    assert "figure_not_in_documents" in machinery["flags"] and machinery["not_followed_through"] == ["step", "checklist"]
+    # Cautions: the highest first, and none worded as a question.
+    assert [(c["area"], c["level"]) for c in guide["cautions"]] == [("Assets", "high"), ("Loan", "medium")]
+    # Steps in phase order (an unknown phase is the start), with the review written in by code.
+    assert [(s["phase"], s["step"]) for s in guide["steps"]] == [
+        ("start", "Open the folder."), ("reconcile", "Reconcile the ASB loan statements."),
+        ("review", guide["steps"][2]["step"]), ("finalise", "File the return.")]
+    assert guide["steps"][1]["events"] == ["E1"]  # an unknown event reference is dropped
+    assert [p["text"] for p in guide["points"]] == ["Agree the refinance to the bank's settlement letter."]
+    assert guide["judgments"][0]["area"] == "General" and guide["judgments"][0]["manager_approval"] is True
     assert guide["checklist"][1]["status"] == "open"  # an unknown status is read as open
     assert [s["id"] for s in guide["snapshot"]["sources"]] == ["B1"]  # Z9 does not exist
-    assert guide["flags"] == [] and 0 < guide["words"] < 900
+    assert guide["flags"] == ["questions_dropped"] and 0 < guide["words"] < 1200
 
 
 def test_what_last_years_guide_rolled_forward_is_taken_up_this_year(env):
@@ -120,24 +147,24 @@ def test_what_last_years_guide_rolled_forward_is_taken_up_this_year(env):
     assert guide["snapshot"]["period"].startswith("Not established from the documents")  # the period is always stated
 
 
-def test_a_guide_longer_than_a_page_and_a_half_is_flagged(env):
+def test_a_guide_longer_than_two_pages_is_flagged(env):
     ready_folder(env)
     env.pm.add_job("1", "client-s", "smith", direction=[])
     long_step = "Reconcile the account and agree every receipt and payment to the statement and the ledger with care " * 3
     env.precheck = llm.set_fake("precheck", scripted(answer(
-        sequence=[{"step": f"{n}. {long_step}", "depends_on": "nothing in particular at this stage of the work", "can_start_now": True,
-                   "escalate": "Raise with the manager if the difference cannot be explained within the day", "events": "", "sources": "B1"}
-                  for n in range(12)],
+        steps=[{"phase": "reconcile", "step": f"{n}. {long_step}", "depends_on": "nothing in particular at this stage of the work", "can_start_now": True,
+                "escalate": "Raise with the manager if the difference cannot be explained within the day", "events": "", "sources": "B1"}
+               for n in range(16)],
         risks=[{"area": f"Area {n}", "what_could_be_wrong": f"Risk {n}: {long_step}", "examine": long_step, "evidence": long_step, "events": "", "sources": ""}
                for n in range(5)],
     )))
     guide = env.run("1", mode="guide")["guide"]
-    assert guide["words"] > 900 and guide["flags"] == ["longer_than_a_page_and_a_half"]
+    assert guide["words"] > 1200 and guide["flags"] == ["longer_than_two_pages"]
 
 
 def test_the_answer_shape_stays_small_enough_for_the_api():
-    """The API compiles the answer shape into a grammar and refused the first version (an array of
-    ids on every item, three query lists) as too large: ids are strings, queries one list."""
+    """The API compiles the answer shape into a grammar and refused an early version (an array of ids on
+    every item) as too large: ids are strings."""
     from precheck_agent.guide import SCHEMA
 
     def arrays_of_strings(v) -> int:
@@ -147,4 +174,4 @@ def test_the_answer_shape_stays_small_enough_for_the_api():
         return sum(arrays_of_strings(x) for x in v) if isinstance(v, list) else 0
 
     assert arrays_of_strings(SCHEMA) == 0
-    assert SCHEMA["properties"]["queries"]["type"] == "array"
+    assert "queries" not in SCHEMA["properties"] and SCHEMA["properties"]["points"]["type"] == "array"

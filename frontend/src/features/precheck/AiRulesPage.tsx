@@ -1,11 +1,13 @@
 import { GraduationCap, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { type ReactNode, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import styles from './AiRulesPage.module.css'
+import { PoliciesPanel } from './PoliciesPanel'
 import { CHECK_TYPES, KIND_LABELS, RULE_ENTITY_TYPES } from './ruleOptions'
 import { extractErrorMessage } from '@/api/errors'
 import { type Lesson, type LessonKind, useAddRule, useRuleLibrary, useSetRuleStatus } from '@/api/precheck'
-import { Button, Skeleton } from '@/design-system'
+import { Button, Skeleton, Tabs, TabsList, TabsTrigger } from '@/design-system'
 
 const STATUS_LABEL: Record<Lesson['status'], string> = { active: 'Active', pending: 'Waiting for approval', disabled: 'Switched off' }
 
@@ -147,8 +149,38 @@ function RuleCard({ lesson, canApprove }: { lesson: Lesson; canApprove: boolean 
   )
 }
 
-/** The AI rules: what the pre-check agent has been taught, and a place to teach it more. */
+/** The AI rules: what the pre-check agent has been taught, and a place to teach it more; and the firm's
+ * pre-check policies (AFIT, 20 Nov 2026), on their own tab (?tab=policies). */
 export function AiRulesPage() {
+  const [params, setParams] = useSearchParams()
+  const tab = params.get('tab') === 'policies' ? 'policies' : 'rules'
+  const tabs = (
+    <Tabs value={tab} onValueChange={(next) => setParams(next === 'policies' ? { tab: 'policies' } : {}, { replace: true })}>
+      <TabsList aria-label="AI rules sections">
+        <TabsTrigger value="rules">Learned rules</TabsTrigger>
+        <TabsTrigger value="policies">Pre-check policies</TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+  if (tab === 'policies') {
+    return (
+      <div className={styles.page}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>
+            <GraduationCap size={20} aria-hidden="true" /> AI rules
+          </h1>
+        </header>
+        {tabs}
+        <div className={styles.tabBody}>
+          <PoliciesPanel />
+        </div>
+      </div>
+    )
+  }
+  return <LearnedRules tabs={tabs} />
+}
+
+function LearnedRules({ tabs }: { tabs: ReactNode }) {
   const [q, setQ] = useState('')
   const [type, setType] = useState('all')
   const [status, setStatus] = useState('')
@@ -174,6 +206,8 @@ export function AiRulesPage() {
         )}
       </header>
 
+      {tabs}
+      <div className={styles.tabBody} />
       {adding && <AddRuleForm canApprove={!!data?.can_approve} onDone={() => setAdding(false)} />}
 
       <div className={styles.filters}>

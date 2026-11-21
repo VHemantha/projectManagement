@@ -10,22 +10,27 @@ import {
   Info,
   Mail,
   MessageSquareText,
+  MessagesSquare,
   Pencil,
   Plus,
   Save,
+  Scale,
   Send,
   Sparkles,
   X,
 } from 'lucide-react'
 import { type ReactNode, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DocIcons } from './DocIcons'
 import { GapChip, GapTracker } from './GapTracker'
 import { JobSnapshot } from './JobSnapshot'
+import { PolicyFeedbackForm } from './PoliciesPanel'
 import styles from './PrecheckResult.module.css'
 import { CHECK_TYPES, RULE_ENTITY_TYPES } from './ruleOptions'
 import { NotesConsidered } from './SpecialNotes'
 import { Sources as SharedSources } from './SourceLinks'
+import { useAsk } from '@/api/ask'
 import { extractErrorMessage } from '@/api/errors'
 import {
   type AccountantAnswer,
@@ -234,6 +239,120 @@ function AiAction({ saved, rerun, lesson }: { saved: boolean; rerun: boolean; le
 
 // ---- the points --------------------------------------------------------------------------------
 
+/** What the policy check did to a point (AFIT, 20 Nov 2026), and feedback on the policy behind it. */
+function PointPolicyNote({ item, jobKey }: { item: PrecheckItem; jobKey: string }) {
+  const [feedbackFor, setFeedbackFor] = useState<number | null>(null)
+  const policy = item.policy
+  if (!policy || policy.policies.length === 0) return null
+  return (
+    <div className={styles.policyNote} data-changed={policy.changed || undefined}>
+      <p className={styles.policyText}>
+        <Scale size={13} aria-hidden="true" />{' '}
+        {policy.added ? 'Added because a policy requires it' : policy.changed ? 'Changed to follow a policy' : 'Checked against a policy and kept'}
+        {policy.note ? `: ${policy.note}` : '.'}
+      </p>
+      {policy.changed && policy.was && (
+        <p className={styles.policyWas}>
+          Before: {policy.was.label}
+          {policy.was.reason ? ` — ${policy.was.reason}` : ''}
+        </p>
+      )}
+      <div className={styles.policyChips}>
+        {policy.policies.map((p) => (
+          <span key={p.id} className={styles.policyChip}>
+            {p.title} <span className={styles.muted}>· {p.scope_label}</span>
+            <button
+              type="button"
+              className={styles.policyFeedbackButton}
+              onClick={() => setFeedbackFor(feedbackFor === p.id ? null : p.id)}
+              aria-label={`Feedback on the policy ${p.title}`}
+            >
+              Feedback
+            </button>
+          </span>
+        ))}
+      </div>
+      {feedbackFor !== null && (
+        <PolicyFeedbackForm policyId={feedbackFor} task={jobKey} context={`${item.item}: ${item.reason}`} onDone={() => setFeedbackFor(null)} />
+      )}
+    </div>
+  )
+}
+
+/** Ask the Pre-Check Agent's chat about one point (AFIT, 20 Nov 2026): the question names the point, so the
+ * chat answers from that point's result first; the answer appears in the chat. */
+function AskAboutPoint({ item, jobKey }: { item: PrecheckItem; jobKey: string }) {
+  const ask = useAsk(jobKey)
+  const [open, setOpen] = useState(false)
+  const [question, setQuestion] = useState('Why is this needed, and where does it come from?')
+  const [asked, setAsked] = useState(false)
+  if (!open) {
+    return (
+      <div>
+        <button type="button" className={styles.linkButton} onClick={() => (setOpen(true), setAsked(false))}>
+          <MessagesSquare size={13} aria-hidden="true" /> Ask the agent about this point
+        </button>
+        {asked && <span className={styles.muted}> Asked. The answer appears in the chat.</span>}
+      </div>
+    )
+  }
+  return (
+    <form
+      className={styles.askPoint}
+      aria-label={`Ask about: ${item.item}`}
+      onSubmit={(e) => {
+        e.preventDefault()
+        const q = question.trim()
+        if (q.length < 3) return
+        ask.mutate(`About the pre-check point "${item.item.replace(/"/g, "'")}": ${q}`, {
+          onSuccess: () => {
+            setAsked(true)
+            setOpen(false)
+            document.querySelector('[aria-label="Pre-Check Agent chat"]')?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest' })
+          },
+        })
+      }}
+    >
+      <label>
+        <span>Your question about “{item.item}”</span>
+        <input value={question} onChange={(e) => setQuestion(e.target.value)} maxLength={1500} />
+      </label>
+      {ask.isError && <p className={styles.muted}>{extractErrorMessage(ask.error)}</p>}
+      <div className={styles.askPointActions}>
+        <Button type="button" size="sm" variant="subtle" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+        <Button type="submit" size="sm" variant="primary" disabled={ask.isPending || question.trim().length < 3}>
+          <Send size={13} /> {ask.isPending ? 'Asking…' : 'Ask'}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+/** The run's check of every point against the firm's pre-check policies (AFIT, 20 Nov 2026). */
+function PolicyCheckLine({ output }: { output: PrecheckOutput }) {
+  const c = output.policy_check
+  if (!c) return null
+  const n = c.policies.length
+  return (
+    <div className={styles.policyCheck} role="note">
+      <Scale size={14} aria-hidden="true" />
+      <span>
+        {c.error ? (
+          c.error
+        ) : (
+          <>
+            Every point was checked against {n} pre-check polic{n === 1 ? 'y' : 'ies'} for this task: <strong>{c.changed} changed</strong>,{' '}
+            <strong>{c.added} added</strong>.
+          </>
+        )}{' '}
+        <Link to="/ai-rules?tab=policies">See the policies</Link>
+      </span>
+    </div>
+  )
+}
+
 function PointRow({
   n,
   item,
@@ -267,6 +386,11 @@ function PointRow({
             {item.item}
           </button>
           <p className={styles.pointReason}>{item.reason}</p>
+          {item.policy?.changed && (
+            <span className={styles.policyBadge}>
+              <Scale size={11} aria-hidden="true" /> {item.policy.added ? 'Added by a policy' : 'Changed by a policy'}
+            </span>
+          )}
           {!open && <DocIcons sources={docs} evidence={output.evidence} max={4} />}
         </div>
         <span className={styles.status} data-status={corrected ? 'corrected' : 'review'}>
@@ -312,8 +436,10 @@ function PointRow({
                 </span>
               ))}
           </div>
+          <PointPolicyNote item={item} jobKey={jobKey} />
           {item.documents.length > 0 && <DocIcons sources={item.documents} evidence={output.evidence} label="Provided by" max={8} />}
           <DocIcons sources={item.sources} evidence={output.evidence} max={8} />
+          <AskAboutPoint item={item} jobKey={jobKey} />
           <div className={styles.correction}>
             <div className={styles.comment}>
               <h5 className={styles.commentTitle}>
@@ -404,6 +530,7 @@ function PointsCard({ output, jobKey }: { output: PrecheckOutput; jobKey: string
           </div>
         </dl>
       </div>
+      <PolicyCheckLine output={output} />
       <h4 className={styles.srOnly}>Section A — Information required from the client ({output.requests.length})</h4>
       <div className={styles.tableHead} aria-hidden="true">
         <span>#</span>

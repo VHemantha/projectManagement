@@ -162,3 +162,36 @@ def learn_lesson(body: LearnRequest):
     runner.start_learn(body.model_dump())
     return {"lesson_id": body.lesson_id, "status": "drafting"}
 
+
+
+class PolicyReviseRequest(BaseModel):
+    feedback_id: int
+    policy_id: int
+    job_id: str = ""
+    title: str = ""
+    text: str
+    scope_label: str = ""
+    feedback: str
+    context: str = ""
+
+
+@app.post("/precheck/policies/revise", status_code=202, dependencies=[Depends(require_token)])
+def revise_policy(body: PolicyReviseRequest):
+    """A person's feedback on a pre-check policy (AFIT, 20 Nov 2026): the AI rewrites the policy in the
+    background; the revision comes back to the PM application as an event, which keeps the old wording."""
+    runner.start_policy_revision(body.model_dump())
+    return {"feedback_id": body.feedback_id, "status": "revising"}
+
+
+class FlushRequest(BaseModel):
+    job_id: str
+    client_id: str
+
+
+@app.post("/precheck/jobs/flush", dependencies=[Depends(require_token)])
+def flush_job(body: FlushRequest):
+    """Free one task's memory (AFIT, 20 Nov 2026): called by the PM application three days after the
+    task's final review. Its documents, its agents' results and its gaps leave the knowledge store."""
+    if not body.client_id or not body.job_id:
+        raise HTTPException(status_code=400, detail="job_id and client_id are both needed.")
+    return runner.flush_job(body.client_id, body.job_id)

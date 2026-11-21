@@ -62,7 +62,7 @@ describe('Job Snapshot (AFIT design requirements, 16 Nov 2026)', () => {
     const s = screen.getByRole('region', { name: 'Job Snapshot' })
     expect(within(s).getByText(/own one rental house at 12 Kauri Street/)).toBeInTheDocument()
     expect(within(s).getByRole('list', { name: 'How it earns money' })).toHaveTextContent('Rent')
-    expect(s).toHaveTextContent('Figures are worked out by code from last year\'s trial balance, with the year before beside them.')
+    expect(s).toHaveTextContent('Figures and charts are worked out by code from last year\'s trial balance, with the year before beside them.')
     expect(s).toHaveTextContent('Revenue$31,200+4% vs year before')
     expect(within(s).getByRole('status')).toHaveTextContent('Revenue is now $31,200 (was $25,000 in the last pre-check).')
   })
@@ -81,7 +81,7 @@ describe('Job Snapshot (AFIT design requirements, 16 Nov 2026)', () => {
   })
 
   it('keeps ownership apart from current accounts, and marks each event confirmed or inferred', () => {
-    render(<JobSnapshot snapshot={snapshot} evidence={evidence} />)
+    render(<JobSnapshot snapshot={{ ...snapshot, current_accounts: 'John has lent the business money.' }} evidence={evidence} />)
     expect(screen.getByRole('img', { name: 'Ownership: John 50%, Kate 50%' })).toBeInTheDocument()
     expect(screen.getByText(/Ownership shares and current-account balances are different things/)).toBeInTheDocument()
     const refinance = screen.getByText(/The ASB loan was refinanced/).closest('li')!
@@ -102,5 +102,46 @@ describe('Job Snapshot (AFIT design requirements, 16 Nov 2026)', () => {
     expect(screen.getByText(/No figures yet: last year's trial balance or financial statements were not found/)).toBeInTheDocument()
     expect(screen.getByText('Shareholders: John. Their shares are not shown in the documents read.')).toBeInTheDocument()
     expect(screen.queryByRole('img', { name: /Ownership/ })).not.toBeInTheDocument()
+  })
+
+  it("shows the findings under the firm's eleven headings, in order, with the risks by level (AFIT, 21 Nov 2026)", () => {
+    const tb = src('T1', "Last year's trial balance: Rental income", 'e1')
+    const sections: Snapshot['sections'] = [
+      { key: 'company_background', title: 'Company background', summary: 'A family trust holding one rental.', findings: [] },
+      { key: 'business_environment', title: 'Business environment', summary: 'Interest rates rose during the year.',
+        findings: [{ label: 'Interest deductibility', text: 'Interest on residential property is being phased back in.', status: 'confirmed', level: 'none',
+          sources: [tb], flags: [] }] },
+      { key: 'key_risks', title: 'Key accounting risks', summary: '',
+        findings: [
+          { label: 'Cut-off', text: 'Rent received after year end.', status: 'inferred', level: 'low', sources: [], flags: [] },
+          { label: 'Capital or revenue', text: 'A new heat pump may be capital.', status: 'inferred', level: 'high', sources: [tb], flags: [] },
+        ] },
+    ]
+    render(
+      <JobSnapshot
+        snapshot={{ ...snapshot, sections, background: [{ label: 'Client', value: 'Smith Family Trust' }, { label: 'Legal structure', value: 'Trust' }] }}
+        evidence={evidence}
+      />,
+    )
+    const titles = screen.getAllByRole('heading', { level: 4 }).map((h) => h.textContent?.replace(/^\d+\s*/, '').trim())
+    expect(titles).toEqual(['Company background', 'Nature of business', 'Business environment', 'Management and governance', 'Financial performance',
+      'Financial position', 'Significant transactions and events', 'Accounting policies and reporting framework', 'Key accounting risks',
+      'Prior-year accounting matters', 'Going concern and future outlook'])
+    const background = screen.getByRole('article', { name: /Company background/ })
+    expect(background).toHaveTextContent('ClientSmith Family Trust')
+    expect(background).toHaveTextContent('Legal structureTrust')
+    expect(screen.getByRole('article', { name: /Accounting policies/ })).toHaveTextContent('Not shown in the documents read.')
+    // The risks: the highest first, and counted by level in the overview.
+    const risks = within(screen.getByRole('article', { name: /Key accounting risks/ })).getAllByRole('listitem')
+    expect(risks[0]).toHaveTextContent('High risk')
+    expect(risks[0]).toHaveTextContent('Capital or revenue')
+    expect(screen.getByRole('img', { name: 'Key accounting risks: 1 high, 0 medium, 1 low' })).toBeInTheDocument()
+    // References are the document icons, at their full size.
+    const env = screen.getByRole('article', { name: /Business environment/ })
+    expect(within(env).getByRole('link', { name: /^Trial balance: Final TB 2025\.xlsx, row 6/ })).toBeInTheDocument()
+    expect(within(env).getByRole('group', { name: 'Sources' }).className).toMatch(/row/)
+    // The overview links to each heading.
+    expect(within(screen.getByRole('navigation', { name: 'Snapshot headings' })).getByRole('link', { name: /Key accounting risks/ }))
+      .toHaveAttribute('href', '#snapshot-key_risks')
   })
 })

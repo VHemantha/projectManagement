@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { classify } from './docKinds'
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   lessons: undefined as unknown,
   answers: [] as unknown[],
   answer: vi.fn((_b: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
+  ask: vi.fn((_q: unknown, o?: { onSuccess?: () => void }) => o?.onSuccess?.()),
 }))
 
 vi.mock('@/api/precheck', () => ({
@@ -31,11 +33,22 @@ vi.mock('@/api/precheck', () => ({
   useAnswerQuestion: () => ({ mutate: mocks.answer, isPending: false, isError: false }),
 }))
 
+vi.mock('@/api/ask', () => ({
+  useAsk: () => ({ mutate: mocks.ask, isPending: false, isError: false }),
+}))
+vi.mock('./PoliciesPanel', () => ({
+  PolicyFeedbackForm: ({ policyId, context }: { policyId: number; context?: string }) => (
+    <div>feedback form for policy {policyId} on {context}</div>
+  ),
+}))
+
 function renderIt(o: PrecheckOutput = output, extra?: { chat?: React.ReactNode; information?: React.ReactNode }) {
   return render(
-    <TooltipProvider>
-      <PrecheckResult output={o} jobKey="SMITH-1" {...extra} />
-    </TooltipProvider>,
+    <MemoryRouter>
+      <TooltipProvider>
+        <PrecheckResult output={o} jobKey="SMITH-1" {...extra} />
+      </TooltipProvider>
+    </MemoryRouter>,
   )
 }
 
@@ -86,6 +99,41 @@ describe('The pre-check result (AFIT wireframe, 19 Nov 2026)', () => {
     expect(within(row).getByRole('heading', { name: 'Your comment / correction' })).toBeInTheDocument()
     expect(within(row).getByRole('heading', { name: 'AI action (auto-update)' })).toBeInTheDocument()
     expect(row).toHaveTextContent('the request list and the client email follow it on the next run')
+  })
+
+  it('says what the policy check did, with the policy behind each change and a way to give feedback on it (AFIT, 20 Nov 2026)', async () => {
+    const policy = { id: 9, title: 'Sold rentals: settlement statement only', scope_label: 'Group: Smith group' }
+    const changed: PrecheckOutput = {
+      ...output,
+      requests: [
+        { ...output.requests[0], policy: { changed: false, policies: [policy] } },
+        { ...output.requests[1], policy: { changed: true, policies: [policy], note: 'Sold rentals need only the settlement statement.',
+          was: { decision: 'not_needed', label: 'not needed', priority: 'normal', reason: 'Standalone house.' } } },
+      ],
+      policy_check: { checked: 5, changed: 1, added: 0, policies: [{ ...policy, text: 'Ask only for…', scope: 'group', applied_to: 2 }] },
+    }
+    renderIt(changed)
+    expect(screen.getByRole('note')).toHaveTextContent('Every point was checked against 1 pre-check policy for this task: 1 changed, 0 added.')
+    expect(screen.getByRole('link', { name: 'See the policies' })).toHaveAttribute('href', '/ai-rules?tab=policies')
+    const row = screen.getByRole('button', { name: 'Body corporate levy invoice' }).closest('li')!
+    expect(within(row).getByText('Changed by a policy')).toBeInTheDocument()
+    await userEvent.click(within(row).getByRole('button', { name: 'Show details: Body corporate levy invoice' }))
+    expect(row).toHaveTextContent('Changed to follow a policy: Sold rentals need only the settlement statement.')
+    expect(row).toHaveTextContent('Before: not needed — Standalone house.')
+    await userEvent.click(within(row).getByRole('button', { name: 'Feedback on the policy Sold rentals: settlement statement only' }))
+    expect(within(row).getByText(/feedback form for policy 9 on Body corporate levy invoice/)).toBeInTheDocument()
+  })
+
+  it('asks the chat about one point, naming it so the agent answers about that point (AFIT, 20 Nov 2026)', async () => {
+    renderIt()
+    await userEvent.click(screen.getByRole('button', { name: 'Show details: Refinancing documents' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Ask the agent about this point' }))
+    const input = screen.getByLabelText(/Your question about “Refinancing documents”/)
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Which loan is this?')
+    await userEvent.click(screen.getByRole('button', { name: 'Ask' }))
+    expect(mocks.ask).toHaveBeenCalledWith('About the pre-check point "Refinancing documents": Which loan is this?', expect.anything())
+    expect(screen.getByText(/Asked. The answer appears in the chat./)).toBeInTheDocument()
   })
 
   it('a correction is saved as a lesson, for this client or every client of the type, and can re-run the pre-check', async () => {

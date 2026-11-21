@@ -146,6 +146,17 @@ class Knowledge:
         if ids:
             self.col.update(ids=ids, metadatas=metas)
 
+    def delete_task(self, vendor: str, task: str) -> tuple[int, list[str]]:
+        """Everything one task holds (its documents' chunks, its agents' results, its gaps, its review
+        record), when its memory is freed after the final review (AFIT, 20 Nov 2026). Learned rules
+        are the firm's, not the task's, and stay. Returns (how many, the documents' texts)."""
+        where = {"$and": [{"vendor": vendor}, {"task": task}]}
+        res = self.col.get(where=where, include=["documents", "metadatas"])
+        texts = [t for t, m in zip(res["documents"], res["metadatas"]) if m.get("source_type") == "document"]
+        if res["ids"]:
+            self.col.delete(ids=res["ids"])
+        return len(res["ids"]), texts
+
     def delete(self, ids: list[str]) -> None:
         if ids:
             self.col.delete(ids=ids)
