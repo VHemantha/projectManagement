@@ -24,6 +24,10 @@ class Client(models.Model):
     # go into the client's automatic job list — see services.get_or_create_client_workspace).
     # On (e.g. RWCA): every job must belong to one of the client's projects.
     requires_projects = models.BooleanField(default=False)
+    # The workflow the sub-workspace's cards use (AFIT, 22 Nov 2026): "" for TASKO's usual AI tools (pre-check,
+    # guide, WP Agent, review); "local_tax" for the Sri Lankan Local Tax workflow (apps.localtax), which only
+    # Team 3 > Local uses.
+    workflow = models.CharField(max_length=20, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

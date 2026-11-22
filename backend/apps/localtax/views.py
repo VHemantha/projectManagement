@@ -1,0 +1,700 @@
+"""The Local Tax workflow API (AFIT, 22 Nov 2026), for Team 3 > Local's cards only - any other card is "not
+found" here, so nothing about other cards changes.
+
+GET    /api/local-tax/tasks/<key>/                          the engagement and everything worked out from it
+PATCH  /api/local-tax/tasks/<key>/                          the questionnaire and the computation's lines
+PUT    /api/local-tax/tasks/<key>/tb/                       the trial balance (rows), replacing it
+POST   /api/local-tax/tasks/<key>/tb/upload/                the trial balance from an Excel or CSV file
+PATCH  /api/local-tax/tasks/<key>/tb/<code>/                one account's FS heading
+POST   /api/local-tax/tasks/<key>/adjustments/              propose a journal, tax adjustment or correction
+PATCH  /api/local-tax/tasks/<key>/adjustments/<id>/         edit a proposal (the earlier version is kept)
+POST   /api/local-tax/tasks/<key>/adjustments/<id>/decide/  approve or reject (a reviewer, lead or admin)
+POST   /api/local-tax/tasks/<key>/reverse/effect/           a hypothetical change's effect (nothing stored)
+POST   /api/local-tax/tasks/<key>/stages/<stage>/           a stage's status
+GET    /api/local-tax/tasks/<key>/events/                   the audit trail
+GET    /api/local-tax/tasks/<key>/export/<doc>.<fmt>        fs | computation | return, as pdf or xlsx
+POST   /api/local-tax/tasks/<key>/ai/<agent>/               Local_Tax_AI: chat, map-tb, analyse, reverse, return, extract
+GET    /api/local-tax/rules/                                 the years with rules; /rules/<ya>/ one year's rules
+"""
+from decimal import Decimal, InvalidOperation
+
+from django.db import transaction
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import permissions, status
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.projects.keys import get_issue_or_404
+from apps.issues.models import Attachment
+
+from . import ai, services as S, validation as V
+from .engine import fs as FS
+from .engine import reverse as RV
+from .engine.rules import MissingRules, load, years
+from .models import Adjustment, TaxEngagement, TbLine
+
+
+def _engagement(request, key) -> TaxEngagement:
+    issue = get_issue_or_404(key)
+    if not S.is_local_tax(issue):
+        raise Http404("The Local Tax workflow applies to Team 3 > Local's cards only.")
+    if not S.can_open(request.user, issue):
+        raise PermissionDenied("You can't open this task.")
+    return S.engagement_for(issue, request.user)
+
+
+def _state(request, eng):
+    eng.refresh_from_db()
+    return Response(S.state(eng, request.user))
+
+
+class EngagementView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        return _state(request, _engagement(request, key))
+
+    @transaction.atomic
+    def patch(self, request, key):
+        eng = _engagement(request, key)
+        try:
+            fields, data = V.update(request.data if isinstance(request.data, dict) else {})
+        except V.Invalid as exc:
+            return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+        changes = {}
+        for f, v in fields.items():
+            old = getattr(eng, f)
+            if old != v:
+                changes[f] = {"from": S._jsonable(old), "to": S._jsonable(v)}
+                setattr(eng, f, v)
+        new_data = dict(eng.data or {})
+        for section, v in data.items():
+            if section == "computation":
+                v = {**(new_data.get("computation") or {}), **v}
+            if new_data.get(section) != v:
+                changes[f"data.{section}"] = {"from": new_data.get(section), "to": v}
+                new_data[section] = v
+        if not changes:
+            return _state(request, eng)
+        eng.data = new_data
+        stage = request.data.get("stage") if request.data.get("stage") in TaxEngagement.STAGES else (
+            "computation" if set(data) & {"computation"} else "return" if set(data) & {"return_overrides"} else "questionnaire")
+        S.touch(eng, stage, request.user)
+        eng.save()
+        S.log(eng, request.user, "edited", {"stage": stage, "changes": changes, "reason": str(request.data.get("reason") or "")[:500]})
+        return _state(request, eng)
+
+
+def _tb_rows(rows) -> list[dict]:
+    out, seen = [], set()
+    for n, r in enumerate(rows):
+        if not isinstance(r, dict):
+            continue
+        code = " ".join(str(r.get("code") or "").split())[:40] or f"L{n + 1}"
+        name = " ".join(str(r.get("name") or "").split())[:200]
+        if not name or code in seen:
+            continue
+        seen.add(code)
+
+        def num(v):
+            if v in (None, ""):
+                return None
+            try:
+                return Decimal(str(v).replace(",", "").replace("(", "-").replace(")", "")).quantize(Decimal("0.01"))
+            except InvalidOperation:
+                raise V.Invalid({f"tb.{n}": f"{name}: the amounts must be numbers."}) from None
+
+        amount = num(r.get("amount"))
+        if amount is None:
+            amount = (num(r.get("debit")) or Decimal("0")) - (num(r.get("credit")) or Decimal("0"))
+        out.append({"code": code, "name": name, "amount": amount, "comparative": num(r.get("comparative")),
+                    "heading": r.get("heading") if r.get("heading") in FS.HEADINGS else ""})
+    return out
+
+
+def _replace_tb(eng, rows, user, source: str):
+    old = {ln.code: ln for ln in eng.tb_lines.all()}
+    eng.tb_lines.all().delete()
+    for r in rows:
+        prior = old.get(r["code"])
+        heading, by = r["heading"], "person" if r["heading"] else "rule"
+        if not heading and prior and prior.heading_by == "person":
+            heading, by = prior.heading, "person"  # a person's mapping is kept across re-uploads
+        if not heading:
+            heading = FS.suggest_heading(r["name"], r["amount"])
+        TbLine.objects.create(engagement=eng, code=r["code"], name=r["name"], amount=r["amount"], comparative=r["comparative"], heading=heading,
+                              heading_by=by)
+    S.touch(eng, "fs", user)
+    eng.save()
+    S.log(eng, user, "trial_balance", {"source": source, "accounts": len(rows), "total": str(sum((r["amount"] for r in rows), Decimal("0")))})
+
+
+class TrialBalanceView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def put(self, request, key):
+        eng = _engagement(request, key)
+        try:
+            rows = _tb_rows(request.data.get("rows") or [])
+        except V.Invalid as exc:
+            return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+        _replace_tb(eng, rows, request.user, "entered")
+        return _state(request, eng)
+
+
+class TrialBalanceUploadView(APIView):
+    """An Excel (.xlsx) or CSV trial balance: columns code, name (or account), debit, credit (or amount), and
+    optionally comparative. Read by code; the AI is not involved in the figures."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @transaction.atomic
+    def post(self, request, key):
+        from .tbimport import TbImportError, read
+
+        eng = _engagement(request, key)
+        f = request.FILES.get("file")
+        if f is None:
+            return Response({"file": ["Choose the trial balance file."]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            rows = _tb_rows(read(f.read(), f.name))
+        except (TbImportError, V.Invalid) as exc:
+            return Response({"file": [str(getattr(exc, "errors", exc))]}, status=status.HTTP_400_BAD_REQUEST)
+        if not rows:
+            return Response({"file": ["No accounts were found in the file."]}, status=status.HTTP_400_BAD_REQUEST)
+        _replace_tb(eng, rows, request.user, f.name)
+        return _state(request, eng)
+
+
+class TbLineView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, key, code):
+        eng = _engagement(request, key)
+        line = get_object_or_404(TbLine, engagement=eng, code=code)
+        heading = request.data.get("heading")
+        if heading not in FS.HEADINGS:
+            return Response({"heading": ["Choose a heading."]}, status=status.HTTP_400_BAD_REQUEST)
+        old = line.heading
+        line.heading, line.heading_by, line.heading_note = heading, "person", str(request.data.get("note") or "")[:300]
+        line.save()
+        S.touch(eng, "fs", request.user)
+        eng.save()
+        S.log(eng, request.user, "mapping", {"code": code, "from": old, "to": heading})
+        return _state(request, eng)
+
+
+def _adjustment_fields(eng, data, levers) -> tuple[dict, dict]:
+    errors, out = {}, {}
+    kind = data.get("kind")
+    if kind not in Adjustment.Kind.values:
+        errors["kind"] = "Choose journal, reclassification, tax adjustment or correction."
+    reason = " ".join(str(data.get("reason") or "").split())
+    if len(reason) < 5:
+        errors["reason"] = "Say why, in a few words."
+    out.update(kind=kind, reason=reason[:2000], label=" ".join(str(data.get("label") or "").split())[:200],
+               evidence_note=str(data.get("evidence_note") or "")[:500])
+    if data.get("evidence_id"):
+        att = Attachment.objects.filter(pk=data["evidence_id"], issue=eng.issue).first()
+        if att is None:
+            errors["evidence_id"] = "Choose a document attached to this task."
+        out["evidence"] = att
+    lines = data.get("lines") or []
+    if kind in ("journal", "reclass") or (kind == "reverse" and lines):
+        clean, total = [], Decimal("0")
+        for n, ln in enumerate(lines if isinstance(lines, list) else []):
+            try:
+                amount = Decimal(str(ln.get("amount")).replace(",", "")).quantize(Decimal("0.01"))
+            except (InvalidOperation, AttributeError):
+                errors[f"lines.{n}"] = "Give each line's amount."
+                continue
+            code = str(ln.get("code") or "").strip()[:40]
+            if not code:
+                errors[f"lines.{n}"] = "Give each line's account."
+            clean.append({"code": code, "name": str(ln.get("name") or "")[:200], "amount": str(amount), "heading": ln.get("heading") or ""})
+            total += amount
+        if len(clean) < 2:
+            errors["lines"] = "A journal needs at least two lines (debit and credit)."
+        elif total != 0:
+            errors["lines"] = f"The journal doesn't balance: debits and credits differ by {total:,.2f}."
+        out.update(lines=clean, scope="accounting", target=clean[0]["code"] if clean else "")
+        if kind == "reverse":
+            lever = next((lv for lv in levers if lv["key"] == data.get("target")), None)
+            out.update(original=lever["amount"] if lever else None, proposed=Decimal(str(data.get("proposed"))) if data.get("proposed") not in (None, "") else None)
+    else:
+        lever = next((lv for lv in levers if lv["key"] == data.get("target")), None)
+        if lever is None:
+            errors["target"] = "Choose the computation line to change."
+        elif lever["scope"] != "tax":
+            errors["target"] = "That is an accounting line: correct it with a journal (debit and credit), so the statements stay balanced."
+        try:
+            proposed = Decimal(str(data.get("proposed")).replace(",", "")).quantize(Decimal("0.01"))
+        except (InvalidOperation, AttributeError):
+            errors["proposed"] = "Give the corrected amount."
+            proposed = None
+        out.update(scope="tax", target=data.get("target") or "", original=lever["amount"] if lever else None, proposed=proposed,
+                   label=out["label"] or (lever["label"] if lever else ""))
+    if not out["label"]:
+        out["label"] = (lines[0].get("name") if lines and isinstance(lines[0], dict) else "") or "Adjustment"
+    return out, errors
+
+
+class AdjustmentListView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        eng = _engagement(request, key)
+        state = S.state(eng, request.user)
+        fields, errors = _adjustment_fields(eng, request.data, state.get("levers") or [])
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        adj = Adjustment.objects.create(engagement=eng, created_by=request.user, **fields)
+        S.log(eng, request.user, "adjustment_proposed", {"id": adj.id, **S.adjustment_dict(adj)})
+        return _state(request, eng)
+
+
+class AdjustmentDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, key, pk):
+        eng = _engagement(request, key)
+        adj = get_object_or_404(Adjustment, engagement=eng, pk=pk)
+        if adj.status != Adjustment.Status.PROPOSED:
+            return Response({"detail": "Only a proposed adjustment can be edited; propose a new one."}, status=status.HTTP_409_CONFLICT)
+        state = S.state(eng, request.user)
+        fields, errors = _adjustment_fields(eng, {**S.adjustment_dict(adj), "evidence_id": adj.evidence_id, **request.data}, state.get("levers") or [])
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        adj.history = [*adj.history, {**{k: v for k, v in S.adjustment_dict(adj).items() if k in ("label", "original", "proposed", "lines", "reason")},
+                                       "at": timezone.now().isoformat(), "by": request.user.display_name}]
+        for k, v in fields.items():
+            setattr(adj, k, v)
+        adj.save()
+        S.log(eng, request.user, "adjustment_edited", {"id": adj.id})
+        return _state(request, eng)
+
+
+class AdjustmentDecideView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, pk):
+        eng = _engagement(request, key)
+        if not S.can_approve(request.user, eng.issue):
+            raise PermissionDenied("Only a reviewer, a lead or an admin can approve or reject an adjustment.")
+        adj = get_object_or_404(Adjustment, engagement=eng, pk=pk)
+        decision = request.data.get("decision")
+        if decision not in ("approve", "reject"):
+            return Response({"decision": ["approve or reject"]}, status=status.HTTP_400_BAD_REQUEST)
+        if adj.status != Adjustment.Status.PROPOSED:
+            return Response({"detail": f"Already {adj.status}."}, status=status.HTTP_409_CONFLICT)
+        if decision == "approve" and adj.kind == "reverse" and not (adj.evidence_id or adj.evidence_note.strip()):
+            return Response({"detail": "A correction from the reverse tax analysis needs its supporting evidence before it can be approved."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        adj.status = Adjustment.Status.APPROVED if decision == "approve" else Adjustment.Status.REJECTED
+        adj.decided_by, adj.decided_at, adj.decision_note = request.user, timezone.now(), str(request.data.get("note") or "")[:500]
+        adj.save()
+        if adj.status == Adjustment.Status.APPROVED:
+            S.touch(eng, "fs" if adj.scope == "accounting" else "computation", request.user)
+            eng.save()
+        S.log(eng, request.user, f"adjustment_{adj.status}", {"id": adj.id, "label": adj.label, "original": adj.original, "proposed": adj.proposed,
+                                                             "note": adj.decision_note})
+        return _state(request, eng)
+
+
+class ReverseEffectView(APIView):
+    """What one change would do - hypothetical, stored nowhere."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        eng = _engagement(request, key)
+        fs_result = S.financials(eng)
+        ins = S.inputs(eng, fs_result)
+        try:
+            out = RV.effect(ins, S.rules_for(eng.year_of_assessment), str(request.data.get("lever") or ""), request.data.get("proposed"), eng.expected_tax,
+                            eng.expected_basis, S.pl_accounts(fs_result))
+        except KeyError:
+            return Response({"lever": ["Choose a line from this engagement."]}, status=status.HTTP_400_BAD_REQUEST)
+        except (InvalidOperation, TypeError):
+            return Response({"proposed": ["Give the amount."]}, status=status.HTTP_400_BAD_REQUEST)
+        except MissingRules as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(out)
+
+
+class StageView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, stage):
+        eng = _engagement(request, key)
+        if stage not in TaxEngagement.STAGES:
+            raise Http404
+        wanted = request.data.get("status")
+        if wanted not in TaxEngagement.STATUSES:
+            return Response({"status": ["not_started, in_progress, ready_for_review or approved"]}, status=status.HTTP_400_BAD_REQUEST)
+        if wanted == "approved":
+            if not S.can_approve(request.user, eng.issue):
+                raise PermissionDenied("Only a reviewer, a lead or an admin can approve a stage.")
+            order = list(TaxEngagement.STAGES)
+            earlier = [s for s in order[: order.index(stage)] if eng.stage(s)["status"] != "approved"]
+            if earlier:
+                return Response({"detail": "Approve the earlier stages first: " + ", ".join(earlier) + "."}, status=status.HTTP_409_CONFLICT)
+            st = S.state(eng, request.user)
+            blocking = [a for a in st["alerts"] if a["stage"] == stage and a["severity"] == "blocking"]
+            if blocking:
+                return Response({"detail": "Resolve first: " + " ".join(a["text"] for a in blocking)}, status=status.HTTP_409_CONFLICT)
+            # Phase 4: approving figures that rest on rules no tax professional has validated is a conscious decision.
+            unvalidated = [r["rule"] for r in (st.get("computation") or {}).get("rules") or [] if not r["validated"]]
+            if stage in ("computation", "return") and unvalidated:
+                if not request.data.get("acknowledge_unvalidated"):
+                    return Response({"detail": f"{len(unvalidated)} rule(s) used are not validated by a tax professional: "
+                                               + ", ".join(unvalidated[:8]) + ". Confirm you accept this to approve.",
+                                     "unvalidated": unvalidated, "needs_acknowledgement": True}, status=status.HTTP_409_CONFLICT)
+                S.log(eng, request.user, "approved_with_unvalidated_rules", {"stage": stage, "rules": unvalidated})
+        S.set_stage(eng, stage, wanted, request.user)
+        return _state(request, eng)
+
+
+class EventsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        eng = _engagement(request, key)
+        return Response({"events": [{"id": e.id, "action": e.action, "actor": e.actor, "user": e.user.display_name if e.user_id else "",
+                                     "detail": e.detail, "at": e.at} for e in eng.events.select_related("user")[:300]]})
+
+
+class ExportView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key, doc, fmt):
+        from . import exports
+
+        eng = _engagement(request, key)
+        if doc not in ("fs", "computation", "return") or fmt not in ("pdf", "xlsx"):
+            raise Http404
+        st = S.state(eng, request.user)
+        data, name = exports.render(doc, fmt, eng, st)
+        S.log(eng, request.user, "exported", {"doc": doc, "format": fmt})
+        content_type = "application/pdf" if fmt == "pdf" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        response = HttpResponse(data, content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{name}"'
+        return response
+
+
+class AiView(APIView):
+    """Local_Tax_AI, the workflow's own agent (LangGraph): it explains, suggests and asks - it never sets a figure."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key, agent):
+        eng = _engagement(request, key)
+        if agent not in ai.AGENTS:
+            raise Http404
+        try:
+            out = ai.run(agent, eng, S.state(eng, request.user), request.data if isinstance(request.data, dict) else {}, request.user)
+        except ai.Unavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except ai.Refused as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(out)
+
+
+class RulesView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, ya=None):
+        if ya is None:
+            return Response({"years": years()})
+        try:
+            return Response(load(ya.replace("-", "/")))
+        except MissingRules as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+
+class MessagesView(APIView):
+    """GET — the engagement's conversation with Local_Tax_AI, oldest first; with the extractions waiting."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        eng = _engagement(request, key)
+        return Response({"messages": [ai.message_dict(m) for m in eng.ai_messages.select_related("user")[:200]],
+                         "extractions": [ai.extraction_dict(x) for x in eng.extractions.select_related("attachment").order_by("-created_at")[:20]]})
+
+
+class ExtractionDecideView(APIView):
+    """POST {decision: confirm|reject, use_as: trial_balance|income|payments} — a person confirms what the AI read
+    from a document before it is used: a trial balance replaces the TB; income and payments are added as lines
+    citing the document."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, pk):
+        from .models import Extraction
+
+        eng = _engagement(request, key)
+        ex = get_object_or_404(Extraction, engagement=eng, pk=pk)
+        if ex.status != Extraction.Status.PENDING:
+            return Response({"detail": f"Already {ex.status}."}, status=status.HTTP_409_CONFLICT)
+        decision = request.data.get("decision")
+        if decision == "reject":
+            ex.status, ex.decided_by = Extraction.Status.REJECTED, request.user
+            ex.save()
+            S.log(eng, request.user, "extraction_rejected", {"id": ex.id})
+            return _state(request, eng)
+        use_as = request.data.get("use_as") or ex.kind
+        lines = ex.data.get("lines") or []
+        cite = f"{ex.attachment.filename if ex.attachment_id else 'document'}"
+        if use_as == "general_ledger":
+            # A general ledger: its postings summed by account, by code, into the trial balance.
+            by_code: dict = {}
+            for ln in lines:
+                code = ln["code"] or ln["description"][:40]
+                row = by_code.setdefault(code, {"code": code, "name": ln["description"].split(" - ")[0], "amount": Decimal("0")})
+                try:
+                    row["amount"] += Decimal(ln["amount"] or "0")
+                except InvalidOperation:
+                    return Response({"lines": [f"{ln['description']}: the amount is not a number."]}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                rows = _tb_rows(list(by_code.values()))
+            except V.Invalid as exc:
+                return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+            _replace_tb(eng, rows, request.user, f"General ledger {cite}, summed by account (confirmed)")
+        elif use_as in ("prior_return", "fixed_assets"):
+            data = dict(eng.data or {})
+            if use_as == "prior_return":
+                prior_ya = str(ex.data.get("year_of_assessment") or "")[:9]
+                payload = {"prior_year": {"ya": prior_ya, "source": cite, "items": [{"label": ln["description"], "amount": ln["amount"]} for ln in lines]}}
+                cf = [ln for ln in lines if ln["category"] == "losses_cf" and ln["amount"]]
+                if cf:
+                    payload["loss_history"] = (data.get("loss_history") or []) + [
+                        {"ya": prior_ya or "Prior year", "amount": ln["amount"], "source": f"{cite} {ln['cite']}".strip()} for ln in cf]
+            else:
+                payload = {"fixed_assets": (data.get("fixed_assets") or []) + [
+                    {"description": ln["description"], "asset_class": ln["category"], "cost": ln["amount"], "acquired": ln.get("date") or "",
+                     "ca_claimed_bf": ln["comparative"], "source": f"{cite} {ln['cite']}".strip()} for ln in lines]}
+            try:
+                _, clean = V.update({"data": payload})
+            except V.Invalid as exc:
+                return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+            data.update(clean)
+            eng.data = data
+            S.touch(eng, "questionnaire" if use_as == "prior_return" else "computation", request.user)
+            eng.save()
+        elif use_as == "trial_balance":
+            try:
+                rows = _tb_rows([{"code": ln["code"], "name": ln["description"], "amount": ln["amount"], "comparative": ln["comparative"] or None}
+                                 for ln in lines])
+            except V.Invalid as exc:
+                return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+            _replace_tb(eng, rows, request.user, f"AI extraction from {cite} (confirmed)")
+        elif use_as in ("income", "payments"):
+            data = dict(eng.data or {})
+            if use_as == "income":
+                add = [{"category": ln["category"] if ln["category"] in S.INCOME_CATEGORIES else "other", "description": ln["description"],
+                        "amount": ln["amount"], "source": f"{cite} {ln['cite']}".strip()} for ln in lines]
+            else:
+                add = [{"type": ln["category"] if ln["category"] in S.PAYMENT_TYPES else "other", "amount": ln["amount"],
+                        "reference": (ln["cite"] or cite)[:80]} for ln in lines]
+            try:
+                _, clean = V.update({"data": {use_as: (data.get(use_as) or []) + add}})
+            except V.Invalid as exc:
+                return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+            data[use_as] = clean[use_as]
+            eng.data = data
+            S.touch(eng, "questionnaire", request.user)
+            eng.save()
+        else:
+            return Response({"use_as": ["trial_balance, general_ledger, income, payments, prior_return or fixed_assets"]},
+                            status=status.HTTP_400_BAD_REQUEST)
+        ex.status, ex.decided_by = Extraction.Status.CONFIRMED, request.user
+        ex.save()
+        S.log(eng, request.user, "extraction_confirmed", {"id": ex.id, "use_as": use_as, "lines": len(lines), "document": cite})
+        return _state(request, eng)
+
+
+# --- Phase 4: the professional review of the rules and the return's field references --------------------------
+
+def _validator(request):
+    if not S.can_validate(request.user):
+        raise PermissionDenied("Only a tax rule validator (staff or the 'Local tax rule validators' group) can review the rules.")
+
+
+def _corrected_value(file_value, raw):
+    """A corrected value of the same shape as the file's: a number (a rate stays between 0 and 1), or bands
+    [[width or null, rate], ...]."""
+    if isinstance(file_value, list) or isinstance(raw, list):
+        if not isinstance(raw, list) or not raw:
+            raise ValueError("Give the bands as [[width, rate], ..., [null, rate]].")
+        out = []
+        for b in raw:
+            if not isinstance(b, (list, tuple)) or len(b) != 2:
+                raise ValueError("Each band is [width, rate].")
+            try:
+                width = None if b[0] in (None, "") else float(b[0])
+                rate = float(b[1])
+            except (TypeError, ValueError):
+                raise ValueError("Each band's width and rate are numbers.") from None
+            if not 0 <= rate <= 1:
+                raise ValueError("A rate is a fraction between 0 and 1 (0.18 for 18%).")
+            out.append([width, rate])
+        if out[-1][0] is not None:
+            raise ValueError("The last band is the balance: its width is null.")
+        return out
+    try:
+        v = float(str(raw).replace(",", ""))
+    except (TypeError, ValueError):
+        raise ValueError("Give a number.") from None
+    if v < 0:
+        raise ValueError("The value can't be negative.")
+    if isinstance(file_value, (int, float)) and file_value < 1 and v > 1:
+        raise ValueError("This rule is a rate: give a fraction between 0 and 1 (0.15 for 15%).")
+    return v
+
+
+def _review_register(request, year: str):
+    from .models import ReturnFieldReview, RuleReview
+
+    rules = S.rules_for(year)
+    history: dict = {}
+    for r in RuleReview.objects.filter(year_of_assessment=year).select_related("by"):
+        history.setdefault(r.rule, []).append({"status": r.status, "value": r.value, "file_value": r.file_value, "ref": r.ref, "note": r.note,
+                                               "active": r.active, "by": r.by.display_name if r.by_id else "", "at": r.at})
+    items = [{**r, "history": history.get(r["rule"], [])} for r in rules.all_rules()]
+    fields = [{"id": f.id, "entity_type": f.entity_type, "code": f.code, "official": f.official, "note": f.note, "active": f.active,
+               "by": f.by.display_name if f.by_id else "", "at": f.at}
+              for f in ReturnFieldReview.objects.filter(year_of_assessment=year).select_related("by")]
+    return Response({"year_of_assessment": year, "status": rules.data.get("status", ""), "legislation": rules.data.get("legislation", ""),
+                     "rules": items, "validated": sum(1 for r in items if r["validated"]), "total": len(items), "fields": fields,
+                     "can_validate": S.can_validate(request.user)})
+
+
+class RuleReviewView(APIView):
+    """GET  /api/local-tax/rules/<ya>/review/ - every rule of the year with its review state and history, and the
+         return field references checked.
+    POST /api/local-tax/rules/<ya>/review/ {rule, action: validate|correct|withdraw, value?, ref, note} - a tax
+         professional's review (validators only). Every review is kept; a new one replaces the active one."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, ya):
+        try:
+            return _review_register(request, ya.replace("-", "/"))
+        except MissingRules as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+
+    @transaction.atomic
+    def post(self, request, ya):
+        from .models import RuleReview
+
+        _validator(request)
+        year = ya.replace("-", "/")
+        try:
+            rules = S.rules_for(year)
+        except MissingRules as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        path = str(request.data.get("rule") or "")
+        known = {r["rule"]: r for r in rules.all_rules()}
+        if path not in known:
+            return Response({"rule": ["No such rule for the year."]}, status=status.HTTP_400_BAD_REQUEST)
+        action = request.data.get("action")
+        ref = " ".join(str(request.data.get("ref") or "").split())[:500]
+        note = str(request.data.get("note") or "").strip()[:2000]
+        current = RuleReview.objects.filter(year_of_assessment=year, rule=path, active=True)
+        if action == "withdraw":
+            current.update(active=False)
+            return _review_register(request, year)
+        if action not in ("validate", "correct"):
+            return Response({"action": ["validate, correct or withdraw"]}, status=status.HTTP_400_BAD_REQUEST)
+        if len(ref) < 5:
+            return Response({"ref": ["Give the legal reference relied on (Act, section, schedule, gazette)."]}, status=status.HTTP_400_BAD_REQUEST)
+        file_value = known[path]["file_value"]
+        value = file_value
+        if action == "correct":
+            if not note:
+                return Response({"note": ["Say why the value is corrected."]}, status=status.HTTP_400_BAD_REQUEST)
+            try:
+                value = _corrected_value(file_value, request.data.get("value"))
+            except ValueError as exc:
+                return Response({"value": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        elif file_value is None:
+            return Response({"value": ["This rule has no value in the file: correct it with the value instead."]}, status=status.HTTP_400_BAD_REQUEST)
+        current.update(active=False)
+        RuleReview.objects.create(year_of_assessment=year, rule=path, status="corrected" if action == "correct" else "validated", value=value,
+                                  file_value=file_value, ref=ref, note=note, by=request.user)
+        return _review_register(request, year)
+
+
+class ReturnFieldReviewView(APIView):
+    """POST /api/local-tax/rules/<ya>/fields/ {entity_type, code, official, note} - a return field's official RAMIS
+    reference (a family of numbered lines as "SCA*"); {.., withdraw: true} withdraws it. Validators only."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, ya):
+        import re
+
+        from .models import ReturnFieldReview
+
+        _validator(request)
+        year = ya.replace("-", "/")
+        if year not in years():
+            return Response({"detail": "No rules for that year."}, status=status.HTTP_404_NOT_FOUND)
+        entity = request.data.get("entity_type")
+        code = str(request.data.get("code") or "").strip().upper()
+        if entity not in ("company", "individual"):
+            return Response({"entity_type": ["company or individual"]}, status=status.HTTP_400_BAD_REQUEST)
+        if not re.fullmatch(r"[A-Z]{1,4}\d{0,3}\*?", code):
+            return Response({"code": ["A field code such as C4, or a family such as SCA*."]}, status=status.HTTP_400_BAD_REQUEST)
+        current = ReturnFieldReview.objects.filter(year_of_assessment=year, entity_type=entity, code=code, active=True)
+        if not request.data.get("withdraw"):
+            official = " ".join(str(request.data.get("official") or "").split())[:60]
+            if not official:
+                return Response({"official": ["Give the field's reference in the RAMIS return."]}, status=status.HTTP_400_BAD_REQUEST)
+            current.update(active=False)
+            ReturnFieldReview.objects.create(year_of_assessment=year, entity_type=entity, code=code, official=official,
+                                             note=str(request.data.get("note") or "")[:500], by=request.user)
+        else:
+            current.update(active=False)
+        return _review_register(request, year)
+
+
+class RuleCheckView(APIView):
+    """POST /api/local-tax/rules/<ya>/review/check/ (multipart: rule, file) - Local_Tax_AI reads the law document
+    for the rule and says whether it agrees (validators only). Assistance only: nothing is validated by it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, ya):
+        _validator(request)
+        year = ya.replace("-", "/")
+        try:
+            known = {r["rule"]: r for r in S.rules_for(year).all_rules()}
+        except MissingRules as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        rule = known.get(str(request.data.get("rule") or ""))
+        f = request.FILES.get("file")
+        if rule is None or f is None:
+            return Response({"detail": "Choose the rule and the law document."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            out = ai.rule_check({k: rule[k] for k in ("rule", "label", "value", "ref", "conditions")}, f.name, f.read())
+        except ai.Unavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except ai.Refused as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(out)

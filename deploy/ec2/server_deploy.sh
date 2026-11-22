@@ -67,6 +67,12 @@ if [ -d "$RELEASE_DIR/precheck-agent" ]; then
   fi
 fi
 
+# Local_Tax_AI, the Local Tax workflow's agent (AFIT, 22 Nov 2026): its settings before the app restarts.
+LOCAL_TAX_OK=0
+if [ "$PRECHECK_OK" = 1 ] && [ -d "$RELEASE_DIR/local-tax-ai" ]; then
+  bash "$DEPLOY_DIR/local_tax_deploy.sh" prepare "$RELEASE_DIR" && LOCAL_TAX_OK=1     || echo "WARNING: could not prepare Local_Tax_AI; the main app will still deploy." >&2
+fi
+
 ln -sfn "$ENV_FILE" "$RELEASE_DIR/backend/.env"
 chmod -R a+rX "$RELEASE_DIR"
 
@@ -128,6 +134,9 @@ fi
 
 if [ "$PRECHECK_OK" = 1 ]; then
   bash "$DEPLOY_DIR/precheck_deploy.sh" start "$RELEASE_DIR"     || echo "WARNING: the AI pre-check agent is not running; the rest of the app is live." >&2
+fi
+if [ "$LOCAL_TAX_OK" = 1 ]; then
+  bash "$DEPLOY_DIR/local_tax_deploy.sh" start "$RELEASE_DIR" || echo "WARNING: Local_Tax_AI is not running; the rest of the app is live." >&2
 fi
 
 log "Pruning old releases (keeping $KEEP_RELEASES)"

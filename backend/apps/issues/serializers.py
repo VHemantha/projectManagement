@@ -167,6 +167,12 @@ class IssueListSerializer(serializers.ModelSerializer):
     labels = LabelMiniSerializer(many=True, read_only=True)
     project_key = serializers.CharField(source="project.key", read_only=True)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    # The card's workflow (AFIT, 22 Nov 2026): "local_tax" for Team 3 > Local's cards, else "".
+    workflow = serializers.SerializerMethodField()
+
+    def get_workflow(self, obj):
+        client = getattr(obj.project, "client", None)
+        return getattr(client, "workflow", "") or ""
     actual_hours = serializers.SerializerMethodField()
     # The job's value is shown (and edited) on cards in its project's currency.
     value_currency = serializers.CharField(source="project.job_value_currency", read_only=True)
@@ -193,6 +199,7 @@ class IssueListSerializer(serializers.ModelSerializer):
             "key",
             "project_key",
             "project_name",
+            "workflow",
             "summary",
             "group",
             "issue_type",
@@ -270,6 +277,12 @@ class IssueDetailSerializer(serializers.ModelSerializer):
     )
     project = ProjectKeyField(required=False)
     project_name = serializers.CharField(source="project.name", read_only=True)
+    # The card's workflow (AFIT, 22 Nov 2026): "local_tax" for Team 3 > Local's cards, else "".
+    workflow = serializers.SerializerMethodField()
+
+    def get_workflow(self, obj):
+        client = getattr(obj.project, "client", None)
+        return getattr(client, "workflow", "") or ""
     # Create-only: a job for a client that doesn't require projects, without a project (it goes
     # into the client's automatic job list). Ignored when `project` is given.
     client_id = serializers.PrimaryKeyRelatedField(
@@ -304,6 +317,7 @@ class IssueDetailSerializer(serializers.ModelSerializer):
             "key",
             "project",
             "project_name",
+            "workflow",
             "client_id",
             "summary",
             "group",

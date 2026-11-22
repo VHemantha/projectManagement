@@ -1,0 +1,26 @@
+[Unit]
+Description=Local_Tax_AI - the Local Tax workflow's AI agent (FastAPI + LangGraph)
+After=network-online.target trackflow.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=trackflow
+Group=trackflow
+# Its own code and process; it reuses the pre-check agent's virtualenv (the same libraries) to save memory and
+# disk on the small instance. Settings: .env here, a symlink to /srv/trackflow/shared/local-tax.env.
+WorkingDirectory=/srv/trackflow/current/local-tax-ai
+# Listens on localhost only; TASKO's backend is its only caller.
+ExecStart=/srv/trackflow/precheck-venv/bin/uvicorn local_tax_ai.api:app \
+    --host 127.0.0.1 --port 8300 --workers 1 --no-access-log
+Restart=always
+RestartSec=5
+MemoryMax=400M
+MemorySwapMax=100M
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

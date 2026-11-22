@@ -28,8 +28,8 @@ HOST="${EC2_HOST:-$(stack_output InstancePublicIp)}"
 DOMAINS="${APP_DOMAINS:-$(stack_output AppDomains)}"
 [ -n "$HOST" ] && [ "$HOST" != "None" ] || { echo "Could not read InstancePublicIp from stack $STACK_NAME" >&2; exit 1; }
 
-if [ "$GIT_REF" = "HEAD" ] && [ -n "$(git status --porcelain -- backend deploy/ec2 precheck-agent)" ]; then
-  echo "WARNING: uncommitted changes under backend/, deploy/ec2/ or precheck-agent/ will NOT be deployed." >&2
+if [ "$GIT_REF" = "HEAD" ] && [ -n "$(git status --porcelain -- backend deploy/ec2 precheck-agent local-tax-ai)" ]; then
+  echo "WARNING: uncommitted changes under backend/, deploy/ec2/, precheck-agent/ or local-tax-ai/ will NOT be deployed." >&2
 fi
 
 RELEASE="$(date -u +%Y%m%d%H%M%S)-$(git rev-parse --short "$GIT_REF")"
@@ -37,7 +37,7 @@ ARCHIVE="$(mktemp -d)/trackflow-$RELEASE.tar.gz"
 echo "==> Packaging $GIT_REF as release $RELEASE"
 # Redirect instead of `-o`: with MSYS_NO_PATHCONV set, Windows git.exe can't resolve /tmp paths.
 # precheck-agent ships with the backend: the AI pre-check service runs on the same instance.
-git archive --format=tar.gz "$GIT_REF" backend deploy/ec2 precheck-agent > "$ARCHIVE"
+git archive --format=tar.gz "$GIT_REF" backend deploy/ec2 precheck-agent local-tax-ai > "$ARCHIVE"
 
 SSH_OPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30)
 

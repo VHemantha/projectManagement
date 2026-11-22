@@ -11,6 +11,8 @@ import { ProfilePage } from '@/features/profile/ProfilePage'
 import { EpicBoardPage } from '@/features/board/EpicBoardPage'
 import { MyWorkPage } from '@/features/board/MyWorkPage'
 import { IssueDetailPage } from '@/features/issues/IssueDetailPage'
+import { LocalTaxPage } from '@/features/localtax/LocalTaxPage'
+import { RulesReviewPage } from '@/features/localtax/RulesReviewPage'
 import { PeopleDirectoryPage } from '@/features/people/PeopleDirectoryPage'
 import { PersonSnapshotPage } from '@/features/people/PersonSnapshotPage'
 import { TeamSnapshotPage } from '@/features/people/TeamSnapshotPage'
@@ -46,6 +48,10 @@ export const router = createBrowserRouter([
           // Workspace > Sub-workspace > Project > Task. Projects (and their tasks) live under
           // /projects; workspaces under /workspaces. See LegacyRedirects for the older URLs.
           { path: '/projects/:key/issues/:issueKey', element: <IssueDetailPage /> },
+          // Team 3 > Local cards only: the Local Tax workflow, full screen.
+          // Phase 4: a year's rules and return references, reviewed by a tax professional.
+          { path: '/local-tax/rules/:ya', element: <RulesReviewPage /> },
+          { path: '/local-tax/:issueKey', element: <LocalTaxPage /> },
           { path: '/projects/:key/epics/:epicKey/board', element: <EpicBoardPage /> },
           {
             path: '/projects',

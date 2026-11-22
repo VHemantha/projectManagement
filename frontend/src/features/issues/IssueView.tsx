@@ -54,6 +54,7 @@ import {
 import type { StatusCategory } from '@/design-system'
 import { DeleteTaskDialog } from '@/features/board/DeleteTaskDialog'
 import { AIAssistant } from '@/features/precheck/AIAssistant'
+import { LocalTaxOverview } from '@/features/localtax/LocalTaxOverview'
 import { Milestones } from '@/features/precheck/Milestones'
 import { WpAgentPanel } from '@/features/precheck/WpAgentPanel'
 import { TimerButton } from '@/features/timesheets/TimerButton'
@@ -520,7 +521,7 @@ export function IssueView({ issueKey, isModal, onClose }: IssueViewProps) {
                 )}
 
                 {/* The pre-check starts from the task and nowhere else. */}
-                <AIAssistant jobKey={issue.key} />
+                {issue.workflow === 'local_tax' ? <LocalTaxOverview taskKey={issue.key} /> : <AIAssistant jobKey={issue.key} />}
                 <StageBar issueKey={issue.key} />
 
                 <div className={styles.block}>

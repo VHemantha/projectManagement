@@ -1,0 +1,11 @@
+# Local_Tax_AI runtime. On the server it runs from the pre-check agent's virtualenv, which has these same
+# versions installed; listed here so the service can also be set up on its own.
+fastapi==0.142.2
+langchain-anthropic==1.7.5
+langchain-core==1.6.6
+langchain==1.4.3
+langgraph==1.2.12
+openpyxl==3.1.5
+pydantic-settings==2.15.0
+pydantic==2.13.5
+uvicorn==0.54.0

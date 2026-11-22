@@ -45,6 +45,8 @@ urlpatterns = [
     path("", include("apps.timesheets.urls")),
     path("", include("apps.workflow.urls")),
     path("reports/", include("apps.reports.urls")),
+    # The Local Tax workflow - Team 3 > Local's cards only (AFIT, 22 Nov 2026).
+    path("local-tax/", include("apps.localtax.urls")),
     path("daily-goals/", include("apps.daily_goals.urls")),
     path("todos/", include("apps.daily_goals.todo_urls")),
 ]

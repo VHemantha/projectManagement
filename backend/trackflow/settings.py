@@ -74,6 +74,7 @@ INSTALLED_APPS = [
     "apps.live",
     "apps.precheck",
     "apps.coordinator",
+    "apps.localtax",
 ]
 
 MIDDLEWARE = [
@@ -214,6 +215,9 @@ CORS_ALLOW_CREDENTIALS = True
 # directions; set a real one in production.
 PRECHECK_AGENT_URL = env("PRECHECK_AGENT_URL", "http://127.0.0.1:8100")
 PRECHECK_SERVICE_TOKEN = env("PRECHECK_SERVICE_TOKEN", "dev-precheck-token")
+# Local_Tax_AI, the Local Tax workflow's own agent (AFIT, 22 Nov 2026): a separate LangGraph service.
+LOCAL_TAX_AI_URL = env("LOCAL_TAX_AI_URL", "http://127.0.0.1:8300")
+LOCAL_TAX_AI_TOKEN = env("LOCAL_TAX_AI_TOKEN", "") or PRECHECK_SERVICE_TOKEN
 # An AI run still "running" after this many minutes has been lost (the agent stops its own runs
 # after 40): it is marked failed so the task is never stuck. Questions are short, so sooner.
 PRECHECK_STALE_RUN_MINUTES = int(env("PRECHECK_STALE_RUN_MINUTES", "50"))

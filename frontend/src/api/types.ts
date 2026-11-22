@@ -337,6 +337,8 @@ export interface VelocityRow {
 }
 
 export interface IssueDetail {
+  /** 'local_tax' on Team 3 > Local's cards (they open the Local Tax workflow); blank elsewhere. */
+  workflow?: string
   /** Only a team lead or above may set the budgeted time (it feeds the assignee's KPI). */
   can_set_budget?: boolean
   can_delete?: boolean
