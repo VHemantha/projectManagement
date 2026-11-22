@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
+import { TbUpload } from './TbUpload'
 import { extractErrorMessage } from '@/api/errors'
 import { useAttachments, useUploadAttachment } from '@/api/issues'
 import {
@@ -35,7 +36,6 @@ import {
   useExtract,
   useMessages,
   useSaveLocalTax,
-  useUploadTb,
 } from '@/api/localTax'
 import { Button } from '@/design-system'
 
@@ -317,7 +317,7 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
             </>
           )}
 
-          {section === 'uploads' && <Uploads taskKey={taskKey} isCompany={basics.entity_type === 'company'} />}
+          {section === 'uploads' && <Uploads taskKey={taskKey} isCompany={basics.entity_type === 'company'} tbCount={state.financials?.tb?.length ?? 0} />}
 
           {section === 'expected' && (
             <div className={styles.formGrid}>
@@ -469,25 +469,18 @@ function LinesTable<T extends { kind: string; description: string; value: string
 
 /** The card's documents: upload, read with AI (Local_Tax_AI cites the document), confirm before use; a trial
  * balance file is read by code straight into the financial statements. */
-function Uploads({ taskKey, isCompany }: { taskKey: string; isCompany: boolean }) {
+function Uploads({ taskKey, isCompany, tbCount }: { taskKey: string; isCompany: boolean; tbCount: number }) {
   const { data: files } = useAttachments(taskKey)
   const upload = useUploadAttachment(taskKey)
-  const tb = useUploadTb(taskKey)
   const extract = useExtract(taskKey)
   const decide = useDecideExtraction(taskKey)
   const { data: msgs } = useMessages(taskKey)
   const pending = (msgs?.extractions ?? []).filter((x) => x.status === 'pending')
   const [useAs, setUseAs] = useState<Record<number, string>>({})
-  const [failedTb, setFailedTb] = useState<File | null>(null)
   const kinds: [string, string][] = isCompany
     ? [['trial_balance', 'Trial balance'], ['general_ledger', 'General ledger'], ['fixed_assets', 'Fixed asset register'], ['prior_return', 'Prior return'], ['payments', 'Tax payments']]
     : [['income', 'Income'], ['payments', 'Tax payments'], ['prior_return', 'Prior return']]
-  // A trial balance whose columns the importer could not recognise: attach it to the task and let Local_Tax_AI read it.
-  const readWithAi = async (file: File) => {
-    const att = await upload.mutateAsync(file)
-    extract.mutate({ attachmentId: att.id, kind: 'trial_balance' })
-    setFailedTb(null)
-  }
+
   return (
     <>
       <p className={styles.hint}>
@@ -501,32 +494,9 @@ function Uploads({ taskKey, isCompany }: { taskKey: string; isCompany: boolean }
           <span>Add a document to the task</span>
           <input type="file" onChange={(ev) => ev.target.files?.[0] && upload.mutate(ev.target.files[0])} />
         </label>
-        {isCompany && (
-          <label className={styles.field}>
-            <span>Trial balance (Excel or CSV) — read by code</span>
-            <input type="file" accept=".xlsx,.xlsm,.csv" onChange={(ev) => {
-              const file = ev.target.files?.[0]
-              if (file) tb.mutate(file, { onError: () => setFailedTb(file), onSuccess: () => setFailedTb(null) })
-            }} />
-          </label>
-        )}
       </div>
-      {tb.isSuccess && (
-        <p className={styles.muted} role="status">
-          Trial balance read: {tb.data.financials?.tb?.length ?? 0} accounts.
-          {(tb.data.financials?.unmapped?.length ?? 0) > 0 && ` ${tb.data.financials?.unmapped?.length} need a heading: Local_Tax_AI suggests them under Financial Statements > TB Mapping.`}
-        </p>
-      )}
-      {tb.isError && (
-        <div className={styles.actions}>
-          <p className={styles.error}>{extractErrorMessage(tb.error)}</p>
-          {failedTb && (
-            <Button size="sm" variant="secondary" disabled={upload.isPending || extract.isPending} onClick={() => void readWithAi(failedTb)}>
-              <Building2 size={12} /> Read it with Local_Tax_AI instead
-            </Button>
-          )}
-        </div>
-      )}
+      {isCompany && <TbUpload taskKey={taskKey} accounts={tbCount} />}
+
       <table className={styles.table} aria-label="Documents">
         <thead>
           <tr><th>Document</th><th>Read with AI as</th></tr>

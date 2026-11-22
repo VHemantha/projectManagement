@@ -3,6 +3,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
 import { Adjustments } from './Adjustments'
+import { TbUpload } from './TbUpload'
 import { AuditReport, CashFlowStatement, EquityStatement, NotesView, PoliciesView } from './Statements'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
 import { extractErrorMessage } from '@/api/errors'
@@ -107,6 +108,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
         </div>
       )}
       {!company && <StageControls taskKey={taskKey} state={state} stage="fs" />}
+      {company && section !== 'tb' && <TbUpload taskKey={taskKey} accounts={fin?.tb?.length ?? 0} compact={!!fin?.tb?.length} />}
 
       <div className={styles.columns}>
         <div className={styles.card}>
@@ -118,8 +120,8 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
         <section className={styles.card} aria-label={sections.find((s) => s.key === section)?.label}>
           {!fin && company && section !== 'tb' && section !== 'journals' ? (
             <>
-              <p className={styles.muted}>No trial balance yet. Upload it in the questionnaire (F. Upload Documents), or enter it under TB Mapping.</p>
-              <Button variant="secondary" onClick={() => setSection('tb')}>Enter the trial balance</Button>
+              <p className={styles.muted}>No trial balance yet. Upload it above (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand under TB Mapping.</p>
+              <Button variant="secondary" onClick={() => setSection('tb')}>Enter the trial balance by hand</Button>
             </>
           ) : section === 'pl' && company && fin?.pl ? (
             <>
@@ -292,6 +294,7 @@ function TbMapping({ taskKey, fin }: { taskKey: string; fin: Financials | null }
   return (
     <>
       <h3 className={styles.cardTitle}><Table2 size={18} aria-hidden="true" /> Trial balance mapping</h3>
+      <TbUpload taskKey={taskKey} accounts={tb.length} />
       <div className={styles.actions}>
         <Button size="sm" variant="secondary" disabled={!tb.length || suggest.isPending} onClick={() => suggest.mutate(undefined)}>
           <Sparkles size={13} /> {suggest.isPending ? 'Local_Tax_AI is checking…' : 'Suggest headings with AI'}

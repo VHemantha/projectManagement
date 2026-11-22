@@ -14,11 +14,12 @@ const m = vi.hoisted(() => {
   return { idle, stage: idle(), review: idle(), field: idle(), check: idle(), register: null as unknown }
 })
 
+vi.mock('@/api/issues', async (orig) => ({ ...(await orig<typeof import('@/api/issues')>()), useUploadAttachment: m.idle }))
 vi.mock('@/api/localTax', async (orig) => ({
   ...(await orig<typeof import('@/api/localTax')>()),
   useMessages: () => ({ data: { messages: [], extractions: [] }, isLoading: false }),
   useAskLocalTax: m.idle, useSaveLocalTax: m.idle, usePutTb: m.idle, useMapLine: m.idle, useAiAgent: m.idle, useProposeAdjustment: m.idle,
-  useEditAdjustment: m.idle, useDecideAdjustment: m.idle,
+  useEditAdjustment: m.idle, useDecideAdjustment: m.idle, useUploadTb: m.idle, useExtract: m.idle, useDecideExtraction: m.idle,
   useSetStage: () => m.stage, useReviewRule: () => m.review, useReviewField: () => m.field, useRuleCheck: () => m.check,
   useRuleRegister: () => ({ data: m.register, isLoading: false, isError: false, error: null }),
 }))

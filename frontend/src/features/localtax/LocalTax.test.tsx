@@ -40,7 +40,7 @@ const state: LocalTaxState = {
 return { idle, state }
 })
 
-vi.mock('@/api/issues', async (orig) => ({ ...(await orig<typeof import('@/api/issues')>()), useAttachments: () => ({ data: [{ id: 1 }, { id: 2 }] }) }))
+vi.mock('@/api/issues', async (orig) => ({ ...(await orig<typeof import('@/api/issues')>()), useAttachments: () => ({ data: [{ id: 1 }, { id: 2 }] }), useUploadAttachment: idle }))
 vi.mock('@/api/localTax', async (orig) => ({
   ...(await orig<typeof import('@/api/localTax')>()),
   useLocalTax: () => ({ data: state, isLoading: false, isError: false, error: null }),

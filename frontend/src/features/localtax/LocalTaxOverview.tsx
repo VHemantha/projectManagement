@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import styles from './LocalTax.module.css'
 import { AiAssistant, StatusChip } from './Shared'
+import { TbUpload } from './TbUpload'
 import { extractErrorMessage } from '@/api/errors'
 import { useAttachments } from '@/api/issues'
 import { type LocalTaxState, type StageKey, money, useLocalTax } from '@/api/localTax'
@@ -72,6 +73,7 @@ export function LocalTaxOverview({ taskKey }: { taskKey: string }) {
         <span className={styles.spacer} />
         <Link to={`/local-tax/${taskKey}`} className={styles.chip}><ExternalLink size={12} /> View Details</Link>
       </div>
+      {e.entity_type === 'company' && <TbUpload taskKey={taskKey} accounts={data.financials?.tb?.length ?? 0} compact />}
       <div className={styles.overviewGrid}>
         <div className={styles.stageCards}>
           {CARDS.map((c) => {
