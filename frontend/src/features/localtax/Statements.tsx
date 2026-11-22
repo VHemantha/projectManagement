@@ -22,6 +22,7 @@ function CheckLine({ check }: { check: { label: string; passed: boolean; differe
 
 export function EquityStatement({ st, ye }: { st: Statements; ye: string }) {
   const eq = st.equity
+  if (!eq) return <p className={styles.muted}>Income statement only: no statement of changes in equity.</p>
   return (
     <>
       <h3 className={styles.cardTitle}>Statement of Changes in Equity</h3>
@@ -50,6 +51,7 @@ export function EquityStatement({ st, ye }: { st: Statements; ye: string }) {
 
 export function CashFlowStatement({ st, ye }: { st: Statements; ye: string }) {
   const cf = st.cash_flows
+  if (!cf) return <p className={styles.muted}>Income statement only: no statement of cash flows.</p>
   if (!cf.available) return <><h3 className={styles.cardTitle}>Statement of Cash Flows</h3><p className={styles.muted}>{cf.reason}</p></>
   return (
     <>

@@ -6,12 +6,13 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from . import __version__, graphs
+from . import drive
 from .config import get_settings
 from .documents import Unreadable
 from .llm import Unusable
 
 app = FastAPI(title="Local_Tax_AI", version=__version__)
-ROUTES = {"chat": "chat", "map-tb": "map_tb", "analyse": "analyse", "reverse": "reverse", "return": "return_prep", "extract": "extract", "policies": "policies", "rule-check": "rule_check"}
+ROUTES = {"chat": "chat", "map-tb": "map_tb", "analyse": "analyse", "reverse": "reverse", "return": "return_prep", "extract": "extract", "policies": "policies", "rule-check": "rule_check", "prefill": "prefill"}
 
 
 def require_token(x_local_tax_token: str = Header(default="")) -> None:
@@ -29,6 +30,12 @@ class Body(BaseModel):
     content_b64: str = ""
     policies: list[dict] = []
     rule: dict = {}
+    fields: list[dict] = []
+
+
+class DriveBody(BaseModel):
+    folder_id: str = ""
+    file_id: str = ""
 
 
 @app.get("/healthz")
@@ -36,6 +43,27 @@ def healthz():
     s = get_settings()
     return {"status": "ok", "service": "Local_Tax_AI", "version": __version__, "llm_mode": s.llm_mode, "model": s.model,
             "agents": list(ROUTES)}
+
+
+@app.post("/v1/drive/account", dependencies=[Depends(require_token)])
+def drive_account():
+    return drive.account()
+
+
+@app.post("/v1/drive/list", dependencies=[Depends(require_token)])
+def drive_list(body: DriveBody):
+    try:
+        return drive.listing(body.folder_id)
+    except drive.DriveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/v1/drive/download", dependencies=[Depends(require_token)])
+def drive_download(body: DriveBody):
+    try:
+        return drive.fetch(body.file_id)
+    except drive.DriveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/v1/{agent}", dependencies=[Depends(require_token)])

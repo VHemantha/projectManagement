@@ -27,9 +27,25 @@ def blocks(name: str, data: bytes) -> list[dict]:
     if ext == ".csv":
         rows = list(csv.reader(io.StringIO(data.decode("utf-8-sig", errors="replace"))))[:MAX_ROWS]
         return [{"type": "text", "text": f"DOCUMENT {name}\n" + "\n".join(f"row {n} | " + " | ".join(r) for n, r in enumerate(rows, start=1))}]
+    if ext == ".docx":
+        return [{"type": "text", "text": f"DOCUMENT {name}\n" + _docx(data)}]
     if ext in (".txt", ".md"):
         return [{"type": "text", "text": f"DOCUMENT {name}\n" + data.decode("utf-8", errors="replace")[:200000]}]
-    raise Unreadable("This kind of document can't be read: use PDF, an image, Excel, CSV or text.")
+    raise Unreadable("This kind of document can't be read: use PDF, an image, Excel, CSV, Word or text.")
+
+
+def _docx(data: bytes) -> str:
+    """A Word document's text, paragraph by paragraph (tables' cells separated by |)."""
+    import re
+    import zipfile
+
+    try:
+        xml = zipfile.ZipFile(io.BytesIO(data)).read("word/document.xml").decode("utf-8", errors="replace")
+    except (KeyError, zipfile.BadZipFile) as exc:
+        raise Unreadable("The Word document could not be opened.") from exc
+    xml = re.sub(r"</w:tc>", " | ", xml)
+    xml = re.sub(r"</w:p>", "\n", xml)
+    return re.sub(r"<[^>]+>", "", xml)[:200000]
 
 
 def _workbook(data: bytes) -> str:

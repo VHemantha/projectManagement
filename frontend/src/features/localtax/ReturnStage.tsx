@@ -10,7 +10,7 @@ import { Button } from '@/design-system'
 /** Stage 4 (AFIT screens, 22 Nov 2026): the draft income tax return from the approved figures - its sections and
  * fields editable (an accountant's correction is kept apart from the computed value), the missing mandatory fields
  * highlighted, and the draft PDF for the accountant to enter into RAMIS. Nothing is submitted. */
-export function ReturnStage({ taskKey, state }: { taskKey: string; state: LocalTaxState }) {
+export function ReturnStage({ taskKey, state, onBack }: { taskKey: string; state: LocalTaxState; onBack?: () => void }) {
   const e = state.engagement
   const ret = state.return
   const comp = state.computation
@@ -36,7 +36,7 @@ export function ReturnStage({ taskKey, state }: { taskKey: string; state: LocalT
   return (
     <>
       <div className={styles.stageHead}>
-        <FileText size={44} className={styles.stageIcon} aria-hidden="true" />
+        <FileText size={22} className={styles.stageIcon} aria-hidden="true" />
         <div>
           <h2 className={styles.stageTitle}>Draft Tax Return</h2>
           <p className={styles.stageLead}>Generate, review and finalise the Income Tax Return ({e.tax_type}) for submission to the Inland Revenue Department (IRD).</p>
@@ -93,8 +93,14 @@ export function ReturnStage({ taskKey, state }: { taskKey: string; state: LocalT
               onClick={() => save.mutate({ data: { return_overrides: overrides }, stage: 'return' })}>Save corrections</Button>
             {(() => {
               const i = ret.sections.findIndex((s) => s.key === current.key)
+              const prev = ret.sections[i - 1]
               const next = ret.sections[i + 1]
-              return next ? <Button variant="primary" onClick={() => setSection(next.key)}>Next: {next.title.replace(/^[A-Z]\.\s*/, '')}</Button> : null
+              return (
+                <>
+                  {prev && <Button variant="secondary" onClick={() => setSection(prev.key)}>← Back: {prev.title.replace(/^[A-Z]\.\s*/, '')}</Button>}
+                  {next && <Button variant="primary" onClick={() => setSection(next.key)}>Next: {next.title.replace(/^[A-Z]\.\s*/, '')}</Button>}
+                </>
+              )
             })()}
           </div>
           {save.isError && <p className={styles.error}>{extractErrorMessage(save.error)}</p>}
@@ -125,6 +131,7 @@ export function ReturnStage({ taskKey, state }: { taskKey: string; state: LocalT
             {review.isError && <p className={styles.error}>{extractErrorMessage(review.error)}</p>}
           </section>
           <AiAssistant taskKey={taskKey} lead="Ask about any field of the draft return." />
+          {onBack && <Button variant="secondary" onClick={onBack}>← Back: Tax Computation</Button>}
           <Alerts alerts={state.alerts.filter((a) => a.stage === 'return')} />
         </div>
       </div>

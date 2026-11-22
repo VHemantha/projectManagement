@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { apiClient } from './client'
@@ -19,9 +20,9 @@ export interface IncomeLine {
   foreign?: { country: string; currency: string; foreign_amount: string; rate: string; service_used_outside: boolean; received_in_fx_through_bank: boolean; foreign_tax_paid: string }
   expenses: { id?: string; description: string; amount: string; classification: 'allowable' | 'disallowable' | 'capital' | 'clarify' }[]
 }
-export interface AssetLine { id?: string; kind: string; description: string; value: string; ownership?: string; acquired?: string; notes?: string }
-export interface LiabilityLine { id?: string; kind: string; description: string; value: string; lender?: string; notes?: string }
-export interface PaymentLine { id?: string; type: string; amount: string; date: string; reference: string; creditable?: boolean | null }
+export interface AssetLine { id?: string; kind: string; description: string; value: string; ownership?: string; acquired?: string; notes?: string; source?: string }
+export interface LiabilityLine { id?: string; kind: string; description: string; value: string; lender?: string; notes?: string; source?: string }
+export interface PaymentLine { id?: string; type: string; amount: string; date: string; reference: string; creditable?: boolean | null; source?: string }
 export interface CompLine { id?: string; label: string; amount: string; note?: string; source?: string }
 export interface CapitalAllowance { id?: string; label: string; asset_class: string; cost: string; amount: string }
 export interface SpecialIncome { id?: string; label: string; amount: string; rate_key: string }
@@ -42,6 +43,10 @@ export interface EngagementData {
   loss_history?: LossYear[]
   prior_year?: { ya: string; source: string; items: { label: string; amount: string }[] }
   policy_text?: Record<string, string>
+  fs_scope?: 'income_statement' | 'full'
+  field_sources?: Record<string, string>
+  bank_balances?: { id?: string; bank: string; account: string; date: string; balance: string; source?: string }[]
+  directors?: string
   note_text?: Record<string, string>
 }
 
@@ -91,8 +96,9 @@ export interface Check { label: string; passed: boolean; difference: Money }
 export interface CashSection { key: string; title: string; rows: { label: string; amount: Money; note: string }[]; subtotal: { label: string; amount: Money } | null; after?: { label: string; amount: Money; note: string }[]; total: { label: string; amount: Money } }
 export interface Note { no: number; key: string; title: string; text?: string; to_complete?: boolean; editable?: boolean; total?: Money; total_comparative?: Money; lines?: { code: string; name: string; amount: Money; comparative: Money }[]; rows?: { label: string; amount: Money }[]; policies?: { key: string; title: string; text: string; standard: boolean }[] }
 export interface Statements {
-  equity: { rows: { label: string; share_capital: Money; reserves: Money; retained_earnings: Money; total: Money; kind?: string }[]; check: Check; notes: string[] }
-  cash_flows: { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[] }
+  scope?: 'income_statement' | 'full'
+  equity: null | { rows: { label: string; share_capital: Money; reserves: Money; retained_earnings: Money; total: Money; kind?: string }[]; check: Check; notes: string[] }
+  cash_flows: null | { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[] }
   notes: Note[]
   audit_report: { label: string; title: string; addressee: string; sections: { title: string; text: string }[]; signature: string } | null
 }
@@ -165,6 +171,7 @@ export interface LocalTaxState {
   adjustments: Adjustment[]
   levers?: Lever[]
   progress?: Record<StageKey, number>
+  documents?: { documents: number; unread: number; to_verify: number; open_flags: number }
 }
 
 export interface AiMessage { id: number; role: 'person' | 'ai'; text: string; data: { points?: string[]; uncertain?: boolean; what_if?: WhatIf | null }; by: string; at: string }
@@ -364,7 +371,7 @@ export const money = (v: Money | number | undefined, opts: { brackets?: boolean 
 }
 
 export const STAGES: { key: StageKey; n: number; title: string; purpose: string }[] = [
-  { key: 'questionnaire', n: 1, title: 'Questionnaire', purpose: 'Collect client information' },
+  { key: 'questionnaire', n: 1, title: 'Client Info', purpose: 'Client details & documents' },
   { key: 'fs', n: 2, title: 'Financial Statements', purpose: 'Prepare financials' },
   { key: 'computation', n: 3, title: 'Tax Computation', purpose: 'Calculate income tax' },
   { key: 'return', n: 4, title: 'Draft Tax Return', purpose: 'Generate draft return' },
@@ -375,4 +382,91 @@ export const STATUS_LABEL: Record<StageStatus, string> = {
   in_progress: 'In Progress',
   ready_for_review: 'Ready for Review',
   approved: 'Approved',
+}
+
+
+// --- Client Info: supporting documents, the client's Google Drive folder and the AI pre-fill ---------------------------
+export interface SourceDoc {
+  id: number; attachment_id: number; name: string; url: string; origin: 'upload' | 'drive'; drive_path: string; drive_url: string; kind: string
+  summary: string; period_end: string | null; read_at: string | null; read_error: string; found: { fields: number; lines: number; balances: number }
+}
+export interface DocSource { document: string; attachment_id: number; document_id: number; cite: string }
+export interface Suggestion { id: number; target: string; value: unknown; sources: DocSource[]; status: 'pending' | 'confirmed' | 'rejected'; edited: boolean; decided_by: string; decided_at: string | null }
+export interface DocFlag { id: number; kind: 'missing' | 'unclear' | 'inconsistent'; target: string; text: string; sources: DocSource[]; status: 'open' | 'resolved'; resolution: string; resolved_by: string; resolved_at: string | null }
+export interface DocsPayload {
+  documents: SourceDoc[]; suggestions: Suggestion[]; flags: DocFlag[]; drive: { url: string; folder_id: string; synced_at: string | null }
+  sync?: { added: number; updated: number; unchanged: number; skipped: { name: string; reason: string }[]; left: number }
+  account_email?: string
+}
+
+const docsKey = (key: string) => ['local-tax', key, 'documents']
+
+export function useDocuments(key: string) {
+  return useQuery({ queryKey: docsKey(key), queryFn: async () => (await apiClient.get<DocsPayload>(`${base(key)}documents/`)).data })
+}
+
+export function useDriveAccount(enabled = true) {
+  return useQuery({ queryKey: ['local-tax-drive-account'], enabled, staleTime: 60 * 60 * 1000,
+    queryFn: async () => (await apiClient.get<{ account_email: string; configured: boolean; detail?: string }>('/local-tax/drive-account/')).data })
+}
+
+function useDocsMutation<T>(key: string, fn: (vars: T) => Promise<DocsPayload>) {
+  const queryClient = useQueryClient()
+  return useMutation({ mutationFn: fn, onSuccess: (data) => queryClient.setQueryData(docsKey(key), data) })
+}
+
+export function useLinkDrive(key: string) {
+  return useDocsMutation(key, async (url: string) => (await apiClient.put<DocsPayload>(`${base(key)}drive/`, { url })).data)
+}
+
+export function useSyncDrive(key: string) {
+  return useDocsMutation(key, async () => (await apiClient.post<DocsPayload>(`${base(key)}drive/sync/`, {})).data)
+}
+
+/** Local_Tax_AI reads the documents not yet read (or all, again), one at a time so the screen can show progress,
+ * then puts the readings together into suggestions and flags. */
+export function usePrefill(key: string) {
+  const queryClient = useQueryClient()
+  const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(null)
+  const mutation = useMutation({
+    mutationFn: async ({ again, names }: { again?: boolean; names: Record<number, string> }) => {
+      const { documents } = (await apiClient.post<{ documents: number[] }>(`${base(key)}prefill/start/`, { again })).data
+      for (let i = 0; i < documents.length; i++) {
+        setProgress({ done: i, total: documents.length, current: names[documents[i]] ?? 'document' })
+        await apiClient.post(`${base(key)}prefill/read/`, { document_id: documents[i] })
+      }
+      setProgress({ done: documents.length, total: documents.length, current: '' })
+      return (await apiClient.post<DocsPayload>(`${base(key)}prefill/finish/`, {})).data
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(docsKey(key), data)
+      queryClient.invalidateQueries({ queryKey: qk(key), exact: true })
+    },
+    onSettled: () => setProgress(null),
+  })
+  return { ...mutation, progress }
+}
+
+export function useDecideSuggestion(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, decision, value }: { id: number; decision: 'confirm' | 'reject'; value?: unknown }) =>
+      (await apiClient.post<DocsPayload & { state: LocalTaxState }>(`${base(key)}suggestions/${id}/decide/`, value === undefined ? { decision } : { decision, value })).data,
+    onSuccess: ({ state, ...docs }) => {
+      queryClient.setQueryData(qk(key), state)
+      queryClient.setQueryData(docsKey(key), docs)
+    },
+  })
+}
+
+export function useResolveFlag(key: string) {
+  return useDocsMutation(key, async ({ id, resolution }: { id: number; resolution: string }) =>
+    (await apiClient.post<DocsPayload>(`${base(key)}flags/${id}/resolve/`, { resolution })).data)
+}
+
+export const DOC_KINDS: Record<string, string> = {
+  trial_balance: 'Trial balance', bank_statement: 'Bank statement', bank_confirmation: 'Bank balance confirmation', general_ledger: 'General ledger',
+  financial_statements: 'Financial statements', prior_return: 'Prior return / computation', fixed_assets: 'Fixed asset register',
+  salary_certificate: 'Salary certificate', wht_certificate: 'WHT certificate', tax_payment: 'Tax payment', invoice_or_receipt: 'Invoice / receipt',
+  registration: 'Registration document', loan_statement: 'Loan statement', other: 'Other',
 }

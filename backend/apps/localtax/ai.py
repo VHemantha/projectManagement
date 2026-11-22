@@ -75,6 +75,7 @@ def context(eng, st: dict) -> dict:
         "adjustments": [{k: a[k] for k in ("kind", "scope", "label", "original", "proposed", "status", "reason")} for a in st.get("adjustments") or []],
         "headings": {k: v[1] for k, v in FS.HEADINGS.items()},
         "asset_classes": asset_classes(e.get("year_of_assessment")),
+        "fs_scope": (e.get("data") or {}).get("fs_scope") or "full",
     }
 
 

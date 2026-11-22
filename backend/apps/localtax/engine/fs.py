@@ -28,6 +28,7 @@ HEADINGS = {
     "ppe": ("bs", "Property, plant and equipment", "asset"),
     "intangibles": ("bs", "Intangible assets", "asset"),
     "investments": ("bs", "Investments", "asset"),
+    "other_non_current_assets": ("bs", "Other non-current assets", "asset"),  # e.g. a long-term rent deposit
     "inventories": ("bs", "Inventories", "asset"),
     "trade_receivables": ("bs", "Trade and other receivables", "asset"),
     "other_current_assets": ("bs", "Other current assets", "asset"),
@@ -42,6 +43,7 @@ HEADINGS = {
     "borrowings_current": ("bs", "Current borrowings", "liability"),
     "trade_payables": ("bs", "Trade and other payables", "liability"),
     "tax_payable": ("bs", "Income tax payable", "liability"),
+    "shareholder_current_account": ("bs", "Shareholder's current account", "liability"),  # amounts due to shareholders / directors
     "other_current_liabilities": ("bs", "Other current liabilities", "liability"),
 }
 PL_ORDER = ["revenue", "cost_of_sales", "other_income", "admin_expenses", "distribution_expenses", "finance_costs", "income_tax_expense", "oci"]
@@ -57,6 +59,8 @@ KEYWORDS = [
     ("distribution_expenses", r"advertis|marketing|selling|distribution|freight out|commission paid|delivery"),
     ("other_income", r"interest income|dividend income|other income|gain on|rent income|rental income|sundry income|exchange gain"),
     ("revenue", r"\bsales\b|revenue|turnover|fees? (earned|income)|service income"),
+    ("ppe", r"accumulated depreciation|acc\.? dep|provision for depreciation"),
+    ("intangibles", r"accumulated amortis"),
     ("depreciation", r"depreciation|amortis"),
     ("admin_expenses", r"salar|wage|rent\b|electric|water|telephone|insurance|repair|audit|legal|professional|travel|entertain|"
                        r"printing|stationery|postage|subscription|depreciation|amortis|office|staff|epf|etf|gratuity|vehicle running|donation|general expense"),
@@ -64,11 +68,13 @@ KEYWORDS = [
     ("intangibles", r"goodwill|software|intangible|licen[cs]e"),
     ("investments", r"investment|fixed deposit|shares in|treasury"),
     ("inventories", r"inventor|stock\b|stock in trade|work in progress"),
-    ("trade_receivables", r"debtor|receivable|advance|deposit paid|prepayment|staff loan"),
+    ("other_non_current_assets", r"rent(al)? deposit|refundable deposit|security deposit|long[- ]term deposit"),
+    ("trade_receivables", r"debtor|receivable|advance|deposit paid|prepayment|pre-payment|staff loan"),
     ("cash", r"\bcash\b|bank|petty cash|current account|savings"),
     ("share_capital", r"stated capital|share capital|capital account"),
     ("reserves", r"reserve"),
     ("retained_earnings", r"retained|accumulated (profit|loss)|profit and loss account"),
+    ("shareholder_current_account", r"shareholder|director'?s? (current|loan) account|due to (a )?director|amount due to (share|direct)"),
     ("tax_payable", r"income tax payable|tax payable|provision for tax"),
     ("deferred_tax", r"deferred tax"),
     ("borrowings_current", r"overdraft|short[- ]term loan"),
@@ -113,8 +119,10 @@ def apply_adjustments(lines: list[dict], adjustments: list[dict]) -> list[dict]:
     return out
 
 
-def statements(lines: list[dict]) -> dict:
-    """Profit or loss and financial position from mapped TB lines: {"pl", "bs", "pbt", "profit", "checks", "unmapped"}."""
+def statements(lines: list[dict], scope: str = "full") -> dict:
+    """Profit or loss and financial position from mapped TB lines: {"pl", "bs", "pbt", "profit", "checks", "unmapped"}.
+    `scope` "income_statement": the client needs the income statement only - the trial balance may hold just the
+    income and expense accounts, so it is not checked to balance and the financial position is not prepared."""
     cur = {k: ZERO for k in HEADINGS}
     comp = {k: ZERO for k in HEADINGS}
     has_comp = any(ln.get("comparative") not in (None, "") for ln in lines)
@@ -164,13 +172,18 @@ def statements(lines: list[dict]) -> dict:
         {"label": "Assets = equity + liabilities", "passed": assets == equity + liabilities, "difference": assets - equity - liabilities},
         {"label": "Every account is mapped to a heading", "passed": not unmapped, "difference": sum((u["amount"] for u in unmapped), ZERO)},
     ]
+    if scope == "income_statement":
+        checks = checks[2:]
+        unmapped = [u for u in unmapped if u["amount"]]
     unusual = []
     for h, v in bs.items():
         if v["kind"] == "asset" and v["amount"] < 0 and h != "ppe":
             unusual.append(f"{v['label']} has a credit balance ({v['amount']:,.2f}): check the classification.")
         if v["kind"] == "liability" and v["amount"] < 0:
             unusual.append(f"{v['label']} has a debit balance ({-v['amount']:,.2f}): check the classification.")
-    if cur["cash"] < 0:
+    if scope == "income_statement":
+        unusual = []
+    elif cur["cash"] < 0:
         unusual.append("Cash and cash equivalents are overdrawn: consider presenting the overdraft as a current borrowing.")
     pl_rows = []
     for h in PL_ORDER:
@@ -179,7 +192,7 @@ def statements(lines: list[dict]) -> dict:
                             "comparative": p_comp[h] if p_comp else None, "lines": detail[h]})
     return {"pl": {"rows": pl_rows, "current": p_cur, "comparative": p_comp}, "bs": bs,
             "totals": {"assets": assets, "equity": equity, "liabilities": liabilities}, "pbt": p_cur["pbt"], "profit": p_cur["profit"],
-            "checks": checks, "unmapped": unmapped, "unusual": unusual, "has_comparative": has_comp}
+            "checks": checks, "unmapped": unmapped, "unusual": unusual, "has_comparative": has_comp, "scope": scope}
 
 
 def individual_statement(income: list[dict]) -> dict:

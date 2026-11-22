@@ -99,6 +99,10 @@ def render(doc: str, fmt: str, eng, st: dict) -> tuple[bytes, str]:
     base = f"{e['legal_name'] or eng.issue.key} - {title} - YA {e['year_of_assessment'].replace('/', '-')}"
     if fmt == "xlsx":
         return _xlsx(title, sections, e), f"{base}.xlsx"
+    if doc == "fs" and (st.get("financials") or {}).get("kind") == "company":
+        from .fs_report import render as house_format
+
+        return house_format(st), f"{base}.pdf"  # AFIT's house format: cover, contents, statements, policies, notes
     return _pdf(title, sections, e, st, doc), f"{base}.pdf"
 
 

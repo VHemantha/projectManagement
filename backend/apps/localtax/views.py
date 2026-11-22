@@ -80,6 +80,12 @@ class EngagementView(APIView):
                 new_data[section] = v
         if not changes:
             return _state(request, eng)
+        # A value pre-filled from a document and then changed by hand keeps its trail.
+        sources = dict(new_data.get("field_sources") or {})
+        for f in fields:
+            if f in changes and f in sources and "changed by" not in sources[f]:
+                sources[f] = f"{sources[f]} - changed by {request.user.display_name}"
+                new_data["field_sources"] = sources
         eng.data = new_data
         stage = request.data.get("stage") if request.data.get("stage") in TaxEngagement.STAGES else (
             "computation" if set(data) & {"computation"} else "return" if set(data) & {"return_overrides"} else "questionnaire")
@@ -698,3 +704,142 @@ class RuleCheckView(APIView):
         except ai.Refused as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(out)
+
+
+# --- client info: supporting documents, the Drive folder and the AI's pre-fill ---------------------------------------
+
+def _docs_response(request, eng, extra: dict | None = None):
+    from . import prefill
+
+    eng.refresh_from_db()
+    return Response({**prefill.payload(eng), **(extra or {})})
+
+
+class DocumentsView(APIView):
+    """GET /api/local-tax/tasks/<key>/documents/ - the supporting documents (uploads and the Drive folder's copies),
+    what Local_Tax_AI suggests from them (each with its sources) and the flags to resolve."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, key):
+        return _docs_response(request, _engagement(request, key))
+
+
+class DriveAccountView(APIView):
+    """GET /api/local-tax/drive-account/ - the Google account a client's folder is shared with (Viewer)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from . import prefill
+
+        return Response(prefill.drive_account())
+
+
+class DriveLinkView(APIView):
+    """PUT {url} - the client's Google Drive folder, checked that TASKO can open it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request, key):
+        from . import prefill
+
+        eng = _engagement(request, key)
+        try:
+            listing = prefill.link_drive(eng, str(request.data.get("url") or ""), request.user)
+        except ai.Refused as exc:
+            return Response({"detail": str(exc), **prefill.drive_account()}, status=status.HTTP_400_BAD_REQUEST)
+        except ai.Unavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return _docs_response(request, eng, {"listed": len(listing.get("files") or []), "account_email": listing.get("account_email", "")})
+
+
+class DriveSyncView(APIView):
+    """POST - the Drive folder's new or changed files copied to the task (each read again by the AI)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key):
+        from . import prefill
+
+        eng = _engagement(request, key)
+        try:
+            out = prefill.sync_drive(eng, request.user)
+        except ai.Refused as exc:
+            return Response({"detail": str(exc), **prefill.drive_account()}, status=status.HTTP_400_BAD_REQUEST)
+        except ai.Unavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return _docs_response(request, eng, {"sync": out})
+
+
+class PrefillView(APIView):
+    """The AI pre-fill, a document at a time so the screen shows progress:
+    POST .../prefill/start/ {again?} -> {documents: [ids to read]}
+    POST .../prefill/read/ {document_id} -> that document's reading
+    POST .../prefill/finish/ -> suggestions and flags from every document's reading."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key, step):
+        from . import prefill
+        from .models import SourceDocument
+
+        eng = _engagement(request, key)
+        if step == "start":
+            return Response({"documents": prefill.to_read(eng, again=bool(request.data.get("again")))})
+        if step == "read":
+            doc = get_object_or_404(SourceDocument.objects.select_related("attachment"), engagement=eng, pk=request.data.get("document_id"))
+            try:
+                doc = prefill.read_document(eng, doc)
+            except ai.Unavailable as exc:
+                return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+            return Response({"document": prefill.document_dict(doc)})
+        if step == "finish":
+            with transaction.atomic():
+                return Response(prefill.finish(eng, request.user))
+        raise Http404
+
+
+class SuggestionDecideView(APIView):
+    """POST {decision: confirm|reject, value?} - the accountant confirms (as it is, or edited) or rejects a value the AI
+    found; a confirmed one is written to the client info with its source."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, pk):
+        from . import prefill
+        from .models import Suggestion
+
+        eng = _engagement(request, key)
+        sug = get_object_or_404(Suggestion, engagement=eng, pk=pk)
+        if sug.status != Suggestion.Status.PENDING:
+            return Response({"detail": f"Already {sug.get_status_display().lower()}."}, status=status.HTTP_409_CONFLICT)
+        decision = request.data.get("decision")
+        if decision not in ("confirm", "reject"):
+            return Response({"decision": ["confirm or reject"]}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            prefill.decide(eng, sug, decision, request.user, request.data.get("value") if "value" in request.data else None)
+        except V.Invalid as exc:
+            transaction.set_rollback(True)
+            return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+        eng.refresh_from_db()
+        return Response({"state": S.state(eng, request.user), **prefill.payload(eng)})
+
+
+class FlagResolveView(APIView):
+    """POST {resolution} - the accountant says how a flag was resolved (kept in the audit trail)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, key, pk):
+        from . import prefill
+        from .models import Flag
+
+        eng = _engagement(request, key)
+        f = get_object_or_404(Flag, engagement=eng, pk=pk)
+        text = " ".join(str(request.data.get("resolution") or "").split())
+        if len(text) < 3:
+            return Response({"resolution": ["Say how it was resolved."]}, status=status.HTTP_400_BAD_REQUEST)
+        prefill.resolve(eng, f, text, request.user)
+        return _docs_response(request, eng)

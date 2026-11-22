@@ -3,7 +3,6 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
 import { Adjustments } from './Adjustments'
-import { TbUpload } from './TbUpload'
 import { AuditReport, CashFlowStatement, EquityStatement, NotesView, PoliciesView } from './Statements'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
 import { extractErrorMessage } from '@/api/errors'
@@ -35,13 +34,25 @@ const HEADINGS: [string, string][] = [
 /** Stage 2 (AFIT screens, 22 Nov 2026): the statements from the mapped trial balance (companies) or the statement
  * of income and expenses (individuals), with the framework, the comparatives, the checks, journals and the draft
  * audit report template. Every figure is the engine's; Local_Tax_AI suggests headings and explains. */
-export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: string; state: LocalTaxState; onNext: () => void }) {
+export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDocuments }: {
+  taskKey: string; state: LocalTaxState; onNext: () => void; onBack?: () => void; onDocuments?: () => void
+}) {
   const e = state.engagement
   const fin = state.financials
   const save = useSaveLocalTax(taskKey)
   const company = e.entity_type === 'company'
   const [section, setSection] = useState<Section>(company ? 'pl' : 'pl')
-  const sections: { key: Section; label: string; icon: React.ReactNode }[] = company
+  const incomeOnly = (e.data.fs_scope ?? 'full') === 'income_statement'
+  const sections: { key: Section; label: string; icon: React.ReactNode }[] = company && incomeOnly
+    ? [
+        { key: 'pl', label: 'Income Statement', icon: <BarChart3 size={16} /> },
+        { key: 'notes', label: 'Notes', icon: <FileText size={16} /> },
+        { key: 'policies', label: 'Accounting Policies', icon: <BookOpen size={16} /> },
+        ...(e.audited ? [{ key: 'audit' as Section, label: 'Audit Report (Draft)', icon: <ShieldCheck size={16} /> }] : []),
+        { key: 'tb', label: 'TB Mapping', icon: <GitBranch size={16} /> },
+        { key: 'journals', label: 'Adjustments', icon: <Scale size={16} /> },
+      ]
+    : company
     ? [
         { key: 'pl', label: 'Profit or Loss (P&L)', icon: <BarChart3 size={16} /> },
         { key: 'bs', label: 'Financial Position', icon: <FileText size={16} /> },
@@ -61,7 +72,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
   return (
     <>
       <div className={styles.stageHead}>
-        <FileText size={44} className={styles.stageIcon} aria-hidden="true" />
+        <FileText size={22} className={styles.stageIcon} aria-hidden="true" />
         <div>
           <h2 className={styles.stageTitle}>Financial Statements</h2>
           <p className={styles.stageLead}>Generate, review and edit financial statements{company && e.audited ? ' and the audit report' : ''}.</p>
@@ -108,7 +119,13 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
         </div>
       )}
       {!company && <StageControls taskKey={taskKey} state={state} stage="fs" />}
-      {company && section !== 'tb' && <TbUpload taskKey={taskKey} accounts={fin?.tb?.length ?? 0} compact={!!fin?.tb?.length} />}
+      {company && (
+        <p className={styles.hint} style={{ margin: 0 }}>
+          Preparing: <b>{incomeOnly ? 'the income statement only' : 'the full set of financial statements'}</b> (chosen in Client Info).{' '}
+          The trial balance is uploaded in Client Info › Supporting Documents.{' '}
+          {onDocuments && <Button size="sm" variant="subtle" onClick={onDocuments}>Open Supporting Documents</Button>}
+        </p>
+      )}
 
       <div className={styles.columns}>
         <div className={styles.card}>
@@ -120,8 +137,11 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
         <section className={styles.card} aria-label={sections.find((s) => s.key === section)?.label}>
           {!fin && company && section !== 'tb' && section !== 'journals' ? (
             <>
-              <p className={styles.muted}>No trial balance yet. Upload it above (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand under TB Mapping.</p>
-              <Button variant="secondary" onClick={() => setSection('tb')}>Enter the trial balance by hand</Button>
+              <p className={styles.muted}>No trial balance yet. Upload it in Client Info › Supporting Documents (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand under TB Mapping.</p>
+              <div className={styles.actions}>
+                {onDocuments && <Button variant="primary" onClick={onDocuments}>Upload the trial balance</Button>}
+                <Button variant="secondary" onClick={() => setSection('tb')}>Enter it by hand</Button>
+              </div>
             </>
           ) : section === 'pl' && company && fin?.pl ? (
             <>
@@ -159,7 +179,18 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
             <p className={styles.muted}>Map the trial balance first: this statement is worked out from it.</p>
           )}
           <div className={styles.actions} style={{ justifyContent: 'flex-end' }}>
-            <Button variant="primary" onClick={onNext}>Next: Tax Computation</Button>
+            {sections.findIndex((x) => x.key === section) > 0 && (
+              <Button variant="secondary" onClick={() => setSection(sections[sections.findIndex((x) => x.key === section) - 1].key)}>
+                ← Back: {sections[sections.findIndex((x) => x.key === section) - 1].label}
+              </Button>
+            )}
+            {sections.findIndex((x) => x.key === section) < sections.length - 1 ? (
+              <Button variant="primary" onClick={() => setSection(sections[sections.findIndex((x) => x.key === section) + 1].key)}>
+                Next: {sections[sections.findIndex((x) => x.key === section) + 1].label} →
+              </Button>
+            ) : (
+              <Button variant="primary" onClick={onNext}>Next: Tax Computation →</Button>
+            )}
           </div>
         </section>
 
@@ -181,11 +212,16 @@ export function FinancialStatementsStage({ taskKey, state, onNext }: { taskKey: 
           </section>
           <Alerts alerts={state.alerts.filter((a) => a.stage === 'fs')} />
           <div className={styles.actions}>
-            <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'fs', 'pdf')}><Download size={14} /> Download FS (PDF)</Button>
+            <Button variant="primary" onClick={() => downloadLocalTax(taskKey, 'fs', 'pdf')}><Download size={14} /> Download Financial Statements (PDF)</Button>
             <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'fs', 'xlsx')}><FileSpreadsheet size={14} /> Download FS (Excel)</Button>
           </div>
           {save.isError && <p className={styles.error}>{extractErrorMessage(save.error)}</p>}
         </div>
+      </div>
+      <div className={styles.actions}>
+        {onBack && <Button variant="secondary" onClick={onBack}>← Back: Client Info</Button>}
+        <span className={styles.spacer} />
+        <Button variant="primary" onClick={onNext}>Next: Tax Computation →</Button>
       </div>
     </>
   )
@@ -294,7 +330,6 @@ function TbMapping({ taskKey, fin }: { taskKey: string; fin: Financials | null }
   return (
     <>
       <h3 className={styles.cardTitle}><Table2 size={18} aria-hidden="true" /> Trial balance mapping</h3>
-      <TbUpload taskKey={taskKey} accounts={tb.length} />
       <div className={styles.actions}>
         <Button size="sm" variant="secondary" disabled={!tb.length || suggest.isPending} onClick={() => suggest.mutate(undefined)}>
           <Sparkles size={13} /> {suggest.isPending ? 'Local_Tax_AI is checking…' : 'Suggest headings with AI'}

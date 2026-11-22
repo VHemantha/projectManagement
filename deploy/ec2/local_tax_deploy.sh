@@ -44,6 +44,10 @@ fi
 # The Claude key: the pre-check agent's, kept in step on every deploy (set_precheck_secrets.sh sets it there).
 key="$(env_get "$PC_ENV" PRECHECK_ANTHROPIC_API_KEY)"
 [ -n "$key" ] && env_set "$LT_ENV" LOCAL_TAX_AI_ANTHROPIC_API_KEY "$key"
+# Google Drive (read-only), for a Local client's shared folder: the pre-check's service account key, the same
+# account the client shares the folder with.
+gkey="$(env_get "$PC_ENV" PRECHECK_GOOGLE_SERVICE_ACCOUNT_FILE)"
+[ -n "$gkey" ] && env_set "$LT_ENV" LOCAL_TAX_AI_GOOGLE_SERVICE_ACCOUNT_FILE "$gkey"
 chown root:trackflow "$LT_ENV"
 chmod 640 "$LT_ENV"
 # The backend calls it with the same token.

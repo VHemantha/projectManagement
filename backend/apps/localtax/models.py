@@ -203,3 +203,86 @@ class ReturnFieldReview(models.Model):
 
     class Meta:
         ordering = ["-at", "-id"]
+
+
+class SourceDocument(models.Model):
+    """A Local client's supporting document (AFIT): uploaded to the task or copied from the client's shared Google
+    Drive folder, and what Local_Tax_AI made of it when it read it for the client info."""
+
+    class Origin(models.TextChoices):
+        UPLOAD = "upload", "Uploaded"
+        DRIVE = "drive", "Google Drive"
+
+    engagement = models.ForeignKey(TaxEngagement, on_delete=models.CASCADE, related_name="documents")
+    attachment = models.ForeignKey("issues.Attachment", on_delete=models.CASCADE, related_name="+")
+    origin = models.CharField(max_length=8, choices=Origin.choices, default=Origin.UPLOAD)
+    drive_file_id = models.CharField(max_length=200, blank=True)
+    drive_version = models.CharField(max_length=100, blank=True)
+    drive_path = models.CharField(max_length=500, blank=True)
+    drive_url = models.CharField(max_length=1000, blank=True)
+    kind = models.CharField(max_length=30, blank=True)  # what the AI found it is (bank_statement, trial_balance...)
+    summary = models.CharField(max_length=500, blank=True)
+    period_end = models.DateField(null=True, blank=True)
+    read_at = models.DateTimeField(null=True, blank=True)  # last read for the client info (null: not yet)
+    read_error = models.CharField(max_length=500, blank=True)
+    reading = models.JSONField(default=dict, blank=True)  # Local_Tax_AI's checked reading, kept so a document is read once per version
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+
+class Suggestion(models.Model):
+    """A value Local_Tax_AI found in the documents for the client info, with where it came from. Used only once the
+    accountant confirms it (as it is, or edited); then it flows into the financial statements and computation."""
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "To verify"
+        CONFIRMED = "confirmed", "Confirmed"
+        REJECTED = "rejected", "Rejected"
+        SUPERSEDED = "superseded", "Replaced by a later reading"
+
+    engagement = models.ForeignKey(TaxEngagement, on_delete=models.CASCADE, related_name="suggestions")
+    run = models.CharField(max_length=40)
+    # "field:legal_name" | "income" | "payments" | "assets" | "liabilities" | "trial_balance" | "bank_balance"
+    target = models.CharField(max_length=40)
+    value = models.JSONField()
+    sources = models.JSONField(default=list)  # [{"document", "attachment_id", "cite"}]
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.PENDING)
+    edited = models.BooleanField(default=False)
+    decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    decided_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+
+class Flag(models.Model):
+    """Something in the documents the accountant must resolve: missing, unclear, or inconsistent across documents
+    (or with the client info), with the documents concerned."""
+
+    class Kind(models.TextChoices):
+        MISSING = "missing", "Missing"
+        UNCLEAR = "unclear", "Unclear"
+        INCONSISTENT = "inconsistent", "Inconsistent"
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Open"
+        RESOLVED = "resolved", "Resolved"
+        SUPERSEDED = "superseded", "Replaced by a later reading"
+
+    engagement = models.ForeignKey(TaxEngagement, on_delete=models.CASCADE, related_name="flags")
+    run = models.CharField(max_length=40)
+    kind = models.CharField(max_length=12, choices=Kind.choices)
+    target = models.CharField(max_length=40, blank=True)
+    text = models.CharField(max_length=1000)
+    sources = models.JSONField(default=list)
+    status = models.CharField(max_length=12, choices=Status.choices, default=Status.OPEN)
+    resolution = models.CharField(max_length=1000, blank=True)
+    resolved_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]

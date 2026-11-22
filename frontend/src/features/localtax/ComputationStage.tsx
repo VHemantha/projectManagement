@@ -19,7 +19,9 @@ const SPECIAL_RATES: [string, string][] = [['qualifying_export_services', '15% ‚
 /** Stage 3 (AFIT screens, 22 Nov 2026): the income tax computation by the engine, from the financial statements
  * and the questionnaire, with its add backs, deductions, capital allowances, losses, credits and special rates
  * editable here; the reverse tax analysis; and the rules applied, with which still need professional validation. */
-export function ComputationStage({ taskKey, state, onNext, onQuestionnaire }: { taskKey: string; state: LocalTaxState; onNext: () => void; onQuestionnaire: () => void }) {
+export function ComputationStage({ taskKey, state, onNext, onBack, onQuestionnaire }: {
+  taskKey: string; state: LocalTaxState; onNext: () => void; onBack?: () => void; onQuestionnaire: () => void
+}) {
   const e = state.engagement
   const comp = state.computation
   const company = e.entity_type === 'company'
@@ -44,7 +46,7 @@ export function ComputationStage({ taskKey, state, onNext, onQuestionnaire }: { 
   return (
     <>
       <div className={styles.stageHead}>
-        <Calculator size={44} className={styles.stageIcon} aria-hidden="true" />
+        <Calculator size={22} className={styles.stageIcon} aria-hidden="true" />
         <div>
           <h2 className={styles.stageTitle}>Tax Computation</h2>
           <p className={styles.stageLead}>Calculate taxable income, apply the applicable tax rates (including concessionary rates), credits and final tax payable.</p>
@@ -116,8 +118,8 @@ export function ComputationStage({ taskKey, state, onNext, onQuestionnaire }: { 
                   ))
                 )}
               </dl>
-              <p className={styles.hint}>Entered in the questionnaire; corrections from the reverse analysis are proposed and approved under Expected vs Calculated.</p>
-              <Button size="sm" variant="secondary" onClick={onQuestionnaire}>Edit in the questionnaire</Button>
+              <p className={styles.hint}>Entered in Client Info; corrections from the reverse analysis are proposed and approved under Expected vs Calculated.</p>
+              <Button size="sm" variant="secondary" onClick={onQuestionnaire}>Edit in Client Info</Button>
               {section === 'losses' && (
                 <LossHistory rows={e.data.loss_history ?? []} comp={comp}
                   onSave={(rows) => save.mutate({ data: { loss_history: rows }, stage: 'computation' })} busy={save.isPending} />
@@ -211,6 +213,7 @@ export function ComputationStage({ taskKey, state, onNext, onQuestionnaire }: { 
         <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'computation', 'pdf')}><Download size={14} /> Download Computation (PDF)</Button>
         <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'computation', 'xlsx')}><FileSpreadsheet size={14} /> Download Working (Excel)</Button>
         <span className={styles.spacer} />
+        {onBack && <Button variant="secondary" onClick={onBack}>‚Üê Back: Financial Statements</Button>}
         <Button variant="primary" onClick={onNext}>Next: Draft Tax Return <ArrowRight size={14} /></Button>
       </div>
     </>

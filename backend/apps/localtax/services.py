@@ -146,7 +146,12 @@ def financials(eng: TaxEngagement) -> dict | None:
     if not lines:
         return None
     adjusted = FS.apply_adjustments(lines, [{"lines": a.lines} for a in approved(eng, "accounting")])
-    return {"kind": "company", **FS.statements(adjusted), "lines": adjusted}
+    return {"kind": "company", **FS.statements(adjusted, fs_scope(eng)), "lines": adjusted}
+
+
+def fs_scope(eng: TaxEngagement) -> str:
+    """What the client asked for: "full" (the full set of financial statements) or "income_statement" only."""
+    return (eng.data or {}).get("fs_scope") or "full"
 
 
 def pl_accounts(fs_result: dict | None) -> list[dict]:
@@ -211,7 +216,8 @@ def state(eng: TaxEngagement, user=None) -> dict:
         alerts.append({"stage": "questionnaire", "severity": "review", "text": "Company registration number is missing."})
     fs_result = financials(eng)
     if eng.entity_type == TaxEngagement.Entity.COMPANY and fs_result is None:
-        alerts.append({"stage": "fs", "severity": "blocking", "text": "Upload or enter the current year's trial balance to prepare the financial statements."})
+        alerts.append({"stage": "fs", "severity": "blocking",
+                       "text": "Upload the current year's trial balance in Client Info > Supporting Documents to prepare the financial statements."})
     if fs_result and fs_result.get("kind") == "company":
         for c in fs_result["checks"]:
             if not c["passed"]:
@@ -219,11 +225,20 @@ def state(eng: TaxEngagement, user=None) -> dict:
         alerts += [{"stage": "fs", "severity": "review", "text": u} for u in fs_result["unusual"]]
     if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL and not data.get("income"):
         alerts.append({"stage": "questionnaire", "severity": "blocking", "text": "Add the income sources."})
+    from . import prefill
+
+    docs = prefill.summary(eng)
+    if docs["to_verify"]:
+        alerts.append({"stage": "questionnaire", "severity": "review",
+                       "text": f"{docs['to_verify']} value(s) found in the documents are waiting for you to verify (Supporting Documents)."})
+    if docs["open_flags"]:
+        alerts.append({"stage": "questionnaire", "severity": "review",
+                       "text": f"{docs['open_flags']} document issue(s) to resolve: missing, unclear or inconsistent information (Supporting Documents)."})
     try:
         rules = rules_for(eng.year_of_assessment)
     except MissingRules as exc:
         return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": None, "reverse": None, "return": None,
-                "alerts": alerts + [{"stage": "computation", "severity": "blocking", "text": str(exc)}], "years": years(),
+                "alerts": alerts + [{"stage": "computation", "severity": "blocking", "text": str(exc)}], "years": years(), "documents": docs,
                 "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")]}
     ins = inputs(eng, fs_result)
     comp = compute(ins, rules.fresh())
@@ -241,11 +256,11 @@ def state(eng: TaxEngagement, user=None) -> dict:
         alerts.append({"stage": "computation", "severity": "review", "text": f"{pending} proposed adjustment(s) waiting for approval: not in the figures yet."})
     statements = depth(eng, fs_result, comp)
     for key in ("equity", "cash_flows"):
-        chk = (statements or {}).get(key, {}).get("check")
+        chk = ((statements or {}).get(key) or {}).get("check")
         if chk and not chk["passed"]:
             alerts.append({"stage": "fs", "severity": "review", "text": f"{chk['label']}: difference {chk['difference']:,.2f}."})
     return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": comp, "reverse": rev, "return": ret,
-            "statements": statements, "alerts": alerts, "years": years(), "rules_status": rules.data.get("status", ""),
+            "statements": statements, "alerts": alerts, "years": years(), "rules_status": rules.data.get("status", ""), "documents": docs,
             "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")],
             "levers": [{k: lv[k] for k in ("key", "label", "group", "amount", "scope")} for lv in RV.levers(ins, pl_accounts(fs_result))],
             "progress": progress(eng, fs_result, comp)}
@@ -257,8 +272,9 @@ def depth(eng: TaxEngagement, fs_result, comp) -> dict | None:
         return None
     info = engagement_dict(eng)
     ye = eng.fy_end.strftime("%d %B %Y").lstrip("0") if eng.fy_end else "[year end]"
-    return {"equity": DP.equity_changes(fs_result), "cash_flows": DP.cash_flows(fs_result), "notes": DP.notes(fs_result, info, comp),
-            "audit_report": DP.audit_report(info, ye) if eng.audited else None}
+    full = fs_scope(eng) == "full"
+    return {"scope": fs_scope(eng), "equity": DP.equity_changes(fs_result) if full else None, "cash_flows": DP.cash_flows(fs_result) if full else None,
+            "notes": DP.notes(fs_result, info, comp), "audit_report": DP.audit_report(info, ye) if eng.audited else None}
 
 
 def _clean(fs_result):

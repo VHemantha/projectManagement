@@ -46,6 +46,7 @@ AGENTS = {
     "extract": (prompts.EXTRACT, schemas.EXTRACT, schemas.Extract),
     "policies": (prompts.POLICIES, schemas.POLICIES, schemas.Policies),
     "rule_check": (prompts.RULE_CHECK, schemas.RULE_CHECK, schemas.RuleCheck),
+    "prefill": (prompts.PREFILL, schemas.PREFILL, schemas.Prefill),
 }
 
 
@@ -61,6 +62,12 @@ def prepare(state: State) -> State:
         data = base64.b64decode(r.get("content_b64") or "")
         content = documents.blocks(r.get("name") or "document", data) + [
             {"type": "text", "text": f"{ctx}\n\nRead the document above ({r.get('name')}); the accountant says it is: {r.get('kind') or 'auto'}."}]
+    elif state["agent"] == "prefill":
+        import base64
+
+        data = base64.b64decode(r.get("content_b64") or "")
+        content = documents.blocks(r.get("name") or "document", data) + [
+            {"type": "text", "text": f"{ctx}\n\nRead the document above ({r.get('name')}) for the client info."}]
     elif state["agent"] == "rule_check":
         import base64
 
@@ -76,7 +83,7 @@ def prepare(state: State) -> State:
 
 def call(state: State) -> State:
     system, schema, _ = AGENTS[state["agent"]]
-    return {"raw": ask(system, state["content"], schema, reader=state["agent"] in ("extract", "rule_check"),
+    return {"raw": ask(system, state["content"], schema, reader=state["agent"] in ("extract", "rule_check", "prefill"),
                        fake=lambda content: demo(state["agent"], state["request"], content))}
 
 
@@ -115,10 +122,49 @@ def check(state: State) -> State:
                 ln["category"] = "other"
         if not re.fullmatch(r"\d{4}/\d{2}", out.get("year_of_assessment") or ""):
             out["year_of_assessment"] = ""
+    if state["agent"] == "prefill":
+        out["fields"] = [f for f in out["fields"] if f["field"] in schemas.FIELDS and str(f["value"]).strip()]
+        for f in out["fields"]:
+            f["value"] = " ".join(str(f["value"]).split())[:500]
+            if f["field"] == "fy_end" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", f["value"]):
+                f["value"] = ""
+            if f["field"] == "entity_type" and f["value"] not in ("company", "individual"):
+                f["value"] = ""
+        out["fields"] = [f for f in out["fields"] if f["value"]]
+        lines = []
+        for ln in out["lines"]:
+            if ln["list"] not in schemas.LISTS:
+                continue
+            for k in ("amount", "comparative"):
+                ln[k] = _number(ln.get(k))
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", ln.get("date") or ""):
+                ln["date"] = ""
+            if ln["amount"] or ln["list"] == "trial_balance" and ln["comparative"]:
+                lines.append(ln)
+        out["lines"] = lines
+        balances = []
+        for b in out["balances"]:
+            b["balance"] = _number(b.get("balance"))
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", b.get("date") or ""):
+                b["date"] = ""
+            if b["balance"]:
+                balances.append(b)
+        out["balances"] = balances
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", out.get("period_end") or ""):
+            out["period_end"] = ""
+        out["flags"] = [f for f in out["flags"] if f["kind"] in ("missing", "unclear", "inconsistent") and f["text"].strip()]
     if state["agent"] == "policies":
         wanted = {p.get("key") for p in (state["request"].get("policies") or [])}
         out["policies"] = [p for p in out["policies"] if p["key"] in wanted]
     return {"result": out}
+
+
+def _number(v) -> str:
+    """A printed amount as a plain number: "(1,200.50)" -> "-1200.50"; anything else -> ""."""
+    s = str(v or "").replace(",", "").replace(" ", "").replace("Rs.", "").replace("LKR", "")
+    if s.startswith("(") and s.endswith(")"):
+        s = "-" + s[1:-1]
+    return s if re.fullmatch(r"-?\d+(\.\d+)?", s) else ""
 
 
 PRIOR_CATEGORIES = {"revenue", "pbt", "taxable_income", "income_tax", "tax_payable", "losses_cf", "capital_allowances", "other"}
@@ -180,6 +226,10 @@ def demo(agent: str, request: dict, content) -> dict:
     if agent == "policies":
         return {"policies": [{"key": p.get("key", ""), "title": p.get("title", ""), "text": "(Demo) " + p.get("text", "")}
                              for p in request.get("policies") or []], "notes": ["Demo mode: the policies were not tailored."]}
+    if agent == "prefill":
+        name = str(request.get("name") or "")
+        return {"kind": "other", "summary": f"(Demo) {name} was not read: switch Claude on to pre-fill from documents.", "period_end": "",
+                "fields": [], "lines": [], "balances": [], "flags": [{"kind": "unclear", "text": "Demo mode: the document was not read.", "cite": ""}]}
     if agent == "rule_check":
         return {"agrees": "unclear", "value_in_document": "", "quote": "", "cite": "", "note": "(Demo) The document was not read."}
     return {"kind": "other", "summary": "(Demo) Documents are read with Claude switched on.", "gaps": ["Demo mode: the document was not read."],

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -48,24 +49,34 @@ vi.mock('@/api/localTax', async (orig) => ({
   useAskLocalTax: idle, useSaveLocalTax: idle, usePutTb: idle, useUploadTb: idle, useMapLine: idle, useProposeAdjustment: idle,
   useEditAdjustment: idle, useDecideAdjustment: idle, useSetStage: idle, useAiAgent: idle, useExtract: idle, useDecideExtraction: idle,
   useExtractions: () => ({ data: [], isLoading: false }),
+  useDocuments: () => ({ isLoading: false, data: { documents: [{ id: 1, attachment_id: 1, name: 'bank.pdf', url: '', origin: 'drive', drive_path: '', drive_url: '',
+    kind: 'bank_statement', summary: 'March statement', period_end: null, read_at: '2026-11-22', read_error: '', found: { fields: 1, lines: 0, balances: 1 } }],
+    suggestions: [{ id: 7, target: 'field:tin', value: '114567890', sources: [{ document: 'bank.pdf', attachment_id: 1, document_id: 1, cite: 'p1' }], status: 'pending',
+      edited: false, decided_by: '', decided_at: null }],
+    flags: [{ id: 3, kind: 'inconsistent', target: 'field:tin', text: 'TIN differs between documents.', sources: [], status: 'open', resolution: '', resolved_by: '', resolved_at: null }],
+    drive: { url: 'https://drive.google.com/drive/folders/abc', folder_id: 'abc', synced_at: null } } }),
+  useDriveAccount: () => ({ data: { account_email: 'tasko@example.iam', configured: true } }),
+  useLinkDrive: idle, useSyncDrive: idle, useDecideSuggestion: idle, useResolveFlag: idle, usePrefill: () => ({ ...idle(), progress: null }),
   downloadLocalTax: vi.fn(),
 }))
 
 function at(path: string) {
   return render(
+    <QueryClientProvider client={new QueryClient()}>
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/card" element={<LocalTaxOverview taskKey="LOC-1" />} />
         <Route path="/local-tax/:issueKey" element={<LocalTaxPage />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
+    </QueryClientProvider>,
   )
 }
 
 describe('The Local Tax workflow (Team 3 > Local cards, AFIT 22 Nov 2026)', () => {
   it('shows the card overview: four stages with status and progress, the tax summary and the reverse analysis', () => {
     at('/card')
-    for (const t of ['1. Questionnaire', '2. Financial Statements', '3. Tax Computation', '4. Draft Tax Return']) {
+    for (const t of ['1. Client Info', '2. Financial Statements', '3. Tax Computation', '4. Draft Tax Return']) {
       expect(screen.getByRole('article', { name: t })).toBeInTheDocument()
     }
     expect(within(screen.getByRole('article', { name: '2. Financial Statements' })).getByText('40%')).toBeInTheDocument()
@@ -76,15 +87,40 @@ describe('The Local Tax workflow (Team 3 > Local cards, AFIT 22 Nov 2026)', () =
     expect(screen.getByText('ABC Trading (Pvt) Ltd')).toBeInTheDocument()
   })
 
-  it('opens a stage full screen from its card, and the stepper moves between all four stages', async () => {
+  it('opens a stage in a full-screen window from its card; Back to AI Workflow returns to the overview', async () => {
     at('/card')
     await userEvent.click(within(screen.getByRole('article', { name: '4. Draft Tax Return' })).getByRole('button', { name: /Start/ }))
-    expect(screen.getByRole('heading', { name: 'Draft Tax Return' })).toBeInTheDocument()
-    const steps = screen.getByRole('list', { name: 'Workflow stages' })
-    for (const [step, heading] of [['Questionnaire', /Questionnaire/], ['Financial Statements', /Financial Statements/], ['Tax Computation', /Tax Computation/]] as const) {
+    const win = screen.getByRole('dialog')
+    expect(within(win).getByRole('heading', { name: 'Draft Tax Return' })).toBeInTheDocument()
+    const steps = within(win).getByRole('list', { name: 'Workflow stages' })
+    for (const [step, heading] of [['Client Info', /Client Info/], ['Financial Statements', /Financial Statements/], ['Tax Computation', /Tax Computation/]] as const) {
       await userEvent.click(within(steps).getByRole('button', { name: new RegExp(step) }))
       expect(within(steps).getByRole('button', { name: new RegExp(step) })).toHaveAttribute('aria-current', 'step')
-      expect(screen.getAllByRole('heading', { name: heading }).length).toBeGreaterThan(0)
+      expect(within(win).getAllByRole('heading', { name: heading }).length).toBeGreaterThan(0)
     }
+    await userEvent.click(within(win).getByRole('button', { name: /Back: Financial Statements/ }))
+    expect(within(steps).getByRole('button', { name: /Financial Statements/ })).toHaveAttribute('aria-current', 'step')
+    await userEvent.click(within(win).getByRole('button', { name: /Back to AI Workflow/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: '1. Client Info' })).toBeInTheDocument()
+  })
+
+  it('Client Info: Back and Next keep what was typed; the documents show each value with its source and the flags', async () => {
+    at('/card')
+    await userEvent.click(within(screen.getByRole('article', { name: '1. Client Info' })).getByRole('button', { name: /Continue/ }))
+    const win = screen.getByRole('dialog')
+    expect(within(win).getByRole('button', { name: /Back to AI Workflow/ })).toBeInTheDocument()
+    expect(within(win).queryByRole('button', { name: /^← Back:|Back: / })).not.toBeInTheDocument() // step 1: no Back
+    const tin = within(win).getAllByRole('textbox')[1]
+    await userEvent.clear(tin)
+    await userEvent.type(tin, '999')
+    expect(within(win).getByRole('radio', { name: 'Full set of financial statements' })).toBeChecked()
+    await userEvent.click(within(win).getByRole('button', { name: /Next: Supporting Documents/ }))
+    const docs = within(win).getByRole('region', { name: 'Values to verify' })
+    expect(docs).toHaveTextContent('bank.pdf — p1')
+    expect(within(win).getByRole('region', { name: 'Issues to resolve' })).toHaveTextContent('TIN differs between documents.')
+    expect(within(win).getByRole('region', { name: "Client's Google Drive folder" })).toHaveTextContent('tasko@example.iam')
+    await userEvent.click(within(win).getByRole('button', { name: /Back: Client Details/ }))
+    expect(within(win).getAllByRole('textbox')[1]).toHaveValue('999')
   })
 })

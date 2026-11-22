@@ -118,3 +118,59 @@ class RuleCheck(BaseModel):
     quote: str = ""
     cite: str = ""
     note: str = ""
+
+
+# --- pre-filling the client info from one supporting document --------------------------------------------------------
+DOC_KINDS = ["trial_balance", "bank_statement", "bank_confirmation", "general_ledger", "financial_statements", "prior_return", "fixed_assets",
+             "salary_certificate", "wht_certificate", "tax_payment", "invoice_or_receipt", "registration", "loan_statement", "other"]
+FIELDS = ["legal_name", "tin", "nic_or_reg", "address", "activity", "fy_end", "entity_type"]
+LISTS = ["income", "payments", "assets", "liabilities", "trial_balance"]
+PREFILL = obj({
+    "kind": {"type": "string", "enum": DOC_KINDS}, "summary": _S, "period_end": _S,
+    "fields": arr(obj({"field": {"type": "string", "enum": FIELDS}, "value": _S, "cite": _S})),
+    "lines": arr(obj({"list": {"type": "string", "enum": LISTS}, "category": _S, "description": _S, "amount": _S, "comparative": _S, "code": _S,
+                      "date": _S, "cite": _S})),
+    "balances": arr(obj({"bank": _S, "account": _S, "date": _S, "balance": _S, "cite": _S})),
+    "flags": arr(obj({"kind": {"type": "string", "enum": ["missing", "unclear", "inconsistent"]}, "text": _S, "cite": _S})),
+})
+
+
+class PrefillField(BaseModel):
+    field: str
+    value: str = ""
+    cite: str = ""
+
+
+class PrefillLine(BaseModel):
+    list: str
+    category: str = ""
+    description: str = ""
+    amount: str = ""
+    comparative: str = ""
+    code: str = ""
+    date: str = ""
+    cite: str = ""
+
+
+class Balance(BaseModel):
+    bank: str = ""
+    account: str = ""
+    date: str = ""
+    balance: str = ""
+    cite: str = ""
+
+
+class DocFlag(BaseModel):
+    kind: str = "unclear"
+    text: str
+    cite: str = ""
+
+
+class Prefill(BaseModel):
+    kind: str = "other"
+    summary: str = ""
+    period_end: str = ""
+    fields: list[PrefillField] = Field(default_factory=list)
+    lines: list[PrefillLine] = Field(default_factory=list)
+    balances: list[Balance] = Field(default_factory=list)
+    flags: list[DocFlag] = Field(default_factory=list)

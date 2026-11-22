@@ -99,3 +99,29 @@ Task: a tax professional is validating one rule of TASKO's tax rules (REQUEST: i
 document (an Act, an amendment, a gazette or IRD guidance). Find the provision; say whether the document agrees with the value
 ("yes", "no" or "unclear"), the value the document gives (as printed), a short exact quote, and where it is ("cite": section, page).
 If the document does not cover the rule, "agrees": "unclear" and say so. You only assist: the professional decides."""
+
+
+PREFILL = COMMON + """
+
+Task: the accountant is completing a Local client's information (ENGAGEMENT) from the client's supporting documents. Read the
+attached document and give, each with "cite" (page, sheet and row, or the heading where it is):
+- "kind": what the document is (trial_balance, bank_statement, bank_confirmation, general_ledger, financial_statements,
+  prior_return, fixed_assets, salary_certificate, wht_certificate, tax_payment, invoice_or_receipt, registration,
+  loan_statement, other), a one-line "summary", and "period_end" (YYYY-MM-DD) if the document is as at / for a period ending.
+- "fields": client details the document states - legal_name, tin, nic_or_reg (company registration or NIC number), address,
+  activity (nature of business), fy_end (YYYY-MM-DD), entity_type ("company" or "individual"). Only what is printed.
+- "lines": figures for the client info, each with "list":
+  * trial_balance: one line per account - "code", "description" (the account name), "amount" (current year, debit positive,
+    credit negative) and "comparative" (prior year, same signs; "" if none). Financial statements with a prior year column may
+    be given as trial_balance lines too only if they list account balances.
+  * income (individuals' income: "category" employment, business, rent, interest, dividend, foreign_service, foreign_other,
+    investment_gain, other), payments (tax paid or withheld: "category" APIT, AIT, WHT, provisional, foreign_tax_credit,
+    final_wht, other; "date"), assets ("category" immovable, movable, investment, bank, vehicle, shares, other) and
+    liabilities ("category" loan, mortgage, other), with "description" and "amount".
+- "balances": for a bank statement or bank balance confirmation, each account's balance at its date ("bank", "account" (the
+  number as printed, may be masked), "date" YYYY-MM-DD, "balance": positive in credit, negative overdrawn).
+- "flags": anything the accountant must resolve - "missing" (a page, period, signature or figure the document should have),
+  "unclear" (illegible, ambiguous, handwritten amendments), "inconsistent" (figures in the document that disagree, or that
+  disagree with ENGAGEMENT, e.g. a different TIN or name).
+Copy numbers exactly as printed, as plain numbers ("(1,200)" is -1200); never total, adjust or guess them. Leave out anything
+not in the document."""

@@ -158,3 +158,20 @@ Every rate, band, threshold, relief, capital allowance rate and return field cod
 `"validated": false` and its legal reference. The UI shows "requires professional validation" next
 to anything computed from an unvalidated rule, until a Sri Lankan tax professional marks it
 validated.
+
+## 9. Client Info, supporting documents and the house-format statements (added)
+
+- **Client Info** (formerly the Questionnaire) has a **Supporting Documents** step: the trial balance upload (moved here),
+  other documents uploaded directly, or the client's **Google Drive folder** linked once shared (Viewer) with TASKO's
+  service account; *Sync now* copies new or changed files to the card (read-only).
+- **Local_Tax_AI pre-fills** the client info from the documents (bank statements, bank balance confirmations, TBs,
+  ledgers, prior returns, certificates): each value is a suggestion with its source (document and place); nothing is
+  used until the accountant confirms it, as it is or edited, and it then flows to the statements and computation.
+- **Flags** for what is missing, unclear or inconsistent - across documents (two TINs; two balances for one account on
+  one date; several TBs), with the client info, with the year end, or bank balances against the TB's bank accounts.
+- **Financial statements required**: income statement only, or the full set (the statements, checks and PDF follow).
+- **PDF in AFIT's house format** (`fs_report.py`): cover, contents, auditor's report (a labelled template, never an
+  opinion), comprehensive income statement, financial position with the certificate and directors' approval, changes
+  in equity, cash flows, accounting policies and numbered notes (PPE movement by class).
+- The workflow opens in a **full-screen window** from the card; *Back to AI Workflow* returns to the four boxes; every
+  step has *Back* beside *Next*.

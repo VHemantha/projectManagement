@@ -132,15 +132,16 @@ def update(payload: dict) -> tuple[dict, dict]:
         data["assets"] = _items(raw["assets"], "assets", errors, lambda i, k: {
             "id": _id(i.get("id")), "kind": _choice(i.get("kind"), ASSET_KINDS, "other"), "description": _text(i.get("description"), 300),
             "value": _money(i.get("value"), "Value", errors, f"{k}.value"), "ownership": _text(i.get("ownership"), 120),
-            "acquired": _date(i.get("acquired"), errors, f"{k}.acquired"), "notes": _text(i.get("notes"), 500)})
+            "acquired": _date(i.get("acquired"), errors, f"{k}.acquired"), "notes": _text(i.get("notes"), 500), "source": _text(i.get("source"), 300)})
     if "liabilities" in raw:
         data["liabilities"] = _items(raw["liabilities"], "liabilities", errors, lambda i, k: {
             "id": _id(i.get("id")), "kind": _choice(i.get("kind"), LIABILITY_KINDS, "other"), "description": _text(i.get("description"), 300),
-            "value": _money(i.get("value"), "Value", errors, f"{k}.value"), "lender": _text(i.get("lender"), 120), "notes": _text(i.get("notes"), 500)})
+            "value": _money(i.get("value"), "Value", errors, f"{k}.value"), "lender": _text(i.get("lender"), 120), "notes": _text(i.get("notes"), 500),
+            "source": _text(i.get("source"), 300)})
     if "payments" in raw:
         data["payments"] = _items(raw["payments"], "payments", errors, lambda i, k: {
             "id": _id(i.get("id")), "type": _choice(i.get("type"), PAYMENT_TYPES, "other"), "amount": _money(i.get("amount"), "Amount", errors, f"{k}.amount"),
-            "date": _date(i.get("date"), errors, f"{k}.date"), "reference": _text(i.get("reference"), 80),
+            "date": _date(i.get("date"), errors, f"{k}.date"), "reference": _text(i.get("reference"), 80), "source": _text(i.get("source"), 300),
             # Final withholding is never a credit; the others may be marked not creditable.
             "creditable": False if i.get("type") == "final_wht" else (None if i.get("creditable") is None else bool(i.get("creditable")))})
     if "fixed_assets" in raw:
@@ -152,6 +153,19 @@ def update(payload: dict) -> tuple[dict, dict]:
             "allowance": _money(i.get("allowance"), "Allowance", errors, f"{k}.allowance"),
             "disposed": _date(i.get("disposed"), errors, f"{k}.disposed"), "proceeds": _money(i.get("proceeds"), "Proceeds", errors, f"{k}.proceeds"),
             "source": _text(i.get("source"), 200)})
+    if "bank_balances" in raw:
+        # Bank balances confirmed from statements / confirmations (companies): reconciled to the trial balance's bank accounts.
+        data["bank_balances"] = _items(raw["bank_balances"], "bank_balances", errors, lambda i, k: {
+            "id": _id(i.get("id")), "bank": _text(i.get("bank"), 120), "account": _text(i.get("account"), 60), "date": _date(i.get("date"), errors, f"{k}.date"),
+            "balance": _money(i.get("balance"), "Balance", errors, f"{k}.balance"), "source": _text(i.get("source"), 300)})
+    if "directors" in raw:
+        data["directors"] = _text(raw["directors"], 500)
+    if "fs_scope" in raw:
+        # What the client needs: an income statement only, or the full set of financial statements.
+        if raw["fs_scope"] not in ("income_statement", "full"):
+            errors["fs_scope"] = "Choose the income statement only or the full set of financial statements."
+        else:
+            data["fs_scope"] = raw["fs_scope"]
     if "loss_history" in raw:
         data["loss_history"] = _items(raw["loss_history"], "loss_history", errors, lambda i, k: {
             "id": _id(i.get("id")), "ya": _text(i.get("ya"), 9), "amount": _money(i.get("amount"), "Loss", errors, f"{k}.amount"),

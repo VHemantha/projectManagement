@@ -1,9 +1,10 @@
 import {
+  ArrowLeft,
   ArrowRight,
   BookOpen,
-  Building2,
   ClipboardList,
   Coins,
+  FileText,
   FileUp,
   Home,
   Layers,
@@ -19,9 +20,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
-import { TbUpload } from './TbUpload'
+import { SupportingDocuments } from './SupportingDocuments'
 import { extractErrorMessage } from '@/api/errors'
-import { useAttachments, useUploadAttachment } from '@/api/issues'
 import {
   type AssetLine,
   type Engagement,
@@ -30,23 +30,20 @@ import {
   type LiabilityLine,
   type LocalTaxState,
   type PaymentLine,
-  EXTRACTION_USES,
   money,
-  useDecideExtraction,
-  useExtract,
-  useMessages,
   useSaveLocalTax,
 } from '@/api/localTax'
 import { Button } from '@/design-system'
 
-type Section = 'client' | 'income' | 'expenses' | 'assets' | 'payments' | 'uploads' | 'expected'
+export type ClientInfoSection = 'client' | 'documents' | 'income' | 'expenses' | 'assets' | 'payments' | 'expected'
+type Section = ClientInfoSection
 const SECTIONS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'client', label: 'A. Client Details', icon: <User size={16} /> },
-  { key: 'income', label: 'B. Income Sources', icon: <Coins size={16} /> },
-  { key: 'expenses', label: 'C. Expenses', icon: <Layers size={16} /> },
-  { key: 'assets', label: 'D. Assets & Liabilities', icon: <Home size={16} /> },
-  { key: 'payments', label: 'E. Tax Credits & Payments', icon: <Receipt size={16} /> },
-  { key: 'uploads', label: 'F. Upload Documents', icon: <FileUp size={16} /> },
+  { key: 'documents', label: 'B. Supporting Documents', icon: <FileUp size={16} /> },
+  { key: 'income', label: 'C. Income Sources', icon: <Coins size={16} /> },
+  { key: 'expenses', label: 'D. Expenses', icon: <Layers size={16} /> },
+  { key: 'assets', label: 'E. Assets & Liabilities', icon: <Home size={16} /> },
+  { key: 'payments', label: 'F. Tax Credits & Payments', icon: <Receipt size={16} /> },
   { key: 'expected', label: 'G. Expected Tax Payment', icon: <Target size={16} /> },
 ]
 const CATEGORIES: [string, string][] = [
@@ -74,21 +71,40 @@ function basicsOf(e: Engagement): Basics {
 
 const emptyIncome = (): IncomeLine => ({ category: 'business', description: '', amount: '', treatment: 'auto', expenses: [] })
 
-/** Stage 1 (AFIT screens, 22 Nov 2026): client details, income (with foreign income), expenses by income source,
- * assets and liabilities, tax payments and credits, documents (read by AI, confirmed by the accountant) and the
- * expected tax payment. Saved as it is typed. */
-export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string; state: LocalTaxState; onNext: () => void }) {
+/** Stage 1, Client Info (AFIT screens): client details and the financial statements required, the supporting
+ * documents (uploaded or from the client's Google Drive folder, read by Local_Tax_AI to pre-fill the rest, each value
+ * verified by the accountant), income (with foreign income), expenses by income source, assets and liabilities, tax
+ * payments and credits, and the expected tax payment. Saved as it is typed; Back and Next keep everything entered. */
+export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 'client' }: {
+  taskKey: string; state: LocalTaxState; onNext: () => void; section?: Section
+}) {
   const e = state.engagement
   const save = useSaveLocalTax(taskKey)
-  const [section, setSection] = useState<Section>('client')
+  const [section, setSection] = useState<Section>(initial)
   const [basics, setBasics] = useState<Basics>(() => basicsOf(e))
   const [data, setData] = useState<EngagementData>(() => e.data ?? {})
   const [dirty, setDirty] = useState(false)
   const timer = useRef<number | null>(null)
+  // A value confirmed from the documents changes the client info on the server: take it in (nothing typed is lost -
+  // the screen only refreshes while there are no unsaved changes).
+  const seen = useRef(e.version)
+  useEffect(() => {
+    if (e.version !== seen.current && !dirty && !save.isPending) {
+      seen.current = e.version
+      setBasics(basicsOf(e))
+      setData(e.data ?? {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [e.version, dirty, save.isPending])
+  const go = (s: Section) => {
+    setSection(s)
+    document.querySelector('[data-localtax-top]')?.scrollIntoView?.({ block: 'start' })
+  }
+  const from = (field: string) => e.data.field_sources?.[field]
 
   const payload = () => ({ ...basics, data: { income: data.income ?? [], assets: data.assets ?? [], liabilities: data.liabilities ?? [],
     payments: data.payments ?? [], qualifying_payments: data.qualifying_payments ?? '', losses_bf: data.losses_bf ?? '',
-    expected_skipped: !!data.expected_skipped }, stage: 'questionnaire' as const })
+    expected_skipped: !!data.expected_skipped, fs_scope: data.fs_scope ?? 'full', directors: data.directors ?? '' }, stage: 'questionnaire' as const })
   const flush = (then?: () => void) => {
     if (timer.current) window.clearTimeout(timer.current)
     save.mutate(payload(), { onSuccess: () => (setDirty(false), then?.()) })
@@ -113,10 +129,10 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
   return (
     <>
       <div className={styles.stageHead}>
-        <ClipboardList size={44} className={styles.stageIcon} aria-hidden="true" />
+        <ClipboardList size={22} className={styles.stageIcon} aria-hidden="true" />
         <div>
-          <h2 className={styles.stageTitle}>Questionnaire</h2>
-          <p className={styles.stageLead}>Collect client details, income, expenses, assets, liabilities and tax payments.</p>
+          <h2 className={styles.stageTitle}>Client Info</h2>
+          <p className={styles.stageLead}>Client details, supporting documents (pre-filled by AI, verified by you), income, expenses, assets, liabilities and tax payments.</p>
         </div>
         <span className={styles.spacer} />
         <div className={styles.actions}>
@@ -134,7 +150,7 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
 
       <div className={styles.columns}>
         <div className={styles.card}>
-          <SectionNav items={SECTIONS} value={section} onChange={setSection} label="Questionnaire sections" />
+          <SectionNav items={SECTIONS} value={section} onChange={go} label="Client info sections" />
           <Completion pct={state.progress?.questionnaire ?? 0} />
         </div>
 
@@ -145,10 +161,12 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
               <label className={styles.field}>
                 <span>Legal Name <span className={styles.req}>*</span></span>
                 <input value={basics.legal_name} onChange={(ev) => setB('legal_name', ev.target.value)} />
+                <FieldSource text={from('legal_name')} />
               </label>
               <label className={styles.field}>
                 <span>TIN <span className={styles.req}>*</span></span>
                 <input value={basics.tin} onChange={(ev) => setB('tin', ev.target.value)} />
+                <FieldSource text={from('tin')} />
               </label>
               <label className={styles.field}>
                 <span>Entity Type <span className={styles.req}>*</span></span>
@@ -161,6 +179,7 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
               <label className={styles.field}>
                 <span>{basics.entity_type === 'company' ? 'Registration No.' : 'NIC No.'}</span>
                 <input value={basics.nic_or_reg} onChange={(ev) => setB('nic_or_reg', ev.target.value)} />
+                <FieldSource text={from('nic_or_reg')} />
               </label>
               <label className={styles.field}>
                 <span>Tax Residency <span className={styles.req}>*</span></span>
@@ -180,6 +199,7 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
               <label className={styles.field}>
                 <span>Financial Year End <span className={styles.req}>*</span></span>
                 <input type="date" value={basics.fy_end ?? ''} onChange={(ev) => setB('fy_end', ev.target.value || null)} />
+                <FieldSource text={from('fy_end')} />
               </label>
               <label className={styles.field}>
                 <span>Tax Type <span className={styles.req}>*</span></span>
@@ -191,11 +211,39 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
               <label className={`${styles.field} ${styles.wide}`}>
                 <span>Nature of Business / Main Activity <span className={styles.req}>*</span></span>
                 <textarea rows={2} value={basics.activity} onChange={(ev) => setB('activity', ev.target.value)} maxLength={1000} />
+                <FieldSource text={from('activity')} />
               </label>
               <label className={`${styles.field} ${styles.wide}`}>
                 <span>Address (optional)</span>
                 <input value={basics.address} onChange={(ev) => setB('address', ev.target.value)} maxLength={500} />
+                <FieldSource text={from('address')} />
               </label>
+              {basics.entity_type === 'company' && (
+                <>
+                  <fieldset className={`${styles.field} ${styles.wide}`} style={{ border: 0, padding: 0, margin: 0 }}>
+                    <legend><span>Financial statements required <span className={styles.req}>*</span></span></legend>
+                    <div className={styles.actions}>
+                      <label className={styles.check}>
+                        <input type="radio" name="fs_scope" checked={(data.fs_scope ?? 'full') === 'income_statement'} onChange={() => setD({ fs_scope: 'income_statement' })} />
+                        Income statement only
+                      </label>
+                      <label className={styles.check}>
+                        <input type="radio" name="fs_scope" checked={(data.fs_scope ?? 'full') === 'full'} onChange={() => setD({ fs_scope: 'full' })} />
+                        Full set of financial statements
+                      </label>
+                    </div>
+                    <span className={styles.hint}>
+                      {(data.fs_scope ?? 'full') === 'full'
+                        ? 'Income statement, financial position, changes in equity, cash flows, accounting policies and notes.'
+                        : 'The income statement with its accounting policies and notes; the trial balance may hold just the income and expense accounts.'}
+                    </span>
+                  </fieldset>
+                  <label className={`${styles.field} ${styles.wide}`}>
+                    <span>Directors (for the financial statements)</span>
+                    <input value={data.directors ?? ''} placeholder="e.g. Mr. A. Perera, Ms. B. Silva" onChange={(ev) => setD({ directors: ev.target.value })} maxLength={500} />
+                  </label>
+                </>
+              )}
             </div>
           )}
 
@@ -317,7 +365,7 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
             </>
           )}
 
-          {section === 'uploads' && <Uploads taskKey={taskKey} isCompany={basics.entity_type === 'company'} tbCount={state.financials?.tb?.length ?? 0} />}
+          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type === 'company'} tbCount={state.financials?.tb?.length ?? 0} />}
 
           {section === 'expected' && (
             <div className={styles.formGrid}>
@@ -343,8 +391,13 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
           )}
 
           <div className={styles.actions} style={{ justifyContent: 'flex-end' }}>
+            {idx > 0 && (
+              <Button variant="secondary" onClick={() => go(SECTIONS[idx - 1].key)}>
+                <ArrowLeft size={14} /> Back: {SECTIONS[idx - 1].label.slice(3)}
+              </Button>
+            )}
             {idx < SECTIONS.length - 1 ? (
-              <Button variant="primary" onClick={() => setSection(SECTIONS[idx + 1].key)}>
+              <Button variant="primary" onClick={() => go(SECTIONS[idx + 1].key)}>
                 Next: {SECTIONS[idx + 1].label.slice(3)} <ArrowRight size={14} />
               </Button>
             ) : (
@@ -356,13 +409,13 @@ export function QuestionnaireStage({ taskKey, state, onNext }: { taskKey: string
         </section>
 
         <div className={styles.side}>
-          <AiAssistant taskKey={taskKey} lead="I can help you complete this questionnaire, classify income and explain tax treatments."
+          <AiAssistant taskKey={taskKey} lead="I can help you complete the client info, classify income and explain tax treatments."
             suggestions={['Which of these income sources are taxable, exempt or final withholding?', 'What documents are still missing?']} />
           <section className={styles.card} aria-label="Quick Guide">
             <h3 className={styles.cardTitle}><BookOpen size={18} aria-hidden="true" /> Quick Guide</h3>
             <ul className={styles.ticks}>
               {['Enter basic client and tax details.', 'Add all income sources (local and foreign).', 'Include related expenses.',
-                'Provide assets and liabilities (for individuals).', 'Add tax credits and payments.', 'Upload relevant documents (e.g. TB, GL, previous returns).'].map((t) => (
+                'Provide assets and liabilities (for individuals).', 'Add tax credits and payments.', 'Upload the TB and supporting documents, or link the client’s Drive folder; verify what the AI pre-fills.'].map((t) => (
                 <li key={t}><Sparkles size={14} aria-hidden="true" /> {t}</li>
               ))}
             </ul>
@@ -467,98 +520,7 @@ function LinesTable<T extends { kind: string; description: string; value: string
   )
 }
 
-/** The card's documents: upload, read with AI (Local_Tax_AI cites the document), confirm before use; a trial
- * balance file is read by code straight into the financial statements. */
-function Uploads({ taskKey, isCompany, tbCount }: { taskKey: string; isCompany: boolean; tbCount: number }) {
-  const { data: files } = useAttachments(taskKey)
-  const upload = useUploadAttachment(taskKey)
-  const extract = useExtract(taskKey)
-  const decide = useDecideExtraction(taskKey)
-  const { data: msgs } = useMessages(taskKey)
-  const pending = (msgs?.extractions ?? []).filter((x) => x.status === 'pending')
-  const [useAs, setUseAs] = useState<Record<number, string>>({})
-  const kinds: [string, string][] = isCompany
-    ? [['trial_balance', 'Trial balance'], ['general_ledger', 'General ledger'], ['fixed_assets', 'Fixed asset register'], ['prior_return', 'Prior return'], ['payments', 'Tax payments']]
-    : [['income', 'Income'], ['payments', 'Tax payments'], ['prior_return', 'Prior return']]
-
-  return (
-    <>
-      <p className={styles.hint}>
-        {isCompany
-          ? 'Upload the current-year trial balance, previous financial statements, general ledger, fixed asset register, capital allowance schedule, previous tax computation and loss schedules.'
-          : 'Upload salary certificates, bank and interest statements, rent agreements, previous returns and tax payment evidence.'}{' '}
-        Local_Tax_AI reads a document and cites where each line came from; nothing is used until you confirm it.
-      </p>
-      <div className={styles.actions}>
-        <label className={styles.field}>
-          <span>Add a document to the task</span>
-          <input type="file" onChange={(ev) => ev.target.files?.[0] && upload.mutate(ev.target.files[0])} />
-        </label>
-      </div>
-      {isCompany && <TbUpload taskKey={taskKey} accounts={tbCount} />}
-
-      <table className={styles.table} aria-label="Documents">
-        <thead>
-          <tr><th>Document</th><th>Read with AI as</th></tr>
-        </thead>
-        <tbody>
-          {(files ?? []).map((f) => (
-            <tr key={f.id}>
-              <td><a href={f.file} target="_blank" rel="noreferrer">{f.filename}</a></td>
-              <td>
-                <div className={styles.rowActions} style={{ justifyContent: 'flex-start' }}>
-                  {kinds.map(([kind, label]) => (
-                    <Button key={kind} size="sm" variant="subtle" disabled={extract.isPending} onClick={() => extract.mutate({ attachmentId: f.id, kind })}>
-                      <Building2 size={12} /> {label}
-                    </Button>
-                  ))}
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {extract.isPending && <p className={styles.muted}>Local_Tax_AI is reading the document…</p>}
-      {extract.isError && <p className={styles.error}>{extractErrorMessage(extract.error)}</p>}
-      {pending.map((x) => (
-        <div key={x.id} className={styles.card} aria-label={`Read from ${x.document}`}>
-          <strong>Read from {x.document} ({x.kind.replace('_', ' ')}{x.data.year_of_assessment ? `, YA ${x.data.year_of_assessment}` : ''}) — confirm before use</strong>
-          {x.data.summary && <p className={styles.muted}>{x.data.summary}</p>}
-          <label className={styles.field} style={{ maxWidth: 320 }}>
-            <span>Use as</span>
-            <select value={useAs[x.id] ?? x.kind} onChange={(ev) => setUseAs({ ...useAs, [x.id]: ev.target.value })}>
-              {EXTRACTION_USES.map((u) => <option key={u.key} value={u.key}>{u.label}</option>)}
-            </select>
-          </label>
-          <div className={styles.tableWrap}>
-            <table className={styles.table}>
-              <thead>
-                <tr><th>Line</th><th>Category</th><th className={styles.num}>Amount</th><th className={styles.num}>Comparative / claimed</th><th>Date</th><th>Where</th></tr>
-              </thead>
-              <tbody>
-                {x.data.lines.map((ln, n) => (
-                  <tr key={n}>
-                    <td>{ln.code ? `${ln.code} ` : ''}{ln.description}</td><td>{ln.category?.replace(/_/g, ' ')}</td>
-                    <td className={styles.num}>{money(ln.amount)}</td><td className={styles.num}>{ln.comparative ? money(ln.comparative) : ''}</td>
-                    <td>{ln.date}</td><td>{ln.cite}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {x.data.gaps.length > 0 && <p className={styles.muted}>Gaps: {x.data.gaps.join('; ')}</p>}
-          <div className={styles.actions}>
-            <Button size="sm" variant="primary" disabled={decide.isPending || !x.data.lines.length}
-              onClick={() => decide.mutate({ id: x.id, decision: 'confirm', use_as: useAs[x.id] ?? x.kind })}>
-              Confirm and use
-            </Button>
-            <Button size="sm" variant="subtle" disabled={decide.isPending} onClick={() => decide.mutate({ id: x.id, decision: 'reject' })}>
-              Reject
-            </Button>
-          </div>
-        </div>
-      ))}
-      {decide.isError && <p className={styles.error}>{extractErrorMessage(decide.error)}</p>}
-    </>
-  )
+/** Where a value pre-filled from the documents came from (and whether it was changed by hand since). */
+function FieldSource({ text }: { text?: string }) {
+  return text ? <span className={styles.hint}><FileText size={11} aria-hidden="true" /> From: {text}</span> : null
 }

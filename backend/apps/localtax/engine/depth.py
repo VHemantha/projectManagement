@@ -89,11 +89,13 @@ def cash_flows(fin: dict) -> dict:
                 ("Income tax paid", -tax_paid, "Opening tax payable + tax expense - closing tax payable - deferred tax movement")]
     operating = generated + sum((a for _, a, _ in op_after), ZERO)
     inv = [("Purchase of property, plant and equipment (net of disposals)", -(mv("ppe") + dep), "Movement in PPE + depreciation"),
+           ("Deposits paid", -mv("other_non_current_assets"), ""),
            ("Purchase of intangible assets (net)", -(mv("intangibles") + amort), "Movement in intangibles + amortisation"),
            ("(Increase) / decrease in investments", -mv("investments"), "")]
     investing = sum((a for _, a, _ in inv), ZERO)
     fin_rows = [("Proceeds from the issue of shares", mv("share_capital"), ""),
                 ("Net movement in borrowings", mv("borrowings_non_current") + mv("borrowings_current"), "Including any overdraft in current borrowings"),
+                ("Net movement in shareholder's current account", mv("shareholder_current_account"), ""),
                 ("Dividends paid", _bs(fin, "dividends"), "")]
     financing = sum((a for _, a, _ in fin_rows), ZERO)
     net = operating + investing + financing
@@ -167,7 +169,8 @@ def notes(fin: dict, engagement: dict, comp: dict | None = None) -> list[dict]:
             f"{engagement.get('activity') or '[activity]'}."},
            {"no": 2, "key": "policies", "title": "Basis of preparation and significant accounting policies", "policies": policies(fin, engagement)}]
     n = 3
-    order = [h for h in PL_ORDER] + [h for h, v in HEADINGS.items() if v[0] == "bs"]
+    income_only = fin.get("scope") == "income_statement"
+    order = [h for h in PL_ORDER] + ([] if income_only else [h for h, v in HEADINGS.items() if v[0] == "bs"])
     rows_by_heading = {r["heading"]: r for r in (fin.get("pl") or {}).get("rows") or []}
     for h in order:
         if h in rows_by_heading:

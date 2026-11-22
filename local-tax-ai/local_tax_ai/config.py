@@ -17,6 +17,14 @@ class Settings(BaseSettings):
     max_tokens: int = 4000
     reader_max_tokens: int = 12000
     timeout_s: int = 180
+    # Google Drive (read-only), for a Local client's supporting documents folder
+    drive_mode: str = "google"  # "google" | "local" (tests, demo: a directory stands in for a folder)
+    local_drive_root: str = "demo_drive"
+    google_service_account_json: str = ""
+    google_service_account_file: str = ""
+    drive_timeout_s: int = 60
+    max_files_per_folder: int = 200
+    max_file_bytes: int = 25 * 1024 * 1024
 
     @property
     def api_key(self) -> str:

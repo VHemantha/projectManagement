@@ -102,3 +102,35 @@ def test_extracted_fixed_assets_keep_only_known_classes_and_real_dates():
     assert [ln["date"] for ln in out["lines"]] == ["2023-05-01", ""]
     assert out["lines"][0]["amount"] == "1200000" and out["lines"][1]["amount"] == "-5"
     assert out["year_of_assessment"] == ""
+
+
+def test_a_shared_drive_folder_is_listed_and_its_files_downloaded(tmp_path, monkeypatch):
+    folder = tmp_path / "client-folder"
+    (folder / "bank").mkdir(parents=True)
+    (folder / "bank" / "statement.csv").write_text("Date,Balance\n2025-03-31,554300\n")
+    monkeypatch.setenv("LOCAL_TAX_AI_DRIVE_MODE", "local")
+    monkeypatch.setenv("LOCAL_TAX_AI_LOCAL_DRIVE_ROOT", str(tmp_path))
+    config.get_settings.cache_clear()
+    c, h = client(), {"X-Local-Tax-Token": "t"}
+    listed = c.post("/v1/drive/list", json={"folder_id": "client-folder"}, headers=h).json()
+    assert [f["name"] for f in listed["files"]] == ["statement.csv"] and listed["files"][0]["path"] == "bank/"
+    got = c.post("/v1/drive/download", json={"file_id": listed["files"][0]["id"]}, headers=h).json()
+    assert base64.b64decode(got["content_b64"]).startswith(b"Date,Balance")
+    assert c.post("/v1/drive/list", json={"folder_id": "not-shared"}, headers=h).status_code == 400
+    assert c.post("/v1/drive/download", json={"file_id": "client-folder:../../etc/passwd"}, headers=h).status_code == 400
+
+
+def test_prefill_keeps_only_known_fields_and_plain_numbers():
+    raw = {"kind": "bank_confirmation", "summary": "", "period_end": "31/03/2025",
+           "fields": [{"field": "tin", "value": " 114 567 890 ", "cite": "p1"}, {"field": "favourite_colour", "value": "red", "cite": ""},
+                      {"field": "fy_end", "value": "March 2025", "cite": ""}],
+           "lines": [{"list": "payments", "category": "WHT", "description": "WHT on interest", "amount": "(1,200.50)", "comparative": "", "code": "",
+                      "date": "2025-03-31", "cite": "p2"}, {"list": "income", "category": "", "description": "x", "amount": "n/a", "comparative": "",
+                                                            "code": "", "date": "", "cite": ""}],
+           "balances": [{"bank": "BOC", "account": "****123", "date": "2025-03-31", "balance": "554,300.00", "cite": "p1"}],
+           "flags": [{"kind": "inconsistent", "text": "Name differs from the client info.", "cite": "p1"}]}
+    out = graphs.check({"agent": "prefill", "raw": raw, "request": {"context": {}}})["result"]
+    assert out["fields"] == [{"field": "tin", "value": "114 567 890", "cite": "p1"}]
+    assert [ln["amount"] for ln in out["lines"]] == ["-1200.50"]
+    assert out["balances"][0]["balance"] == "554300.00" and out["period_end"] == ""
+    assert out["flags"][0]["kind"] == "inconsistent"
