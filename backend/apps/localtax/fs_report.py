@@ -1,32 +1,58 @@
 """The financial statements as a document, in AFIT's house format (Team 3 > Local cards).
 
-Laid out as AFIT's signed statements are: a cover page; contents; the independent auditor's report (audited
-engagements - a labelled template, never an opinion); the comprehensive income statement; the statement of financial
-position with the accountant's certificate and the directors' approval; the statement of changes in equity; the cash
-flow statement; the accounting policies; and the numbered notes, each statement line pointing to its note. Every page
-carries the company's name and its page number; amounts are whole rupees, negatives in brackets, the current year
-shaded. An income-statement-only engagement has the income statement, the policies and its notes.
+A full set is laid out as AFIT's sample statements are:
+- a cover page and a contents page, neither of them numbered;
+- the independent auditor's report on the firm's letterhead (audited engagements only). Page numbering starts here.
+  The report is a labelled template, never an opinion;
+- the comprehensive income statement;
+- the statement of financial position, with the accountant's certificate and the directors' approval;
+- the statement of changes in equity (both years);
+- the cash flow statement;
+- the numbered accounting policies;
+- the numbered notes, each statement line pointing to its note.
 
-All figures come from the engine's statements (services.state); nothing is computed here but presentation totals.
-The statements say DRAFT until the Financial Statements stage is approved.
+Every page has the company's name, the statement's title and its page number. Amounts are whole rupees, negatives in
+brackets, nothing is "Nil", and the current year is shaded.
+
+An income-statement-only engagement is one page, as AFIT's sole proprietor income statement: the revenue, direct
+expense and operating expense accounts line by line, the gross and net profit.
+
+All figures come from the engine's statements (services.state). Nothing is computed here but presentation totals and
+the cash flow's interest received, which is moved out of the operating activities. The statements say DRAFT until the
+Financial Statements stage is approved.
 """
 import io
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from pathlib import Path
 from xml.sax.saxutils import escape
 
 ZERO = Decimal("0")
 GREY = "#e8e8e8"
+OFFSET = 2  # the cover and the contents are not numbered
+LOGO = Path(__file__).resolve().parent / "assets" / "afit_logo.png"  # optional: drawn on the auditor's report when present
+FIRM = {
+    "name": "AFIT Connect (Chartered Accountants)",
+    "lines": ["P.O. Box – 58/8/H, Ihala Karagahamuna, Kadawatha, Gampaha, Sri Lanka",
+              "Tel - +94 11 292 99 49 | +94 11 365 27 91 | +94 77 125 30 35",
+              "Email – info@afitconnect.com     Web - www.afitconnect.com",
+              "Practitioner - Dushan Thumbovila (FCA, ACCA, BSc)     Director – Nuwan Srimal (ACA, ACCA, BSc)"],
+    "auditor": "AFIT Connect, Chartered Accountants, Kadawatha, Gampaha.",
+}
+TITLES = {"is": "Comprehensive income statement", "sofp": "Statement of financial position", "soce": "Statement of changes in equity",
+          "cf": "Cash flow statement", "policies": "Accounting policies", "notes": "Notes to the financial statements"}
+STATEMENTS = ("is", "sofp", "soce", "cf")
+DIRECTOR = re.compile(r"director", re.I)
 
 
 def r(v) -> str:
-    """Whole rupees: 1234567.5 -> "1,234,568"; negatives in brackets; nothing -> "-"."""
+    """Whole rupees: 1234567.5 -> "1,234,568"; negatives in brackets; zero -> "Nil"; nothing -> ""."""
     if v in (None, ""):
         return ""
     n = Decimal(str(v)).quantize(Decimal("1"))
     if n == 0:
-        return "-"
+        return "Nil"
     return f"({abs(n):,})" if n < 0 else f"{n:,}"
 
 
@@ -34,45 +60,94 @@ def _d(v) -> Decimal:
     return Decimal(str(v)) if v not in (None, "") else ZERO
 
 
+def _long(d: date) -> str:
+    return f"{d.day} {d:%B %Y}"
+
+
+def _flowable_mark(**attrs):
+    """A zero-size flowable that records where a part of the document starts or ends."""
+    from reportlab.platypus import Flowable
+
+    class Mark(Flowable):
+        def wrap(self, *_):
+            return 0, 0
+
+        def draw(self):
+            pass
+
+    m = Mark()
+    for k, v in attrs.items():
+        setattr(m, k, v)
+    return m
+
+
 class _Report:
     def __init__(self, st: dict):
         from reportlab.lib import colors
         from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+        from reportlab.lib.units import mm
 
-        self.st, self.colors = st, colors
+        self.st, self.colors, self.mm = st, colors, mm
         e = st["engagement"]
         self.e = e
+        self.data = e.get("data") or {}
         self.fin = st.get("financials") or {}
         self.dp = st.get("statements") or {}
-        self.full = (self.dp.get("scope") or "full") == "full"
-        self.name = (e.get("legal_name") or e.get("task") or "").upper()
+        self.full = (self.dp.get("scope") or self.fin.get("scope") or "full") == "full"
+        self.audited = bool(e.get("audited")) and self.full
+        self.legal = e.get("legal_name") or e.get("task") or ""
+        self.name = self.legal.upper()
         ye = date.fromisoformat(e["fy_end"]) if e.get("fy_end") else None
         self.ye = ye
         self.cy = str(ye.year) if ye else "Current"
         self.py = str(ye.year - 1) if ye else "Prior"
-        self.ye_text = f"{ye.day} {ye:%B %Y}" if ye else "[year end]"
-        start = (ye.replace(year=ye.year - 1) + timedelta(days=1)) if ye else None
-        self.start_text = f"{start.day} {start:%B %Y}" if start else "[start of year]"
+        self.ye_text = _long(ye) if ye else "[year end]"
+        self.start = (ye.replace(year=ye.year - 1) + timedelta(days=1)) if ye else None
         self.has_comp = bool(self.fin.get("has_comparative"))
-        self.draft = (e.get("stages") or {}).get("fs", {}).get("status") != "approved"
-        base = getSampleStyleSheet()
+        fs_stage = (e.get("stages") or {}).get("fs", {})
+        self.draft = fs_stage.get("status") != "approved"
+        self.approved_on = None
+        if not self.draft and fs_stage.get("at"):
+            try:
+                self.approved_on = _long(datetime.fromisoformat(str(fs_stage["at"]).replace("Z", "+00:00")).date())
+            except ValueError:
+                pass
+        base = getSampleStyleSheet()["Normal"]
+
+        def S(name, **kw):
+            return ParagraphStyle(name, parent=base, **kw)
+
         self.s = {
-            "cover": ParagraphStyle("cover", parent=base["Normal"], fontName="Times-Bold", fontSize=13, alignment=1, leading=18),
-            "co": ParagraphStyle("co", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=11, leading=14),
-            "title": ParagraphStyle("title", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=11, leading=15, spaceBefore=2),
-            "small": ParagraphStyle("small", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=7.5, leading=10),
-            "body": ParagraphStyle("body", parent=base["Normal"], fontName="Helvetica", fontSize=8.5, leading=11.5, alignment=4),
-            "h": ParagraphStyle("h", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=9, leading=12, spaceBefore=8, spaceAfter=3),
-            "sub": ParagraphStyle("sub", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=8.5, leading=11, spaceBefore=4),
-            "cell": ParagraphStyle("cell", parent=base["Normal"], fontName="Helvetica", fontSize=8.5, leading=10.5),
-            "foot": ParagraphStyle("foot", parent=base["Normal"], fontName="Helvetica", fontSize=7.5, leading=10),
-            "draft": ParagraphStyle("draft", parent=base["Normal"], fontName="Helvetica-Bold", fontSize=8, textColor=colors.HexColor("#b42318")),
+            "cover": S("cover", fontName="Times-Bold", fontSize=12, alignment=1, leading=16),
+            "co_t": S("co_t", fontName="Times-Bold", fontSize=11.5, leading=16, spaceAfter=10),
+            "body": S("body", fontName="Helvetica", fontSize=8.5, leading=11, alignment=4),
+            "ind": S("ind", fontName="Helvetica", fontSize=8.5, leading=11, alignment=4, leftIndent=10 * mm, spaceAfter=4),
+            "nt": S("nt", fontName="Helvetica", fontSize=8.5, leading=11, alignment=4, leftIndent=10 * mm, spaceBefore=4, spaceAfter=4),
+            "sub": S("sub", fontName="Helvetica-Bold", fontSize=8.5, leading=11, leftIndent=10 * mm),
+            "cell": S("cell", fontName="Helvetica", fontSize=8.5, leading=10),
+            "cellb": S("cellb", fontName="Helvetica-Bold", fontSize=8.5, leading=10),
+            "cellh": S("cellh", fontName="Helvetica-Bold", fontSize=8.5, leading=10, alignment=2),
+            "nh": S("nh", fontName="Helvetica-Bold", fontSize=9.5, leading=12),
+            "tr": S("tr", fontName="Times-Roman", fontSize=8.5, leading=10.2, alignment=4, spaceAfter=7),
+            "th": S("th", fontName="Times-Bold", fontSize=8.5, leading=11, spaceBefore=8, spaceAfter=5),
+            "pname": S("pname", fontName="Helvetica-Bold", fontSize=16, leading=20, spaceAfter=14),
+            "ptitle": S("ptitle", fontName="Helvetica-Bold", fontSize=11.5, leading=15, spaceAfter=14),
+            "psmall": S("psmall", fontName="Helvetica", fontSize=7.5, leading=10),
         }
         self.pages: dict[str, int] = {}
+        self.starts: dict[str, int] = {}
+        self.layout: dict[str, int] = {}  # the previous pass's part starts, for the page headers
         self.notes: dict[str, int] = {}
-        self._number_notes()
+        if self.full:
+            self._number_notes()
 
-    # --- notes numbering: P&L lines first, then the financial position, as in the house format -------------------
+    # --- the notes' numbers: profit or loss first, income tax, the financial position, then the disclosures ---------
+    def _bs(self, h, which="amount") -> Decimal:
+        return _d(((self.fin.get("bs") or {}).get(h) or {}).get(which))
+
+    def _has(self, *hs) -> bool:
+        return any(self._bs(h) or (self.has_comp and self._bs(h, "comparative")) for h in hs)
+
     def _number_notes(self):
         n = 1
         rows = {row["heading"]: row for row in (self.fin.get("pl") or {}).get("rows") or []}
@@ -81,14 +156,24 @@ class _Report:
             if lines and not (h == "other_income" and len(lines) == 1):  # a single other income line is shown on the face
                 self.notes[h] = n
                 n += 1
-        if self.full:
-            for h in ("ppe", "intangibles", "investments", "other_non_current_assets", "inventories", "trade_receivables", "other_current_assets", "cash",
-                      "borrowings_non_current", "trade_payables", "borrowings_current", "other_current_liabilities"):
-                v = (self.fin.get("bs") or {}).get(h)
-                if v and v.get("lines") and (v.get("amount") or v.get("comparative")):
-                    self.notes[h] = n
-                    n += 1
-        self.next_note = n
+        cur, comp = (self.fin.get("pl") or {}).get("current") or {}, (self.fin.get("pl") or {}).get("comparative") or {}
+        if cur.get("income_tax_expense") or comp.get("income_tax_expense") or self._tax_rec():
+            self.notes["tax"] = n
+            n += 1
+        bs = self.fin.get("bs") or {}
+        for h in ("ppe", "intangibles", "investments", "other_non_current_assets", "inventories", "trade_receivables", "other_current_assets", "cash",
+                  "borrowings_non_current", "trade_payables", "borrowings_current", "other_current_liabilities"):
+            hs = (h, "tax_payable") if h == "trade_payables" else (h,)  # the income tax payable is in trade and other payables
+            if any((bs.get(x) or {}).get("lines") for x in hs) and self._has(*hs):
+                self.notes[h] = n
+                n += 1
+        for key in ("commitments", "contingencies", "events", "related", "risk"):
+            self.notes[key] = n
+            n += 1
+        self.notes["share_capital"] = self.notes["shareholder_current_account"] = self.notes["related"]
+
+    def _tax_rec(self):
+        return next((x for x in self.dp.get("notes") or [] if x.get("key") == "tax_reconciliation"), None)
 
     # --- building blocks -------------------------------------------------------------------------------------------
     def P(self, text, style="body"):
@@ -96,116 +181,131 @@ class _Report:
 
         return Paragraph(text, self.s[style])
 
-    def head(self, title: str, key: str):
-        from reportlab.platypus import Paragraph, Spacer
+    def shown(self, key, default=""):
+        p = self.pages.get(key)
+        return p - OFFSET if p else default
 
-        p = Paragraph(escape(title), self.s["title"])
-        p._toc = key
-        return [p, Spacer(1, 4)]  # the company's name is in every page's header
+    def years(self, cols=2):
+        return [self.cy, self.py][:cols] if self.has_comp else [self.cy]
 
-    def table(self, rows: list[dict], period: str, cols: int = 2, note_col: bool = True):
-        """rows: {"label", "note", "cy", "py", "kind": head|line|sub|total|grand|blank, "indent"}."""
-        from reportlab.lib.units import mm
+    def statement_table(self, rows: list[dict], period: str, cols: int = 2, pad: float = 4.2):
+        """A primary statement: rows {"label", "note", "cy", "py", "kind": caps|head|line|sub|grand|blank, "indent"},
+        the period over the year columns, the current year shaded."""
         from reportlab.platypus import Table, TableStyle
 
-        c = self.colors
-        years = [self.cy, self.py][:cols] if self.has_comp else [self.cy]
-        header1 = ["", "Notes" if note_col else ""] + [period] + [""] * (len(years) - 1)
-        header2 = ["", ""] + years
-        data = [header1, header2]
-        style = [("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-                 ("ALIGN", (1, 0), (1, -1), "CENTER"), ("SPAN", (2, 0), (-1, 0)), ("ALIGN", (2, 0), (-1, 0), "CENTER"),
-                 ("LINEBELOW", (2, 0), (-1, 0), 0.6, c.black), ("BACKGROUND", (2, 1), (2, -1), c.HexColor(GREY)),
-                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("TOPPADDING", (0, 0), (-1, -1), 3)]
+        c, mm = self.colors, self.mm
+        years = self.years(cols)
+        data = [["", "", period] + [""] * (len(years) - 1), ["", "Notes"] + years]
+        last = 1 + len(years)
+        style = [("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (2, 0), (-1, -1), "RIGHT"),
+                 ("ALIGN", (1, 0), (1, -1), "CENTER"), ("SPAN", (2, 0), (last, 0)), ("ALIGN", (2, 0), (last, 0), "CENTER"),
+                 ("LINEBELOW", (2, 0), (last, 0), 0.7, c.black), ("BACKGROUND", (2, 1), (2, -1), c.HexColor(GREY)),
+                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), pad), ("BOTTOMPADDING", (0, 0), (-1, -1), pad),
+                 ("TOPPADDING", (0, 0), (-1, 1), 1), ("BOTTOMPADDING", (0, 0), (-1, 1), 1)]
         for i, row in enumerate(rows, start=2):
             kind = row.get("kind", "line")
             label = ("&nbsp;" * 4 * row.get("indent", 0)) + escape(row.get("label", ""))
             vals = [row.get("cy"), row.get("py")][: len(years)]
-            data.append([self.P(label, "cell") if kind not in ("head", "total", "grand", "sub") else self.P(f"<b>{label}</b>", "cell"),
-                         str(row.get("note") or "")] + [r(v) if kind != "head" else "" for v in vals])
-            if kind in ("total", "grand", "sub"):
-                style.append(("FONTNAME", (2, i), (-1, i), "Helvetica-Bold"))
-                style.append(("LINEABOVE", (2, i), (-1, i), 0.8, c.black))
+            bold = kind in ("head", "sub", "grand")
+            data.append([self.P(label, "cellb" if bold else "cell"), str(row.get("note") or "")] +
+                        (["" for _ in vals] if kind in ("head", "caps", "blank") else [r(v) for v in vals]))
+            if kind in ("sub", "grand"):
+                style += [("FONTNAME", (2, i), (-1, i), "Helvetica-Bold"), ("LINEABOVE", (2, i), (-1, i), 0.7, c.black)]
             if kind == "grand":
-                style.append(("LINEBELOW", (2, i), (-1, i), 1.6, c.black))
-            if kind == "total":
-                style.append(("LINEBELOW", (2, i), (-1, i), 0.8, c.black))
-        widths = [92 * mm, 16 * mm] + [32 * mm] * len(years)
+                style.append(("LINEBELOW", (2, i), (-1, i), 1.8, c.black))
+            if kind == "blank":
+                style += [("TOPPADDING", (0, i), (-1, i), 1), ("BOTTOMPADDING", (0, i), (-1, i), 1)]
+        widths = [98 * mm, 16 * mm] + ([29 * mm] * len(years) if len(years) > 1 else [36 * mm])
         t = Table(data, colWidths=widths, hAlign="LEFT", repeatRows=2)
         t.setStyle(TableStyle(style))
         return t
 
-    def plain_table(self, header: list[str], rows: list[list], widths_mm: list[float], bold_last: bool = False, shade_col: int | None = 1):
-        from reportlab.lib.units import mm
+    def note_head(self, no, title):
         from reportlab.platypus import Table, TableStyle
 
-        c = self.colors
-        data = [header] + [[self.P(escape(str(x)), "cell") if i == 0 else x for i, x in enumerate(row)] for row in rows]
-        style = [("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-                 ("LINEBELOW", (1, 0), (-1, 0), 0.6, c.black), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5), ("TOPPADDING", (0, 0), (-1, -1), 2.5)]
-        if shade_col is not None:
-            style.append(("BACKGROUND", (shade_col, 0), (shade_col, -1), c.HexColor(GREY)))
-        if bold_last and rows:
-            style += [("FONTNAME", (1, -1), (-1, -1), "Helvetica-Bold"), ("LINEABOVE", (1, -1), (-1, -1), 0.8, c.black),
-                      ("LINEBELOW", (1, -1), (-1, -1), 1.2, c.black)]
-        t = Table(data, colWidths=[w * mm for w in widths_mm], hAlign="LEFT")
-        t.setStyle(TableStyle(style))
+        t = Table([[str(no), self.P(escape(title), "nh")]], colWidths=[10 * self.mm, 160 * self.mm], hAlign="LEFT")
+        t.setStyle(TableStyle([("FONTNAME", (0, 0), (0, 0), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (0, 0), 9.5), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                               ("VALIGN", (0, 0), (-1, -1), "TOP"), ("TOPPADDING", (0, 0), (-1, -1), 10), ("BOTTOMPADDING", (0, 0), (-1, -1), 4)]))
         return t
 
-    def footer_line(self):
-        audited = self.e.get("audited")
-        pages = self.pages
-        if audited and "auditor" in pages:
-            a, b = pages["auditor"], pages.get("auditor_end", pages["auditor"])
-            return self.P(f"Report of the auditors on page {a}" if a == b else f"Report of the auditors on pages {a} &amp; {b}", "foot")
-        return self.P(f"The accounting policies and notes on pages {pages.get('policies', '')} to {pages.get('notes_end', pages.get('notes', ''))} "
-                      "form an integral part of these financial statements.", "foot")
+    def note_table(self, lines: list[tuple], total=None, header=True, cols=None, kinds=None):
+        """A note's accounts: lines (label, current, comparative); the total with a line above and a double line under.
+        kinds: {row index: "sub" | "total" | "head"} for reconciliation rows."""
+        from reportlab.platypus import Table, TableStyle
+
+        c, mm = self.colors, self.mm
+        years = cols or self.years()
+        data = [["", ""] + years] if header else []
+        off = len(data)
+        style = [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("BACKGROUND", (2, 0), (2, -1), c.HexColor(GREY)),
+                 ("TOPPADDING", (0, 0), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 0), (-1, -1), 1.2), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]
+        if header:
+            style += [("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"), ("TOPPADDING", (0, 0), (-1, 0), 5), ("BOTTOMPADDING", (0, 0), (-1, 0), 7)]
+        for i, (label, a, b) in enumerate(lines):
+            kind = (kinds or {}).get(i)
+            data.append(["", self.P(escape(label), "cellb" if kind else "cell")] + ([r(a)] + ([r(b)] if len(years) > 1 else []) if kind != "head" else [""] * len(years)))
+            if kind in ("sub", "total"):
+                style += [("FONTNAME", (2, off + i), (-1, off + i), "Helvetica-Bold"), ("LINEABOVE", (2, off + i), (-1, off + i), 0.6, c.black)]
+            if kind == "total":
+                style.append(("LINEBELOW", (2, off + i), (-1, off + i), 1.6, c.black))
+        if total is not None:
+            data.append(["", ""] + [r(total[0])] + ([r(total[1])] if len(years) > 1 else []))
+            style += [("FONTNAME", (2, -1), (-1, -1), "Helvetica-Bold"), ("LINEABOVE", (2, -1), (-1, -1), 0.6, c.black),
+                      ("LINEBELOW", (2, -1), (-1, -1), 1.6, c.black)]
+        t = Table(data, colWidths=[10 * mm, 102 * mm] + [29 * mm] * len(years), hAlign="LEFT")
+        t.setStyle(TableStyle(style))
+        return t
 
     # --- the pages ---------------------------------------------------------------------------------------------------
     def cover(self):
         from reportlab.platypus import PageBreak, Spacer
 
-        return [Spacer(1, 190), self.P(escape(self.name), "cover"), Spacer(1, 160),
-                self.P(f"FINANCIAL STATEMENTS - {self.ye_text.upper()}" if self.full else f"INCOME STATEMENT - YEAR ENDED {self.ye_text.upper()}", "cover"),
-                Spacer(1, 30)] + ([self.P("DRAFT - for review", "cover")] if self.draft else []) + [PageBreak()]
+        return [_flowable_mark(_sec="cover"), Spacer(1, 18 * self.mm), self.P(escape(self.name), "cover"), Spacer(1, 66 * self.mm),
+                self.P(f"FINANCIAL STATEMENTS - {self.ye_text.upper()}", "cover"), PageBreak()]
 
     def contents(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import PageBreak, Table, TableStyle
 
+        c, mm = self.colors, self.mm
         items = []
-        if self.e.get("audited"):
-            items.append(("Independent auditor's report", "auditor", "auditor_end"))
-        items.append(("Comprehensive income statement", "is", None))
-        if self.full:
-            items += [("Statement of financial position", "sofp", None), ("Statement of changes in equity", "soce", None), ("Cash flow statement", "cf", None)]
-        items += [("Accounting policies", "policies", "policies_end"), ("Notes to the financial statements", "notes", "notes_end")]
-        rows = []
+        if self.audited:
+            items.append(("Independent auditor’s report", "auditor", "auditor_end"))
+        items += [("Comprehensive income statement", "is", None), ("Statement of financial position", "sofp", None),
+                  ("Statement of changes in equity", "soce", None), ("Cash flow statement", "cf", None),
+                  ("Accounting policies", "policies", "policies_end"), ("Notes to the financial statements", "notes", "notes_end")]
+        data = [["CONTENTS", ""], ["", "PAGE"]]
         for label, k, k_end in items:
-            a, b = self.pages.get(k, ""), self.pages.get(k_end, "") if k_end else ""
-            rows.append([label, f"{a} - {b}" if b and b != a else str(a)])
-        out = [self.P(escape(self.name), "co"), self.P(f"FINANCIAL STATEMENTS - {self.ye_text.upper()}", "co"), Spacer(1, 30),
-               self.P("<b>CONTENTS</b>", "title"), Spacer(1, 8), self.plain_table(["", "PAGE"], rows, [130, 30], shade_col=None), PageBreak()]
-        out[0]._toc = "contents"
-        return out
+            a, b = self.shown(k), (self.shown(k_end) if k_end else "")
+            data.append([label, f"{a}–{b}" if b and b != a else str(a)])
+        t = Table(data, colWidths=[128 * mm, 32 * mm], hAlign="LEFT")
+        t.setStyle(TableStyle([("SPAN", (0, 0), (1, 0)), ("ALIGN", (0, 0), (1, 0), "CENTER"), ("FONTNAME", (0, 0), (1, 1), "Times-Bold"),
+                               ("FONTSIZE", (0, 0), (1, 0), 11), ("LINEBELOW", (0, 0), (1, 0), 0.7, c.black), ("FONTSIZE", (0, 1), (-1, -1), 8.5),
+                               ("FONTNAME", (0, 2), (-1, -1), "Helvetica"), ("FONTSIZE", (1, 1), (1, 1), 9.5), ("ALIGN", (1, 1), (1, -1), "CENTER"),
+                               ("TOPPADDING", (0, 1), (-1, 1), 22), ("TOPPADDING", (0, 2), (-1, -1), 15), ("BOTTOMPADDING", (0, 0), (-1, -1), 2)]))
+        return [_flowable_mark(_sec="contents"), self.P(escape(self.name), "co_t"), self.P(f"FINANCIAL STATEMENTS - {self.ye_text.upper()}", "co_t"),
+                self.P("", "body"), t, PageBreak()]
 
     def auditor(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import CondPageBreak, PageBreak, Spacer
 
         ar = self.dp.get("audit_report") or {}
-        out = [self.P("<b>INDEPENDENT AUDITOR'S REPORT</b>", "title"), self.P(f"<b>{escape(ar.get('label', 'DRAFT TEMPLATE - NOT AN AUDIT OPINION'))}</b>", "draft"),
-               Spacer(1, 6), self.P(escape(ar.get("addressee", "")), "body")]
-        out[0]._toc = "auditor"
+        out = [_flowable_mark(_toc="auditor", _sec="auditor"), self.P(escape(ar.get("addressee", "")), "tr")]
         for sec in ar.get("sections") or []:
-            out.append(self.P(escape(sec["title"]), "h"))
-            if sec.get("text"):
-                out.append(self.P(escape(sec["text"]), "body"))
-        out += [Spacer(1, 24), self.P(escape(ar.get("signature", "")).replace("\n", "<br/>"), "body")]
-        marker = self.P("", "foot")
-        marker._toc = "auditor_end"
-        return out + [marker, PageBreak()]
+            if sec.get("continued"):
+                out.append(CondPageBreak(95 * self.mm))  # the bullets start the second page, as in AFIT's report
+            out.append(self.P(escape(sec["title"]), "th"))
+            for para in (sec.get("text") or "").split("\n\n"):
+                if para.strip():
+                    out.append(self.P(escape(para.strip()), "tr"))
+        out.append(Spacer(1, 14 * self.mm))
+        out += [self.P(f"<b>{escape(line)}</b>", "tr") for line in (ar.get("signature") or "").split("\n")]
+        return out + [_flowable_mark(_toc="auditor_end"), PageBreak()]
+
+    def _period(self, prefix="Year ended") -> str:
+        return f"{prefix} {self.ye.day} {self.ye:%B}" if self.ye else prefix
 
     def income_statement(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import PageBreak
 
         pl = self.fin.get("pl") or {}
         cur, comp = pl.get("current") or {}, pl.get("comparative") or {}
@@ -213,9 +313,9 @@ class _Report:
         other_label = "Interest income" if other_names and all(re.search(r"interest", x, re.I) for x in other_names) else "Other income"
         n = self.notes
 
-        def row(label, key, sign=1, kind="line", note_key=None, indent=0):
+        def row(label, key, sign=1, kind="line", note_key=None):
             return {"label": label, "cy": sign * _d(cur.get(key)), "py": sign * _d(comp.get(key)) if comp else None, "kind": kind,
-                    "note": n.get(note_key or key, ""), "indent": indent}
+                    "note": n.get(note_key or key, "")}
 
         rows = [row("Revenue", "revenue"), row("Cost of sales", "cost_of_sales", -1), row("Gross profit", "gross_profit", kind="sub")]
         if cur.get("other_income") or comp.get("other_income"):
@@ -225,236 +325,335 @@ class _Report:
                            ("finance_costs", "Finance and other expenses")):
             if cur.get(key) or comp.get(key):
                 rows.append(row(label, key, -1))
-        rows += [row("Profit from operating activities", "pbt", kind="sub"), row("Tax expense", "income_tax_expense", -1),
-                 row("Profit for the year", "profit", kind="grand")]
-        if cur.get("oci") or comp.get("oci"):
-            rows += [row("Other comprehensive income", "oci"), row("Total comprehensive income for the year", "total_comprehensive_income", kind="grand")]
-        return self.head("Comprehensive income statement", "is") + [self.P("(all amounts in Sri Lanka Rupees)", "small"), Spacer(1, 6),
-                                                                      self.table(rows, self._period()),
-                                                                      Spacer(1, 30), self.footer_line(), PageBreak()]
-
-    def _period(self) -> str:
-        return f"Year ended {self.ye.day} {self.ye:%B}" if self.ye else "Year ended"
+        rows += [row("Profit from operating activities", "pbt", kind="sub"), row("Income tax expense", "income_tax_expense", -1, note_key="tax"),
+                 row("Profit for the year", "profit", kind="sub"), row("Other comprehensive income", "oci"),
+                 row("Total comprehensive income for the year", "total_comprehensive_income", kind="grand")]
+        return [_flowable_mark(_toc="is", _sec="is"), self.statement_table(rows, self._period(), pad=5.5), PageBreak()]
 
     def financial_position(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import PageBreak, Spacer, Table, TableStyle
 
-        bs = self.fin.get("bs") or {}
         pl = self.fin.get("pl") or {}
         cur_tci = _d((pl.get("current") or {}).get("total_comprehensive_income"))
-        comp_tci = _d((pl.get("comparative") or {}).get("total_comprehensive_income")) if pl.get("comparative") else ZERO
-        n = self.notes
+        comp_tci = _d((pl.get("comparative") or {}).get("total_comprehensive_income"))
+        n, amt, hc = self.notes, self._bs, self.has_comp
 
-        def amt(h, which="amount"):
-            return _d((bs.get(h) or {}).get(which))
+        def line(label, hs, note=None):
+            hs = hs if isinstance(hs, tuple) else (hs,)
+            return {"label": label, "cy": sum((amt(h) for h in hs), ZERO), "py": sum((amt(h, "comparative") for h in hs), ZERO) if hc else None,
+                    "note": n.get(note or hs[0], "")}
 
-        def row(label, h, kind="line"):
-            return {"label": label, "cy": amt(h), "py": amt(h, "comparative") if self.has_comp else None, "note": n.get(h, ""), "kind": kind}
-
-        def present(*hs):
-            return [h for h in hs if amt(h) or (self.has_comp and amt(h, "comparative"))]
-
-        rows = [{"label": "ASSETS", "kind": "head"}]
-        groups = [("Non-current assets", [("Property, plant and equipment", "ppe"), ("Intangible assets", "intangibles"), ("Investments", "investments"),
-                                          ("Other non-current assets", "other_non_current_assets")]),
-                  ("Current assets", [("Inventories", "inventories"), ("Trade and other receivables", "trade_receivables"),
-                                      ("Other current assets", "other_current_assets"), ("Cash and cash equivalents", "cash")])]
-        for title, items in groups:
-            keep = [(lb, h) for lb, h in items if h in present(h)]
+        def group(title, total_label, items):
+            keep = [line(lb, hs) for lb, hs in items if self._has(*(hs if isinstance(hs, tuple) else (hs,)))]
             if not keep:
-                continue
-            rows.append({"label": title, "kind": "head"})
-            rows += [row(lb, h) for lb, h in keep]
-            if title == "Current assets":
-                rows.append({"label": "", "cy": sum(amt(h) for _, h in keep), "py": sum(amt(h, "comparative") for _, h in keep) if self.has_comp else None,
-                             "kind": "sub"})
-        rows.append({"label": "Total assets", "cy": self.fin["totals"]["assets"],
-                     "py": sum(amt(h, "comparative") for h, v in bs.items() if v["kind"] == "asset") if self.has_comp else None, "kind": "total"})
-        # equity: retained earnings at the year end = brought forward + the year's result + dividends
-        re_cy = amt("retained_earnings") + cur_tci + amt("dividends")
-        re_py = amt("retained_earnings", "comparative") + comp_tci + amt("dividends", "comparative") if self.has_comp else None
-        eq = [{"label": "Stated capital", "cy": amt("share_capital"), "py": amt("share_capital", "comparative") if self.has_comp else None}]
-        if present("reserves"):
-            eq.append({"label": "Reserves", "cy": amt("reserves"), "py": amt("reserves", "comparative") if self.has_comp else None})
-        eq.append({"label": "Retained earnings", "cy": re_cy, "py": re_py})
-        rows += [{"label": "EQUITY & LIABILITIES", "kind": "head"}] + eq
-        eq_cy, eq_py = sum(x["cy"] for x in eq), (sum(x["py"] for x in eq) if self.has_comp else None)
-        rows.append({"label": "", "cy": eq_cy, "py": eq_py, "kind": "total"})
-        liab_total_cy, liab_total_py = ZERO, ZERO
-        for title, items in (("Non-current liabilities", [("Borrowings", "borrowings_non_current"), ("Deferred tax", "deferred_tax")]),
-                             ("Current liabilities", [("Trade and other payables", "trade_payables"), ("Income tax payable", "tax_payable"),
-                                                      ("Shareholder's current account", "shareholder_current_account"), ("Borrowings", "borrowings_current"),
-                                                      ("Other current liabilities", "other_current_liabilities")])):
-            keep = [(lb, h) for lb, h in items if h in present(h)]
-            if not keep:
-                continue
-            rows.append({"label": title, "kind": "head"})
-            rows += [row(lb, h) for lb, h in keep]
-            s_cy, s_py = sum(amt(h) for _, h in keep), sum(amt(h, "comparative") for _, h in keep)
-            liab_total_cy += s_cy
-            liab_total_py += s_py
-            rows.append({"label": "", "cy": s_cy, "py": s_py if self.has_comp else None, "kind": "sub"})
-        rows += [{"label": "Total liabilities", "cy": liab_total_cy, "py": liab_total_py if self.has_comp else None, "kind": "total"},
-                 {"label": "Total equity & liabilities", "cy": eq_cy + liab_total_cy, "py": (eq_py + liab_total_py) if self.has_comp else None, "kind": "grand"}]
-        sign = [Spacer(1, 16),
-                self.P("I certify that these Financial Statements are in compliance with the requirements of the Companies Act No. 7 of 2007.", "body"),
-                Spacer(1, 22), self.P(".................................<br/>Accountant", "body"), Spacer(1, 6), self.P("Date: ........................", "body"), Spacer(1, 12),
-                self.P("The Board of Directors is responsible for the preparation and presentation of these Financial Statements.", "body"),
-                self.P("Signed for and on behalf of the Board.", "body"), Spacer(1, 22),
-                self.P(".................................&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;.................................<br/>"
-                       "Director&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"
-                       "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Director", "body"), Spacer(1, 10)]
-        return self.head("Statement of financial position", "sofp") + [self.P("(all amounts in Sri Lanka Rupees)", "small"), Spacer(1, 6),
-                                                                       self.table(rows, f"As at {self.ye.day} {self.ye:%B}" if self.ye else "As at")] + sign + \
-            [self.footer_line(), PageBreak()]
+                return [], ZERO, ZERO
+            s_cy, s_py = sum((x["cy"] for x in keep), ZERO), sum((x["py"] or ZERO for x in keep), ZERO)
+            return [{"label": title, "kind": "head"}] + keep + [{"label": total_label, "cy": s_cy, "py": s_py if hc else None, "kind": "sub"}], s_cy, s_py
+
+        nca, nca_cy, nca_py = group("Non-current assets", "Total non-current assets", [
+            ("Property, plant and equipment", "ppe"), ("Intangible assets", "intangibles"), ("Investments", "investments"),
+            ("Other non-current assets", "other_non_current_assets")])
+        ca, ca_cy, ca_py = group("Current assets", "Total current assets", [
+            ("Inventories", "inventories"), ("Trade and other receivables", "trade_receivables"), ("Other current assets", "other_current_assets"),
+            ("Cash and cash equivalents", "cash")])
+        rows = [{"label": "ASSETS", "kind": "caps"}] + nca + ca + [
+            {"label": "Total assets", "cy": nca_cy + ca_cy, "py": (nca_py + ca_py) if hc else None, "kind": "grand"}, {"label": "", "kind": "blank"}]
+        # retained earnings at the year end = brought forward + the year's result + dividends
+        eq = [line("Stated capital", "share_capital")]
+        if self._has("reserves"):
+            eq.append(line("Reserves", "reserves"))
+        eq.append({"label": "Retained earnings", "cy": amt("retained_earnings") + cur_tci + amt("dividends"),
+                   "py": amt("retained_earnings", "comparative") + comp_tci + amt("dividends", "comparative") if hc else None})
+        eq_cy, eq_py = sum((x["cy"] for x in eq), ZERO), sum((x["py"] or ZERO for x in eq), ZERO)
+        rows += [{"label": "EQUITY AND LIABILITIES", "kind": "caps"}] + eq + [{"label": "Total equity", "cy": eq_cy, "py": eq_py if hc else None, "kind": "sub"}]
+        ncl, ncl_cy, ncl_py = group("Non-current liabilities", "Total non-current liabilities", [
+            ("Borrowings", "borrowings_non_current"), ("Deferred tax", "deferred_tax")])
+        cl, cl_cy, cl_py = group("Current liabilities", "Total current liabilities", [
+            ("Trade and other payables", ("trade_payables", "tax_payable")), ("Shareholder’s current account", "shareholder_current_account"),
+            ("Borrowings", "borrowings_current"), ("Other current liabilities", "other_current_liabilities")])
+        rows += ncl + cl + [{"label": "Total liabilities", "cy": ncl_cy + cl_cy, "py": (ncl_py + cl_py) if hc else None, "kind": "sub"},
+                            {"label": "Total equity and liabilities", "cy": eq_cy + ncl_cy + cl_cy, "py": (eq_py + ncl_py + cl_py) if hc else None,
+                             "kind": "grand"}]
+        dots = "…" * 26
+        directors = Table([[dots, dots], ["Director", "Director"]], colWidths=[95 * self.mm, 75 * self.mm], hAlign="LEFT")
+        directors.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                                       ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
+        sign = [Spacer(1, 12), self.P("I certify that these financial statements are in compliance with the requirements of the Companies Act No. 7 of 2007."),
+                Spacer(1, 16), self.P(f"{dots}<br/>Accountant"), Spacer(1, 7), self.P(self.approved_on or "Date: " + "…" * 18), Spacer(1, 7),
+                self.P("The Board of Directors is responsible for the preparation and presentation of these financial statements."), Spacer(1, 5),
+                self.P("Signed for and on behalf of the Board."), Spacer(1, 16), directors]
+        return [_flowable_mark(_toc="sofp", _sec="sofp"), self.statement_table(rows, self._period("As at"), pad=2.9)] + sign + [PageBreak()]
 
     def changes_in_equity(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import PageBreak, Table, TableStyle
 
-        eq = self.dp.get("equity") or {}
-        rows_in = eq.get("rows") or []
-        with_reserves = any(_d(x.get("reserves")) for x in rows_in)
-        header = ["", "Stated capital"] + (["Reserves"] if with_reserves else []) + ["Retained earnings", "Total"]
-        rows = []
-        for x in rows_in:
-            label = {"Balance at the start of the year": f"Balance at {self.start_text}", "Balance at the end of the year": f"Balance at {self.ye_text}"}.get(
-                x["label"], x["label"])
-            rows.append([label, r(x["share_capital"]) if x.get("kind") else (r(x["share_capital"]) if _d(x["share_capital"]) else "Nil")] +
-                        ([r(x["reserves"])] if with_reserves else []) + [r(x["retained_earnings"]), r(x["total"])])
-        t = self.plain_table(header, rows, [70] + [30] * (len(header) - 1), bold_last=True, shade_col=None)
-        return self.head("Statement of changes in equity", "soce") + [self.P("(all amounts in Sri Lanka Rupees)", "small"), Spacer(1, 10), t,
-                                                                      Spacer(1, 30), self.footer_line(), PageBreak()]
+        c, mm, amt = self.colors, self.mm, self._bs
+        pl = self.fin.get("pl") or {}
+        cur, comp = pl.get("current") or {}, pl.get("comparative") or {}
+        with_res = self._has("reserves") or _d(cur.get("oci")) or _d(comp.get("oci"))
+        sc_c, res_c = (amt("share_capital", "comparative"), amt("reserves", "comparative")) if self.has_comp else (amt("share_capital"), amt("reserves"))
+
+        def block(start, end, sc_open, res_open, re_open, profit, oci, issue, res_move, dividends):
+            rows = [("open", f"Balance at {_long(start) if start else 'the start of the year'}", sc_open, res_open, re_open),
+                    ("line", "Profit for the year", ZERO, ZERO, profit), ("line", "Other comprehensive income", ZERO, oci, ZERO)]
+            if issue:
+                rows.append(("line", "Issue of shares", issue, ZERO, ZERO))
+            if res_move:
+                rows.append(("line", "Other movements in reserves", ZERO, res_move, ZERO))
+            if dividends:
+                rows.append(("line", "Dividends", ZERO, ZERO, dividends))
+            rows.append(("close", f"Balance at {_long(end) if end else 'the end of the year'}", sum((x[2] for x in rows), ZERO),
+                         sum((x[3] for x in rows), ZERO), sum((x[4] for x in rows), ZERO)))
+            return rows
+
+        blocks = []
+        if self.has_comp and self.start:
+            p_start, p_end = self.start.replace(year=self.start.year - 1), self.ye.replace(year=self.ye.year - 1)
+            blocks.append(block(p_start, p_end, sc_c, res_c - _d(comp.get("oci")), amt("retained_earnings", "comparative"), _d(comp.get("profit")),
+                                _d(comp.get("oci")), ZERO, ZERO, amt("dividends", "comparative")))
+        blocks.append(block(self.start, self.ye, sc_c, res_c, amt("retained_earnings"), _d(cur.get("profit")), _d(cur.get("oci")),
+                            amt("share_capital") - sc_c, amt("reserves") - res_c - _d(cur.get("oci")) if self.has_comp else ZERO, amt("dividends")))
+        header = ["", self.P("Stated<br/>capital", "cellh")] + ([self.P("Reserves", "cellh")] if with_res else []) + \
+            [self.P("Retained<br/>earnings", "cellh"), self.P("Total", "cellh")]
+        data, style = [header], [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                                 ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, 0), 12)]
+        for b in blocks:
+            if len(data) > 1:
+                data.append([""] * len(header))
+            for kind, label, sc, res, ret in b:
+                i = len(data)
+                data.append([self.P(escape(label), "cellb" if kind != "line" else "cell"), r(sc)] + ([r(res)] if with_res else []) + [r(ret), r(sc + res + ret)])
+                if kind == "open":
+                    style += [("LINEABOVE", (1, i), (-1, i), 0.7, c.black), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold")]
+                if kind == "close":
+                    style += [("BACKGROUND", (0, i), (0, i), c.HexColor(GREY)), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold"),
+                              ("LINEBELOW", (1, i), (-1, i), 1.8, c.black)]
+        w = 25 * mm if with_res else 28 * mm
+        t = Table(data, colWidths=[170 * mm - w * (len(header) - 1)] + [w] * (len(header) - 1), hAlign="LEFT")
+        t.setStyle(TableStyle(style))
+        return [_flowable_mark(_toc="soce", _sec="soce"), t, PageBreak()]
 
     def cash_flow(self):
-        from reportlab.platypus import PageBreak, Spacer
+        from reportlab.platypus import PageBreak
 
         cf = self.dp.get("cash_flows") or {}
         if not cf.get("available"):
-            return self.head("Cash flow statement", "cf") + [self.P(escape(cf.get("reason", "")), "body"), PageBreak()]
-        rows = []
-        for sec in cf["sections"]:
-            title = {"operating": "Operating activities", "investing": "Investing activities", "financing": "Financing activities"}[sec["key"]]
-            rows.append({"label": title, "kind": "head"})
-            # Zero lines are left out; the finance costs added back and the interest paid cancel, so neither is shown.
-            items = [x for x in sec["rows"] if _d(x["amount"]) or x["label"] == "Profit before tax"]
-            if sec["key"] == "operating":
-                items = [x for x in items if x["label"] != "Finance costs"]
-                sec = {**sec, "after": [x for x in sec.get("after") or [] if x["label"] != "Interest paid" and _d(x["amount"])]}
-                rows.append({"label": items[0]["label"], "cy": items[0]["amount"]})
-                adj = [x for x in items[1:] if not x["label"].startswith(("(Increase)", "Increase"))]
-                wc = [x for x in items[1:] if x["label"].startswith(("(Increase)", "Increase"))]
-                if adj:
-                    rows.append({"label": "Adjustments", "kind": "head"})
-                    rows += [{"label": x["label"], "cy": x["amount"], "indent": 0} for x in adj]
-                rows += [{"label": x["label"], "cy": x["amount"]} for x in sec.get("after") or []]
-                if wc:
-                    rows.append({"label": "Changes in working capital", "kind": "head"})
-                    rows += [{"label": x["label"].replace("(Increase) / decrease in ", "").replace("Increase / (decrease) in ", "").capitalize(), "cy": x["amount"]}
-                             for x in wc]
-            else:
-                rows += [{"label": x["label"], "cy": x["amount"]} for x in items]
-            rows.append({"label": sec["total"]["label"], "cy": sec["total"]["amount"], "kind": "total"})
-        rows += [{"label": "Increase / (decrease) in cash and cash equivalents", "cy": cf["net_change"], "kind": "total"},
-                 {"label": "Movement in cash and cash equivalents", "kind": "head"},
-                 {"label": "At start of year", "cy": cf["opening_cash"]}, {"label": "Increase / (decrease)", "cy": cf["net_change"]},
-                 {"label": "At end of year", "cy": cf["closing_cash"], "kind": "grand", "note": self.notes.get("cash", "")}]
+            return [_flowable_mark(_toc="cf", _sec="cf"), self.P(escape(cf.get("reason", "")), "body"), PageBreak()]
+        n = self.notes
+        # Interest income is shown in investing activities (interest received), as AFIT presents it.
+        interest = -sum((_d(ln["amount"]) for row in (self.fin.get("pl") or {}).get("rows") or [] if row["heading"] == "other_income"
+                         for ln in row["lines"] if re.search(r"interest", ln.get("name") or "", re.I)), ZERO)
+        secs = {s["key"]: s for s in cf["sections"]}
+        op = secs["operating"]
+        items = {x["label"]: _d(x["amount"]) for x in op["rows"] + (op.get("after") or [])}
+        rows = [{"label": "Operating activities", "kind": "head"}, {"label": "Profit before tax", "cy": items.get("Profit before tax", ZERO)}]
+        adj = [(lb, items.get(lb, ZERO)) for lb in ("Depreciation", "Amortisation")] + [("Interest income", -interest)]
+        adj = [(lb, v) for lb, v in adj if v]
+        if adj:
+            rows += [{"label": "Adjustments", "kind": "head"}] + [{"label": lb, "cy": v} for lb, v in adj]
+        wc_labels = {"(Increase) / decrease in inventories": "Inventories", "(Increase) / decrease in trade and other receivables": "Trade and other receivables",
+                     "(Increase) / decrease in other current assets": "Other current assets",
+                     "Increase / (decrease) in trade and other payables": "Trade and other operating payables",
+                     "Increase / (decrease) in other current liabilities": "Other current liabilities"}
+        wc = [(wc_labels[lb], items[lb]) for lb in wc_labels if items.get(lb)]
+        if wc:
+            rows += [{"label": "Changes in working capital", "kind": "head"}] + [{"label": lb, "cy": v} for lb, v in wc]
+        if items.get("Income tax paid"):
+            rows.append({"label": "Income tax paid", "cy": items["Income tax paid"]})
+        op_total = _d(op["total"]["amount"]) - interest
+        rows.append({"label": "Net cash from operating activities" if op_total >= 0 else "Net cash used in operating activities", "cy": op_total, "kind": "sub"})
+        rows.append({"label": "", "kind": "blank"})
+
+        inv = secs["investing"]
+        inv_items = {x["label"]: _d(x["amount"]) for x in inv["rows"]}
+        inv_rows = [("Refundable deposits paid", inv_items.get("Deposits paid", ZERO), n.get("other_non_current_assets", "")),
+                    ("Purchase of property, plant and equipment", inv_items.get("Purchase of property, plant and equipment (net of disposals)", ZERO), n.get("ppe", "")),
+                    ("Purchase of intangible assets", inv_items.get("Purchase of intangible assets (net)", ZERO), n.get("intangibles", "")),
+                    ("(Increase) / decrease in investments", inv_items.get("(Increase) / decrease in investments", ZERO), n.get("investments", "")),
+                    ("Interest received", interest, "")]
+        inv_total = _d(inv["total"]["amount"]) + interest
+        rows += [{"label": "Investing activities", "kind": "head"}] + [{"label": lb, "cy": v, "note": no} for lb, v, no in inv_rows if v]
+        rows += [{"label": "Net cash used in investing activities" if inv_total < 0 else "Net cash from investing activities", "cy": inv_total, "kind": "sub"},
+                 {"label": "", "kind": "blank"}]
+
+        fi = secs["financing"]
+        fi_items = {x["label"]: _d(x["amount"]) for x in fi["rows"]}
+        fi_rows = [("Proceeds from the issue of shares", fi_items.get("Proceeds from the issue of shares", ZERO), n.get("share_capital", "")),
+                   ("Net movement in borrowings", fi_items.get("Net movement in borrowings", ZERO), ""),
+                   ("Net advances from shareholders" if fi_items.get("Net movement in shareholder's current account", ZERO) >= 0 else "Net repayments to shareholders",
+                    fi_items.get("Net movement in shareholder's current account", ZERO), n.get("shareholder_current_account", "")),
+                   ("Dividends paid", fi_items.get("Dividends paid", ZERO), "")]
+        fi_total = _d(fi["total"]["amount"])
+        rows += [{"label": "Financing activities", "kind": "head"}] + [{"label": lb, "cy": v, "note": no} for lb, v, no in fi_rows if v]
+        rows += [{"label": "Net cash used in financing activities" if fi_total < 0 else "Net cash from financing activities", "cy": fi_total, "kind": "sub"},
+                 {"label": "", "kind": "blank"}]
+        net = _d(cf["net_change"])
+        word = "increase" if net >= 0 else "decrease"
+        rows += [{"label": f"Net {word} in cash and cash equivalents", "cy": net, "kind": "sub"}, {"label": "", "kind": "blank"},
+                 {"label": "Movement in cash and cash equivalents", "kind": "head"}, {"label": "At start of year", "cy": cf["opening_cash"]},
+                 {"label": word.capitalize(), "cy": net}, {"label": "At end of year", "cy": cf["closing_cash"], "kind": "grand", "note": n.get("cash", "")}]
         has = self.has_comp
-        self.has_comp = False  # the comparative year's cash flows need the year before's balances
-        t = self.table(rows, self._period())
+        self.has_comp = False  # the comparative year's cash flows need the balances at the start of the prior year
+        t = self.statement_table(rows, self._period(), pad=3.4)
         self.has_comp = has
-        return self.head("Cash flow statement", "cf") + [self.P("(all amounts in Sri Lanka Rupees)", "small"), Spacer(1, 6), t, Spacer(1, 24),
-                                                         self.footer_line(), PageBreak()]
+        return [_flowable_mark(_toc="cf", _sec="cf"), t, PageBreak()]
 
     def policies(self):
-        from reportlab.platypus import PageBreak
+        from reportlab.platypus import KeepTogether, PageBreak
 
-        e = self.e
-        notes = self.dp.get("notes") or []
-        pol = next((x["policies"] for x in notes if x["key"] == "policies"), [])
-        out = self.head("Accounting policies", "policies")
-        out.append(self.P("1&nbsp;&nbsp;&nbsp;Corporate information", "h"))
-        out.append(self.P(escape(f"{e.get('legal_name') or '[Company]'} ({e.get('nic_or_reg') or '[registration no.]'}) is a company incorporated under the "
-                                 f"Companies Act No. 07 of 2007 and domiciled in Sri Lanka. The registered and principal office of the Company is located at "
-                                 f"{e.get('address') or '[address]'}."), "body"))
-        out.append(self.P("Principal activities &amp; the nature of operations", "sub"))
-        out.append(self.P(escape(e.get("activity") or "[Principal activities]"), "body"))
-        out.append(self.P("Directors", "sub"))
-        directors = (e.get("data") or {}).get("directors") or ""
-        out.append(self.P(escape(f"The Directors present herewith the financial statements for the year ended {self.ye_text}. The Directors are responsible "
-                                 "for preparing and presenting the financial statements.") + "<br/>" + escape(directors or "[Directors' names]"), "body"))
-        for i, p in enumerate(pol, start=2):
-            out.append(self.P(f"{i}&nbsp;&nbsp;&nbsp;{escape(p['title'])}", "h"))
-            out.append(self.P(escape(p["text"]), "body"))
-        marker = self.P("", "foot")
-        marker._toc = "policies_end"
-        return out + [marker, PageBreak()]
+        e, data = self.e, self.data
+        pol = next((x["policies"] for x in self.dp.get("notes") or [] if x["key"] == "policies"), [])
+        out = [_flowable_mark(_toc="policies", _sec="policies"), self.note_head(1, "Corporate information")]
+        out.append(self.P(escape(f"{self.legal or '[Company]'}{' (' + e['nic_or_reg'] + ')' if e.get('nic_or_reg') else ''} is a private limited liability "
+                                 "company incorporated under the Companies Act No. 7 of 2007 and domiciled in Sri Lanka. Its registered office and principal "
+                                 f"place of business are at {e.get('address') or '[address]'}. "
+                                 f"Its principal activity is {(e.get('activity') or '[principal activity]').rstrip('.')}."), "ind"))
+        people = [("Directors", data.get("directors") or "[Directors' names]"),
+                  ("", "The Board is responsible for preparing and presenting the financial statements."),
+                  ("Company secretary", data.get("company_secretary") or "[Company secretary name]")]
+        if self.audited:
+            people.append(("Auditor", FIRM["auditor"]))
+        for title, text in people:
+            if title:
+                out.append(self.P(escape(title), "sub"))
+            out.append(self.P(escape(text), "ind" if not title else "ind"))
+        num = 2
+        for p in pol:
+            if p["key"] == "judgements":
+                label = f"{num - 1}.1"
+            else:
+                label = str(num)
+                num += 1
+            out.append(KeepTogether([self.note_head(label, p["title"]), self.P(escape(p["text"]), "ind")]))
+        return out + [_flowable_mark(_toc="policies_end"), PageBreak()]
 
     def notes_pages(self):
-        from reportlab.platypus import KeepTogether, Spacer
+        from reportlab.platypus import KeepTogether
 
-        fin = self.fin
-        out = self.head("Notes to the financial statements", "notes")
-        out.append(self.P("(In the notes all amounts are shown in Sri Lanka Rupees unless otherwise stated)", "small"))
+        fin, n, draft = self.fin, self.notes, self.draft
+        texts = self.data.get("note_text") or {}
+        out = [_flowable_mark(_toc="notes", _sec="notes")]
         rows_by_heading = {row["heading"]: row for row in (fin.get("pl") or {}).get("rows") or []}
         labels = {"revenue": "Revenue", "cost_of_sales": "Cost of sales", "other_income": "Other income", "admin_expenses": "Administrative expenses",
-                  "distribution_expenses": "Distribution expenses", "finance_costs": "Finance & other costs", "ppe": "Property, plant and equipment",
-                  "intangibles": "Intangible assets", "investments": "Investments", "other_non_current_assets": "Other non-current assets",
-                  "inventories": "Inventories", "trade_receivables": "Trade and other receivables", "other_current_assets": "Other current assets",
-                  "cash": "Cash and cash equivalents", "borrowings_non_current": "Non-current borrowings", "trade_payables": "Trade and other payables",
-                  "borrowings_current": "Current borrowings", "other_current_liabilities": "Other current liabilities"}
-        for h, no in self.notes.items():
+                  "distribution_expenses": "Distribution expenses", "finance_costs": "Finance and other expenses",
+                  "ppe": "Property, plant and equipment", "intangibles": "Intangible assets", "investments": "Investments",
+                  "other_non_current_assets": "Other non-current assets", "inventories": "Inventories", "trade_receivables": "Trade and other receivables",
+                  "other_current_assets": "Other current assets", "cash": "Cash and cash equivalents", "borrowings_non_current": "Non-current borrowings",
+                  "trade_payables": "Trade and other payables", "borrowings_current": "Current borrowings",
+                  "other_current_liabilities": "Other current liabilities"}
+
+        def acc(lines, sign):
+            return [(ln["name"], sign * _d(ln["amount"]), sign * _d(ln["comparative"]) if ln.get("comparative") is not None else None) for ln in lines]
+
+        def text(key, default):
+            t = texts.get(key)
+            return escape(t) if t else escape(("[To be confirmed by the accountant] " if draft else "") + default)
+
+        for h, no in n.items():
+            block = None
             if h in rows_by_heading:
                 row = rows_by_heading[h]
-                sign = -1 if row["kind"] == "income" else 1
-                lines = [(ln["name"], sign * _d(ln["amount"]), sign * _d(ln["comparative"]) if ln.get("comparative") is not None else None) for ln in row["lines"]]
-                total = (row["amount"], row["comparative"])
-            else:
-                v = fin["bs"][h]
+                lines = acc(row["lines"], -1 if row["kind"] == "income" else 1)
+                block = [self.note_head(no, labels[h]), self.note_table(lines, (row["amount"], row["comparative"]))]
+                if texts.get(h):
+                    block.append(self.P(escape(texts[h]), "nt"))
+            elif h == "tax":
+                block = self.tax_note(no)
+            elif h == "ppe":
+                v = fin["bs"]["ppe"]
+                table = self.ppe_note(v)
+                block = [self.note_head(no, labels[h]), table or self.note_table(acc(v["lines"], 1), (v["amount"], v["comparative"]))]
+            elif h in labels:
+                bs = fin["bs"]
+                v = bs[h]
                 sign = -1 if v["kind"] in ("equity", "liability") else 1
-                if h == "ppe":
-                    block = self.ppe_note(v)
-                    if block:
-                        out.append(KeepTogether([self.P(f"{no}&nbsp;&nbsp;&nbsp;{labels[h]}", "h"), block]))
-                        continue
-                lines = [(ln["name"], sign * _d(ln["amount"]), sign * _d(ln["comparative"]) if ln.get("comparative") is not None else None) for ln in v["lines"]]
-                total = (v["amount"], v["comparative"])
-            header = ["", self.cy] + ([self.py] if self.has_comp else [])
-            body = [[name, r(a)] + ([r(c)] if self.has_comp else []) for name, a, c in lines] + [["", r(total[0])] + ([r(total[1])] if self.has_comp else [])]
-            out.append(KeepTogether([self.P(f"{no}&nbsp;&nbsp;&nbsp;{labels[h]}", "h"),
-                                     self.plain_table(header, body, [100, 32] + ([32] if self.has_comp else []), bold_last=True)]))
-        n = self.next_note
-        texts = (self.e.get("data") or {}).get("note_text") or {}
-        defaults = {"contingencies": "[To be confirmed by the accountant] There were no material contingent liabilities outstanding at the statement of "
-                                     "financial position date.",
-                    "commitments": "[To be confirmed by the accountant] There were no material capital and financial commitments outstanding at the "
-                                   "statement of financial position date.",
-                    "events": "[To be confirmed by the accountant] No events have occurred since the statement of financial position date which would "
-                              "require adjustments to, or disclosure in, the financial statements."}
-        for key, title in (("commitments", "Commitments"), ("contingencies", "Contingent liabilities"), ("events", "Events after the end of reporting date"),
-                           ("related", "Related party transactions")):
-            if key == "related" and not texts.get(key):
-                continue
-            if not self.full and key in ("commitments", "contingencies"):
-                continue
-            out += [self.P(f"{n}&nbsp;&nbsp;&nbsp;{title}", "h"), self.P(escape(texts.get(key) or defaults[key]), "body")]
-            n += 1
-        marker = self.P("", "foot")
-        marker._toc = "notes_end"
-        return out + [Spacer(1, 6), marker]
+                lines = acc(v["lines"], sign)
+                total = (_d(v["amount"]), _d(v["comparative"]) if self.has_comp else None)
+                if h == "trade_payables":  # with the income tax payable, as the statement of financial position shows it
+                    tp = bs.get("tax_payable") or {}
+                    tax_lines = acc(tp.get("lines") or [], -1)
+                    if len(tax_lines) == 1:
+                        tax_lines = [("Current income tax payable", tax_lines[0][1], tax_lines[0][2])]
+                    lines += tax_lines
+                    total = (total[0] + _d(tp.get("amount")), (total[1] + _d(tp.get("comparative"))) if self.has_comp else None)
+                block = [self.note_head(no, labels[h]), self.note_table(lines, total)]
+            elif h == "commitments":
+                block = [self.note_head(no, "Commitments"),
+                         self.P(text(h, "The Company had no material capital or other contractual commitments at the reporting date."), "nt")]
+            elif h == "contingencies":
+                block = [self.note_head(no, "Contingent liabilities"),
+                         self.P(text(h, "The Company had no material contingent liabilities at the reporting date."), "nt")]
+            elif h == "events":
+                block = [self.note_head(no, "Events after the reporting period"),
+                         self.P(text(h, "No subsequent events requiring adjustment or material disclosure were identified up to the date the Board "
+                                        "authorised the financial statements for issue."), "nt")]
+            elif h == "related":
+                block = self.related_note(no, text)
+            elif h == "risk":
+                block = [self.note_head(no, "Financial risk management"),
+                         self.P(text(h, "Credit exposure mainly arises from bank deposits and trade receivables. Management monitors ageing and "
+                                        "counterparty quality. Liquidity exposure arises chiefly from payables and amounts due to shareholders. Management "
+                                        "monitors short-term cash forecasts. Financial liabilities have contractual maturities within one year. The Company "
+                                        "has no material foreign currency or variable-rate borrowing exposure."), "nt")]
+            if block:
+                out.append(KeepTogether(block))
+        return out + [_flowable_mark(_toc="notes_end")]
+
+    def tax_note(self, no):
+        from reportlab.platypus import Spacer
+
+        row = next((x for x in (self.fin.get("pl") or {}).get("rows") or [] if x["heading"] == "income_tax_expense"), None)
+        lines = row["lines"] if row else []
+        dfr = [ln for ln in lines if re.search(r"deferred", ln.get("name") or "", re.I)]
+        cur_lines = [ln for ln in lines if ln not in dfr]
+
+        def tot(ls, which):
+            return sum((_d(ln.get(which)) for ln in ls), ZERO)
+
+        body = [("Current tax expense", tot(cur_lines, "amount"), tot(cur_lines, "comparative") if self.has_comp else None),
+                ("Deferred tax expense", tot(dfr, "amount"), tot(dfr, "comparative") if self.has_comp else None)]
+        block = [self.note_head(no, "Income tax"), self.note_table(body, (tot(lines, "amount"), tot(lines, "comparative") if self.has_comp else None))]
+        rec = self._tax_rec()
+        if rec:
+            kinds = {i: {"subtotal": "sub", "total": "total"}[x["kind"]] for i, x in enumerate(rec["rows"]) if x.get("kind")}
+            block += [Spacer(1, 6), self.P("Reconciliation to accounting profit", "sub"),
+                      self.note_table([(x["label"], _d(x["amount"]), None) for x in rec["rows"]], header=True, cols=[self.cy], kinds=kinds)]
+        text = (self.data.get("note_text") or {}).get("tax") or \
+            "Current tax is based on the taxable income worked out under the Inland Revenue Act No. 24 of 2017. The reconciliation is for the current year."
+        return block + [Spacer(1, 4), self.P(escape(text), "nt")]
+
+    def related_note(self, no, text):
+        amt, hc = self._bs, self.has_comp
+        rows = []
+        if self._has("shareholder_current_account"):
+            rows.append(("Shareholder advances outstanding", amt("shareholder_current_account"), amt("shareholder_current_account", "comparative") if hc else None))
+        kmp = [ln for row in (self.fin.get("pl") or {}).get("rows") or [] if row["kind"] == "expense" for ln in row["lines"]
+               if DIRECTOR.search(ln.get("name") or "")]
+        if kmp:
+            rows.append(("Key management compensation", sum((_d(ln["amount"]) for ln in kmp), ZERO),
+                         sum((_d(ln.get("comparative")) for ln in kmp), ZERO) if hc else None))
+        shares = self.data.get("shares_issued")
+        rows.append((f"Stated capital – {shares}" if shares else "Stated capital", amt("share_capital"), amt("share_capital", "comparative") if hc else None))
+        return [self.note_head(no, "Related parties and stated capital"), self.note_table(rows),
+                self.P(text("related", "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                       "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."), "nt")]
 
     def ppe_note(self, v):
         """Cost, accumulated depreciation and the year's movement, by class, from the PPE accounts (cost accounts and
         their accumulated depreciation accounts); None when the accounts can't be paired into classes."""
+        from reportlab.platypus import Table, TableStyle
+
+        c, mm = self.colors, self.mm
         classes: dict[str, dict] = {}
         for ln in v["lines"]:
             name = ln["name"]
             dep = bool(re.search(r"accum|acc\.|depreciation|provision for dep", name, re.I))
             key = re.sub(r"(?i)\b(accumulated|acc\.?|provision for|depreciation|at cost|cost|on|of|-|–|\(|\))\b", " ", name)
-            key = " ".join(re.sub(r"[^A-Za-z& ]", " ", key).split()).title() or "Other"
-            c = classes.setdefault(key, {"cost": ZERO, "dep": ZERO, "cost_p": ZERO, "dep_p": ZERO})
-            c["dep" if dep else "cost"] += _d(ln["amount"])
-            c["dep_p" if dep else "cost_p"] += _d(ln.get("comparative"))
-        if not classes or len(classes) > 5 or not any(c["dep"] for c in classes.values()):
+            key = " ".join(re.sub(r"[^A-Za-z& ]", " ", key).split()).capitalize() or "Other"
+            k = classes.setdefault(key, {"cost": ZERO, "dep": ZERO, "cost_p": ZERO, "dep_p": ZERO})
+            k["dep" if dep else "cost"] += _d(ln["amount"])
+            k["dep_p" if dep else "cost_p"] += _d(ln.get("comparative"))
+        if not classes or len(classes) > 5 or not any(k["dep"] for k in classes.values()):
             return None
         names = list(classes)
         cols = names + (["Total"] if len(names) > 1 else [])
@@ -463,68 +662,204 @@ class _Report:
             xs = [fn(classes[k]) for k in names]
             return [r(x) for x in xs] + ([r(sum(xs, ZERO))] if len(names) > 1 else [])
 
-        rows = []
+        rows, kinds = [], {}
+
+        def add(label, values=None, kind="line"):
+            kinds[len(rows)] = kind
+            rows.append(["", self.P(f"<b>{escape(label)}</b>" if kind in ("head", "net") else escape(label), "cell")] + (values or [""] * len(cols)))
+
         if self.has_comp:
-            rows += [[f"At {self.ye.day if self.ye else ''} {self.ye:%B} {self.py}" if self.ye else "At the start of the year"] + [""] * len(cols),
-                     ["Cost"] + vals(lambda c: c["cost_p"]), ["Accumulated depreciation"] + vals(lambda c: c["dep_p"]),
-                     ["Net book amount"] + vals(lambda c: c["cost_p"] + c["dep_p"]),
-                     [f"Year ended {self.ye_text}"] + [""] * len(cols),
-                     ["Opening balance"] + vals(lambda c: c["cost_p"] + c["dep_p"]),
-                     ["Additions / (disposals) at cost"] + vals(lambda c: c["cost"] - c["cost_p"]),
-                     ["Depreciation charge"] + vals(lambda c: c["dep"] - c["dep_p"]),
-                     ["Closing net book amount"] + vals(lambda c: c["cost"] + c["dep"])]
-        rows += [[f"At {self.ye_text}"] + [""] * len(cols), ["Cost"] + vals(lambda c: c["cost"]),
-                 ["Accumulated depreciation"] + vals(lambda c: c["dep"]), ["Net book amount"] + vals(lambda c: c["cost"] + c["dep"])]
-        width = max(18.0, 100.0 / len(cols))
-        return self.plain_table([""] + cols, rows, [62] + [width] * len(cols), bold_last=True, shade_col=None)
+            add(f"At {_long(self.ye.replace(year=self.ye.year - 1))}" if self.ye else "At the start of the year", kind="head")
+            add("Cost", vals(lambda k: k["cost_p"]))
+            add("Accumulated depreciation", vals(lambda k: k["dep_p"]))
+            add("Net book amount", vals(lambda k: k["cost_p"] + k["dep_p"]), "net")
+            add(f"Year ended {self.ye_text}", kind="head")
+            add("Opening balance", vals(lambda k: k["cost_p"] + k["dep_p"]))
+            add("Additions", vals(lambda k: max(k["cost"] - k["cost_p"], ZERO)))
+            add("Disposals – cost", vals(lambda k: min(k["cost"] - k["cost_p"], ZERO)))
+            add("Depreciation charge", vals(lambda k: k["dep"] - k["dep_p"]))
+            add("Closing net book amount", vals(lambda k: k["cost"] + k["dep"]), "net")
+        add(self.ye_text if self.ye else "At the end of the year", kind="head")
+        add("Cost", vals(lambda k: k["cost"]))
+        add("Accum. depreciation and impairment", vals(lambda k: k["dep"]))
+        add("Net book amount", vals(lambda k: k["cost"] + k["dep"]), "net")
+        header = ["", ""] + [self.P(escape(x).replace(" ", "<br/>", 1) if len(x) > 10 else escape(x), "cellh") for x in cols]
+        style = [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                 ("TOPPADDING", (0, 0), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 0), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 0), (-1, 0), 8)]
+        for i, kind in kinds.items():
+            if kind == "head":
+                style.append(("TOPPADDING", (0, i + 1), (-1, i + 1), 8))
+            if kind == "net":
+                style += [("FONTNAME", (2, i + 1), (-1, i + 1), "Helvetica-Bold"), ("BACKGROUND", (1, i + 1), (1, i + 1), c.HexColor(GREY)),
+                          ("LINEBELOW", (2, i + 1), (-1, i + 1), 1.6, c.black)]
+        width = min(27.0, 104.0 / len(cols))
+        t = Table([header] + rows, colWidths=[10 * mm, (160 - width * len(cols)) * mm] + [width * mm] * len(cols), hAlign="LEFT")
+        t.setStyle(TableStyle(style))
+        return t
+
+    # --- the income statement on its own: AFIT's sole proprietor format --------------------------------------------
+    def proprietor(self):
+        from reportlab.platypus import Table, TableStyle
+
+        c, mm = self.colors, self.mm
+        pl = self.fin.get("pl") or {}
+        rows_by = {row["heading"]: row for row in pl.get("rows") or []}
+        years = self.years()
+        hc = len(years) > 1
+        data = [["", self._period()] + [""] * (len(years) - 1), [""] + years]
+        last = len(years)
+        style = [("FONTNAME", (0, 0), (-1, 1), "Helvetica-Bold"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                 ("SPAN", (1, 0), (last, 0)), ("ALIGN", (1, 0), (last, 0), "CENTER"), ("LINEBELOW", (1, 0), (last, 0), 0.7, c.black),
+                 ("BACKGROUND", (1, 1), (1, -1), c.HexColor(GREY)), ("TOPPADDING", (0, 0), (-1, -1), 2.6), ("BOTTOMPADDING", (0, 0), (-1, -1), 2.6),
+                 ("ALIGN", (1, 1), (-1, 1), "CENTER"), ("BOTTOMPADDING", (0, 1), (-1, 1), 12)]
+
+        def add(label, cy=None, py=None, kind="line"):
+            i = len(data)
+            if kind == "head":
+                style.append(("TOPPADDING", (0, i), (-1, i), 12))
+            cells = [r(cy)] + ([r(py)] if hc else []) if kind != "head" else [""] * len(years)
+            big = kind in ("big", "net")
+            if big:
+                label_p = self.P(f"<font size=10><b>{escape(label)}</b></font>", "cell")
+            else:
+                label_p = self.P("&nbsp;" * 6 + escape(label) if kind == "line" else f"<b>{escape(label)}</b>", "cell")
+            data.append([label_p] + cells)
+            if kind in ("total", "big", "net"):
+                style.extend([("FONTNAME", (1, i), (-1, i), "Helvetica-Bold"), ("LINEABOVE", (1, i), (-1, i), 0.7, c.black)])
+            if big:
+                style.extend([("FONTSIZE", (1, i), (-1, i), 9.5), ("TOPPADDING", (0, i), (-1, i), 7), ("BOTTOMPADDING", (0, i), (-1, i), 7)])
+            if kind == "net":
+                style.append(("LINEBELOW", (1, i), (-1, i), 2.2, c.black))
+
+        def section(head, keys, sign, total_label, total_sign):
+            lines = [ln for k in keys for ln in (rows_by.get(k) or {}).get("lines") or []]
+            if not lines:
+                return ZERO, ZERO
+            add(head, kind="head")
+            for ln in lines:
+                add(ln["name"], sign * _d(ln["amount"]), sign * _d(ln.get("comparative")) if hc else None)
+            cy = sum((sign * _d(ln["amount"]) for ln in lines), ZERO)
+            py = sum((sign * _d(ln.get("comparative")) for ln in lines), ZERO)
+            if total_label and (len(lines) > 1 or total_sign < 0):
+                add(total_label, total_sign * cy, total_sign * py if hc else None, "total")
+            return cy, py
+
+        rev = section("Revenue", ["revenue"], -1, "Total revenue", 1)
+        cos = section("Direct expenses", ["cost_of_sales"], 1, "Total direct expenses", -1)
+        add("Gross profit / (loss)", rev[0] - cos[0], (rev[1] - cos[1]) if hc else None, "big")
+        oth = section("Other income", ["other_income"], -1, "Total other income", 1)
+        opx = section("Operating expenses", ["admin_expenses", "distribution_expenses", "finance_costs"], 1, "Total operating expenses", -1)
+        net_cy, net_py = rev[0] - cos[0] + oth[0] - opx[0], rev[1] - cos[1] + oth[1] - opx[1]
+        tax = section("Income tax", ["income_tax_expense"], 1, "", -1)
+        if tax != (ZERO, ZERO):
+            net_cy, net_py = net_cy - tax[0], net_py - tax[1]
+        add("Net profit / (loss) for the year", net_cy, net_py if hc else None, "net")
+        t = Table(data, colWidths=[108 * mm] + [31 * mm] * len(years), hAlign="LEFT")
+        t.setStyle(TableStyle(style))
+        return [self.P(escape(self.legal), "pname"), self.P("Income Statement", "ptitle"), self.P("Amounts in Sri Lankan rupees (LKR)", "psmall"),
+                self.P("", "psmall"), t]
 
     # --- the document ------------------------------------------------------------------------------------------------
     def story(self):
+        if not self.full:
+            return self.proprietor()
         out = self.cover() + self.contents()
-        if self.e.get("audited"):
+        if self.audited:
             out += self.auditor()
-        out += self.income_statement()
-        if self.full:
-            out += self.financial_position() + self.changes_in_equity() + self.cash_flow()
-        out += self.policies() + self.notes_pages()
-        return out
+        return out + self.income_statement() + self.financial_position() + self.changes_in_equity() + self.cash_flow() + self.policies() + \
+            self.notes_pages()
+
+    def section_at(self, page: int) -> tuple[str, int]:
+        best = ("", 0)
+        for key, start in self.layout.items():
+            if start <= page and start >= best[1]:
+                best = (key, start)
+        return best
+
+    def draw_page(self, canvas, doc):
+        mm = self.mm
+        canvas.saveState()
+        p = doc.page
+        if self.draft:
+            canvas.setFont("Helvetica-Bold", 7)
+            canvas.setFillColorRGB(0.7, 0.14, 0.1)
+            canvas.drawString(20 * mm, 7 * mm, "DRAFT - prepared in TASKO's Local Tax workflow; not approved")
+            canvas.setFillColorRGB(0, 0, 0)
+        if not self.full:
+            canvas.restoreState()
+            return
+        sec, start = self.section_at(p)
+        if sec == "auditor":
+            self.letterhead(canvas, p, cont=p > start)
+        elif sec in TITLES:
+            canvas.setFont("Helvetica", 8.5)
+            canvas.drawRightString(192 * mm, 280 * mm, f"Page {p - OFFSET}")
+            canvas.setFont("Helvetica-Bold", 10.5)
+            canvas.drawString(20 * mm, 271 * mm, self.name)
+            canvas.setFont("Helvetica-Bold", 11)
+            canvas.drawString(20 * mm, 263 * mm, TITLES[sec] + (" (contd)" if sec == "policies" and p > start else ""))
+            if sec != "policies":
+                canvas.setFont("Helvetica-Bold", 7.5)
+                canvas.drawString(20 * mm, 256 * mm, "(all amounts in Sri Lanka Rupees)")
+            if sec in STATEMENTS:
+                canvas.setFont("Helvetica", 7.5)
+                a, b = self.shown("policies", ""), self.shown("notes_end", "")
+                canvas.drawString(20 * mm, 24 * mm, f"The accounting policies and notes on pages {a} to {b} form an integral part of these financial statements.")
+                if self.audited:
+                    x, y = self.shown("auditor", ""), self.shown("auditor_end", "")
+                    canvas.drawString(20 * mm, 20.5 * mm, f"Report of the auditors on page {x}" if x == y else f"Report of the auditors on pages {x} and {y}")
+        canvas.restoreState()
+
+    def letterhead(self, canvas, p, cont):
+        mm = self.mm
+        canvas.setFont("Helvetica", 7.5)
+        canvas.drawRightString(192 * mm, 280 * mm, "DRAFT TEMPLATE - NOT AN AUDIT OPINION")
+        if LOGO.exists():
+            canvas.drawImage(str(LOGO), 20 * mm, 262 * mm, width=38 * mm, height=16 * mm, preserveAspectRatio=True, anchor="sw", mask="auto")
+        else:  # the firm's wordmark
+            canvas.setFont("Helvetica-Bold", 17)
+            canvas.drawString(26 * mm, 268 * mm, "AFIT")
+            canvas.setFont("Helvetica", 7.5)
+            canvas.drawString(31 * mm, 264.5 * mm, "connects")
+        canvas.setFont("Times-Bold", 9.5)
+        canvas.drawString(20 * mm, 255 * mm, "INDEPENDENT AUDITOR’S REPORT" + (" (CONTD)" if cont else ""))
+        canvas.setLineWidth(0.7)
+        canvas.line(20 * mm, 31 * mm, 192 * mm, 31 * mm)
+        canvas.setFont("Times-Bold", 7)
+        canvas.drawString(20 * mm, 28 * mm, FIRM["name"])
+        canvas.setFont("Times-Roman", 7)
+        for i, line in enumerate(FIRM["lines"]):
+            canvas.drawString(20 * mm, (25 - 2.8 * i) * mm, line)
+        canvas.setFont("Helvetica", 8.5)
+        canvas.drawRightString(192 * mm, (25 - 2.8 * 3) * mm, f"Page {p - OFFSET}")
 
     def build(self) -> bytes:
         from reportlab.lib.pagesizes import A4
-        from reportlab.lib.units import mm
         from reportlab.platypus import SimpleDocTemplate
 
-        report = self
+        report, mm = self, self.mm
 
         class Doc(SimpleDocTemplate):
             def afterFlowable(self, flowable):
                 key = getattr(flowable, "_toc", None)
                 if key:
                     report.pages[key] = self.page
+                sec = getattr(flowable, "_sec", None)
+                if sec and sec not in report.starts:
+                    report.starts[sec] = self.page
 
-        def page(canvas, doc):
-            canvas.saveState()
-            if doc.page > 1:
-                canvas.setFont("Helvetica", 8)
-                canvas.drawRightString(194 * mm, 287 * mm, f"Page {doc.page}")
-            a = report.pages.get("auditor", 0)
-            in_report = a and a <= doc.page <= report.pages.get("auditor_end", a)
-            if doc.page > 2 and not in_report:
-                canvas.setFont("Helvetica-Bold", 10.5)
-                canvas.drawString(18 * mm, 284 * mm, report.name)
-            if report.draft:
-                canvas.setFont("Helvetica-Bold", 7)
-                canvas.setFillColorRGB(0.7, 0.14, 0.1)
-                canvas.drawString(18 * mm, 8 * mm, "DRAFT - prepared in TASKO's Local Tax workflow; not approved")
-            canvas.restoreState()
-
-        for _ in range(2):  # the first pass finds each part's page for the contents and the footers
+        top, bottom = (50 * mm, 34 * mm) if self.full else (22 * mm, 18 * mm)
+        buf = io.BytesIO()
+        for _ in range(2):  # the first pass finds each part's page for the contents, the headers and the footers
+            self.starts = {}
             buf = io.BytesIO()
-            Doc(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=16 * mm, topMargin=18 * mm, bottomMargin=16 * mm,
-                title=f"{self.name} - Financial statements", author="TASKO Local Tax workflow").build(self.story(), onFirstPage=page, onLaterPages=page)
+            Doc(buf, pagesize=A4, leftMargin=20 * mm, rightMargin=18 * mm, topMargin=top, bottomMargin=bottom,
+                title=f"{self.legal} - {'Financial statements' if self.full else 'Income statement'}", author="TASKO Local Tax workflow").build(
+                self.story(), onFirstPage=self.draw_page, onLaterPages=self.draw_page)
+            self.layout = dict(self.starts)
         return buf.getvalue()
 
 
 def render(st: dict) -> bytes:
-    """The financial statements as a PDF in AFIT's house format."""
+    """The financial statements as a PDF in AFIT's house format (the full set, or the income statement on its own)."""
     return _Report(st).build()

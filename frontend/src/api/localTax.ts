@@ -47,6 +47,8 @@ export interface EngagementData {
   field_sources?: Record<string, string>
   bank_balances?: { id?: string; bank: string; account: string; date: string; balance: string; source?: string }[]
   directors?: string
+  company_secretary?: string
+  shares_issued?: string
   note_text?: Record<string, string>
 }
 

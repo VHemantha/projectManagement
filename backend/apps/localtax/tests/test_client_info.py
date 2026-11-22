@@ -2,6 +2,7 @@
 shared Google Drive folder) - each value with its source, used only once the accountant confirms it, with what is
 missing, unclear or inconsistent flagged; the income-statement-only option; and the financial statements in AFIT's
 house format, checked against Life Path Educations & Migrations' signed statements for the year to 31 March 2025."""
+import re
 from decimal import Decimal as D
 
 import pytest
@@ -184,3 +185,23 @@ def test_the_clients_drive_folder_is_linked_and_copied(world, monkeypatch):  # n
     assert r.data["sync"]["added"] == 1 and r.data["documents"][0]["origin"] == "drive"
     r = c.post(world.url + "drive/sync/", {}, format="json")
     assert r.data["sync"] == {"added": 0, "updated": 0, "unchanged": 1, "skipped": [], "left": 0}
+
+
+def test_the_house_format_has_the_policies_the_tax_note_and_the_company_details(world):  # noqa: F811
+    c = api(world.pat)
+    st = load_life_path(c, world.url, reporting_framework="full",
+                        data={"directors": "Mr. A. Perera", "company_secretary": "ABC Secretaries", "shares_issued": "100,000 ordinary shares"})
+    data = st["engagement"]["data"]
+    assert (data["company_secretary"], data["shares_issued"]) == ("ABC Secretaries", "100,000 ordinary shares")
+    notes = {n["key"]: n for n in st["statements"]["notes"]}
+    titles = [p["title"] for p in notes["policies"]["policies"]]
+    # the sample's policies, each with its standard under full SLFRS/LKAS
+    assert "Revenue from contracts with customers (SLFRS 15)" in titles and "Leases (SLFRS 16)" in titles
+    assert "Related parties and subsequent events (LKAS 24 and LKAS 10)" in titles and "Inventories (LKAS 2)" not in titles
+    rec = notes["tax_reconciliation"]["rows"]
+    assert rec[0]["amount"] == D("368039.00") and rec[-1]["amount"] == D("121248.00")
+    assert any(r["label"].startswith("Tax at the standard rate of") for r in rec)
+    report = st["statements"]["audit_report"]
+    assert report["label"].startswith("DRAFT TEMPLATE") and "section 163(2)" in report["sections"][-1]["text"]
+    pdf = c.get(world.url + "export/fs.pdf").content
+    assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 14  # cover, contents and 12 numbered pages

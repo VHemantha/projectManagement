@@ -160,6 +160,11 @@ def update(payload: dict) -> tuple[dict, dict]:
             "balance": _money(i.get("balance"), "Balance", errors, f"{k}.balance"), "source": _text(i.get("source"), 300)})
     if "directors" in raw:
         data["directors"] = _text(raw["directors"], 500)
+    if "company_secretary" in raw:
+        data["company_secretary"] = _text(raw["company_secretary"], 300)
+    if "shares_issued" in raw:
+        # e.g. "100,000 ordinary shares": the stated capital note's wording
+        data["shares_issued"] = _text(raw["shares_issued"], 120)
     if "fs_scope" in raw:
         # What the client needs: an income statement only, or the full set of financial statements.
         if raw["fs_scope"] not in ("income_statement", "full"):

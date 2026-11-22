@@ -104,7 +104,8 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
 
   const payload = () => ({ ...basics, data: { income: data.income ?? [], assets: data.assets ?? [], liabilities: data.liabilities ?? [],
     payments: data.payments ?? [], qualifying_payments: data.qualifying_payments ?? '', losses_bf: data.losses_bf ?? '',
-    expected_skipped: !!data.expected_skipped, fs_scope: data.fs_scope ?? 'full', directors: data.directors ?? '' }, stage: 'questionnaire' as const })
+    expected_skipped: !!data.expected_skipped, fs_scope: data.fs_scope ?? 'full', directors: data.directors ?? '',
+    company_secretary: data.company_secretary ?? '', shares_issued: data.shares_issued ?? '' }, stage: 'questionnaire' as const })
   const flush = (then?: () => void) => {
     if (timer.current) window.clearTimeout(timer.current)
     save.mutate(payload(), { onSuccess: () => (setDirty(false), then?.()) })
@@ -235,13 +236,25 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                     <span className={styles.hint}>
                       {(data.fs_scope ?? 'full') === 'full'
                         ? 'Income statement, financial position, changes in equity, cash flows, accounting policies and notes.'
-                        : 'The income statement with its accounting policies and notes; the trial balance may hold just the income and expense accounts.'}
+                        : 'A one-page income statement, account by account (the sole proprietor format); the trial balance may hold just the income and expense accounts.'}
                     </span>
                   </fieldset>
                   <label className={`${styles.field} ${styles.wide}`}>
                     <span>Directors (for the financial statements)</span>
                     <input value={data.directors ?? ''} placeholder="e.g. Mr. A. Perera, Ms. B. Silva" onChange={(ev) => setD({ directors: ev.target.value })} maxLength={500} />
                   </label>
+                  {(data.fs_scope ?? 'full') === 'full' && (
+                    <>
+                      <label className={styles.field}>
+                        <span>Company secretary</span>
+                        <input value={data.company_secretary ?? ''} placeholder="e.g. ABC Secretarial Services (Pvt) Ltd" onChange={(ev) => setD({ company_secretary: ev.target.value })} maxLength={300} />
+                      </label>
+                      <label className={styles.field}>
+                        <span>Shares issued (stated capital note)</span>
+                        <input value={data.shares_issued ?? ''} placeholder="e.g. 100,000 ordinary shares" onChange={(ev) => setD({ shares_issued: ev.target.value })} maxLength={120} />
+                      </label>
+                    </>
+                  )}
                 </>
               )}
             </div>

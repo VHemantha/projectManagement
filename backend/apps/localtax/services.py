@@ -274,7 +274,15 @@ def depth(eng: TaxEngagement, fs_result, comp) -> dict | None:
     ye = eng.fy_end.strftime("%d %B %Y").lstrip("0") if eng.fy_end else "[year end]"
     full = fs_scope(eng) == "full"
     return {"scope": fs_scope(eng), "equity": DP.equity_changes(fs_result) if full else None, "cash_flows": DP.cash_flows(fs_result) if full else None,
-            "notes": DP.notes(fs_result, info, comp), "audit_report": DP.audit_report(info, ye) if eng.audited else None}
+            "notes": DP.notes(fs_result, info, comp, _standard_rate(eng)), "audit_report": DP.audit_report(info, ye) if eng.audited else None}
+
+
+def _standard_rate(eng: TaxEngagement):
+    """The year's standard corporate rate, for the income tax note's reconciliation (None when the rules lack it)."""
+    try:
+        return rules_for(eng.year_of_assessment).value("company", "standard_rate")
+    except Exception:  # noqa: BLE001 - the note falls back to the computation's own figures
+        return None
 
 
 def _clean(fs_result):

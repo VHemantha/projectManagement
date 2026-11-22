@@ -207,7 +207,7 @@ export function AuditReport({ state }: { state: LocalTaxState }) {
         {ar.sections.map((s) => (
           <div key={s.title}>
             <h4 style={{ margin: '8px 0 2px' }}>{s.title}</h4>
-            {s.text && <p style={{ margin: 0 }}>{s.text}</p>}
+            {s.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{s.text}</p>}
           </div>
         ))}
         <p style={{ whiteSpace: 'pre-wrap', marginTop: 12 }}>{ar.signature}</p>

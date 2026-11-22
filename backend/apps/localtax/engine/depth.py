@@ -120,47 +120,92 @@ def cash_flows(fin: dict) -> dict:
                      ([f"A difference of {diff:,.2f}: a non-cash movement (e.g. a revaluation or a reserve transfer) to reflect."] if diff else [])}
 
 
+# The accounting policies, as AFIT's house format sets them out: (key, title, standard reference under full SLFRS/LKAS,
+# when it applies, wording). Bracketed text is for the accountant to tailor.
 POLICY_TEXT = [
-    ("revenue", "Revenue", "Revenue is recognised when control of goods or services passes to the customer, at the amount of consideration "
-                           "the entity expects to be entitled to, net of trade discounts and taxes collected for the Government (VAT, SSCL)."),
-    ("ppe", "Property, plant and equipment", "Property, plant and equipment are stated at cost less accumulated depreciation and any impairment. "
-                                             "Depreciation is charged on a straight-line basis over the assets' estimated useful lives. [State the rates or useful lives used.]"),
-    ("intangibles", "Intangible assets", "Intangible assets are stated at cost less accumulated amortisation and impairment, amortised over their useful lives."),
-    ("inventories", "Inventories", "Inventories are measured at the lower of cost and net realisable value. Cost is determined on the "
-                                   "[first-in, first-out / weighted average] basis."),
-    ("trade_receivables", "Financial instruments", "Trade and other receivables are measured at amortised cost less an allowance for expected credit "
-                                                    "losses. Trade and other payables are measured at amortised cost."),
-    ("borrowings", "Borrowings", "Borrowings are recognised initially at fair value net of transaction costs and subsequently at amortised cost; "
-                                 "interest is charged to profit or loss using the effective interest method."),
-    ("tax", "Income tax", "The income tax expense comprises current and deferred tax. Current tax is provided in accordance with the Inland Revenue "
-                          "Act No. 24 of 2017 and its amendments, at the rates enacted at the reporting date."),
-    ("employee", "Employee benefits", "Contributions to the Employees' Provident Fund and Employees' Trust Fund are charged to profit or loss as "
-                                      "incurred. The retirement gratuity is provided for in accordance with the Payment of Gratuity Act No. 12 of 1983."),
-    ("cash", "Cash and cash equivalents", "Cash and cash equivalents comprise cash in hand and at bank and short-term deposits with maturities of three "
-                                          "months or less, net of bank overdrafts repayable on demand."),
+    ("judgements", "Judgements, estimates and going concern", "", "always",
+     "Management considers expected cash flows and financing available for at least twelve months from the reporting date. Material "
+     "uncertainties are disclosed when identified. Estimates affect asset lives, expected credit losses and tax. Estimates are reviewed when new "
+     "information becomes available. Changes in estimates are recognised prospectively."),
+    ("revenue", "Revenue from contracts with customers", "SLFRS 15", "revenue",
+     "The Company recognises revenue when it satisfies a performance obligation by transferring the promised goods or services to the customer, "
+     "at the amount of consideration it expects to be entitled to. [Describe each revenue stream and whether it is recognised over time or at a "
+     "point in time.] Transaction prices exclude taxes collected on behalf of third parties. Amounts billed before performance are contract "
+     "liabilities. Receivables are recognised when entitlement is unconditional."),
+    ("expenses", "Cost of sales and operating expenses", "", "always",
+     "Direct costs of providing the Company's goods and services are included in cost of sales as they are delivered. Other expenses are "
+     "recognised on an accrual basis and classified by function. Interest income is recognised using the effective interest method when applicable."),
+    ("ppe", "Property, plant and equipment", "LKAS 16", "ppe",
+     "Property, plant and equipment is measured at cost less accumulated depreciation and impairment. Cost includes directly attributable "
+     "expenditure. Depreciation begins when assets are available for use and is charged on a straight-line basis over their estimated useful "
+     "lives [state the useful lives or rates by class]. Useful lives, residual values and methods are reviewed annually. Disposal gains or losses "
+     "are the difference between net proceeds and carrying amount and are recognised in profit or loss."),
+    ("intangibles", "Intangible assets", "LKAS 38", "intangibles",
+     "Intangible assets are measured at cost less accumulated amortisation and impairment, and amortised on a straight-line basis over their "
+     "estimated useful lives [state the useful lives]."),
+    ("impairment", "Impairment of non-financial assets", "LKAS 36", "long_lived",
+     "Assets are assessed for impairment indicators at each reporting date. If indicators exist, recoverable amount is the higher of value in use "
+     "and fair value less costs of disposal. Impairment is recorded for any excess carrying amount. A reversal is limited to the carrying amount "
+     "that would have existed without the impairment."),
+    ("inventories", "Inventories", "LKAS 2", "inventories",
+     "Inventories are measured at the lower of cost and net realisable value. Cost is determined on the [first-in, first-out / weighted average] basis."),
+    ("trade_receivables", "Financial instruments and cash", "SLFRS 9, SLFRS 7 and LKAS 7", "always",
+     "Receivables and refundable deposits held to collect solely principal and interest are measured at amortised cost, subject to impairment. "
+     "Trade receivables without a significant financing component are initially measured at transaction price. Lifetime expected credit losses are "
+     "estimated for trade receivables using historical experience adjusted for current and forward-looking information. Trade payables and "
+     "shareholder advances are measured at amortised cost. Cash and cash equivalents comprise cash in hand and demand deposits, plus highly liquid "
+     "short-term placements with insignificant risk of changes in value held to meet short-term commitments."),
+    ("borrowings", "Borrowings", "SLFRS 9", "borrowings",
+     "Borrowings are recognised initially at fair value net of transaction costs and subsequently at amortised cost; interest is charged to profit "
+     "or loss using the effective interest method."),
+    ("tax", "Income tax", "LKAS 12", "always",
+     "Current tax is measured at the amount expected to be paid or recovered under the Inland Revenue Act No. 24 of 2017 and its amendments, using "
+     "the rates enacted or substantively enacted at the reporting date. Deferred tax is recognised on temporary differences, subject to the "
+     "applicable exceptions, using the rates expected when assets are recovered or liabilities settled. Deferred tax assets are recognised to the "
+     "extent that sufficient taxable profit is probable. Tax follows the underlying item into profit or loss, other comprehensive income or equity."),
+    ("leases", "Leases", "SLFRS 16", "always",
+     "At commencement the Company recognises a right-of-use asset and a lease liability measured at the present value of unpaid lease payments. "
+     "The asset is subsequently depreciated and assessed for impairment. The liability is increased by interest, reduced by payments and remeasured "
+     "when required. [Short-term and low-value leases for which the exemption is elected are expensed on a straight-line basis.]"),
+    ("employee", "Employee benefits", "LKAS 19", "always",
+     "Short-term benefits are expensed as employees provide services. Contributions to the Employees' Provident Fund and the Employees' Trust Fund "
+     "are expensed as incurred. The retirement gratuity, where an obligation exists under the Payment of Gratuity Act No. 12 of 1983, is measured "
+     "using the projected unit credit method, with remeasurements recognised in other comprehensive income."),
+    ("foreign_currency", "Foreign currency", "LKAS 21", "always",
+     "Transactions are translated at the exchange rate on the transaction date. Monetary balances are translated at the closing rate. Exchange "
+     "differences generally enter profit or loss. Historical-cost non-monetary items use the transaction-date rate."),
+    ("provisions", "Provisions and contingencies", "LKAS 37", "always",
+     "A provision is recognised for a present obligation from a past event when an outflow is probable and the amount can be reliably estimated. "
+     "Contingent liabilities are disclosed unless an outflow is remote. Contingent assets are disclosed when an inflow is probable and recognised "
+     "only when virtually certain."),
+    ("related", "Related parties and subsequent events", "LKAS 24 and LKAS 10", "always",
+     "Material related-party transactions, outstanding balances and key management compensation are disclosed. Subsequent events providing evidence "
+     "of conditions at the reporting date are adjusted. Material non-adjusting events are disclosed with their estimated effect, where practicable."),
 ]
 
 
 def policies(fin: dict, engagement: dict) -> list[dict]:
-    """The basis of preparation and the policies the entity's balances call for: standard wording, to tailor."""
-    framework = FRAMEWORK.get(engagement.get("reporting_framework") or "smes", FRAMEWORK["smes"])
+    """The basis of preparation and the policies the entity's balances call for: standard wording, to tailor. Under
+    full SLFRS/LKAS each title carries its standard, as in AFIT's house format."""
+    fw_key = engagement.get("reporting_framework") or "smes"
+    framework = FRAMEWORK.get(fw_key, FRAMEWORK["smes"])
     present = {h for h, v in (fin.get("bs") or {}).items() if v.get("amount") or v.get("comparative")}
     present |= {r["heading"] for r in (fin.get("pl") or {}).get("rows") or []}
-    names = " ".join(ln.get("name") or "" for ln in fin.get("tb") or fin.get("lines") or [])
-    out = [{"key": "basis", "title": "Basis of preparation",
-            "text": f"The financial statements have been prepared in accordance with {framework}, on the historical cost basis and on the going "
-                    "concern basis. They are presented in Sri Lanka Rupees (LKR), the entity's functional currency. [Confirm the going concern "
-                    "assessment.]"}]
-    for key, title, text in POLICY_TEXT:
-        wanted = {"borrowings": bool(present & {"borrowings_current", "borrowings_non_current"}), "tax": True,
-                  "employee": bool(re.search(r"epf|etf|gratuity|retirement", names, re.I))}.get(key, key in present)
+    out = [{"key": "basis", "title": "Basis of preparation and material accounting policy information", "ref": "",
+            "text": f"These financial statements have been prepared in accordance with {framework}, on the historical cost basis and on the going "
+                    "concern basis. Sri Lanka rupees (LKR) are the functional and presentation currency. Amounts are rounded to the nearest rupee. "
+                    "Comparative figures are presented for the preceding year."}]
+    for key, title, ref, when, text in POLICY_TEXT:
+        wanted = {"always": True, "borrowings": bool(present & {"borrowings_current", "borrowings_non_current"}),
+                  "long_lived": bool(present & {"ppe", "intangibles"})}.get(when, when in present)
         if wanted:
-            out.append({"key": key, "title": title, "text": text})
+            ref = ref if fw_key == "full" else ""
+            out.append({"key": key, "title": f"{title} ({ref})" if ref else title, "text": text})
     custom = (engagement.get("data") or {}).get("policy_text") or {}
     return [{**p, "text": custom[p["key"]], "standard": False} if custom.get(p["key"]) else {**p, "standard": True} for p in out]
 
 
-def notes(fin: dict, engagement: dict, comp: dict | None = None) -> list[dict]:
+def notes(fin: dict, engagement: dict, comp: dict | None = None, rate: Decimal | None = None) -> list[dict]:
     """The notes: corporate information, the policies, then one numbered note per heading with its accounts
     (current and comparative), the income tax reconciliation and the matters only the accountant can complete."""
     out = [{"no": 1, "key": "corporate", "title": "Corporate information", "text":
@@ -190,14 +235,29 @@ def notes(fin: dict, engagement: dict, comp: dict | None = None) -> list[dict]:
         n += 1
     if comp:
         accounting = (fin.get("pl") or {}).get("current", {}).get("income_tax_expense") or ZERO
-        out.append({"no": n, "key": "tax_reconciliation", "title": "Income tax - reconciliation", "rows": [
-            {"label": "Profit before tax", "amount": comp.get("pbt")},
-            {"label": "Add: disallowable expenses and adjustments", "amount": comp.get("total_add_backs")},
-            {"label": "Less: allowable deductions, allowances and losses", "amount": -(comp.get("total_deductions") or ZERO)},
-            {"label": "Taxable income (per the tax computation)", "amount": comp.get("taxable_income")},
-            {"label": "Income tax on taxable income", "amount": comp.get("income_tax")},
-            {"label": "Income tax expense in profit or loss", "amount": accounting},
-            {"label": "Difference (deferred tax / under- or over-provision)", "amount": accounting - (comp.get("income_tax") or ZERO)}]})
+        pbt = (fin.get("pl") or {}).get("current", {}).get("pbt") or ZERO
+        tax = comp.get("income_tax") or ZERO
+        rows = [{"label": "Accounting profit before tax", "amount": pbt}]
+        if rate:
+            pct = format((Decimal(rate) * 100).normalize(), "f")
+            at_rate = (pbt * rate).quantize(Decimal("0.01"))
+            add = ((comp.get("total_add_backs") or ZERO) * rate).quantize(Decimal("0.01"))
+            ded = -((comp.get("total_deductions") or ZERO) * rate).quantize(Decimal("0.01"))
+            rows += [{"label": f"Tax at the standard rate of {pct}%", "amount": at_rate},
+                     {"label": "Tax effect of disallowable expenses", "amount": add},
+                     {"label": "Tax effect of allowable deductions, allowances and losses", "amount": ded}]
+            other = tax - at_rate - add - ded
+            if other:
+                rows.append({"label": "Tax effect of income taxed at other rates and tax losses", "amount": other})
+        else:
+            rows += [{"label": "Add: disallowable expenses and adjustments", "amount": comp.get("total_add_backs")},
+                     {"label": "Less: allowable deductions, allowances and losses", "amount": -(comp.get("total_deductions") or ZERO)},
+                     {"label": "Taxable income (per the tax computation)", "amount": comp.get("taxable_income")}]
+        rows.append({"label": "Income tax on taxable income (per the tax computation)", "amount": tax, "kind": "subtotal"})
+        if accounting - tax:
+            rows.append({"label": "Deferred tax and under- / (over-) provision", "amount": accounting - tax})
+        rows.append({"label": "Income tax expense in profit or loss", "amount": accounting, "kind": "total"})
+        out.append({"no": n, "key": "tax_reconciliation", "title": "Income tax - reconciliation", "rows": rows})
         n += 1
     for key, title in (("events", "Events after the reporting period"), ("contingencies", "Contingent liabilities and commitments"),
                        ("related", "Related party transactions")):
@@ -209,27 +269,61 @@ def notes(fin: dict, engagement: dict, comp: dict | None = None) -> list[dict]:
 
 
 def audit_report(engagement: dict, year_end: str) -> dict:
-    """The draft independent auditor's report, structured on SLAuS 700 (Revised): a labelled template with every
-    judgement left for the auditor. Never an opinion."""
+    """The draft independent auditor's report, laid out as AFIT's report on SLAuS 700 (Revised): the standard wording,
+    with the opinion left for the auditor to confirm or modify. A labelled template - never an opinion."""
     name = engagement.get("legal_name") or "[Entity]"
-    framework = FRAMEWORK.get(engagement.get("reporting_framework") or "smes", FRAMEWORK["smes"])
-    return {"label": "DRAFT TEMPLATE - NOT AN AUDIT OPINION", "title": "Independent Auditor's Report", "addressee": f"To the shareholders of {name}",
+    framework = "Sri Lanka Accounting Standards (SLFRS and LKAS)" if (engagement.get("reporting_framework") or "smes") == "full" else \
+        FRAMEWORK.get(engagement.get("reporting_framework") or "smes", FRAMEWORK["smes"]).replace(" issued by CA Sri Lanka", "")
+    return {"label": "DRAFT TEMPLATE - NOT AN AUDIT OPINION", "title": "Independent Auditor's Report", "addressee": f"To the Shareholders of {name}",
             "sections": [
-                {"title": "Report on the audit of the financial statements", "text": ""},
-                {"title": "Opinion", "text": f"[To be completed by the auditor after the audit.] We have audited the financial statements of {name}, which "
-                                             f"comprise the statement of financial position as at {year_end}, and the statement of profit or loss and other "
-                                             "comprehensive income, statement of changes in equity and statement of cash flows for the year then ended, "
-                                             "and notes to the financial statements, including a summary of significant accounting policies. "
-                                             f"[Opinion wording - unmodified / qualified / adverse / disclaimer - chosen by the auditor under {framework}.]"},
-                {"title": "Basis for opinion", "text": "[To be completed by the auditor.] We conducted our audit in accordance with Sri Lanka Auditing "
-                                                       "Standards (SLAuSs). Our responsibilities are described in the Auditor's responsibilities section. "
-                                                       "We are independent of the Company in accordance with the Code of Ethics issued by CA Sri Lanka."},
-                {"title": "Key audit matters", "text": "[If applicable - the auditor's judgement.]"},
-                {"title": "Other information", "text": "[If applicable.]"},
-                {"title": "Responsibilities of management and those charged with governance", "text":
-                    f"Management is responsible for the preparation of financial statements that give a true and fair view in accordance with {framework} "
-                    "and the Companies Act No. 07 of 2007, and for such internal control as management determines is necessary."},
-                {"title": "Auditor's responsibilities for the audit of the financial statements", "text": "[Standard SLAuS 700 wording - to be completed by the auditor.]"},
-                {"title": "Report on other legal and regulatory requirements", "text": "[Section 163(2) of the Companies Act No. 07 of 2007 - to be completed by the auditor.]"},
+                {"title": "Report on the Audit of the Financial Statements", "text": ""},
+                {"title": "Opinion", "text":
+                    f"We have audited the financial statements of {name}, which comprise the statement of financial position as at {year_end}, and the "
+                    "comprehensive income statement, statement of changes in equity and cash flow statement for the year then ended, and notes to the "
+                    "financial statements, including material accounting policy information.\n\n"
+                    "[Opinion - the auditor to confirm or modify after the audit.] In our opinion, the accompanying financial statements give a true and "
+                    f"fair view of the financial position of the Company as at {year_end}, and of its financial performance and cash flows for the year "
+                    f"then ended in accordance with {framework}."},
+                {"title": "Basis for Opinion", "text":
+                    "We conducted our audit in accordance with Sri Lanka Auditing Standards (SLAuSs). Our responsibilities under those standards are "
+                    "further described in the Auditor's Responsibilities for the Audit of the Financial Statements section of our report. We are "
+                    "independent of the Company in accordance with the Code of Ethics issued by CA Sri Lanka and have fulfilled our other ethical "
+                    "responsibilities in accordance with that Code. We believe that the audit evidence we have obtained is sufficient and appropriate "
+                    "to provide a basis for our opinion."},
+                {"title": "Responsibilities of Management and Those Charged with Governance for the Financial Statements", "text":
+                    f"Management is responsible for the preparation of financial statements that give a true and fair view in accordance with {framework}, "
+                    "and for such internal control as management determines is necessary to enable the preparation of financial statements that are "
+                    "free from material misstatement, whether due to fraud or error.\n\n"
+                    "In preparing the financial statements, management is responsible for assessing the Company's ability to continue as a going "
+                    "concern, disclosing, as applicable, matters related to going concern and using the going concern basis of accounting unless "
+                    "management either intends to liquidate the Company or to cease operations, or has no realistic alternative but to do so.\n\n"
+                    "Those charged with governance are responsible for overseeing the Company's financial reporting process."},
+                {"title": "Auditor's Responsibilities for the Audit of the Financial Statements", "text":
+                    "Our objectives are to obtain reasonable assurance about whether the financial statements as a whole are free from material "
+                    "misstatement, whether due to fraud or error, and to issue an auditor's report that includes our opinion. Reasonable assurance is a "
+                    "high level of assurance, but is not a guarantee that an audit conducted in accordance with SLAuSs will always detect a material "
+                    "misstatement when it exists. Misstatements can arise from fraud or error and are considered material if, individually or in the "
+                    "aggregate, they could reasonably be expected to influence the economic decisions of users taken on the basis of these financial "
+                    "statements."},
+                {"title": "Auditor's Responsibilities for the Audit of the Financial Statements (continued)", "continued": True, "text":
+                    "As part of an audit in accordance with SLAuSs, we exercise professional judgement and maintain professional scepticism throughout "
+                    "the audit. We also:\n\n"
+                    "\u2022 Identify and assess the risks of material misstatement due to fraud or error, design procedures responsive to those risks, and "
+                    "obtain sufficient appropriate audit evidence. Fraud may involve collusion, forgery, intentional omissions, misrepresentation or "
+                    "override of internal control, so the risk of failing to detect a fraud-related misstatement is higher.\n\n"
+                    "\u2022 Obtain an understanding of relevant internal control to design appropriate audit procedures. Our audit does not express an "
+                    "opinion on the effectiveness of the Company's internal control.\n\n"
+                    "\u2022 Evaluate the appropriateness of accounting policies and the reasonableness of accounting estimates and related disclosures.\n\n"
+                    "\u2022 Conclude on the appropriateness of management's use of the going concern basis and whether a material uncertainty exists. If "
+                    "it does, we draw attention to adequate disclosures or modify our opinion if disclosures are inadequate. Our conclusions are based "
+                    "on evidence available up to the date of our report. Future events or conditions may cause the Company to cease to continue as a "
+                    "going concern.\n\n"
+                    "\u2022 Evaluate the overall presentation, structure and content of the financial statements, including disclosures, and whether they "
+                    "represent the underlying transactions and events in a manner that achieves fair presentation.\n\n"
+                    "We communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit and "
+                    "significant audit findings, including significant deficiencies in internal control that we identify during our audit."},
+                {"title": "Report on Other Legal and Regulatory Requirements", "text":
+                    "As required by section 163(2) of the Companies Act No. 7 of 2007, we have obtained all the information and explanations that "
+                    "were required for the audit and, as far as appears from our examination, proper accounting records have been kept by the Company."},
             ],
-            "signature": "[Auditor's name / firm], Chartered Accountants\n[Place]\n[Date]"}
+            "signature": "AFIT Connect\nChartered Accountants\nGampaha\n[Date of the report]"}
