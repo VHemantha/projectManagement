@@ -100,3 +100,24 @@ def test_the_precheck_answer_shape_stays_small_enough_for_the_api():
 
     assert raw_id_lists(SCHEMA) == 0 and SCHEMA["$defs"]["ids"] == {"type": "array", "items": {"type": "string"}}
     assert "snapshot" in SCHEMA["required"] and SCHEMA["properties"]["items"]["items"]["properties"]["sources"] == {"$ref": "#/$defs/ids"}
+
+
+def test_a_finding_carries_its_label_and_level_in_the_text_so_the_answer_shape_compiles():
+    """The API compiles the answer shape into a grammar and refused it as too large with "label" and "level" as
+    fields of their own (every pre-check failed, 23 Nov 2026): a finding is {text, status, sources}, and code
+    splits "[high] Label: text" back out."""
+    finding = JS.SCHEMA["properties"]["sections"]["items"]["properties"]["findings"]["items"]
+    assert sorted(finding["properties"]) == ["sources", "status", "text"]
+    raw = {"sections": [
+        {"key": "key_risks", "summary": "Two risks.", "findings": [
+            {"text": "[high] Revenue cut-off: sales after March were booked early.", "status": "confirmed", "sources": ["Q1"]},
+            {"text": "Plain text with no label.", "status": "inferred", "sources": []}]},
+        {"key": "nature_of_business", "summary": "A shop.", "findings": [
+            {"text": "[high] Main income: retail sales.", "status": "confirmed", "sources": ["Q1"]}]}]}
+    out = JS.clean(raw, lambda ids: [i for i in ids if i == "Q1"], lambda text: True)
+    sec = {s["key"]: s for s in out["sections"]}
+    risk, plain = sec["key_risks"]["findings"]
+    assert (risk["label"], risk["level"], risk["text"]) == ("Revenue cut-off", "high", "Sales after March were booked early.")
+    assert (plain["label"], plain["level"], plain["text"]) == ("", "none", "Plain text with no label.")
+    # a level only means something for a key risk
+    assert sec["nature_of_business"]["findings"][0]["level"] == "none"

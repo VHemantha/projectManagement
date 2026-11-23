@@ -63,10 +63,12 @@ SCHEMA = {
             "properties": {
                 "key": {"type": "string", "enum": SECTION_KEYS},
                 "summary": _STR,
+                # A finding is {text, status, sources}: its label (and a key risk's level) lead the text - "[high] Label: ..." -
+                # and code splits them out. With "label" and "level" as fields of their own the API refused the whole answer
+                # shape as too large to compile ("the compiled grammar is too large"), and every pre-check failed (23 Nov 2026).
                 "findings": {"type": "array", "items": {
-                    "type": "object", "additionalProperties": False, "required": ["label", "text", "status", "level", "sources"],
-                    "properties": {"label": _STR, "text": _STR, "status": {"type": "string", "enum": list(STATUSES)},
-                                   "level": {"type": "string", "enum": list(LEVELS)}, "sources": _IDS}}},
+                    "type": "object", "additionalProperties": False, "required": ["text", "status", "sources"],
+                    "properties": {"text": _STR, "status": {"type": "string", "enum": list(STATUSES)}, "sources": _IDS}}},
             }}},
         "business_story": _STR,
         "revenue_sources": {"type": "array", "items": {
@@ -102,9 +104,10 @@ ANSWER = """- snapshot: the Job Snapshot, shown to the preparer BEFORE the findi
   focus_areas: 2-4 areas the preparer should pay attention to, and why. understood: 1-2 statements linking the story to the records examined, with any material assumption or gap.
   sections: the snapshot's findings under the firm's eleven headings, one entry per heading, in this order:
 """ + "\n".join(f"    {k}: {d}." for k, _, d in SECTIONS) + """
-    Each: "summary" one plain sentence (at most 30 words); "findings" 0-5, each a "label" (1-5 words), "text" (at most 30 words), a status
-    (confirmed, inferred, unresolved) and the sources. "level": for key_risks, how significant the risk of misstatement is (high, medium,
-    low); "none" everywhere else. Where the records say nothing on a heading, say so in the summary ("Not shown in the documents read")
+    Each: "summary" one plain sentence (at most 30 words); "findings" 0-5, each a "text" that starts with a label of 1-5 words and a colon,
+    then at most 30 words ("Bank loan: the ANZ loan was refinanced in March."), a status (confirmed, inferred, unresolved) and the sources.
+    For key_risks only, start the text with how significant the risk of misstatement is, in brackets: "[high] Revenue cut-off: ...",
+    "[medium] ...", "[low] ...". Where the records say nothing on a heading, say so in the summary ("Not shown in the documents read")
     with no findings: never fill a heading with guesses. Code shows every figure as a chart beside your words: do not calculate any.
   Every statement cites its sources."""
 
@@ -259,6 +262,21 @@ def this_year(facts: dict, rows: list[dict]) -> dict | None:
     return {"revenue": round(income, 2), "expenses": round(expenses, 2), "net_profit": round(income - expenses, 2), "accounts_matched": matched}
 
 
+_FINDING = re.compile(r"^\s*(?:\[(high|medium|low|none)\]\s*)?(?:([^:.\n]{1,48}):\s+)?(.*)$", re.I | re.S)
+
+
+def split_finding(f: dict) -> tuple[str, str, str]:
+    """(label, level, text) of a snapshot finding: the model writes "[high] Label: text" in one field (see SCHEMA);
+    separate "label" / "level" fields are still read when present."""
+    m = _FINDING.match(str(f.get("text") or ""))
+    level, label, text = (m.group(1) or "").lower(), (m.group(2) or "").strip(), m.group(3).strip()
+    if len(label.split()) > 6:  # a colon in a sentence, not a label
+        label, text = "", f"{m.group(2)}: {text}".strip()
+    elif label:
+        text = text[:1].upper() + text[1:]
+    return str(f.get("label") or label), str(f.get("level") or level or "none"), text
+
+
 def clean(raw: dict | None, valid, figures_ok) -> dict | None:
     """The model's words, checked: real sources only, a status for every event and statement, and
     a flag on any sentence whose figures are not in the records. None when the answer had none."""
@@ -310,15 +328,16 @@ def clean(raw: dict | None, valid, figures_ok) -> dict | None:
             continue
         found = []
         for f in (sec.get("findings") or [])[:MAX_FINDINGS]:
-            text = sentence(f.get("text"), 34)
+            label, level, body = split_finding(f)
+            text = sentence(body, 34)
             if not text:
                 continue
             sources = valid(f.get("sources", []))
             status = f.get("status") if f.get("status") in STATUSES else "inferred"
             if status == "confirmed" and not sources:
                 status = "inferred"  # said to be shown by a document, but cites none
-            level = f.get("level") if key == "key_risks" and f.get("level") in LEVELS[:3] else "none"
-            found.append({"label": sentence(f.get("label"), 6), "text": text, "status": status, "level": level, "sources": sources,
+            level = level if key == "key_risks" and level in LEVELS[:3] else "none"
+            found.append({"label": sentence(label, 6), "text": text, "status": status, "level": level, "sources": sources,
                           "flags": flags(text)})
         summary = sentence(sec.get("summary"), 34)
         sections[key] = {"key": key, "summary": summary if figures_ok(summary) else "", "findings": found}

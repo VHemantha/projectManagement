@@ -153,11 +153,11 @@ def demo_precheck(messages: list[BaseMessage], kwargs: dict) -> AIMessage:
                      "understood": [{"text": "Demo: read the questionnaire and last year's accounts.", "status": "confirmed", "sources": q_ids[:1]}],
                      "sections": [
                          {"key": "nature_of_business", "summary": f"Demo: a {btype.replace('_', ' ')} client.",
-                          "findings": [{"label": "Main income", "text": "Demo: the questionnaire names the main income.", "status": "confirmed",
-                                        "level": "none", "sources": q_ids[:1]}]},
+                          "findings": [{"text": "Main income: demo - the questionnaire names the main income.", "status": "confirmed",
+                                        "sources": q_ids[:1]}]},
                          {"key": "key_risks", "summary": "Demo: the balances carried from last year.",
-                          "findings": [{"label": "Opening balances", "text": "Demo: last year's balances carry into this year.", "status": "inferred",
-                                        "level": "medium", "sources": [p[0] for p in by("T")][:1]}]},
+                          "findings": [{"text": "[medium] Opening balances: demo - last year's balances carry into this year.", "status": "inferred",
+                                        "sources": [p[0] for p in by("T")][:1]}]},
                          {"key": "going_concern", "summary": "Not shown in the documents read.", "findings": []}]},
     })
     return AIMessage(content=text, usage_metadata=_usage(body, text))
