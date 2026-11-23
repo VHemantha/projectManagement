@@ -120,6 +120,14 @@
   font-weight: 600;
   color: var(--tf-text);
   cursor: pointer;
+  /* Frozen: the heading stays at the top of the board while its cards scroll beneath it. It sticks to the
+     board's scroll area (.scrollArea) and, with swimlanes, within its own lane. The column's background
+     keeps the cards from showing through, and the top corners follow the column's. */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--tf-surface-sunken);
+  border-radius: var(--tf-radius-lg) var(--tf-radius-lg) 0 0;
 }
 
 .columnDot {
