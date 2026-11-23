@@ -662,8 +662,8 @@ class ReturnFieldReviewView(APIView):
             return Response({"detail": "No rules for that year."}, status=status.HTTP_404_NOT_FOUND)
         entity = request.data.get("entity_type")
         code = str(request.data.get("code") or "").strip().upper()
-        if entity not in ("company", "individual"):
-            return Response({"entity_type": ["company or individual"]}, status=status.HTTP_400_BAD_REQUEST)
+        if entity not in ("company", "partnership", "individual"):
+            return Response({"entity_type": ["company, partnership or individual"]}, status=status.HTTP_400_BAD_REQUEST)
         if not re.fullmatch(r"[A-Z]{1,4}\d{0,3}\*?", code):
             return Response({"code": ["A field code such as C4, or a family such as SCA*."]}, status=status.HTTP_400_BAD_REQUEST)
         current = ReturnFieldReview.objects.filter(year_of_assessment=year, entity_type=entity, code=code, active=True)

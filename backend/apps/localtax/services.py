@@ -136,13 +136,23 @@ def approved(eng: TaxEngagement, scope: str | None = None):
     return qs.filter(scope=scope) if scope else qs
 
 
+TAX_TYPE = {"company": "CIT", "partnership": "PIT", "individual": "IIT"}
+
+
+def keeps_books(eng: TaxEngagement) -> bool:
+    """Companies and partnerships always keep books (a trial balance); an individual does when one is uploaded -
+    a sole proprietor's business."""
+    return eng.entity_type != TaxEngagement.Entity.INDIVIDUAL or eng.tb_lines.exists()
+
+
 def financials(eng: TaxEngagement) -> dict | None:
-    """Companies: the statements from the TB with the approved accounting adjustments. Individuals: the income
-    and expenses by source. None for a company without a trial balance."""
+    """Companies, partnerships and individuals with a trial balance: the statements from the TB with the approved
+    accounting adjustments ("kind": "company" - the books). Other individuals: the income and expenses by source.
+    None for a company or partnership without a trial balance."""
     data = eng.data or {}
-    if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL:
-        return {"kind": "individual", **FS.individual_statement(data.get("income") or [])}
     lines = tb_lines(eng)
+    if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL and not lines:
+        return {"kind": "individual", **FS.individual_statement(data.get("income") or [])}
     if not lines:
         return None
     adjusted = FS.apply_adjustments(lines, [{"lines": a.lines} for a in approved(eng, "accounting")])
@@ -180,13 +190,13 @@ def inputs(eng: TaxEngagement, fs_result: dict | None = None) -> dict:
     else:
         fs_result = fs_result if fs_result is not None else financials(eng)
         pbt = fs_result["pbt"] if fs_result else comp.get("pbt_manual") or "0"
-        base = {"entity_type": "company", "pbt": pbt, "add_backs": comp.get("add_backs") or [], "deductions": comp.get("deductions") or [],
+        base = {"entity_type": eng.entity_type, "pbt": pbt, "add_backs": comp.get("add_backs") or [], "deductions": comp.get("deductions") or [],
                 "capital_allowances": comp.get("capital_allowances") or [], "special_income": comp.get("special_income") or []}
     history = data.get("loss_history") or []
     losses_bf = sum((Decimal(h["amount"]) for h in history if h.get("amount")), ZERO) if history else data.get("losses_bf") or "0"
     base.update({"qualifying_payments": data.get("qualifying_payments") or "0", "losses_bf": str(losses_bf), "loss_history": history,
                  "payments": data.get("payments") or []})
-    if base["entity_type"] == "company" and data.get("fixed_assets"):
+    if base["entity_type"] != "individual" and data.get("fixed_assets"):
         base["fixed_assets"] = data["fixed_assets"]
     for adj in approved(eng, "tax"):
         base = _apply_tax_adjustment(base, adj, fs_result)
@@ -212,10 +222,12 @@ def state(eng: TaxEngagement, user=None) -> dict:
     for f, label in REQUIRED_BASIC:
         if not getattr(eng, f):
             alerts.append({"stage": "questionnaire", "severity": "review", "text": f"{label} is missing."})
-    if eng.entity_type == TaxEngagement.Entity.COMPANY and not eng.nic_or_reg:
-        alerts.append({"stage": "questionnaire", "severity": "review", "text": "Company registration number is missing."})
+    if eng.entity_type != TaxEngagement.Entity.INDIVIDUAL and not eng.nic_or_reg:
+        alerts.append({"stage": "questionnaire", "severity": "review",
+                       "text": "Company registration number is missing." if eng.entity_type == TaxEngagement.Entity.COMPANY
+                       else "Business registration number is missing."})
     fs_result = financials(eng)
-    if eng.entity_type == TaxEngagement.Entity.COMPANY and fs_result is None:
+    if eng.entity_type != TaxEngagement.Entity.INDIVIDUAL and fs_result is None:
         alerts.append({"stage": "fs", "severity": "blocking",
                        "text": "Upload the current year's trial balance in Client Info > Supporting Documents to prepare the financial statements."})
     if fs_result and fs_result.get("kind") == "company":
@@ -225,6 +237,14 @@ def state(eng: TaxEngagement, user=None) -> dict:
         alerts += [{"stage": "fs", "severity": "review", "text": u} for u in fs_result["unusual"]]
     if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL and not data.get("income"):
         alerts.append({"stage": "questionnaire", "severity": "blocking", "text": "Add the income sources."})
+    if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL and fs_result and fs_result.get("kind") == "company":
+        # A sole proprietor's books: the tax computation still works from the income sources, so the business
+        # profit has to be one of them.
+        business = sum((Decimal(str(i.get("amount") or 0)) for i in data.get("income") or [] if i.get("category") == "business"), ZERO)
+        if not business:
+            alerts.append({"stage": "questionnaire", "severity": "review",
+                           "text": f"The trial balance shows a net profit of {fs_result['pbt']:,.2f}: add the business income in Income & Expenses "
+                                   "so the tax computation includes it."})
     from . import prefill
 
     docs = prefill.summary(eng)
@@ -294,7 +314,7 @@ def _clean(fs_result):
 def progress(eng: TaxEngagement, fs_result, comp) -> dict:
     """How complete each stage is (0-100), for the overview cards."""
     data = eng.data or {}
-    q_parts = [all(getattr(eng, f) for f, _ in REQUIRED_BASIC), bool(data.get("income")) or eng.entity_type == "company",
+    q_parts = [all(getattr(eng, f) for f, _ in REQUIRED_BASIC), bool(data.get("income")) or eng.entity_type != "individual",
                bool(data.get("payments")), eng.expected_tax is not None or bool(data.get("expected_skipped")), bool(eng.issue.attachments.exists())]
     fs_parts = [bool(fs_result), bool(fs_result) and all(c["passed"] for c in fs_result.get("checks", [])) if fs_result and fs_result.get("kind") == "company" else bool(fs_result),
                 not eng.adjustments.filter(scope="accounting", status="proposed").exists(), eng.stage("fs")["status"] in ("ready_for_review", "approved")]

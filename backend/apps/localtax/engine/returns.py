@@ -23,11 +23,12 @@ def build(engagement: dict, fs: dict | None, comp: dict, overrides: dict | None 
     year's return in RAMIS (Phase 4), code -> {"official", "by", "at"}."""
     overrides = overrides or {}
     field_refs = field_refs or {}
-    company = engagement.get("entity_type") == "company"
+    entity = engagement.get("entity_type")
+    company = entity in ("company", "partnership")  # the books-based return (accounting profit, adjustments, allowances)
     basic = [
         _f("B1", "Taxpayer (legal) name", engagement.get("legal_name"), source="Questionnaire", required=True, kind="text"),
         _f("B2", "Taxpayer identification number (TIN)", engagement.get("tin"), source="Questionnaire", required=True, kind="text"),
-        _f("B3", "Company registration no." if company else "NIC / passport no.", engagement.get("nic_or_reg"), source="Questionnaire",
+        _f("B3", {"company": "Company registration no.", "partnership": "Business registration no."}.get(entity, "NIC / passport no."), engagement.get("nic_or_reg"), source="Questionnaire",
            required=True, kind="text"),
         _f("B4", "Year of assessment", engagement.get("year_of_assessment"), source="Questionnaire", required=True, kind="text"),
         _f("B5", "Residency", "Resident" if engagement.get("residency") == "resident" else "Non-resident", source="Questionnaire", kind="text"),

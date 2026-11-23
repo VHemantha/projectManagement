@@ -24,7 +24,8 @@ export function ComputationStage({ taskKey, state, onNext, onBack, onQuestionnai
 }) {
   const e = state.engagement
   const comp = state.computation
-  const company = e.entity_type === 'company'
+  const company = e.entity_type !== 'individual'  // books-based: companies and partnerships
+  const taxName = { company: 'Corporate', partnership: 'Partnership', individual: 'Individual' }[e.entity_type]
   const save = useSaveLocalTax(taskKey)
   const analyse = useAiAgent<AiItems>(taskKey, 'analyse')
   const [section, setSection] = useState<Section>('computation')
@@ -53,7 +54,7 @@ export function ComputationStage({ taskKey, state, onNext, onBack, onQuestionnai
         </div>
         <span className={styles.spacer} />
         <div className={styles.actions}>
-          <span className={styles.chip}>{company ? 'Corporate Income Tax' : 'Individual Income Tax'}</span>
+          <span className={styles.chip}>{taxName} Income Tax</span>
           <Link to={`/local-tax/rules/${e.year_of_assessment.replace('/', '-')}`} className={styles.chip}><BookOpen size={12} /> Tax Rules (YA {e.year_of_assessment})</Link>
           <Button variant="secondary" size="sm" onClick={() => setSection('reverse')}>
             Adjustments ({state.adjustments.filter((a) => a.scope === 'tax' && a.status !== 'rejected').length})
@@ -74,7 +75,7 @@ export function ComputationStage({ taskKey, state, onNext, onBack, onQuestionnai
             <Alerts alerts={state.alerts.filter((a) => a.stage === 'computation')} />
           ) : section === 'computation' ? (
             <>
-              <h3 className={styles.cardTitle}>{company ? 'Corporate' : 'Individual'} Income Tax Computation</h3>
+              <h3 className={styles.cardTitle}>{taxName} Income Tax Computation</h3>
               <p className={styles.muted}>Year of assessment {e.year_of_assessment}{e.fy_end ? ` · for the year ended ${e.fy_end}` : ''}</p>
               <div className={styles.tableWrap}>
                 <table className={styles.table} aria-label="Tax computation">

@@ -67,7 +67,13 @@ export function SupportingDocuments({ taskKey, isCompany, tbCount }: { taskKey: 
         before it flows into the financial statements and the tax computation.
       </p>
 
-      {isCompany && <TbUpload taskKey={taskKey} accounts={tbCount} />}
+      {!isCompany && (
+        <p className={styles.hint} style={{ margin: 0 }}>
+          A trial balance is optional for an individual: upload one when the business keeps books (a sole proprietor), and the financial statements are
+          prepared from it.
+        </p>
+      )}
+      <TbUpload taskKey={taskKey} accounts={tbCount} />
 
       <section className={styles.card} aria-label="Upload supporting documents">
         <div className={styles.actions}>

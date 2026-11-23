@@ -9,7 +9,7 @@ from .services import ASSET_KINDS, EXPENSE_CLASSES, INCOME_CATEGORIES, LIABILITY
 
 MAX_ITEMS = 300
 BASIC_TEXT = {"legal_name": 200, "client_name": 200, "tin": 30, "nic_or_reg": 40, "address": 500, "activity": 1000}
-CHOICES = {"entity_type": ("individual", "company"), "residency": ("resident", "non_resident"), "tax_type": ("CIT", "IIT"),
+CHOICES = {"entity_type": ("individual", "company", "partnership"), "residency": ("resident", "non_resident"), "tax_type": ("CIT", "IIT", "PIT"),
            "reporting_framework": ("full", "smes", "smaller"), "expected_basis": ("total", "remaining")}
 
 

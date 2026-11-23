@@ -109,7 +109,7 @@ attached document and give, each with "cite" (page, sheet and row, or the headin
   prior_return, fixed_assets, salary_certificate, wht_certificate, tax_payment, invoice_or_receipt, registration,
   loan_statement, other), a one-line "summary", and "period_end" (YYYY-MM-DD) if the document is as at / for a period ending.
 - "fields": client details the document states - legal_name, tin, nic_or_reg (company registration or NIC number), address,
-  activity (nature of business), fy_end (YYYY-MM-DD), entity_type ("company" or "individual"). Only what is printed.
+  activity (nature of business), fy_end (YYYY-MM-DD), entity_type ("company", "partnership" or "individual"). Only what is printed.
 - "lines": figures for the client info, each with "list":
   * trial_balance: one line per account - "code", "description" (the account name), "amount" (current year, debit positive,
     credit negative) and "comparative" (prior year, same signs; "" if none). Financial statements with a prior year column may

@@ -60,6 +60,8 @@ const PAYMENT_TYPES: [string, string][] = [
   ['final_wht', 'Final withholding (not a credit)'], ['other', 'Other credit'],
 ]
 
+const TAX_TYPE = { company: 'CIT', partnership: 'PIT', individual: 'IIT' } as const
+
 type Basics = Pick<Engagement, 'legal_name' | 'client_name' | 'tin' | 'nic_or_reg' | 'address' | 'entity_type' | 'residency' | 'year_of_assessment' |
   'fy_end' | 'tax_type' | 'activity' | 'expected_tax' | 'expected_basis'>
 
@@ -172,13 +174,14 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
               <label className={styles.field}>
                 <span>Entity Type <span className={styles.req}>*</span></span>
                 <select value={basics.entity_type} onChange={(ev) => (setB('entity_type', ev.target.value as Basics['entity_type']),
-                  setB('tax_type', ev.target.value === 'company' ? 'CIT' : 'IIT'))}>
+                  setB('tax_type', TAX_TYPE[ev.target.value as Basics['entity_type']]))}>
                   <option value="company">Company</option>
+                  <option value="partnership">Partnership</option>
                   <option value="individual">Individual</option>
                 </select>
               </label>
               <label className={styles.field}>
-                <span>{basics.entity_type === 'company' ? 'Registration No.' : 'NIC No.'}</span>
+                <span>{{ company: 'Registration No.', partnership: 'Business Registration No.', individual: 'NIC No.' }[basics.entity_type]}</span>
                 <input value={basics.nic_or_reg} onChange={(ev) => setB('nic_or_reg', ev.target.value)} />
                 <FieldSource text={from('nic_or_reg')} />
               </label>
@@ -206,6 +209,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                 <span>Tax Type <span className={styles.req}>*</span></span>
                 <select value={basics.tax_type} onChange={(ev) => setB('tax_type', ev.target.value as Basics['tax_type'])}>
                   <option value="CIT">Corporate Income Tax</option>
+                  <option value="PIT">Partnership Income Tax</option>
                   <option value="IIT">Individual Income Tax</option>
                 </select>
               </label>
@@ -219,7 +223,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                 <input value={basics.address} onChange={(ev) => setB('address', ev.target.value)} maxLength={500} />
                 <FieldSource text={from('address')} />
               </label>
-              {basics.entity_type === 'company' && (
+              {(
                 <>
                   <fieldset className={`${styles.field} ${styles.wide}`} style={{ border: 0, padding: 0, margin: 0 }}>
                     <legend><span>Financial statements required <span className={styles.req}>*</span></span></legend>
@@ -237,13 +241,14 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                       {(data.fs_scope ?? 'full') === 'full'
                         ? 'Income statement, financial position, changes in equity, cash flows, accounting policies and notes.'
                         : 'A one-page income statement, account by account (the sole proprietor format); the trial balance may hold just the income and expense accounts.'}
+                      {basics.entity_type === 'individual' && ' For an individual, the statements are prepared from the trial balance (Supporting Documents) when the business keeps books; otherwise from the income and expenses entered.'}
                     </span>
                   </fieldset>
                   <label className={`${styles.field} ${styles.wide}`}>
-                    <span>Directors (for the financial statements)</span>
-                    <input value={data.directors ?? ''} placeholder="e.g. Mr. A. Perera, Ms. B. Silva" onChange={(ev) => setD({ directors: ev.target.value })} maxLength={500} />
+                    <span>{{ company: 'Directors', partnership: 'Partners', individual: 'Proprietor' }[basics.entity_type]} (for the financial statements)</span>
+                    <input value={data.directors ?? ''} placeholder={basics.entity_type === 'individual' ? 'e.g. Mr. A. Perera' : 'e.g. Mr. A. Perera, Ms. B. Silva'} onChange={(ev) => setD({ directors: ev.target.value })} maxLength={500} />
                   </label>
-                  {(data.fs_scope ?? 'full') === 'full' && (
+                  {basics.entity_type === 'company' && (data.fs_scope ?? 'full') === 'full' && (
                     <>
                       <label className={styles.field}>
                         <span>Company secretary</span>
@@ -378,7 +383,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
             </>
           )}
 
-          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type === 'company'} tbCount={state.financials?.tb?.length ?? 0} />}
+          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type !== 'individual'} tbCount={state.financials?.tb?.length ?? 0} />}
 
           {section === 'expected' && (
             <div className={styles.formGrid}>

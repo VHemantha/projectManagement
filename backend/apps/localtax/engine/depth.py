@@ -201,17 +201,33 @@ def policies(fin: dict, engagement: dict) -> list[dict]:
         if wanted:
             ref = ref if fw_key == "full" else ""
             out.append({"key": key, "title": f"{title} ({ref})" if ref else title, "text": text})
+    out = [{**p, "text": for_entity(p["text"], engagement)} for p in out]
     custom = (engagement.get("data") or {}).get("policy_text") or {}
     return [{**p, "text": custom[p["key"]], "standard": False} if custom.get(p["key"]) else {**p, "standard": True} for p in out]
+
+
+NOUN = {"company": "Company", "partnership": "Partnership", "individual": "business"}
+OWNERS = {"company": "shareholder advances", "partnership": "amounts due to the partners", "individual": "amounts due to the proprietor"}
+
+
+def for_entity(text: str, engagement: dict) -> str:
+    """Standard wording written for a company, said of a partnership or a sole proprietor's business instead."""
+    entity = engagement.get("entity_type") if engagement.get("entity_type") in NOUN else "company"
+    if entity == "company":
+        return text
+    noun = NOUN[entity]
+    return (text.replace("The Company's", f"The {noun}'s").replace("the Company's", f"the {noun}'s").replace("The Company", f"The {noun}")
+            .replace("the Company", f"the {noun}").replace("shareholder advances", OWNERS[entity]))
 
 
 def notes(fin: dict, engagement: dict, comp: dict | None = None, rate: Decimal | None = None) -> list[dict]:
     """The notes: corporate information, the policies, then one numbered note per heading with its accounts
     (current and comparative), the income tax reconciliation and the matters only the accountant can complete."""
+    what = {"partnership": "is a partnership carrying on business in Sri Lanka", "individual": "is a sole proprietorship carrying on business in Sri Lanka"}.get(
+        engagement.get("entity_type"), f"({engagement.get('nic_or_reg') or '[registration no.]'}) is a company incorporated and domiciled in Sri Lanka")
     out = [{"no": 1, "key": "corporate", "title": "Corporate information", "text":
-            f"{engagement.get('legal_name') or '[Entity]'} ({engagement.get('nic_or_reg') or '[registration no.]'}) is a company incorporated and "
-            f"domiciled in Sri Lanka. Registered office: {engagement.get('address') or '[address]'}. Principal activity: "
-            f"{engagement.get('activity') or '[activity]'}."},
+            f"{engagement.get('legal_name') or '[Entity]'} {what}. Principal place of business: {engagement.get('address') or '[address]'}. "
+            f"Principal activity: {engagement.get('activity') or '[activity]'}."},
            {"no": 2, "key": "policies", "title": "Basis of preparation and significant accounting policies", "policies": policies(fin, engagement)}]
     n = 3
     income_only = fin.get("scope") == "income_statement"
@@ -272,9 +288,10 @@ def audit_report(engagement: dict, year_end: str) -> dict:
     """The draft independent auditor's report, laid out as AFIT's report on SLAuS 700 (Revised): the standard wording,
     with the opinion left for the auditor to confirm or modify. A labelled template - never an opinion."""
     name = engagement.get("legal_name") or "[Entity]"
+    entity = engagement.get("entity_type") if engagement.get("entity_type") in NOUN else "company"
     framework = "Sri Lanka Accounting Standards (SLFRS and LKAS)" if (engagement.get("reporting_framework") or "smes") == "full" else \
         FRAMEWORK.get(engagement.get("reporting_framework") or "smes", FRAMEWORK["smes"]).replace(" issued by CA Sri Lanka", "")
-    return {"label": "DRAFT TEMPLATE - NOT AN AUDIT OPINION", "title": "Independent Auditor's Report", "addressee": f"To the Shareholders of {name}",
+    report = {"label": "DRAFT TEMPLATE - NOT AN AUDIT OPINION", "title": "Independent Auditor's Report", "addressee": f"To the {({'company': 'Shareholders', 'partnership': 'Partners', 'individual': 'Proprietor'})[entity]} of {name}",
             "sections": [
                 {"title": "Report on the Audit of the Financial Statements", "text": ""},
                 {"title": "Opinion", "text":
@@ -323,7 +340,11 @@ def audit_report(engagement: dict, year_end: str) -> dict:
                     "We communicate with those charged with governance regarding, among other matters, the planned scope and timing of the audit and "
                     "significant audit findings, including significant deficiencies in internal control that we identify during our audit."},
                 {"title": "Report on Other Legal and Regulatory Requirements", "text":
-                    "As required by section 163(2) of the Companies Act No. 7 of 2007, we have obtained all the information and explanations that "
-                    "were required for the audit and, as far as appears from our examination, proper accounting records have been kept by the Company."},
+                    ("As required by section 163(2) of the Companies Act No. 7 of 2007, we" if entity == "company" else "We") +
+                    " have obtained all the information and explanations that were required for the audit and, as far as appears from our "
+                    "examination, proper accounting records have been kept by the Company."},
             ],
             "signature": "AFIT Connect\nChartered Accountants\nGampaha\n[Date of the report]"}
+    for sec in report["sections"]:
+        sec["text"] = for_entity(sec["text"], engagement)
+    return report

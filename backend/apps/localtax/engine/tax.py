@@ -92,6 +92,9 @@ def _finish(lines, flags, tax, taxable, creditable, final, rules: Rules, extra: 
 
 
 def _company(inputs: dict, rules: Rules) -> dict:
+    """Companies and partnerships: the accounting profit, adjusted, at the entity's rates (`company` or
+    `partnership` in the year's rules)."""
+    entity = "partnership" if inputs.get("entity_type") == "partnership" else "company"
     lines, flags = [], []
     pbt = d(inputs.get("pbt"))
     lines.append(line("pbt", "Accounting profit before tax", pbt, kind="total"))
@@ -159,15 +162,15 @@ def _company(inputs: dict, rules: Rules) -> dict:
         flags.append({"severity": "info", "text": f"A tax loss of {loss:,.2f} for the year: carried forward."})
     lines.append(line("taxable", "Taxable income", taxable, kind="total"))
 
-    standard = rules.value("company", "standard_rate")
+    standard = rules.value(entity, "standard_rate")
     if standard is None:
-        flags.append({"severity": "blocking", "text": "No standard corporate rate in the year's rules: the tax can't be worked out."})
+        flags.append({"severity": "blocking", "text": f"No standard {'partnership' if entity == 'partnership' else 'corporate'} rate in the year's rules: the tax can't be worked out."})
         standard = ZERO
     lines.append(line("rate_head", "Income tax", None, kind="head"))
     left, tax = taxable, ZERO
     for s in inputs.get("special_income") or []:
-        rate_node = rules.rule("company", "special_rates", s.get("rate_key", "")) or {}
-        rate = rules.value("company", "special_rates", s.get("rate_key", ""))
+        rate_node = rules.rule(entity, "special_rates", s.get("rate_key", "")) or {}
+        rate = rules.value(entity, "special_rates", s.get("rate_key", ""))
         part = min(d(s.get("amount")), left)
         if rate is None:
             flags.append({"severity": "review", "text": f"No rate in the year's rules for “{s.get('label') or s.get('rate_key')}”: taxed at the standard rate."})
@@ -176,12 +179,12 @@ def _company(inputs: dict, rules: Rules) -> dict:
         tax += t
         left -= part
         lines.append(line(f"special_{s.get('id', '')}", f"{s.get('label') or rate_node.get('label', '')}: {part:,.2f} × {pct(rate)}%", t, level=1,
-                          rule=f"company.special_rates.{s.get('rate_key')}", ref=rate_node.get("ref", "")))
+                          rule=f"{entity}.special_rates.{s.get('rate_key')}", ref=rate_node.get("ref", "")))
     if left > 0 or not inputs.get("special_income"):
         t = q(left * standard)
         tax += t
-        lines.append(line("standard", f"Standard rate: {left:,.2f} × {pct(standard)}%", t, level=1, rule="company.standard_rate",
-                          ref=(rules.rule("company", "standard_rate") or {}).get("ref", "")))
+        lines.append(line("standard", f"Standard rate: {left:,.2f} × {pct(standard)}%", t, level=1, rule=f"{entity}.standard_rate",
+                          ref=(rules.rule(entity, "standard_rate") or {}).get("ref", "")))
     lines.append(line("income_tax", "Income tax", tax, kind="subtotal"))
     creditable, final = _credits(inputs.get("payments"))
     return _finish(lines, flags, tax, taxable, creditable, final, rules, {"loss_for_year": q(loss), "pbt": q(pbt),

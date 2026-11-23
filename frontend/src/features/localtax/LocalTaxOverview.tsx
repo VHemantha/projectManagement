@@ -13,8 +13,8 @@ const CHECKLIST: Record<StageKey, [string, (s: LocalTaxState) => boolean][]> = {
   questionnaire: [
     ['Client & tax details', (s) => !!(s.engagement.legal_name && s.engagement.tin && s.engagement.fy_end)],
     ['Supporting documents verified', (s) => !!s.documents?.documents && !s.documents.to_verify && !s.documents.open_flags],
-    ['Income & expenses', (s) => !!(s.engagement.data.income?.length) || s.engagement.entity_type === 'company'],
-    ['Assets & liabilities', (s) => !!(s.engagement.data.assets?.length || s.engagement.data.liabilities?.length) || s.engagement.entity_type === 'company'],
+    ['Income & expenses', (s) => !!(s.engagement.data.income?.length) || s.engagement.entity_type !== 'individual'],
+    ['Assets & liabilities', (s) => !!(s.engagement.data.assets?.length || s.engagement.data.liabilities?.length) || s.engagement.entity_type !== 'individual'],
     ['Tax payments & expected tax', (s) => !!s.engagement.data.payments?.length && (s.engagement.expected_tax !== null || !!s.engagement.data.expected_skipped)],
   ],
   fs: [
@@ -31,7 +31,7 @@ const CHECKLIST: Record<StageKey, [string, (s: LocalTaxState) => boolean][]> = {
   ],
   return: [
     ['Return details & schedules', (s) => !!s.return && !s.return.missing.length],
-    ['Asset and liability statement', (s) => s.engagement.entity_type === 'company' || !!s.engagement.data.assets?.length],
+    ['Asset and liability statement', (s) => s.engagement.entity_type !== 'individual' || !!s.engagement.data.assets?.length],
     ['Tax credits & payment details', (s) => !!s.engagement.data.payments?.length],
     ['Final draft (PDF)', (s) => s.engagement.stages.return?.status === 'approved'],
   ],
@@ -134,7 +134,7 @@ export function LocalTaxOverview({ taskKey }: { taskKey: string }) {
               <>
                 <h4 style={{ margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}><Layers size={16} aria-hidden="true" /> Key Results (Current)</h4>
                 <dl className={styles.summary}>
-                  {e.entity_type === 'company' && <div><dt>Accounting Profit Before Tax</dt><dd>LKR {money(comp.pbt)}</dd></div>}
+                  {e.entity_type !== 'individual' && <div><dt>Accounting Profit Before Tax</dt><dd>LKR {money(comp.pbt)}</dd></div>}
                   <div><dt>Taxable Income</dt><dd>LKR {money(comp.taxable_income)}</dd></div>
                   <div><dt>Final Tax Payable</dt><dd><Receipt size={12} aria-hidden="true" /> LKR {money(comp.payable)}</dd></div>
                 </dl>

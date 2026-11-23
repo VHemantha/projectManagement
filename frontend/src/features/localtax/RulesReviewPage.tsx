@@ -145,7 +145,7 @@ function RuleRow({ year, rule, canValidate }: { year: string; rule: ReviewedRule
 
 function FieldRefs({ year, data }: { year: string; data: RuleRegister }) {
   const review = useReviewField(year)
-  const [form, setForm] = useState({ entity_type: 'company' as 'company' | 'individual', code: '', official: '', note: '' })
+  const [form, setForm] = useState({ entity_type: 'company' as 'company' | 'partnership' | 'individual', code: '', official: '', note: '' })
   const active = data.fields.filter((f) => f.active)
   return (
     <div className={styles.card}>
@@ -158,7 +158,7 @@ function FieldRefs({ year, data }: { year: string; data: RuleRegister }) {
         <tbody>
           {active.map((f) => (
             <tr key={f.id}>
-              <td>{f.entity_type === 'company' ? 'Corporate' : 'Individual'}</td><td>{f.code}</td><td>{f.official}{f.note && <span className={styles.muted}> — {f.note}</span>}</td>
+              <td>{{ company: 'Corporate', partnership: 'Partnership', individual: 'Individual' }[f.entity_type]}</td><td>{f.code}</td><td>{f.official}{f.note && <span className={styles.muted}> — {f.note}</span>}</td>
               <td>{f.by}</td>
               <td>{data.can_validate && <Button size="sm" variant="subtle" onClick={() => review.mutate({ entity_type: f.entity_type, code: f.code, withdraw: true })}>Withdraw</Button>}</td>
             </tr>
@@ -169,8 +169,8 @@ function FieldRefs({ year, data }: { year: string; data: RuleRegister }) {
       {data.can_validate && (
         <div className={styles.formGrid}>
           <label className={styles.field}><span>Return</span>
-            <select value={form.entity_type} onChange={(ev) => setForm({ ...form, entity_type: ev.target.value as 'company' | 'individual' })}>
-              <option value="company">Corporate (CIT)</option><option value="individual">Individual (IIT)</option>
+            <select value={form.entity_type} onChange={(ev) => setForm({ ...form, entity_type: ev.target.value as 'company' | 'partnership' | 'individual' })}>
+              <option value="company">Corporate (CIT)</option><option value="partnership">Partnership (PIT)</option><option value="individual">Individual (IIT)</option>
             </select>
           </label>
           <label className={styles.field}><span>TASKO code</span><input value={form.code} placeholder="T3 or SCA*" onChange={(ev) => setForm({ ...form, code: ev.target.value })} /></label>

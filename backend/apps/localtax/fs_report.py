@@ -44,6 +44,121 @@ TITLES = {"is": "Comprehensive income statement", "sofp": "Statement of financia
           "cf": "Cash flow statement", "policies": "Accounting policies", "notes": "Notes to the financial statements"}
 STATEMENTS = ("is", "sofp", "soce", "cf")
 DIRECTOR = re.compile(r"director", re.I)
+# What each entity calls its owners' funds and the people who sign.
+ENTITY = {
+    "company": {"noun": "Company", "capital": "Stated capital", "retained": "Retained earnings", "owner_account": "Shareholder’s current account",
+                "drawings": "Dividends", "issue": "Issue of shares", "issue_cf": "Proceeds from the issue of shares",
+                "advances": ("Net advances from shareholders", "Net repayments to shareholders"), "drawings_cf": "Dividends paid",
+                "signers": ("Director", "Director"), "owners": "shareholders", "related": "Related parties and stated capital",
+                "owner_balance": "Shareholder advances outstanding",
+                "related_text": "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."},
+    "partnership": {"noun": "Partnership", "capital": "Partners’ capital", "retained": "Undistributed profits",
+                    "owner_account": "Partners’ current accounts", "drawings": "Partners’ drawings", "issue": "Capital introduced",
+                    "issue_cf": "Capital introduced by the partners", "advances": ("Net advances from partners", "Net repayments to partners"),
+                    "drawings_cf": "Partners’ drawings", "signers": ("Partner", "Partner"), "owners": "partners",
+                    "related": "Related parties and partners’ capital", "owner_balance": "Amounts due to partners",
+                    "related_text": "Amounts due to the partners are unsecured, interest-free and repayable on demand. Profits and losses are shared "
+                                    "in accordance with the partnership agreement."},
+    "individual": {"noun": "business", "capital": "Proprietor’s capital", "retained": "Accumulated profits",
+                   "owner_account": "Proprietor’s current account", "drawings": "Drawings", "issue": "Capital introduced",
+                   "issue_cf": "Capital introduced by the proprietor", "advances": ("Net advances from the proprietor", "Net repayments to the proprietor"),
+                   "drawings_cf": "Drawings", "signers": ("Proprietor",), "owners": "the proprietor", "related": "Related parties and capital",
+                   "owner_balance": "Amount due to the proprietor",
+                   "related_text": "The amount due to the proprietor is unsecured, interest-free and repayable on demand."},
+}
+# What each entity calls its owners' funds and the people who sign.
+ENTITY = {
+    "company": {"noun": "Company", "capital": "Stated capital", "retained": "Retained earnings", "owner_account": "Shareholder’s current account",
+                "drawings": "Dividends", "issue": "Issue of shares", "issue_cf": "Proceeds from the issue of shares",
+                "advances": ("Net advances from shareholders", "Net repayments to shareholders"), "drawings_cf": "Dividends paid",
+                "signers": ("Director", "Director"), "owners": "shareholders", "related": "Related parties and stated capital",
+                "owner_balance": "Shareholder advances outstanding",
+                "related_text": "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."},
+    "partnership": {"noun": "Partnership", "capital": "Partners’ capital", "retained": "Undistributed profits",
+                    "owner_account": "Partners’ current accounts", "drawings": "Partners’ drawings", "issue": "Capital introduced",
+                    "issue_cf": "Capital introduced by the partners", "advances": ("Net advances from partners", "Net repayments to partners"),
+                    "drawings_cf": "Partners’ drawings", "signers": ("Partner", "Partner"), "owners": "partners",
+                    "related": "Related parties and partners’ capital", "owner_balance": "Amounts due to partners",
+                    "related_text": "Amounts due to the partners are unsecured, interest-free and repayable on demand. Profits and losses are shared "
+                                    "in accordance with the partnership agreement."},
+    "individual": {"noun": "business", "capital": "Proprietor’s capital", "retained": "Accumulated profits",
+                   "owner_account": "Proprietor’s current account", "drawings": "Drawings", "issue": "Capital introduced",
+                   "issue_cf": "Capital introduced by the proprietor", "advances": ("Net advances from the proprietor", "Net repayments to the proprietor"),
+                   "drawings_cf": "Drawings", "signers": ("Proprietor",), "owners": "the proprietor", "related": "Related parties and capital",
+                   "owner_balance": "Amount due to the proprietor",
+                   "related_text": "The amount due to the proprietor is unsecured, interest-free and repayable on demand."},
+}
+# What each entity calls its owners' funds and the people who sign.
+ENTITY = {
+    "company": {"noun": "Company", "capital": "Stated capital", "retained": "Retained earnings", "owner_account": "Shareholder\’s current account",
+                "drawings": "Dividends", "issue": "Issue of shares", "issue_cf": "Proceeds from the issue of shares",
+                "advances": ("Net advances from shareholders", "Net repayments to shareholders"), "drawings_cf": "Dividends paid",
+                "signers": ("Director", "Director"), "owners": "shareholders", "related": "Related parties and stated capital",
+                "owner_balance": "Shareholder advances outstanding",
+                "related_text": "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."},
+    "partnership": {"noun": "Partnership", "capital": "Partners\’ capital", "retained": "Undistributed profits",
+                    "owner_account": "Partners\’ current accounts", "drawings": "Partners\’ drawings", "issue": "Capital introduced",
+                    "issue_cf": "Capital introduced by the partners", "advances": ("Net advances from partners", "Net repayments to partners"),
+                    "drawings_cf": "Partners\’ drawings", "signers": ("Partner", "Partner"), "owners": "partners",
+                    "related": "Related parties and partners\’ capital", "owner_balance": "Amounts due to partners",
+                    "related_text": "Amounts due to the partners are unsecured, interest-free and repayable on demand. Profits and losses are shared "
+                                    "in accordance with the partnership agreement."},
+    "individual": {"noun": "business", "capital": "Proprietor\’s capital", "retained": "Accumulated profits",
+                   "owner_account": "Proprietor\’s current account", "drawings": "Drawings", "issue": "Capital introduced",
+                   "issue_cf": "Capital introduced by the proprietor", "advances": ("Net advances from the proprietor", "Net repayments to the proprietor"),
+                   "drawings_cf": "Drawings", "signers": ("Proprietor",), "owners": "the proprietor", "related": "Related parties and capital",
+                   "owner_balance": "Amount due to the proprietor",
+                   "related_text": "The amount due to the proprietor is unsecured, interest-free and repayable on demand."},
+}
+# What each entity calls its owners' funds and the people who sign.
+ENTITY = {
+    "company": {"noun": "Company", "capital": "Stated capital", "retained": "Retained earnings", "owner_account": "Shareholder\’s current account",
+                "drawings": "Dividends", "issue": "Issue of shares", "issue_cf": "Proceeds from the issue of shares",
+                "advances": ("Net advances from shareholders", "Net repayments to shareholders"), "drawings_cf": "Dividends paid",
+                "signers": ("Director", "Director"), "owners": "shareholders", "related": "Related parties and stated capital",
+                "owner_balance": "Shareholder advances outstanding",
+                "related_text": "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."},
+    "partnership": {"noun": "Partnership", "capital": "Partners\’ capital", "retained": "Undistributed profits",
+                    "owner_account": "Partners\’ current accounts", "drawings": "Partners\’ drawings", "issue": "Capital introduced",
+                    "issue_cf": "Capital introduced by the partners", "advances": ("Net advances from partners", "Net repayments to partners"),
+                    "drawings_cf": "Partners\’ drawings", "signers": ("Partner", "Partner"), "owners": "partners",
+                    "related": "Related parties and partners\’ capital", "owner_balance": "Amounts due to partners",
+                    "related_text": "Amounts due to the partners are unsecured, interest-free and repayable on demand. Profits and losses are shared "
+                                    "in accordance with the partnership agreement."},
+    "individual": {"noun": "business", "capital": "Proprietor\’s capital", "retained": "Accumulated profits",
+                   "owner_account": "Proprietor\’s current account", "drawings": "Drawings", "issue": "Capital introduced",
+                   "issue_cf": "Capital introduced by the proprietor", "advances": ("Net advances from the proprietor", "Net repayments to the proprietor"),
+                   "drawings_cf": "Drawings", "signers": ("Proprietor",), "owners": "the proprietor", "related": "Related parties and capital",
+                   "owner_balance": "Amount due to the proprietor",
+                   "related_text": "The amount due to the proprietor is unsecured, interest-free and repayable on demand."},
+}
+# What each entity calls its owners' funds and the people who sign.
+ENTITY = {
+    "company": {"noun": "Company", "capital": "Stated capital", "retained": "Retained earnings", "owner_account": "Shareholder\u2019s current account",
+                "drawings": "Dividends", "issue": "Issue of shares", "issue_cf": "Proceeds from the issue of shares",
+                "advances": ("Net advances from shareholders", "Net repayments to shareholders"), "drawings_cf": "Dividends paid",
+                "signers": ("Director", "Director"), "owners": "shareholders", "related": "Related parties and stated capital",
+                "owner_balance": "Shareholder advances outstanding",
+                "related_text": "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
+                                "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."},
+    "partnership": {"noun": "Partnership", "capital": "Partners\u2019 capital", "retained": "Undistributed profits",
+                    "owner_account": "Partners\u2019 current accounts", "drawings": "Partners\u2019 drawings", "issue": "Capital introduced",
+                    "issue_cf": "Capital introduced by the partners", "advances": ("Net advances from partners", "Net repayments to partners"),
+                    "drawings_cf": "Partners\u2019 drawings", "signers": ("Partner", "Partner"), "owners": "partners",
+                    "related": "Related parties and partners\u2019 capital", "owner_balance": "Amounts due to partners",
+                    "related_text": "Amounts due to the partners are unsecured, interest-free and repayable on demand. Profits and losses are shared "
+                                    "in accordance with the partnership agreement."},
+    "individual": {"noun": "business", "capital": "Proprietor\u2019s capital", "retained": "Accumulated profits",
+                   "owner_account": "Proprietor\u2019s current account", "drawings": "Drawings", "issue": "Capital introduced",
+                   "issue_cf": "Capital introduced by the proprietor", "advances": ("Net advances from the proprietor", "Net repayments to the proprietor"),
+                   "drawings_cf": "Drawings", "signers": ("Proprietor",), "owners": "the proprietor", "related": "Related parties and capital",
+                   "owner_balance": "Amount due to the proprietor",
+                   "related_text": "The amount due to the proprietor is unsecured, interest-free and repayable on demand."},
+}
 
 
 def r(v) -> str:
@@ -97,6 +212,16 @@ class _Report:
         self.audited = bool(e.get("audited")) and self.full
         self.legal = e.get("legal_name") or e.get("task") or ""
         self.name = self.legal.upper()
+        self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
+        self.L = ENTITY[self.entity]
+        self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
+        self.L = ENTITY[self.entity]
+        self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
+        self.L = ENTITY[self.entity]
+        self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
+        self.L = ENTITY[self.entity]
+        self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
+        self.L = ENTITY[self.entity]
         ye = date.fromisoformat(e["fy_end"]) if e.get("fy_end") else None
         self.ye = ye
         self.cy = str(ye.year) if ye else "Current"
@@ -359,29 +484,39 @@ class _Report:
         rows = [{"label": "ASSETS", "kind": "caps"}] + nca + ca + [
             {"label": "Total assets", "cy": nca_cy + ca_cy, "py": (nca_py + ca_py) if hc else None, "kind": "grand"}, {"label": "", "kind": "blank"}]
         # retained earnings at the year end = brought forward + the year's result + dividends
-        eq = [line("Stated capital", "share_capital")]
+        L = self.L
+        eq = [line(L["capital"], "share_capital")]
         if self._has("reserves"):
             eq.append(line("Reserves", "reserves"))
-        eq.append({"label": "Retained earnings", "cy": amt("retained_earnings") + cur_tci + amt("dividends"),
+        eq.append({"label": L["retained"], "cy": amt("retained_earnings") + cur_tci + amt("dividends"),
                    "py": amt("retained_earnings", "comparative") + comp_tci + amt("dividends", "comparative") if hc else None})
         eq_cy, eq_py = sum((x["cy"] for x in eq), ZERO), sum((x["py"] or ZERO for x in eq), ZERO)
         rows += [{"label": "EQUITY AND LIABILITIES", "kind": "caps"}] + eq + [{"label": "Total equity", "cy": eq_cy, "py": eq_py if hc else None, "kind": "sub"}]
         ncl, ncl_cy, ncl_py = group("Non-current liabilities", "Total non-current liabilities", [
             ("Borrowings", "borrowings_non_current"), ("Deferred tax", "deferred_tax")])
         cl, cl_cy, cl_py = group("Current liabilities", "Total current liabilities", [
-            ("Trade and other payables", ("trade_payables", "tax_payable")), ("Shareholder’s current account", "shareholder_current_account"),
+            ("Trade and other payables", ("trade_payables", "tax_payable")), (L["owner_account"], "shareholder_current_account"),
             ("Borrowings", "borrowings_current"), ("Other current liabilities", "other_current_liabilities")])
         rows += ncl + cl + [{"label": "Total liabilities", "cy": ncl_cy + cl_cy, "py": (ncl_py + cl_py) if hc else None, "kind": "sub"},
                             {"label": "Total equity and liabilities", "cy": eq_cy + ncl_cy + cl_cy, "py": (eq_py + ncl_py + cl_py) if hc else None,
                              "kind": "grand"}]
         dots = "…" * 26
-        directors = Table([[dots, dots], ["Director", "Director"]], colWidths=[95 * self.mm, 75 * self.mm], hAlign="LEFT")
+        signers = list(L["signers"])
+        directors = Table([[dots] * len(signers), signers], colWidths=[95 * self.mm, 75 * self.mm][: len(signers)], hAlign="LEFT")
         directors.setStyle(TableStyle([("FONTNAME", (0, 0), (-1, -1), "Helvetica"), ("FONTSIZE", (0, 0), (-1, -1), 8.5), ("LEFTPADDING", (0, 0), (-1, -1), 0),
                                        ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 1)]))
-        sign = [Spacer(1, 12), self.P("I certify that these financial statements are in compliance with the requirements of the Companies Act No. 7 of 2007."),
+        responsible = {"company": ("The Board of Directors is responsible for the preparation and presentation of these financial statements.",
+                                   "Signed for and on behalf of the Board."),
+                       "partnership": ("The partners are responsible for the preparation and presentation of these financial statements.",
+                                       "Signed for and on behalf of the partners."),
+                       "individual": ("The proprietor is responsible for the preparation and presentation of these financial statements.",
+                                      "Signed by the proprietor.")}[self.entity]
+        certificate = ("I certify that these financial statements are in compliance with the requirements of the Companies Act No. 7 of 2007."
+                       if self.entity == "company" else "I certify that these financial statements have been prepared from the books and records of the "
+                                                        f"{self.L['noun'].lower()}.")
+        sign = [Spacer(1, 12), self.P(certificate),
                 Spacer(1, 16), self.P(f"{dots}<br/>Accountant"), Spacer(1, 7), self.P(self.approved_on or "Date: " + "…" * 18), Spacer(1, 7),
-                self.P("The Board of Directors is responsible for the preparation and presentation of these financial statements."), Spacer(1, 5),
-                self.P("Signed for and on behalf of the Board."), Spacer(1, 16), directors]
+                self.P(responsible[0]), Spacer(1, 5), self.P(responsible[1]), Spacer(1, 16), directors]
         return [_flowable_mark(_toc="sofp", _sec="sofp"), self.statement_table(rows, self._period("As at"), pad=2.9)] + sign + [PageBreak()]
 
     def changes_in_equity(self):
@@ -397,11 +532,11 @@ class _Report:
             rows = [("open", f"Balance at {_long(start) if start else 'the start of the year'}", sc_open, res_open, re_open),
                     ("line", "Profit for the year", ZERO, ZERO, profit), ("line", "Other comprehensive income", ZERO, oci, ZERO)]
             if issue:
-                rows.append(("line", "Issue of shares", issue, ZERO, ZERO))
+                rows.append(("line", self.L["issue"], issue, ZERO, ZERO))
             if res_move:
                 rows.append(("line", "Other movements in reserves", ZERO, res_move, ZERO))
             if dividends:
-                rows.append(("line", "Dividends", ZERO, ZERO, dividends))
+                rows.append(("line", self.L["drawings"], ZERO, ZERO, dividends))
             rows.append(("close", f"Balance at {_long(end) if end else 'the end of the year'}", sum((x[2] for x in rows), ZERO),
                          sum((x[3] for x in rows), ZERO), sum((x[4] for x in rows), ZERO)))
             return rows
@@ -413,8 +548,9 @@ class _Report:
                                 _d(comp.get("oci")), ZERO, ZERO, amt("dividends", "comparative")))
         blocks.append(block(self.start, self.ye, sc_c, res_c, amt("retained_earnings"), _d(cur.get("profit")), _d(cur.get("oci")),
                             amt("share_capital") - sc_c, amt("reserves") - res_c - _d(cur.get("oci")) if self.has_comp else ZERO, amt("dividends")))
-        header = ["", self.P("Stated<br/>capital", "cellh")] + ([self.P("Reserves", "cellh")] if with_res else []) + \
-            [self.P("Retained<br/>earnings", "cellh"), self.P("Total", "cellh")]
+        two = lambda s: escape(s).replace(" ", "<br/>", 1)  # noqa: E731 - two-line column headings
+        header = ["", self.P(two(self.L["capital"]), "cellh")] + ([self.P("Reserves", "cellh")] if with_res else []) + \
+            [self.P(two(self.L["retained"]), "cellh"), self.P("Total", "cellh")]
         data, style = [header], [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
                                  ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, 0), 12)]
         for b in blocks:
@@ -478,11 +614,11 @@ class _Report:
 
         fi = secs["financing"]
         fi_items = {x["label"]: _d(x["amount"]) for x in fi["rows"]}
-        fi_rows = [("Proceeds from the issue of shares", fi_items.get("Proceeds from the issue of shares", ZERO), n.get("share_capital", "")),
+        adv = fi_items.get("Net movement in shareholder's current account", ZERO)
+        fi_rows = [(self.L["issue_cf"], fi_items.get("Proceeds from the issue of shares", ZERO), n.get("share_capital", "")),
                    ("Net movement in borrowings", fi_items.get("Net movement in borrowings", ZERO), ""),
-                   ("Net advances from shareholders" if fi_items.get("Net movement in shareholder's current account", ZERO) >= 0 else "Net repayments to shareholders",
-                    fi_items.get("Net movement in shareholder's current account", ZERO), n.get("shareholder_current_account", "")),
-                   ("Dividends paid", fi_items.get("Dividends paid", ZERO), "")]
+                   (self.L["advances"][0 if adv >= 0 else 1], adv, n.get("shareholder_current_account", "")),
+                   (self.L["drawings_cf"], fi_items.get("Dividends paid", ZERO), "")]
         fi_total = _d(fi["total"]["amount"])
         rows += [{"label": "Financing activities", "kind": "head"}] + [{"label": lb, "cy": v, "note": no} for lb, v, no in fi_rows if v]
         rows += [{"label": "Net cash used in financing activities" if fi_total < 0 else "Net cash from financing activities", "cy": fi_total, "kind": "sub"},
@@ -504,13 +640,23 @@ class _Report:
         e, data = self.e, self.data
         pol = next((x["policies"] for x in self.dp.get("notes") or [] if x["key"] == "policies"), [])
         out = [_flowable_mark(_toc="policies", _sec="policies"), self.note_head(1, "Corporate information")]
-        out.append(self.P(escape(f"{self.legal or '[Company]'}{' (' + e['nic_or_reg'] + ')' if e.get('nic_or_reg') else ''} is a private limited liability "
-                                 "company incorporated under the Companies Act No. 7 of 2007 and domiciled in Sri Lanka. Its registered office and principal "
-                                 f"place of business are at {e.get('address') or '[address]'}. "
+        reg = f" ({e['nic_or_reg']})" if e.get("nic_or_reg") and self.entity != "individual" else ""
+        what = {"company": "is a private limited liability company incorporated under the Companies Act No. 7 of 2007 and domiciled in Sri Lanka. "
+                           "Its registered office and principal place of business are at",
+                "partnership": "is a partnership carrying on business in Sri Lanka. Its principal place of business is at",
+                "individual": "is a sole proprietorship carrying on business in Sri Lanka. Its principal place of business is at"}[self.entity]
+        out.append(self.P(escape(f"{self.legal or '[Name]'}{reg} {what} {e.get('address') or '[address]'}. "
                                  f"Its principal activity is {(e.get('activity') or '[principal activity]').rstrip('.')}."), "ind"))
-        people = [("Directors", data.get("directors") or "[Directors' names]"),
-                  ("", "The Board is responsible for preparing and presenting the financial statements."),
-                  ("Company secretary", data.get("company_secretary") or "[Company secretary name]")]
+        if self.entity == "company":
+            people = [("Directors", data.get("directors") or "[Directors' names]"),
+                      ("", "The Board is responsible for preparing and presenting the financial statements."),
+                      ("Company secretary", data.get("company_secretary") or "[Company secretary name]")]
+        elif self.entity == "partnership":
+            people = [("Partners", data.get("directors") or "[Partners' names]"),
+                      ("", "The partners are responsible for preparing and presenting the financial statements.")]
+        else:
+            people = [("Proprietor", data.get("directors") or e.get("client_name") or "[Proprietor's name]"),
+                      ("", "The proprietor is responsible for preparing and presenting the financial statements.")]
         if self.audited:
             people.append(("Auditor", FIRM["auditor"]))
         for title, text in people:
@@ -579,22 +725,23 @@ class _Report:
                 block = [self.note_head(no, labels[h]), self.note_table(lines, total)]
             elif h == "commitments":
                 block = [self.note_head(no, "Commitments"),
-                         self.P(text(h, "The Company had no material capital or other contractual commitments at the reporting date."), "nt")]
+                         self.P(text(h, f"The {self.L['noun']} had no material capital or other contractual commitments at the reporting date."), "nt")]
             elif h == "contingencies":
                 block = [self.note_head(no, "Contingent liabilities"),
-                         self.P(text(h, "The Company had no material contingent liabilities at the reporting date."), "nt")]
+                         self.P(text(h, f"The {self.L['noun']} had no material contingent liabilities at the reporting date."), "nt")]
             elif h == "events":
                 block = [self.note_head(no, "Events after the reporting period"),
-                         self.P(text(h, "No subsequent events requiring adjustment or material disclosure were identified up to the date the Board "
+                         self.P(text(h, "No subsequent events requiring adjustment or material disclosure were identified up to the date the "
+                                        f"{ {'company': 'Board', 'partnership': 'partners', 'individual': 'proprietor'}[self.entity]} "
                                         "authorised the financial statements for issue."), "nt")]
             elif h == "related":
                 block = self.related_note(no, text)
             elif h == "risk":
                 block = [self.note_head(no, "Financial risk management"),
                          self.P(text(h, "Credit exposure mainly arises from bank deposits and trade receivables. Management monitors ageing and "
-                                        "counterparty quality. Liquidity exposure arises chiefly from payables and amounts due to shareholders. Management "
+                                        "counterparty quality. Liquidity exposure arises chiefly from payables and amounts due to " f"{self.L['owners']}. Management "
                                         "monitors short-term cash forecasts. Financial liabilities have contractual maturities within one year. The Company "
-                                        "has no material foreign currency or variable-rate borrowing exposure."), "nt")]
+                                        "has no material foreign currency or variable-rate borrowing exposure.").replace("The Company", f"The {self.L['noun']}"), "nt")]
             if block:
                 out.append(KeepTogether(block))
         return out + [_flowable_mark(_toc="notes_end")]
@@ -626,17 +773,17 @@ class _Report:
         amt, hc = self._bs, self.has_comp
         rows = []
         if self._has("shareholder_current_account"):
-            rows.append(("Shareholder advances outstanding", amt("shareholder_current_account"), amt("shareholder_current_account", "comparative") if hc else None))
+            rows.append((self.L["owner_balance"], amt("shareholder_current_account"), amt("shareholder_current_account", "comparative") if hc else None))
         kmp = [ln for row in (self.fin.get("pl") or {}).get("rows") or [] if row["kind"] == "expense" for ln in row["lines"]
                if DIRECTOR.search(ln.get("name") or "")]
         if kmp:
             rows.append(("Key management compensation", sum((_d(ln["amount"]) for ln in kmp), ZERO),
                          sum((_d(ln.get("comparative")) for ln in kmp), ZERO) if hc else None))
         shares = self.data.get("shares_issued")
-        rows.append((f"Stated capital – {shares}" if shares else "Stated capital", amt("share_capital"), amt("share_capital", "comparative") if hc else None))
-        return [self.note_head(no, "Related parties and stated capital"), self.note_table(rows),
-                self.P(text("related", "Shareholder advances are unsecured, interest-free and repayable on demand. Key management compensation comprises "
-                                       "short-term salaries. Ordinary shares carry one vote each and rank equally for dividends and distributions."), "nt")]
+        cap = self.L["capital"]
+        rows.append((f"{cap} – {shares}" if shares and self.entity == "company" else cap, amt("share_capital"),
+                     amt("share_capital", "comparative") if hc else None))
+        return [self.note_head(no, self.L["related"]), self.note_table(rows), self.P(text("related", self.L["related_text"]), "nt")]
 
     def ppe_note(self, v):
         """Cost, accumulated depreciation and the year's movement, by class, from the PPE accounts (cost accounts and

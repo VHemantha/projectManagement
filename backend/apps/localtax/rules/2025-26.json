@@ -1,42 +1,157 @@
 {
   "year_of_assessment": "2025/26",
-  "period": {"from": "2025-04-01", "to": "2026-03-31"},
+  "period": {
+    "from": "2025-04-01",
+    "to": "2026-03-31"
+  },
   "status": "DRAFT - every rule below requires validation by a Sri Lankan tax professional before reliance",
   "legislation": "Inland Revenue Act No. 24 of 2017, as amended (incl. the amendments effective from 1 April 2025)",
   "individual": {
-    "personal_relief": {"value": 1800000, "ref": "IRA 2017 Fifth Schedule (as amended from 1 April 2025)", "validated": false},
+    "personal_relief": {
+      "value": 1800000,
+      "ref": "IRA 2017 Fifth Schedule (as amended from 1 April 2025)",
+      "validated": false
+    },
     "bands": {
-      "value": [[1000000, 0.06], [500000, 0.18], [500000, 0.24], [500000, 0.30], [null, 0.36]],
-      "ref": "IRA 2017 First Schedule para 1(1)(a) (as amended from 1 April 2025)", "validated": false
+      "value": [
+        [
+          1000000,
+          0.06
+        ],
+        [
+          500000,
+          0.18
+        ],
+        [
+          500000,
+          0.24
+        ],
+        [
+          500000,
+          0.3
+        ],
+        [
+          null,
+          0.36
+        ]
+      ],
+      "ref": "IRA 2017 First Schedule para 1(1)(a) (as amended from 1 April 2025)",
+      "validated": false
     },
-    "rent_relief_rate": {"value": 0.25, "ref": "IRA 2017 Fifth Schedule: relief of 25% of rental income", "validated": false},
+    "rent_relief_rate": {
+      "value": 0.25,
+      "ref": "IRA 2017 Fifth Schedule: relief of 25% of rental income",
+      "validated": false
+    },
     "special_rates": {
-      "foreign_service": {"value": 0.15, "label": "15% maximum - qualifying foreign service income", "conditions": ["service_used_outside", "received_in_fx_through_bank"], "ref": "IRA 2017 First Schedule (as amended from 1 April 2025): qualifying foreign service income at a maximum rate of 15%, subject to statutory conditions", "validated": false}
+      "foreign_service": {
+        "value": 0.15,
+        "label": "15% maximum - qualifying foreign service income",
+        "conditions": [
+          "service_used_outside",
+          "received_in_fx_through_bank"
+        ],
+        "ref": "IRA 2017 First Schedule (as amended from 1 April 2025): qualifying foreign service income at a maximum rate of 15%, subject to statutory conditions",
+        "validated": false
+      }
     },
-    "qualifying_payment_cap": {"value": null, "ref": "IRA 2017 s.52 & Fifth Schedule: qualifying payments are subject to limits - enter the allowable amount", "validated": false}
+    "qualifying_payment_cap": {
+      "value": null,
+      "ref": "IRA 2017 s.52 & Fifth Schedule: qualifying payments are subject to limits - enter the allowable amount",
+      "validated": false
+    }
   },
   "company": {
-    "standard_rate": {"value": 0.30, "ref": "IRA 2017 First Schedule para 2(1)", "validated": false},
+    "standard_rate": {
+      "value": 0.3,
+      "ref": "IRA 2017 First Schedule para 2(1)",
+      "validated": false
+    },
     "special_rates": {
-      "qualifying_export_services": {"value": 0.15, "label": "15% - Qualifying Export Service Income", "ref": "IRA 2017 First Schedule (as amended): concessionary rate for qualifying export of services, subject to conditions", "validated": false},
-      "betting_gaming_liquor_tobacco": {"value": 0.45, "label": "45% - Betting, gaming, liquor and tobacco", "ref": "IRA 2017 First Schedule para 2(4)", "validated": false}
+      "qualifying_export_services": {
+        "value": 0.15,
+        "label": "15% - Qualifying Export Service Income",
+        "ref": "IRA 2017 First Schedule (as amended): concessionary rate for qualifying export of services, subject to conditions",
+        "validated": false
+      },
+      "betting_gaming_liquor_tobacco": {
+        "value": 0.45,
+        "label": "45% - Betting, gaming, liquor and tobacco",
+        "ref": "IRA 2017 First Schedule para 2(4)",
+        "validated": false
+      }
+    }
+  },
+  "partnership": {
+    "standard_rate": {
+      "value": 0.06,
+      "label": "Partnership income tax rate",
+      "ref": "IRA 2017 s.53 and First Schedule (as amended): tax on a partnership's taxable income; the partners are taxed on their shares as individuals - to be validated",
+      "validated": false
     }
   },
   "capital_allowances": {
-    "plant_machinery": {"value": 0.20, "label": "Plant, machinery and fixtures", "ref": "IRA 2017 Third Schedule", "validated": false},
-    "buildings": {"value": 0.05, "label": "Buildings", "ref": "IRA 2017 Third Schedule", "validated": false},
-    "computers_software": {"value": 0.25, "label": "Computer hardware and software", "ref": "IRA 2017 Third Schedule", "validated": false},
-    "motor_vehicles": {"value": 0.20, "label": "Motor vehicles", "ref": "IRA 2017 Third Schedule", "validated": false},
-    "balancing": {"value": null, "label": "Balancing charge / allowance on disposal", "ref": "IRA 2017 Third Schedule & s.17-18: proceeds against the tax written-down value - confirm the treatment", "validated": false},
-    "intangibles": {"value": null, "label": "Intangible assets", "ref": "IRA 2017 Third Schedule: over the useful life - enter the allowance", "validated": false}
+    "plant_machinery": {
+      "value": 0.2,
+      "label": "Plant, machinery and fixtures",
+      "ref": "IRA 2017 Third Schedule",
+      "validated": false
+    },
+    "buildings": {
+      "value": 0.05,
+      "label": "Buildings",
+      "ref": "IRA 2017 Third Schedule",
+      "validated": false
+    },
+    "computers_software": {
+      "value": 0.25,
+      "label": "Computer hardware and software",
+      "ref": "IRA 2017 Third Schedule",
+      "validated": false
+    },
+    "motor_vehicles": {
+      "value": 0.2,
+      "label": "Motor vehicles",
+      "ref": "IRA 2017 Third Schedule",
+      "validated": false
+    },
+    "balancing": {
+      "value": null,
+      "label": "Balancing charge / allowance on disposal",
+      "ref": "IRA 2017 Third Schedule & s.17-18: proceeds against the tax written-down value - confirm the treatment",
+      "validated": false
+    },
+    "intangibles": {
+      "value": null,
+      "label": "Intangible assets",
+      "ref": "IRA 2017 Third Schedule: over the useful life - enter the allowance",
+      "validated": false
+    }
   },
   "losses": {
-    "carry_forward_years": {"value": null, "label": "Years a loss may be carried forward", "ref": "IRA 2017 s.19 - confirm the limit for the year", "validated": false},
-    "restriction": {"value": null, "ref": "IRA 2017 s.19: business and investment losses carried forward; confirm any restriction for the category", "validated": false}
+    "carry_forward_years": {
+      "value": null,
+      "label": "Years a loss may be carried forward",
+      "ref": "IRA 2017 s.19 - confirm the limit for the year",
+      "validated": false
+    },
+    "restriction": {
+      "value": null,
+      "ref": "IRA 2017 s.19: business and investment losses carried forward; confirm any restriction for the category",
+      "validated": false
+    }
   },
   "withholding": {
-    "dividend_final": {"value": 0.15, "ref": "IRA 2017 Fifth Schedule (final WHT on dividends to residents)", "validated": false},
-    "interest": {"value": 0.10, "ref": "IRA 2017 s.85 as amended (WHT on interest - confirm the rate and whether creditable)", "validated": false}
+    "dividend_final": {
+      "value": 0.15,
+      "ref": "IRA 2017 Fifth Schedule (final WHT on dividends to residents)",
+      "validated": false
+    },
+    "interest": {
+      "value": 0.1,
+      "ref": "IRA 2017 s.85 as amended (WHT on interest - confirm the rate and whether creditable)",
+      "validated": false
+    }
   },
   "return_layout": "2025-26"
 }

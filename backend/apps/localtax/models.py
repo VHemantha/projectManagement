@@ -10,6 +10,7 @@ class TaxEngagement(models.Model):
     class Entity(models.TextChoices):
         INDIVIDUAL = "individual", "Individual"
         COMPANY = "company", "Company"
+        PARTNERSHIP = "partnership", "Partnership"
 
     class Residency(models.TextChoices):
         RESIDENT = "resident", "Resident"
@@ -32,7 +33,7 @@ class TaxEngagement(models.Model):
     residency = models.CharField(max_length=14, choices=Residency.choices, default=Residency.RESIDENT)
     year_of_assessment = models.CharField(max_length=9, default="2024/25")
     fy_end = models.DateField(null=True, blank=True)
-    tax_type = models.CharField(max_length=4, default="CIT")  # CIT or IIT; VAT, SSCL, APIT later
+    tax_type = models.CharField(max_length=4, default="CIT")  # CIT, IIT or PIT (partnership); VAT, SSCL, APIT later
     legal_name = models.CharField(max_length=200, blank=True)
     client_name = models.CharField(max_length=200, blank=True)
     tin = models.CharField(max_length=30, blank=True)

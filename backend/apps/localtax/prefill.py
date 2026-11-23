@@ -282,7 +282,7 @@ def finish(eng: TaxEngagement, user) -> dict:
         at_ye = {k: v for k, v in balances.items() if k[1] == eng.fy_end.isoformat()}
         if not at_ye:
             flag("missing", f"No bank statement or balance confirmation shows the balances at the year end ({eng.fy_end:%d %b %Y}).", target="bank_balance")
-        elif eng.entity_type == TaxEngagement.Entity.COMPANY and eng.tb_lines.exists():
+        elif eng.tb_lines.exists():
             bank_total = sum(((_dec(v[0][1]["balance"]) or Decimal(0)) for v in at_ye.values()), Decimal(0))
             tb_cash = sum((ln.amount for ln in eng.tb_lines.filter(heading="cash") if not re.search(r"cash in hand|petty", ln.name, re.I)), Decimal(0))
             if abs(bank_total - tb_cash) >= 1:
@@ -302,7 +302,7 @@ def finish(eng: TaxEngagement, user) -> dict:
     for field, label in S.REQUIRED_BASIC:
         if field in FIELD_LABELS and not getattr(eng, field) and f"field:{field}" not in targets:
             flag("missing", f"{label} is not in the client info and was not found in the documents: ask the client.", target=f"field:{field}")
-    if eng.entity_type == TaxEngagement.Entity.COMPANY and not eng.tb_lines.exists() and "trial_balance" not in targets:
+    if eng.entity_type != TaxEngagement.Entity.INDIVIDUAL and not eng.tb_lines.exists() and "trial_balance" not in targets:
         flag("missing", "No trial balance in the client info or the documents: upload it, or ask the client for it.", target="trial_balance")
     if not docs:
         flag("missing", "No supporting documents have been read yet.")
@@ -373,7 +373,7 @@ def _apply(eng: TaxEngagement, target: str, value, source: str, user) -> None:
         field = target[6:]
         patch = {field: value}
         if field == "entity_type":
-            patch["tax_type"] = "CIT" if value == "company" else "IIT"
+            patch["tax_type"] = S.TAX_TYPE.get(value, "IIT")
         fields, _ = V.update(patch)
         for k, v in fields.items():
             setattr(eng, k, v)
@@ -388,7 +388,7 @@ def _apply(eng: TaxEngagement, target: str, value, source: str, user) -> None:
     elif target == "bank_balance":
         item = {"bank": str(value.get("bank", ""))[:120], "account": str(value.get("account", ""))[:60], "date": str(value.get("date", ""))[:10],
                 "balance": str(value.get("balance", "")), "source": source[:200]}
-        if eng.entity_type == TaxEngagement.Entity.INDIVIDUAL:
+        if not S.keeps_books(eng):
             _, clean = V.update({"data": {"assets": (data.get("assets") or []) + [
                 {"kind": "bank", "description": f"{item['bank']} {item['account']} at {item['date']}".strip(), "value": item["balance"], "source": source}]}})
             data.update(clean)

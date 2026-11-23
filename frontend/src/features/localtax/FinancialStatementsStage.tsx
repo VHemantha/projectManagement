@@ -40,8 +40,9 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
   const e = state.engagement
   const fin = state.financials
   const save = useSaveLocalTax(taskKey)
-  const company = e.entity_type === 'company'
-  const [section, setSection] = useState<Section>(company ? 'pl' : 'pl')
+  // the books: companies and partnerships, and an individual (sole proprietor) whose trial balance is uploaded
+  const company = e.entity_type !== 'individual' || fin?.kind === 'company'
+  const [section, setSection] = useState<Section>('pl')
   const incomeOnly = (e.data.fs_scope ?? 'full') === 'income_statement'
   const sections: { key: Section; label: string; icon: React.ReactNode }[] = company && incomeOnly
     ? [

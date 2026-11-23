@@ -55,11 +55,11 @@ export interface EngagementData {
 export interface Engagement {
   id: number
   task: string
-  entity_type: 'individual' | 'company'
+  entity_type: 'individual' | 'company' | 'partnership'
   residency: 'resident' | 'non_resident'
   year_of_assessment: string
   fy_end: string | null
-  tax_type: 'CIT' | 'IIT'
+  tax_type: 'CIT' | 'IIT' | 'PIT'
   legal_name: string
   client_name: string
   tin: string
@@ -261,7 +261,7 @@ export interface ReviewedRule {
   rule: string; label: string; value: unknown; file_value: unknown; ref: string; validated: boolean; reviewed_by: string; reviewed_at: string; conditions: string[]
   history: { status: 'validated' | 'corrected'; value: unknown; file_value: unknown; ref: string; note: string; active: boolean; by: string; at: string }[]
 }
-export interface FieldReview { id: number; entity_type: 'company' | 'individual'; code: string; official: string; note: string; active: boolean; by: string; at: string }
+export interface FieldReview { id: number; entity_type: 'company' | 'partnership' | 'individual'; code: string; official: string; note: string; active: boolean; by: string; at: string }
 export interface RuleRegister { year_of_assessment: string; status: string; legislation: string; rules: ReviewedRule[]; validated: number; total: number; fields: FieldReview[]; can_validate: boolean }
 export interface RuleCheckResult { agrees: 'yes' | 'no' | 'unclear'; value_in_document: string; quote: string; cite: string; note: string; document: string }
 
@@ -288,7 +288,7 @@ export function useReviewRule(year: string) {
 }
 
 export function useReviewField(year: string) {
-  return useRegisterMutation(year, async (body: { entity_type: 'company' | 'individual'; code: string; official?: string; note?: string; withdraw?: boolean }) =>
+  return useRegisterMutation(year, async (body: { entity_type: 'company' | 'partnership' | 'individual'; code: string; official?: string; note?: string; withdraw?: boolean }) =>
     (await apiClient.post<RuleRegister>(`/local-tax/rules/${ya(year)}/fields/`, body)).data)
 }
 

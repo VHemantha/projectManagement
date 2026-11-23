@@ -128,7 +128,7 @@ def check(state: State) -> State:
             f["value"] = " ".join(str(f["value"]).split())[:500]
             if f["field"] == "fy_end" and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", f["value"]):
                 f["value"] = ""
-            if f["field"] == "entity_type" and f["value"] not in ("company", "individual"):
+            if f["field"] == "entity_type" and f["value"] not in ("company", "partnership", "individual"):
                 f["value"] = ""
         out["fields"] = [f for f in out["fields"] if f["value"]]
         lines = []

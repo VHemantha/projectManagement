@@ -205,3 +205,29 @@ def test_the_house_format_has_the_policies_the_tax_note_and_the_company_details(
     assert report["label"].startswith("DRAFT TEMPLATE") and "section 163(2)" in report["sections"][-1]["text"]
     pdf = c.get(world.url + "export/fs.pdf").content
     assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 14  # cover, contents and 12 numbered pages
+
+
+def test_a_partnership_keeps_books_and_is_taxed_at_the_partnership_rate(world):  # noqa: F811
+    c = api(world.pat)
+    st = load_life_path(c, world.url, entity_type="partnership", tax_type="PIT", legal_name="Perera & Silva", audited=False,
+                        data={"directors": "Mr. A. Perera, Ms. B. Silva", "fs_scope": "full"})
+    assert st["engagement"]["entity_type"] == "partnership" and st["financials"]["kind"] == "company"  # the books, from the TB
+    comp = st["computation"]
+    rate_line = next(ln for ln in comp["lines"] if ln["key"] == "standard")
+    assert rate_line["rule"] == "partnership.standard_rate" and "6%" in rate_line["label"]
+    assert any(a["text"] == "Business registration number is missing." for a in st["alerts"])
+    notes = {n["key"]: n for n in st["statements"]["notes"]}
+    assert "is a partnership" in notes["corporate"]["text"]
+    assert all("the Company" not in p["text"] for p in notes["policies"]["policies"])
+    assert c.get(world.url + "export/fs.pdf").content[:4] == b"%PDF"
+
+
+def test_an_individual_with_a_trial_balance_gets_statements_from_the_books(world):  # noqa: F811
+    c = api(world.pat)
+    c.patch(world.url, {"entity_type": "individual", "tax_type": "IIT", "legal_name": "Sample Proprietor", "fy_end": "2025-03-31",
+                        "data": {"fs_scope": "income_statement", "income": [{"id": "i1", "category": "employment", "amount": "100000"}]}}, format="json")
+    st = c.put(world.url + "tb/", {"rows": [{"code": a, "name": n, "amount": cy, "comparative": py, "heading": h}
+                                            for a, n, cy, py, h in LIFE_PATH if h in ("revenue", "cost_of_sales", "admin_expenses")]}, format="json").data
+    assert st["financials"]["kind"] == "company" and st["computation"]["lines"]  # the books for the statements; the individual computation stays
+    assert any("add the business income" in a["text"] for a in st["alerts"])
+    assert c.get(world.url + "export/fs.pdf").content[:4] == b"%PDF"
