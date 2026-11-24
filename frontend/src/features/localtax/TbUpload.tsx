@@ -33,7 +33,7 @@ export function TbUpload({ taskKey, accounts = 0, compact = false }: { taskKey: 
 
   const send = (file: File) => {
     setRead(null)
-    if (!/\.(xlsx|xlsm|csv)$/i.test(file.name)) {
+    if (!/\.(xlsx|xlsm|xls|csv|tsv|txt)$/i.test(file.name)) {
       setFailed(file)  // not a spreadsheet: only the AI can read it
       return
     }
@@ -51,7 +51,7 @@ export function TbUpload({ taskKey, accounts = 0, compact = false }: { taskKey: 
         <strong><Upload size={15} aria-hidden="true" /> Trial balance</strong>
         <span className={styles.muted}>{accounts ? `${accounts} accounts loaded — uploading again replaces them` : 'Not uploaded yet'}</span>
         <span className={styles.spacer} />
-        <input ref={input} type="file" hidden aria-label="Trial balance file" accept=".xlsx,.xlsm,.csv,.pdf,.png,.jpg,.jpeg"
+        <input ref={input} type="file" hidden aria-label="Trial balance file" accept=".xlsx,.xlsm,.xls,.csv,.tsv,.txt,.pdf,.png,.jpg,.jpeg"
           onChange={(ev) => { const f = ev.target.files?.[0]; if (f) send(f); ev.target.value = '' }} />
         <Button size="sm" variant="primary" disabled={busy} onClick={() => input.current?.click()}>
           <Upload size={13} /> {tb.isPending ? 'Reading…' : accounts ? 'Replace TB' : 'Upload TB'}
@@ -60,7 +60,7 @@ export function TbUpload({ taskKey, accounts = 0, compact = false }: { taskKey: 
       </div>
       {!compact && (
         <p className={styles.hint} style={{ margin: 0 }}>
-          Excel or CSV with columns Code, Account, Debit, Credit (or Amount, debit positive) and optionally Prior year. Read by code — the figures never pass through the AI.
+          Excel (.xlsx or .xls) or CSV with the account (Code and Account / Account Name / Ledger) and its figures — Debit and Credit columns, one Amount or Balance column (credits negative, in brackets or marked Cr), or a column per year — and optionally Prior year. Read by code — the figures never pass through the AI.
           A PDF or scanned TB is read by Local_Tax_AI and shown for you to confirm.
         </p>
       )}
