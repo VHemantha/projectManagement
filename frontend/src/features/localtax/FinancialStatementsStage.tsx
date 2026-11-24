@@ -1,8 +1,10 @@
-import { BarChart3, BookOpen, Download, FileSpreadsheet, FileText, GitBranch, Landmark, Plus, Scale, ShieldCheck, Sparkles, Table2, Trash2, Wallet } from 'lucide-react'
+import { BarChart3, BookOpen, Layers, Download, FileSpreadsheet, FileText, GitBranch, Landmark, Plus, Scale, ShieldCheck, Sparkles, Table2, Trash2, Wallet } from 'lucide-react'
 import { Fragment, useEffect, useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
-import { Adjustments } from './Adjustments'
+import { HEADINGS } from './headings'
+import { JournalRegister } from './Journals'
+import { PpeSection } from './Ppe'
 import { AuditReport, CashFlowStatement, EquityStatement, NotesView, PoliciesView } from './Statements'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
 import { extractErrorMessage } from '@/api/errors'
@@ -14,22 +16,12 @@ import {
   money,
   useAiAgent,
   useMapLine,
-  useProposeAdjustment,
   usePutTb,
   useSaveLocalTax,
 } from '@/api/localTax'
 import { Button } from '@/design-system'
 
-type Section = 'pl' | 'bs' | 'equity' | 'cash' | 'notes' | 'policies' | 'audit' | 'tb' | 'journals'
-const HEADINGS: [string, string][] = [
-  ['revenue', 'Revenue'], ['cost_of_sales', 'Cost of sales'], ['other_income', 'Other income'], ['admin_expenses', 'Administrative expenses'],
-  ['distribution_expenses', 'Selling and distribution expenses'], ['finance_costs', 'Finance costs'], ['income_tax_expense', 'Income tax expense'],
-  ['oci', 'Other comprehensive income'], ['ppe', 'Property, plant and equipment'], ['intangibles', 'Intangible assets'], ['investments', 'Investments'],
-  ['inventories', 'Inventories'], ['trade_receivables', 'Trade and other receivables'], ['other_current_assets', 'Other current assets'],
-  ['cash', 'Cash and cash equivalents'], ['share_capital', 'Stated capital'], ['reserves', 'Reserves'], ['retained_earnings', 'Retained earnings'], ['dividends', 'Dividends'],
-  ['borrowings_non_current', 'Non-current borrowings'], ['deferred_tax', 'Deferred tax'], ['borrowings_current', 'Current borrowings'],
-  ['trade_payables', 'Trade and other payables'], ['tax_payable', 'Income tax payable'], ['other_current_liabilities', 'Other current liabilities'],
-]
+type Section = 'pl' | 'bs' | 'equity' | 'cash' | 'notes' | 'policies' | 'audit' | 'tb' | 'journals' | 'ppe'
 
 /** Stage 2 (AFIT screens, 22 Nov 2026): the statements from the mapped trial balance (companies) or the statement
  * of income and expenses (individuals), with the framework, the comparatives, the checks, journals and the draft
@@ -50,8 +42,9 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         { key: 'notes', label: 'Notes', icon: <FileText size={16} /> },
         { key: 'policies', label: 'Accounting Policies', icon: <BookOpen size={16} /> },
         ...(e.audited ? [{ key: 'audit' as Section, label: 'Audit Report (Draft)', icon: <ShieldCheck size={16} /> }] : []),
+        { key: 'ppe', label: 'PPE & Depreciation', icon: <Layers size={16} /> },
         { key: 'tb', label: 'TB Mapping', icon: <GitBranch size={16} /> },
-        { key: 'journals', label: 'Adjustments', icon: <Scale size={16} /> },
+        { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> },
       ]
     : company
     ? [
@@ -62,10 +55,11 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         { key: 'notes', label: 'Notes to the FS', icon: <FileText size={16} /> },
         { key: 'policies', label: 'Accounting Policies', icon: <BookOpen size={16} /> },
         { key: 'audit', label: 'Audit Report (Draft)', icon: <ShieldCheck size={16} /> },
+        { key: 'ppe', label: 'PPE & Depreciation', icon: <Layers size={16} /> },
         { key: 'tb', label: 'TB Mapping', icon: <GitBranch size={16} /> },
-        { key: 'journals', label: 'Adjustments', icon: <Scale size={16} /> },
+        { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> },
       ]
-    : [{ key: 'pl', label: 'Income & Expenses', icon: <BarChart3 size={16} /> }, { key: 'journals', label: 'Adjustments', icon: <Scale size={16} /> }]
+    : [{ key: 'pl', label: 'Income & Expenses', icon: <BarChart3 size={16} /> }, { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> }]
   const year = e.fy_end ? new Date(e.fy_end) : null
   const ye = year ? year.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'the year end'
   const checks = fin?.checks ?? []
@@ -82,7 +76,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         <div className={styles.actions}>
           <Button variant="secondary" onClick={() => setSection('tb')} disabled={!company}><GitBranch size={15} /> View TB Mapping</Button>
           <Button variant="secondary" onClick={() => setSection('journals')}>
-            <Scale size={15} /> Adjustments ({state.adjustments.filter((a) => a.scope === 'accounting' && a.status !== 'rejected').length})
+            <Scale size={15} /> Journal Entries ({state.adjustments.filter((a) => a.scope === 'accounting' && a.status !== 'rejected').length})
           </Button>
         </div>
       </div>
@@ -120,6 +114,11 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         </div>
       )}
       {!company && <StageControls taskKey={taskKey} state={state} stage="fs" />}
+      {e.data.tb_source?.kind === 'story' && (
+        <p className={styles.error} role="note" style={{ margin: 0 }}>
+          DUMMY DATA: this trial balance was made up by Local_Tax_AI from a story, for illustration only — every statement made from it says so.
+        </p>
+      )}
       {company && (
         <p className={styles.hint} style={{ margin: 0 }}>
           Preparing: <b>{incomeOnly ? 'the income statement only' : 'the full set of financial statements'}</b> (chosen in Client Info).{' '}
@@ -136,7 +135,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         </div>
 
         <section className={styles.card} aria-label={sections.find((s) => s.key === section)?.label}>
-          {!fin && company && section !== 'tb' && section !== 'journals' ? (
+          {!fin && company && section !== 'tb' && section !== 'journals' && section !== 'ppe' ? (
             <>
               <p className={styles.muted}>No trial balance yet. Upload it in Client Info › Supporting Documents (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand under TB Mapping.</p>
               <div className={styles.actions}>
@@ -161,11 +160,9 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
           ) : section === 'tb' ? (
             <TbMapping taskKey={taskKey} fin={fin} />
           ) : section === 'journals' ? (
-            <>
-              <h3 className={styles.cardTitle}>Journal adjustments and reclassifications</h3>
-              <JournalForm taskKey={taskKey} />
-              <Adjustments taskKey={taskKey} state={state} scope="accounting" />
-            </>
+            <JournalRegister taskKey={taskKey} state={state} />
+          ) : section === 'ppe' ? (
+            <PpeSection taskKey={taskKey} state={state} />
           ) : section === 'audit' ? (
             <AuditReport state={state} />
           ) : section === 'equity' && state.statements ? (
@@ -403,46 +400,5 @@ function TbMapping({ taskKey, fin }: { taskKey: string; fin: Financials | null }
         {put.isError && <p className={styles.error}>{extractErrorMessage(put.error)}</p>}
       </details>
     </>
-  )
-}
-
-function JournalForm({ taskKey }: { taskKey: string }) {
-  const propose = useProposeAdjustment(taskKey)
-  const [lines, setLines] = useState([{ code: '', name: '', amount: '' }, { code: '', name: '', amount: '' }])
-  const [reason, setReason] = useState('')
-  const [label, setLabel] = useState('')
-  const total = lines.reduce((s, l) => s + (Number(l.amount) || 0), 0)
-  return (
-    <details>
-      <summary>Propose a journal (debit +, credit −)</summary>
-      <div className={styles.formGrid}>
-        <label className={styles.field}><span>Title</span><input value={label} onChange={(ev) => setLabel(ev.target.value)} /></label>
-        <label className={styles.field}><span>Why</span><input value={reason} onChange={(ev) => setReason(ev.target.value)} /></label>
-      </div>
-      <table className={styles.table}>
-        <tbody>
-          {lines.map((l, i) => {
-            const set = (p: Partial<typeof l>) => setLines(lines.map((x, n) => (n === i ? { ...x, ...p } : x)))
-            return (
-              <tr key={i}>
-                <td className={styles.cell}><input aria-label="Account code" placeholder="Account code" value={l.code} onChange={(ev) => set({ code: ev.target.value })} /></td>
-                <td className={styles.cell}><input aria-label="Account name (new account)" placeholder="Name (a new account)" value={l.name} onChange={(ev) => set({ name: ev.target.value })} /></td>
-                <td className={styles.cell}><input aria-label="Amount" inputMode="decimal" placeholder="Amount" value={l.amount} onChange={(ev) => set({ amount: ev.target.value })} /></td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-      <div className={styles.actions}>
-        <Button size="sm" variant="subtle" onClick={() => setLines([...lines, { code: '', name: '', amount: '' }])}><Plus size={13} /> Line</Button>
-        <span className={total === 0 ? styles.muted : styles.error}>Difference: {money(total)}</span>
-        <Button size="sm" variant="primary" disabled={total !== 0 || reason.trim().length < 5 || propose.isPending}
-          onClick={() => propose.mutate({ kind: 'journal', label, reason, lines: lines.filter((l) => l.code && l.amount) },
-            { onSuccess: () => (setLines([{ code: '', name: '', amount: '' }, { code: '', name: '', amount: '' }]), setReason(''), setLabel('')) })}>
-          Propose for approval
-        </Button>
-      </div>
-      {propose.isError && <p className={styles.error}>{extractErrorMessage(propose.error)}</p>}
-    </details>
   )
 }

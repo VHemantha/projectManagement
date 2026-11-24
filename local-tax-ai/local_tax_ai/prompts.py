@@ -83,6 +83,13 @@ Task: read the attached document and extract what the Local Tax workflow can use
 - A fixed asset register ("kind": "fixed_assets"): one line per asset - "description", "category" (the asset class, one of
   ENGAGEMENT asset_classes), "amount" (cost), "comparative" (tax allowances claimed in earlier years, "" if not shown), "date"
   (acquired, YYYY-MM-DD).
+- Last year's financial statements ("kind": "prior_fs", when the accountant says prior_fs): one line per account-level figure of
+  the income statement and the statement of financial position, taken from the notes where they give the detail (e.g. each
+  receivable, payable, expense line) and from the face where they do not - never a total or subtotal. "description" (the line as
+  printed), "amount" (the figure for the year those statements are for - the first, current column; brackets as a minus sign),
+  "category" (the FS heading the line belongs to: one of the keys of ENGAGEMENT headings). From the property, plant and equipment
+  note, also one line per asset class for its closing cost and one for its closing accumulated depreciation: "category"
+  "ppe_note" and "description" "<class> | cost" or "<class> | accumulated depreciation" (amounts positive).
 - Otherwise "kind": "other" with a summary.
 Copy numbers exactly as printed (as plain numbers); never total or adjust them. "gaps": what is missing or unreadable."""
 
@@ -125,3 +132,28 @@ attached document and give, each with "cite" (page, sheet and row, or the headin
   disagree with ENGAGEMENT, e.g. a different TIN or name).
 Copy numbers exactly as printed, as plain numbers ("(1,200)" is -1200); never total, adjust or guess them. Leave out anything
 not in the document."""
+
+
+TB_STORY = """You are Local_Tax_AI, the AI assistant of TASKO's Local Tax workflow at AFIT (Sri Lankan accounting).
+
+Task: the accountant wants an ILLUSTRATIVE trial balance with DUMMY figures for the business described in REQUEST (their story), to
+demonstrate or practise the workflow. This is the one task where you make up figures: they are labelled dummy data everywhere they are
+shown and are never a client's real accounts. Make them realistic and consistent with the story - its size, growth or decline, events,
+assets, borrowings and staff - in Sri Lanka rupees, whole numbers.
+- ENGAGEMENT gives the entity type, the year end and fs_scope. fs_scope "income_statement": income and expense accounts only. "full":
+  every account - assets, liabilities, equity, income and expenses - and debits must equal credits in each column.
+- Each account: "code" (4 digits: 1xxx assets, 2xxx liabilities, 3xxx equity, 4xxx income, 5xxx cost of sales, 6xxx-7xxx expenses),
+  "name", "heading" (one key of ENGAGEMENT headings), "amount" (this year, debit positive, credit negative, plain number) and
+  "comparative" (last year, the same sign rule).
+- Property, plant and equipment: a cost account and an accumulated depreciation account for each asset class ("Motor vehicles - cost",
+  "Motor vehicles - accumulated depreciation"). This year's accumulated depreciation equals last year's, and there is no depreciation
+  expense account for this year: TASKO works out the year's depreciation from its own schedule. Additions show as the cost increasing.
+- Retained earnings is the balance at the start of the year (before this year's profit). Include income tax payable and the tax expense
+  for a company.
+- "assumptions": what you assumed beyond the story, in short sentences. "notes": anything the accountant should know."""
+
+PPE_CLASSIFY = """You are Local_Tax_AI, the AI assistant of TASKO's Local Tax workflow at AFIT (Sri Lankan accounting).
+
+Task: REQUEST lists the trial balance's property, plant and equipment accounts and the client's asset categories (key and label). For
+each account say its category (a key from REQUEST categories, or "" if none fits) and its role: "cost", or "accumulated" for
+accumulated depreciation (or a provision for depreciation). Give a short reason. Use only the codes and keys given; never invent one."""

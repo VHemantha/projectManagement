@@ -47,6 +47,8 @@ AGENTS = {
     "policies": (prompts.POLICIES, schemas.POLICIES, schemas.Policies),
     "rule_check": (prompts.RULE_CHECK, schemas.RULE_CHECK, schemas.RuleCheck),
     "prefill": (prompts.PREFILL, schemas.PREFILL, schemas.Prefill),
+    "tb_story": (prompts.TB_STORY, schemas.TB_STORY, schemas.TbStory),
+    "ppe_classify": (prompts.PPE_CLASSIFY, schemas.PPE_CLASSIFY, schemas.PpeClassify),
 }
 
 
@@ -76,6 +78,10 @@ def prepare(state: State) -> State:
             {"type": "text", "text": "REQUEST (the rule to check):\n" + json.dumps(r.get("rule") or {}, default=str, ensure_ascii=False)}]
     elif state["agent"] == "policies":
         content = f"{ctx}\n\nREQUEST (the standard policies):\n" + json.dumps(r.get("policies") or [], ensure_ascii=False)
+    elif state["agent"] == "ppe_classify":
+        content = "REQUEST (the PPE accounts and the client's categories):\n" + json.dumps((r.get("policies") or [{}])[0], ensure_ascii=False)
+    elif state["agent"] == "tb_story":
+        content = f"{ctx}\n\nREQUEST (the accountant's story):\n{r.get('request') or ''}"
     else:
         content = f"{ctx}\n\nREQUEST:\n{r.get('request') or '(review the engagement)'}"
     return {"content": content}
@@ -153,6 +159,23 @@ def check(state: State) -> State:
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", out.get("period_end") or ""):
             out["period_end"] = ""
         out["flags"] = [f for f in out["flags"] if f["kind"] in ("missing", "unclear", "inconsistent") and f["text"].strip()]
+    if state["agent"] == "tb_story":
+        headings = set((ctx.get("headings") or {}).keys())
+        seen, accounts = set(), []
+        for a in out["accounts"]:
+            a["amount"], a["comparative"] = _number(a.get("amount")), _number(a.get("comparative"))
+            a["code"] = " ".join(str(a.get("code") or "").split())[:20]
+            if not a["name"].strip() or a["code"] in seen or not (a["amount"] or a["comparative"]):
+                continue
+            seen.add(a["code"])
+            a["heading"] = a["heading"] if a["heading"] in headings else ""
+            accounts.append(a)
+        out["accounts"] = accounts[:300]
+    if state["agent"] == "ppe_classify":
+        req = state["request"].get("policies") or []
+        codes = {str(x.get("code")) for x in (req[0].get("accounts") if req else []) or []}
+        cats = {str(x.get("key")) for x in (req[0].get("categories") if req else []) or []}
+        out["suggestions"] = [{**s, "category": s["category"] if s["category"] in cats else ""} for s in out["suggestions"] if s["code"] in codes]
     if state["agent"] == "policies":
         wanted = {p.get("key") for p in (state["request"].get("policies") or [])}
         out["policies"] = [p for p in out["policies"] if p["key"] in wanted]
@@ -230,7 +253,61 @@ def demo(agent: str, request: dict, content) -> dict:
         name = str(request.get("name") or "")
         return {"kind": "other", "summary": f"(Demo) {name} was not read: switch Claude on to pre-fill from documents.", "period_end": "",
                 "fields": [], "lines": [], "balances": [], "flags": [{"kind": "unclear", "text": "Demo mode: the document was not read.", "cite": ""}]}
+    if agent == "tb_story":
+        return demo_tb(request)
+    if agent == "ppe_classify":
+        req = (request.get("policies") or [{}])[0]
+        return {"suggestions": [{"code": str(a.get("code")), "category": "", "role": "accumulated" if re.search(r"accum|depreciation", str(a.get("name")), re.I)
+                                 else "cost", "reason": "(Demo) not read: switch Claude on to identify the categories."} for a in req.get("accounts") or []],
+                "notes": ["Demo mode: the categories were not identified."]}
+    if agent == "extract" and request.get("kind") == "prior_fs":
+        tb = ((ctx.get("financials") or {}).get("tb")) or []
+        lines = []
+        for ln in tb:
+            amt = float(ln.get("amount") or 0)
+            presented = -amt if (ctx.get("headings") or {}).get(ln.get("heading")) and ln.get("heading") in (
+                "revenue", "other_income", "share_capital", "reserves", "retained_earnings", "trade_payables", "tax_payable", "borrowings_current",
+                "borrowings_non_current", "shareholder_current_account", "other_current_liabilities", "deferred_tax") else amt
+            if presented:
+                lines.append({"description": ln.get("name", ""), "amount": f"{round(presented * 0.9)}", "category": ln.get("heading") or "", "code": "",
+                              "comparative": "", "date": "", "cite": "(Demo)"})
+        return {"kind": "prior_fs", "summary": "(Demo) last year's figures made up as 90% of this year's - switch Claude on to read the document.",
+                "gaps": ["Demo mode: the document was not read."], "year_of_assessment": "", "lines": lines}
     if agent == "rule_check":
         return {"agrees": "unclear", "value_in_document": "", "quote": "", "cite": "", "note": "(Demo) The document was not read."}
     return {"kind": "other", "summary": "(Demo) Documents are read with Claude switched on.", "gaps": ["Demo mode: the document was not read."],
             "year_of_assessment": "", "lines": []}
+
+
+def demo_tb(request: dict) -> dict:
+    """The demo's dummy trial balance: a small trading business sized from the first amount in the story (revenue),
+    balanced by its retained earnings. Labelled a demo."""
+    story = str(request.get("request") or "")
+    ctx = request.get("context") or {}
+    m = re.search(r"(\d[\d,]{4,})", story)
+    revenue = float(m.group(1).replace(",", "")) if m else 25_000_000.0
+    full = (ctx.get("fs_scope") or "full") == "full"
+
+    def r(x):
+        return str(round(x))
+
+    rows = [("4000", "Sales", "revenue", -revenue, -revenue * 0.88), ("5000", "Cost of sales", "cost_of_sales", revenue * 0.58, revenue * 0.88 * 0.6),
+            ("6010", "Salaries and wages", "admin_expenses", revenue * 0.14, revenue * 0.88 * 0.14),
+            ("6020", "Rent", "admin_expenses", revenue * 0.05, revenue * 0.88 * 0.05),
+            ("6030", "Electricity and water", "admin_expenses", revenue * 0.02, revenue * 0.88 * 0.02),
+            ("6510", "Advertising", "distribution_expenses", revenue * 0.03, revenue * 0.88 * 0.02),
+            ("7000", "Bank charges", "finance_costs", revenue * 0.004, revenue * 0.88 * 0.004)]
+    if full:
+        rows += [("1510", "Furniture and fittings - cost", "ppe", revenue * 0.06, revenue * 0.05),
+                 ("1511", "Furniture and fittings - accumulated depreciation", "ppe", -revenue * 0.01, -revenue * 0.01),
+                 ("1520", "Computer equipment - cost", "ppe", revenue * 0.03, revenue * 0.03),
+                 ("1521", "Computer equipment - accumulated depreciation", "ppe", -revenue * 0.012, -revenue * 0.012),
+                 ("1210", "Trade receivables", "trade_receivables", revenue * 0.08, revenue * 0.07),
+                 ("1010", "Cash at bank", "cash", revenue * 0.07, revenue * 0.04),
+                 ("2010", "Trade payables", "trade_payables", -revenue * 0.05, -revenue * 0.045),
+                 ("3000", "Stated capital", "share_capital", -1_000_000.0, -1_000_000.0)]
+        # retained earnings at the start of each year: whatever balances that year's column
+        rows.append(("3100", "Retained earnings", "retained_earnings", -sum(x[3] for x in rows), -sum(x[4] for x in rows)))
+    return {"accounts": [{"code": c, "name": n, "heading": h, "amount": r(a), "comparative": r(p)} for c, n, h, a, p in rows],
+            "assumptions": ["(Demo) A trading business sized from the first amount in the story; switch Claude on for a trial balance that follows "
+                            "the story."], "notes": []}

@@ -112,6 +112,11 @@ class Adjustment(models.Model):
     decided_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_note = models.CharField(max_length=500, blank=True)
+    # The journal register (AFIT, 24 Nov 2026): each journal's reference (JE-001, ...; JE-DEP for the depreciation journal),
+    # its date, and the journal it reverses (an approved journal is never edited or deleted: it is reversed).
+    ref = models.CharField(max_length=20, blank=True)
+    entry_date = models.DateField(null=True, blank=True)
+    reverses = models.ForeignKey("self", null=True, blank=True, on_delete=models.SET_NULL, related_name="reversals")
 
     class Meta:
         ordering = ["-created_at", "-id"]
@@ -287,3 +292,14 @@ class Flag(models.Model):
 
     class Meta:
         ordering = ["id"]
+
+
+class ClientPolicy(models.Model):
+    """A Local client's own accounting policies, kept with the client (the sub-workspace) so they carry into every later
+    year's card (AFIT, 24 Nov 2026): the depreciation policy - per asset category, its method, annual rate and residual
+    value - used by the depreciation schedule of each year's engagement."""
+
+    client = models.OneToOneField("clients.Client", on_delete=models.CASCADE, related_name="local_tax_policy")
+    depreciation = models.JSONField(default=list, blank=True)  # [{key, label, method, rate, residual}]
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    updated_at = models.DateTimeField(auto_now=True)

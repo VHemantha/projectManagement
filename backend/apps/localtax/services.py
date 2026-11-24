@@ -245,8 +245,11 @@ def state(eng: TaxEngagement, user=None) -> dict:
             alerts.append({"stage": "questionnaire", "severity": "review",
                            "text": f"The trial balance shows a net profit of {fs_result['pbt']:,.2f}: add the business income in Income & Expenses "
                                    "so the tax computation includes it."})
+    from . import ppe as PPE
     from . import prefill
 
+    ppe_state = PPE.state(eng, fs_result)
+    alerts += PPE.alerts(ppe_state)
     docs = prefill.summary(eng)
     if docs["to_verify"]:
         alerts.append({"stage": "questionnaire", "severity": "review",
@@ -259,6 +262,7 @@ def state(eng: TaxEngagement, user=None) -> dict:
     except MissingRules as exc:
         return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": None, "reverse": None, "return": None,
                 "alerts": alerts + [{"stage": "computation", "severity": "blocking", "text": str(exc)}], "years": years(), "documents": docs,
+                "ppe": _jsonable(ppe_state), "journals": journal_register(eng),
                 "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")]}
     ins = inputs(eng, fs_result)
     comp = compute(ins, rules.fresh())
@@ -281,6 +285,7 @@ def state(eng: TaxEngagement, user=None) -> dict:
             alerts.append({"stage": "fs", "severity": "review", "text": f"{chk['label']}: difference {chk['difference']:,.2f}."})
     return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": comp, "reverse": rev, "return": ret,
             "statements": statements, "alerts": alerts, "years": years(), "rules_status": rules.data.get("status", ""), "documents": docs,
+            "ppe": _jsonable(ppe_state), "journals": journal_register(eng),
             "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")],
             "levers": [{k: lv[k] for k in ("key", "label", "group", "amount", "scope")} for lv in RV.levers(ins, pl_accounts(fs_result))],
             "progress": progress(eng, fs_result, comp)}
@@ -342,7 +347,36 @@ def adjustment_dict(a: Adjustment) -> dict:
             "lines": a.lines, "reason": a.reason, "evidence": {"id": a.evidence_id, "name": a.evidence.filename} if a.evidence_id else None,
             "evidence_note": a.evidence_note, "status": a.status, "history": a.history,
             "created_by": a.created_by.display_name if a.created_by_id else "", "created_at": a.created_at,
-            "decided_by": a.decided_by.display_name if a.decided_by_id else "", "decided_at": a.decided_at, "decision_note": a.decision_note}
+            "decided_by": a.decided_by.display_name if a.decided_by_id else "", "decided_at": a.decided_at, "decision_note": a.decision_note,
+            "ref": a.ref, "entry_date": a.entry_date.isoformat() if a.entry_date else None, "reverses": a.reverses_id,
+            "reversed_by": [r.id for r in a.reversals.all()] if a.pk else [], "managed": a.target.startswith("auto:")}
+
+
+def next_ref(eng: TaxEngagement) -> str:
+    """The next journal reference of the card: JE-001, JE-002, ..."""
+    import re
+
+    nums = [int(m.group(1)) for r in eng.adjustments.values_list("ref", flat=True) if (m := re.fullmatch(r"JE-(\d+)", r or ""))]
+    return f"JE-{(max(nums) if nums else 0) + 1:03d}"
+
+
+def journal_register(eng: TaxEngagement) -> dict:
+    """The journal register: every accounting journal (manual, reclassification, the depreciation journal, reversals)
+    with its effect on each trial balance account, and the trial balance before and after the approved ones."""
+    journals = [adjustment_dict(a) for a in eng.adjustments.filter(scope="accounting").select_related("created_by", "decided_by", "evidence")
+                .prefetch_related("reversals").order_by("created_at", "id")]
+    tb = {ln.code: {"code": ln.code, "name": ln.name, "heading": ln.heading, "original": ln.amount, "journals": Decimal("0")} for ln in eng.tb_lines.all()}
+    for j in journals:
+        if j["status"] != "approved":
+            continue
+        for ln in j["lines"]:
+            row = tb.setdefault(ln["code"], {"code": ln["code"], "name": ln.get("name") or ln["code"], "heading": ln.get("heading") or "",
+                                             "original": Decimal("0"), "journals": Decimal("0")})
+            row["journals"] += Decimal(str(ln["amount"]))
+    accounts = [{**r, "original": str(r["original"]), "journals": str(r["journals"]), "adjusted": str(r["original"] + r["journals"])}
+                for r in tb.values() if r["journals"]]
+    return {"journals": journals, "accounts": accounts, "approved": sum(1 for j in journals if j["status"] == "approved"),
+            "proposed": sum(1 for j in journals if j["status"] == "proposed")}
 
 
 def set_stage(eng: TaxEngagement, stage: str, status: str, user) -> None:

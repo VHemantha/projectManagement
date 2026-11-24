@@ -383,7 +383,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
             </>
           )}
 
-          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type !== 'individual'} tbCount={state.financials?.tb?.length ?? 0} />}
+          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type !== 'individual'} tbCount={state.financials?.tb?.length ?? 0} state={state} />}
 
           {section === 'expected' && (
             <div className={styles.formGrid}>

@@ -3,6 +3,7 @@ import { AlertTriangle, Check, CheckCircle2, FileText, FolderOpen, HelpCircle, L
 import { useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
+import { PriorYearComparatives, StoryTrialBalance } from './TbSources'
 import { TbUpload } from './TbUpload'
 import { extractErrorMessage } from '@/api/errors'
 import { useUploadAttachment } from '@/api/issues'
@@ -19,6 +20,7 @@ import {
   usePrefill,
   useResolveFlag,
   useSyncDrive,
+  type LocalTaxState,
 } from '@/api/localTax'
 import { Button, Skeleton } from '@/design-system'
 
@@ -35,7 +37,7 @@ const FLAG_ICON = { missing: <HelpCircle size={14} aria-hidden="true" />, unclea
  * uploaded here or copied from the client's Google Drive folder once it is shared with TASKO. Local_Tax_AI reads
  * them and pre-fills the client info: every value shows where it came from, and is used only once the accountant
  * confirms it (as it is, or edited). What is missing, unclear or inconsistent across the documents is flagged. */
-export function SupportingDocuments({ taskKey, isCompany, tbCount }: { taskKey: string; isCompany: boolean; tbCount: number }) {
+export function SupportingDocuments({ taskKey, isCompany, tbCount, state }: { taskKey: string; isCompany: boolean; tbCount: number; state?: LocalTaxState }) {
   const { data, isLoading, error } = useDocuments(taskKey)
   const queryClient = useQueryClient()
   const upload = useUploadAttachment(taskKey)
@@ -74,6 +76,8 @@ export function SupportingDocuments({ taskKey, isCompany, tbCount }: { taskKey: 
         </p>
       )}
       <TbUpload taskKey={taskKey} accounts={tbCount} />
+      {state && <StoryTrialBalance taskKey={taskKey} state={state} />}
+      {state && (isCompany || tbCount > 0) && <PriorYearComparatives taskKey={taskKey} state={state} />}
 
       <section className={styles.card} aria-label="Upload supporting documents">
         <div className={styles.actions}>

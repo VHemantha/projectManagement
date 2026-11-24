@@ -9,6 +9,9 @@ explains, suggests and asks - every figure stays the engine's:
 - reverse: the questions to ask the accountant about the difference from the expected tax, and the lines to look at.
 - return: the draft return checked for gaps and inconsistencies.
 - extract: a document attached to the task read into lines citing it (confirmed by a person before use).
+- tb-story: a DUMMY trial balance made up from the accountant's story (illustration and practice only), balanced by
+  code and labelled dummy data wherever it is used.
+- ppe-classify: each PPE account's asset category and role, suggested (a person accepts each).
 """
 import base64
 import json
@@ -22,7 +25,7 @@ from .engine import fs as FS
 from .engine import reverse as RV
 from .models import AiMessage, Extraction
 
-AGENTS = ("chat", "map-tb", "analyse", "reverse", "return", "extract", "policies")
+AGENTS = ("chat", "map-tb", "analyse", "reverse", "return", "extract", "policies", "tb-story", "ppe-classify")
 MAX_FILE = 15 * 1024 * 1024
 
 
@@ -126,6 +129,28 @@ def run(agent: str, eng, st: dict, body: dict, user) -> dict:
                   "needs_review": bool(i.get("needs_review", True))} for i in out.get("items") or []][:20]
         S.log(eng, None, f"ai_{agent}", {"items": len(items)}, actor="ai")
         return {"summary": str(out.get("summary") or "")[:1500], "questions": [str(q)[:500] for q in out.get("questions") or []][:8], "items": items}
+    if agent == "tb-story":
+        story = " ".join(str(body.get("story") or "").split())[:4000]
+        if len(story) < 20:
+            raise Refused("Tell the story of the business in a few sentences: what it does, its size, the year's events.")
+        out = _call("/v1/tb-story", {"context": ctx, "request": story}, timeout=240)
+        rows, notes = story_rows(out.get("accounts") or [], ctx["fs_scope"])
+        S.log(eng, user, "ai_tb_story", {"accounts": len(rows)}, actor="ai")
+        return {"rows": rows, "story": story, "assumptions": [str(a)[:400] for a in out.get("assumptions") or []][:12],
+                "notes": notes + [str(n)[:400] for n in out.get("notes") or []][:8]}
+    if agent == "ppe-classify":
+        ppe = st.get("ppe") or {}
+        accounts = [{"code": a["code"], "name": a["name"]} for a in ppe.get("accounts") or []]
+        if not accounts:
+            raise Refused("The trial balance has no property, plant and equipment accounts to classify.")
+        categories = [{"key": c["key"], "label": c["label"]} for c in ppe.get("policy") or []]
+        out = _call("/v1/ppe-classify", {"policies": [{"accounts": accounts, "categories": categories}]})
+        codes, keys = {a["code"] for a in accounts}, {c["key"] for c in categories}
+        suggestions = [{"code": str(x.get("code")), "category": x.get("category") if x.get("category") in keys else "",
+                        "role": x.get("role") if x.get("role") in ("cost", "accumulated") else "cost", "reason": str(x.get("reason") or "")[:300]}
+                       for x in out.get("suggestions") or [] if str(x.get("code")) in codes]
+        S.log(eng, None, "ai_ppe_classify", {"suggestions": len(suggestions)}, actor="ai")
+        return {"suggestions": suggestions, "notes": [str(n)[:400] for n in out.get("notes") or []][:10]}
     if agent == "policies":
         # Phase 3: the standard policies tailored to the entity - suggestions the accountant accepts one by one.
         standard = [{"key": p["key"], "title": p["title"], "text": p["text"]}
@@ -158,6 +183,40 @@ def run(agent: str, eng, st: dict, body: dict, user) -> dict:
                                          "year_of_assessment": str(out.get("year_of_assessment") or "")[:9]})
     S.log(eng, None, "ai_extract", {"document": att.filename, "lines": len(lines), "extraction": ex.id}, actor="ai")
     return {"extraction": extraction_dict(ex)}
+
+
+def story_rows(accounts: list, scope: str) -> tuple[list[dict], list[str]]:
+    """The dummy trial balance's accounts, checked: unique codes, a known heading (or the rule's), numbers only. A full
+    set is made to balance by its retained earnings, in each column, and the accountant is told by how much."""
+    rows, seen, notes = [], set(), []
+    for n, a in enumerate(accounts):
+        if not isinstance(a, dict) or not str(a.get("name") or "").strip():
+            continue
+        code = " ".join(str(a.get("code") or "").split())[:40] or f"D{n + 1:03d}"
+        if code in seen:
+            continue
+        seen.add(code)
+
+        def num(v):
+            try:
+                return Decimal(str(v).replace(",", "")).quantize(Decimal("1")) if str(v or "").strip() else Decimal("0")
+            except Exception:  # noqa: BLE001 - not a number: nothing
+                return Decimal("0")
+
+        name = " ".join(str(a["name"]).split())[:200]
+        heading = a.get("heading") if a.get("heading") in FS.HEADINGS else FS.suggest_heading(name, num(a.get("amount")))
+        rows.append({"code": code, "name": name, "heading": heading, "amount": num(a.get("amount")), "comparative": num(a.get("comparative"))})
+    if scope == "full" and rows:
+        re_row = next((r for r in rows if r["heading"] == "retained_earnings"), None)
+        if re_row is None:
+            re_row = {"code": "3999", "name": "Retained earnings", "heading": "retained_earnings", "amount": Decimal("0"), "comparative": Decimal("0")}
+            rows.append(re_row)
+        for col, label in (("amount", "this year"), ("comparative", "last year")):
+            diff = sum((r[col] for r in rows), Decimal("0"))
+            if diff:
+                re_row[col] -= diff
+                notes.append(f"Retained earnings adjusted by {-diff:,.0f} so that {label}'s column balances.")
+    return [{**r, "amount": str(r["amount"]), "comparative": str(r["comparative"])} for r in rows][:300], notes
 
 
 def message_dict(m: AiMessage) -> dict:

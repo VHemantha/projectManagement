@@ -69,7 +69,7 @@ class Items(BaseModel):
 
 
 # --- document extraction ----------------------------------------------------------------------------------------
-KINDS = ["trial_balance", "general_ledger", "income", "payments", "prior_return", "fixed_assets", "other"]
+KINDS = ["trial_balance", "general_ledger", "income", "payments", "prior_return", "fixed_assets", "prior_fs", "other"]
 EXTRACT = obj({"kind": {"type": "string", "enum": KINDS}, "summary": _S, "gaps": arr(_S), "year_of_assessment": _S,
                "lines": arr(obj({"description": _S, "amount": _S, "category": _S, "code": _S, "comparative": _S, "date": _S, "cite": _S}))})
 
@@ -174,3 +174,39 @@ class Prefill(BaseModel):
     lines: list[PrefillLine] = Field(default_factory=list)
     balances: list[Balance] = Field(default_factory=list)
     flags: list[DocFlag] = Field(default_factory=list)
+
+
+# --- a dummy trial balance from a story (AFIT, 24 Nov 2026) -------------------------------------------------------
+TB_STORY = obj({"accounts": arr(obj({"code": _S, "name": _S, "heading": _S, "amount": _S, "comparative": _S})),
+                "assumptions": arr(_S), "notes": arr(_S)})
+
+
+class StoryAccount(BaseModel):
+    code: str = ""
+    name: str
+    heading: str = ""
+    amount: str = ""
+    comparative: str = ""
+
+
+class TbStory(BaseModel):
+    accounts: list[StoryAccount] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+
+
+# --- PPE accounts' categories (AFIT, 24 Nov 2026) ------------------------------------------------------------------
+PPE_CLASSIFY = obj({"suggestions": arr(obj({"code": _S, "category": _S, "role": {"type": "string", "enum": ["cost", "accumulated"]}, "reason": _S})),
+                    "notes": arr(_S)})
+
+
+class PpeSuggestion(BaseModel):
+    code: str
+    category: str = ""
+    role: str = "cost"
+    reason: str = ""
+
+
+class PpeClassify(BaseModel):
+    suggestions: list[PpeSuggestion] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)

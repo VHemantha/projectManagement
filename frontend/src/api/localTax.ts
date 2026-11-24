@@ -50,6 +50,55 @@ export interface EngagementData {
   company_secretary?: string
   shares_issued?: string
   note_text?: Record<string, string>
+  ppe?: PpeData
+  tb_source?: { kind: 'upload' | 'entered' | 'story'; label: string; story?: string; at: string; by: string }
+  comparatives_source?: { document: string; at: string; by: string; accounts: number; notes: string[] }
+}
+
+// --- PPE & depreciation (AFIT, 24 Nov 2026) ------------------------------------------------------------------------
+export interface PpeAddition { id?: string; description: string; category: string; purchase_date: string; available_date: string; cost: string; source?: string; confirmed?: boolean }
+export interface PpeDisposal { id?: string; description: string; category: string; date: string; cost: string; accumulated_bf: string; proceeds: string; source?: string }
+export interface PpeData {
+  accounts?: Record<string, { category: string; role: 'cost' | 'accumulated'; by?: 'person' | 'ai' | 'rule' }>
+  opening?: Record<string, { cost: string; accumulated: string; source?: string }>
+  additions?: PpeAddition[]
+  disposals?: PpeDisposal[]
+  options?: { proceeds_code?: string }
+}
+export interface PolicyRow { key: string; label: string; method: 'straight_line' | 'reducing_balance'; rate: string; residual: string }
+export interface PpeCategory {
+  key: string; label: string; method: string; rate: string; residual: string
+  cost: { opening: Money; additions: Money; disposals: Money; closing: Money }
+  accumulated: { opening: Money; charge: Money; disposals: Money; closing: Money }
+  nbv: { opening: Money; closing: Money }
+  monthly: Money[]; fully_depreciated: boolean; opening_source: string
+  additions: (PpeAddition & { months: number; charge: Money })[]
+  disposals: (PpeDisposal & { months: number; charge: Money; accumulated_on_disposal: Money; nbv: Money; gain: Money })[]
+}
+export interface PpeState {
+  policy: PolicyRow[]
+  policy_about: { saved: boolean; client: string; by?: string; at?: string }
+  methods: Record<string, string>
+  accounts: { code: string; name: string; category: string; role: 'cost' | 'accumulated'; by: string; amount: Money; comparative: Money }[]
+  opening: Record<string, { cost: Money; accumulated: Money; source: string }>
+  schedule: { available: boolean; reason?: string; start?: string; end?: string; months?: string[]; categories: PpeCategory[]; monthly?: Money[];
+    totals?: Record<'cost_open' | 'additions' | 'disposals_cost' | 'cost_close' | 'acc_open' | 'charge' | 'acc_disposals' | 'acc_close' | 'proceeds' | 'gain', Money>;
+    flags: { severity: 'blocking' | 'review' | 'info'; text: string }[]; convention?: string }
+  journal: { lines: { code: string; name: string; amount: string; heading: string }[]; explain: string[]; residual: Money; charge: Money }
+  status: 'not_approved' | 'approved' | 'changed'
+  approved: { at?: string; by?: string; charge?: string }
+  journal_ref: string
+  reconciliation: { key: string; label: string; schedule_cost: Money; tb_cost: Money; schedule_accumulated: Money; tb_accumulated: Money; agrees: boolean }[]
+  options: { proceeds_code: string }
+  additions: PpeAddition[]
+  disposals: PpeDisposal[]
+  blocking: string[]
+}
+export interface JournalRegister {
+  journals: Adjustment[]
+  accounts: { code: string; name: string; heading: string; original: string; journals: string; adjusted: string }[]
+  approved: number
+  proposed: number
 }
 
 export interface Engagement {
@@ -156,6 +205,11 @@ export interface Adjustment {
   decided_by: string
   decided_at: string | null
   decision_note: string
+  ref?: string
+  entry_date?: string | null
+  reverses?: number | null
+  reversed_by?: number[]
+  managed?: boolean
 }
 export interface Lever { key: string; label: string; group: string; amount: Money; scope: string }
 export interface Alert { stage: StageKey; severity: 'blocking' | 'review' | 'info'; text: string }
@@ -174,11 +228,14 @@ export interface LocalTaxState {
   levers?: Lever[]
   progress?: Record<StageKey, number>
   documents?: { documents: number; unread: number; to_verify: number; open_flags: number }
+  ppe?: PpeState | null
+  journals?: JournalRegister
 }
 
 export interface AiMessage { id: number; role: 'person' | 'ai'; text: string; data: { points?: string[]; uncertain?: boolean; what_if?: WhatIf | null }; by: string; at: string }
 export interface WhatIf { lever: { key: string; label: string }; original: Money; proposed: Money; difference: Money; taxable_before: Money; taxable_after: Money; tax_before: Money; tax_after: Money; remaining_variance?: Money; hypothetical: true }
-export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string } }
+export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'ignore'; code: string; heading: string; why?: string; category?: string }
+export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string; proposals?: PriorProposal[]; link?: string } }
 export const EXTRACTION_USES: { key: string; label: string }[] = [
   { key: 'trial_balance', label: 'Trial balance' }, { key: 'general_ledger', label: 'General ledger (summed into the TB)' },
   { key: 'income', label: 'Income lines' }, { key: 'payments', label: 'Tax payments' },
@@ -207,6 +264,46 @@ export function usePutTb(key: string) {
   return useStateMutation(key, async (rows: Partial<TbRow>[]) => (await apiClient.put<LocalTaxState>(`${base(key)}tb/`, { rows })).data)
 }
 
+/** A dummy trial balance made up by Local_Tax_AI from the accountant's story (previewed, then used). */
+export interface StoryTb { rows: { code: string; name: string; heading: string; amount: string; comparative: string }[]; story: string; assumptions: string[]; notes: string[] }
+export function useTbStory(key: string) {
+  return useMutation({ mutationFn: async (story: string) => (await apiClient.post<StoryTb>(`${base(key)}ai/tb-story/`, { story })).data })
+}
+export function useUseStoryTb(key: string) {
+  return useStateMutation(key, async ({ rows, story }: { rows: StoryTb['rows']; story: string }) =>
+    (await apiClient.put<LocalTaxState>(`${base(key)}tb/`, { rows, source: 'story', story })).data)
+}
+
+/** Last year's financial statements read for this year's comparatives: a Drive link or a document attached. */
+export function usePriorFs(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { link?: string; attachment_id?: number }) =>
+      (await apiClient.post<{ extraction: Extraction; state: LocalTaxState }>(`${base(key)}prior-fs/`, body)).data,
+    onSuccess: (data) => queryClient.setQueryData(qk(key), data.state),
+  })
+}
+export function useApplyComparatives(key: string) {
+  return useStateMutation(key, async ({ id, mapping }: { id: number; mapping: PriorProposal[] }) =>
+    (await apiClient.post<LocalTaxState>(`${base(key)}extractions/${id}/decide/`, { decision: 'confirm', use_as: 'comparatives', mapping })).data)
+}
+
+// --- PPE & depreciation, journals -----------------------------------------------------------------------------------
+export function useSavePolicy(key: string) {
+  return useStateMutation(key, async (policy: PolicyRow[]) => (await apiClient.put<LocalTaxState>(`${base(key)}ppe/policy/`, { policy })).data)
+}
+export function useApproveDepreciation(key: string) {
+  return useStateMutation(key, async () => (await apiClient.post<LocalTaxState>(`${base(key)}ppe/approve/`, {})).data)
+}
+export interface PpeClassify { suggestions: { code: string; category: string; role: 'cost' | 'accumulated'; reason: string }[]; notes: string[] }
+export function usePpeClassify(key: string) {
+  return useMutation({ mutationFn: async () => (await apiClient.post<PpeClassify>(`${base(key)}ai/ppe-classify/`, {})).data })
+}
+export function useReverseJournal(key: string) {
+  return useStateMutation(key, async ({ id, reason }: { id: number; reason: string }) =>
+    (await apiClient.post<LocalTaxState>(`${base(key)}adjustments/${id}/reverse/`, { reason })).data)
+}
+
 export function useUploadTb(key: string) {
   return useStateMutation(key, async (file: File) => {
     const form = new FormData()
@@ -228,7 +325,8 @@ export interface AdjustmentInput {
   reason: string
   evidence_id?: number | null
   evidence_note?: string
-  lines?: { code: string; name?: string; amount: string }[]
+  lines?: { code: string; name?: string; amount: string; heading?: string }[]
+  entry_date?: string
 }
 
 export function useProposeAdjustment(key: string) {
@@ -348,7 +446,7 @@ export function useDecideExtraction(key: string) {
 }
 
 /** A document (fs, computation or return) as PDF or Excel, saved by the browser - or, for a preview, opened. */
-export async function downloadLocalTax(key: string, doc: 'fs' | 'computation' | 'return', fmt: 'pdf' | 'xlsx', open = false) {
+export async function downloadLocalTax(key: string, doc: 'fs' | 'computation' | 'return' | 'journals', fmt: 'pdf' | 'xlsx', open = false) {
   const res = await apiClient.get<Blob>(`${base(key)}export/${doc}.${fmt}`, { responseType: 'blob' })
   const url = URL.createObjectURL(res.data)
   if (open) {

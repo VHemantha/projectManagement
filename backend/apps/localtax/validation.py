@@ -158,6 +158,39 @@ def update(payload: dict) -> tuple[dict, dict]:
         data["bank_balances"] = _items(raw["bank_balances"], "bank_balances", errors, lambda i, k: {
             "id": _id(i.get("id")), "bank": _text(i.get("bank"), 120), "account": _text(i.get("account"), 60), "date": _date(i.get("date"), errors, f"{k}.date"),
             "balance": _money(i.get("balance"), "Balance", errors, f"{k}.balance"), "source": _text(i.get("source"), 300)})
+    if "ppe" in raw:
+        # PPE & depreciation (AFIT, 24 Nov 2026): the accountant's choices for this year. The approval record is kept by
+        # the PATCH (views.EngagementView), never set from here.
+        p = raw["ppe"] if isinstance(raw["ppe"], dict) else {}
+        out = {}
+        if "accounts" in p:
+            acc = p["accounts"] if isinstance(p["accounts"], dict) else {}
+            out["accounts"] = {str(k)[:40]: {"category": _text(v.get("category"), 40), "role": v.get("role") if v.get("role") in ("cost", "accumulated") else "cost",
+                                             "by": v.get("by") if v.get("by") in ("person", "ai", "rule") else "person"}
+                               for k, v in list(acc.items())[:300] if isinstance(v, dict)}
+        if "opening" in p:
+            op = p["opening"] if isinstance(p["opening"], dict) else {}
+            out["opening"] = {str(k)[:40]: {"cost": _money(v.get("cost"), "Opening cost", errors, f"ppe.opening.{k}.cost"),
+                                            "accumulated": _money(v.get("accumulated"), "Opening accumulated depreciation", errors, f"ppe.opening.{k}.accumulated"),
+                                            "source": _text(v.get("source"), 200)}
+                              for k, v in list(op.items())[:60] if isinstance(v, dict) and (v.get("cost") not in (None, "") or v.get("accumulated") not in (None, ""))}
+        if "additions" in p:
+            out["additions"] = _items(p["additions"], "ppe.additions", errors, lambda i, k: {
+                "id": _id(i.get("id")), "description": _text(i.get("description"), 200), "category": _text(i.get("category"), 40),
+                "purchase_date": _date(i.get("purchase_date"), errors, f"{k}.purchase_date"),
+                "available_date": _date(i.get("available_date"), errors, f"{k}.available_date"),
+                "cost": _money(i.get("cost"), "Cost", errors, f"{k}.cost"), "source": _text(i.get("source"), 300),
+                "confirmed": bool(i.get("confirmed"))})
+        if "disposals" in p:
+            out["disposals"] = _items(p["disposals"], "ppe.disposals", errors, lambda i, k: {
+                "id": _id(i.get("id")), "description": _text(i.get("description"), 200), "category": _text(i.get("category"), 40),
+                "date": _date(i.get("date"), errors, f"{k}.date"), "cost": _money(i.get("cost"), "Cost", errors, f"{k}.cost"),
+                "accumulated_bf": _money(i.get("accumulated_bf"), "Accumulated depreciation brought forward", errors, f"{k}.accumulated_bf"),
+                "proceeds": _money(i.get("proceeds"), "Proceeds", errors, f"{k}.proceeds"), "source": _text(i.get("source"), 300)})
+        if "options" in p:
+            o = p["options"] if isinstance(p["options"], dict) else {}
+            out["options"] = {"proceeds_code": _text(o.get("proceeds_code"), 40)}
+        data["ppe"] = out
     if "directors" in raw:
         data["directors"] = _text(raw["directors"], 500)
     if "company_secretary" in raw:

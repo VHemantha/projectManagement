@@ -20,6 +20,8 @@ def _m(v) -> str:
 def _rows(doc: str, eng, st: dict) -> tuple[str, list[tuple[str, list[list], list[str]]]]:
     """(title, [(section title, rows, header)]): the document as tables, shared by the PDF and the workbook."""
     e = st["engagement"]
+    if doc == "journals":
+        return journal_rows(st)
     if doc == "fs":
         fin = st.get("financials")
         if not fin:
@@ -135,9 +137,12 @@ def _xlsx(title: str, sections, e) -> bytes:
 
 def _num(v):
     """A money string back to a number for Excel (brackets negative); other text as it is."""
-    if isinstance(v, str) and v and v.replace(",", "").replace(".", "").replace("(", "").replace(")", "").replace("-", "").isdigit():
+    import re
+
+    # money only ("1,234.50", "(1,234.50)", "-12"): a date such as 2025-03-31 stays text
+    if isinstance(v, str) and re.fullmatch(r"\(?-?\d[\d,]*(\.\d+)?\)?", v.strip()):
         neg = v.startswith("(")
-        n = float(v.strip("()").replace(",", ""))
+        n = float(v.strip().strip("()").replace(",", ""))
         return -n if neg else n
     return v
 
@@ -238,3 +243,26 @@ def depth_sections(dp: dict, year: str) -> list:
         out.append((f"{ar['title']} - {ar['label']}", [[ar["addressee"], ""]] + [[x["title"], x["text"]] for x in ar["sections"]] +
                     [["Signed", ar["signature"]]], ["Section", "Text"]))
     return out
+
+
+def journal_rows(st: dict) -> tuple[str, list]:
+    """The journal register: every accounting journal with its lines (debit and credit), status and trail, and the
+    accounts the approved journals changed (trial balance before, journals, after)."""
+    reg = st.get("journals") or {}
+    journals = reg.get("journals") or []
+    refs = {j["id"]: j.get("ref") or "" for j in journals}
+    rows = []
+    for j in journals:
+        rev = f" (reverses {refs.get(j['reverses'], '')})" if j.get("reverses") else ""
+        rows.append([j.get("ref") or "", j.get("entry_date") or "", f"{j['label']}{rev}", "", "", j["status"],
+                     j["created_by"] + (f" / {j['decided_by']}" if j.get("decided_by") else "")])
+        for ln in j["lines"]:
+            amount = Decimal(str(ln["amount"]))
+            rows.append(["", "", f"    {ln['code']} {ln.get('name') or ''}".rstrip(), _m(amount) if amount > 0 else "", _m(-amount) if amount < 0 else "",
+                         "", ""])
+        rows.append(["", "", f"    Narration: {j['reason']}", "", "", "", ""])
+    accounts = [[a["code"], a["name"], _m(a["original"]), _m(a["journals"]), _m(a["adjusted"])] for a in reg.get("accounts") or []]
+    return "Journal register", [("Journals", rows or [["", "", "No journals yet.", "", "", "", ""]],
+                                 ["Ref", "Date", "Journal / account", "Debit", "Credit", "Status", "Proposed / approved by"]),
+                                ("Accounts changed by approved journals", accounts or [["", "No approved journals.", "", "", ""]],
+                                 ["Code", "Account", "Trial balance", "Journals", "Adjusted"])]

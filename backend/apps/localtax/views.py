@@ -75,6 +75,8 @@ class EngagementView(APIView):
         for section, v in data.items():
             if section == "computation":
                 v = {**(new_data.get("computation") or {}), **v}
+            if section == "ppe":  # only the parts sent change; the approval record stays as it is
+                v = {**(new_data.get("ppe") or {}), **v}
             if new_data.get(section) != v:
                 changes[f"data.{section}"] = {"from": new_data.get(section), "to": v}
                 new_data[section] = v
@@ -122,7 +124,9 @@ def _tb_rows(rows) -> list[dict]:
     return out
 
 
-def _replace_tb(eng, rows, user, source: str):
+def _replace_tb(eng, rows, user, source: str, kind: str = "upload", story: str = ""):
+    """The trial balance replaced. `kind`: where it came from - "upload" (a file or a confirmed AI reading), "entered",
+    or "story" (dummy data the AI made from a story: the statements say so wherever they are shown)."""
     old = {ln.code: ln for ln in eng.tb_lines.all()}
     eng.tb_lines.all().delete()
     for r in rows:
@@ -135,8 +139,10 @@ def _replace_tb(eng, rows, user, source: str):
         TbLine.objects.create(engagement=eng, code=r["code"], name=r["name"], amount=r["amount"], comparative=r["comparative"], heading=heading,
                               heading_by=by)
     S.touch(eng, "fs", user)
+    eng.data = {**(eng.data or {}), "tb_source": {"kind": kind, "label": source[:200], "story": story[:4000], "at": timezone.now().isoformat(),
+                                                  "by": user.display_name if getattr(user, "is_authenticated", False) else ""}}
     eng.save()
-    S.log(eng, user, "trial_balance", {"source": source, "accounts": len(rows), "total": str(sum((r["amount"] for r in rows), Decimal("0")))})
+    S.log(eng, user, "trial_balance", {"source": source, "kind": kind, "accounts": len(rows), "total": str(sum((r["amount"] for r in rows), Decimal("0")))})
 
 
 class TrialBalanceView(APIView):
@@ -149,7 +155,13 @@ class TrialBalanceView(APIView):
             rows = _tb_rows(request.data.get("rows") or [])
         except V.Invalid as exc:
             return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
-        _replace_tb(eng, rows, request.user, "entered")
+        story = " ".join(str(request.data.get("story") or "").split())
+        if request.data.get("source") == "story":
+            if len(story) < 20:
+                return Response({"story": ["Give the story the dummy trial balance was made from."]}, status=status.HTTP_400_BAD_REQUEST)
+            _replace_tb(eng, rows, request.user, "Dummy trial balance made by Local_Tax_AI from a story", kind="story", story=story)
+        else:
+            _replace_tb(eng, rows, request.user, "entered", kind="entered")
         return _state(request, eng)
 
 
@@ -207,6 +219,13 @@ def _adjustment_fields(eng, data, levers) -> tuple[dict, dict]:
         errors["reason"] = "Say why, in a few words."
     out.update(kind=kind, reason=reason[:2000], label=" ".join(str(data.get("label") or "").split())[:200],
                evidence_note=str(data.get("evidence_note") or "")[:500])
+    if data.get("entry_date"):
+        try:
+            from datetime import date as _d
+
+            out["entry_date"] = _d.fromisoformat(str(data["entry_date"])[:10])
+        except ValueError:
+            errors["entry_date"] = "Give the journal's date (YYYY-MM-DD)."
     if data.get("evidence_id"):
         att = Attachment.objects.filter(pk=data["evidence_id"], issue=eng.issue).first()
         if att is None:
@@ -262,6 +281,9 @@ class AdjustmentListView(APIView):
         fields, errors = _adjustment_fields(eng, request.data, state.get("levers") or [])
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        if fields["kind"] in ("journal", "reclass"):
+            fields["ref"] = S.next_ref(eng)
+            fields.setdefault("entry_date", eng.fy_end)
         adj = Adjustment.objects.create(engagement=eng, created_by=request.user, **fields)
         S.log(eng, request.user, "adjustment_proposed", {"id": adj.id, **S.adjustment_dict(adj)})
         return _state(request, eng)
@@ -274,13 +296,16 @@ class AdjustmentDetailView(APIView):
     def patch(self, request, key, pk):
         eng = _engagement(request, key)
         adj = get_object_or_404(Adjustment, engagement=eng, pk=pk)
+        if adj.target.startswith("auto:"):
+            return Response({"detail": "The depreciation journal follows the depreciation schedule: change the schedule and approve it again."},
+                            status=status.HTTP_409_CONFLICT)
         if adj.status != Adjustment.Status.PROPOSED:
             return Response({"detail": "Only a proposed adjustment can be edited; propose a new one."}, status=status.HTTP_409_CONFLICT)
         state = S.state(eng, request.user)
         fields, errors = _adjustment_fields(eng, {**S.adjustment_dict(adj), "evidence_id": adj.evidence_id, **request.data}, state.get("levers") or [])
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-        adj.history = [*adj.history, {**{k: v for k, v in S.adjustment_dict(adj).items() if k in ("label", "original", "proposed", "lines", "reason")},
+        adj.history = [*adj.history, {**{k: v for k, v in S.adjustment_dict(adj).items() if k in ("label", "original", "proposed", "lines", "reason", "entry_date")},
                                        "at": timezone.now().isoformat(), "by": request.user.display_name}]
         for k, v in fields.items():
             setattr(adj, k, v)
@@ -314,6 +339,34 @@ class AdjustmentDecideView(APIView):
             eng.save()
         S.log(eng, request.user, f"adjustment_{adj.status}", {"id": adj.id, "label": adj.label, "original": adj.original, "proposed": adj.proposed,
                                                              "note": adj.decision_note})
+        return _state(request, eng)
+
+
+class AdjustmentReverseView(APIView):
+    """POST {reason} - an approved journal reversed: a reversing journal (each line's sign turned) is proposed, to be
+    approved like any other. An approved journal is never edited or deleted, so the register keeps the whole trail."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, pk):
+        eng = _engagement(request, key)
+        adj = get_object_or_404(Adjustment, engagement=eng, pk=pk)
+        if adj.target.startswith("auto:"):
+            return Response({"detail": "The depreciation journal follows the depreciation schedule: change the schedule and approve it again."},
+                            status=status.HTTP_409_CONFLICT)
+        if adj.scope != "accounting" or adj.status != Adjustment.Status.APPROVED or not adj.lines:
+            return Response({"detail": "Only an approved journal can be reversed."}, status=status.HTTP_409_CONFLICT)
+        if adj.reversals.exclude(status=Adjustment.Status.REJECTED).exists():
+            return Response({"detail": "This journal already has a reversal."}, status=status.HTTP_409_CONFLICT)
+        reason = " ".join(str(request.data.get("reason") or "").split())
+        if len(reason) < 5:
+            return Response({"reason": ["Say why it is reversed."]}, status=status.HTTP_400_BAD_REQUEST)
+        lines = [{**ln, "amount": str(-Decimal(str(ln["amount"])))} for ln in adj.lines]
+        rev = Adjustment.objects.create(engagement=eng, kind=adj.kind, scope="accounting", target=adj.target, ref=f"{adj.ref or 'JE'}-R",
+                                        label=f"Reversal of {adj.ref} {adj.label}".strip()[:200], lines=lines, reason=reason[:2000], reverses=adj,
+                                        entry_date=adj.entry_date or eng.fy_end, created_by=request.user)
+        S.log(eng, request.user, "adjustment_reversal_proposed", {"id": rev.id, "reverses": adj.id, "ref": rev.ref, "reason": reason})
         return _state(request, eng)
 
 
@@ -388,7 +441,7 @@ class ExportView(APIView):
         from . import exports
 
         eng = _engagement(request, key)
-        if doc not in ("fs", "computation", "return") or fmt not in ("pdf", "xlsx"):
+        if doc not in ("fs", "computation", "return", "journals") or fmt not in ("pdf", "xlsx"):
             raise Http404
         st = S.state(eng, request.user)
         data, name = exports.render(doc, fmt, eng, st)
@@ -500,6 +553,56 @@ class ExtractionDecideView(APIView):
             eng.data = data
             S.touch(eng, "questionnaire" if use_as == "prior_return" else "computation", request.user)
             eng.save()
+        elif use_as == "comparatives":
+            from . import comparatives as CMP
+            from . import ppe as PPE
+
+            policy, _ = PPE.policy_for(eng)
+            got = CMP.apply(lines, request.data.get("mapping") or ex.data.get("proposals") or [], list(eng.tb_lines.all()), policy)
+            for code, amount in got["comparatives"].items():
+                TbLine.objects.filter(engagement=eng, code=code).update(comparative=amount.quantize(Decimal("0.01")))
+            for n in got["new"]:
+                TbLine.objects.create(engagement=eng, code=n["code"], name=n["name"], amount=Decimal("0"), comparative=n["comparative"].quantize(Decimal("0.01")),
+                                      heading=n["heading"], heading_by="person")
+            data = dict(eng.data or {})
+            if got["opening"]:
+                ppe = dict(data.get("ppe") or {})
+                ppe["opening"] = {**(ppe.get("opening") or {}), **{k: {"cost": str(v["cost"]), "accumulated": str(v["accumulated"]),
+                                                                       "source": f"Last year's financial statements ({cite}), PPE note"}
+                                                                   for k, v in got["opening"].items()}}
+                data["ppe"] = ppe
+            data["comparatives_source"] = {"document": cite, "at": timezone.now().isoformat(), "by": request.user.display_name,
+                                           "accounts": len(got["comparatives"]) + len(got["new"]), "notes": got["notes"]}
+            eng.data = data
+            S.touch(eng, "fs", request.user)
+            eng.save()
+        elif use_as in ("ppe_additions", "ppe_disposals"):
+            from .engine import depreciation as DEP
+            from . import ppe as PPE
+
+            policy, _ = PPE.policy_for(eng)
+            data = dict(eng.data or {})
+            ppe = dict(data.get("ppe") or {})
+            if use_as == "ppe_additions":
+                rows = (ppe.get("additions") or []) + [
+                    {"description": ln["description"], "category": DEP.category_of(ln["description"], policy), "purchase_date": ln.get("date") or "",
+                     "available_date": "", "cost": ln["amount"], "source": f"{cite} {ln['cite']}".strip(), "confirmed": False} for ln in lines if ln["amount"]]
+                key = "additions"
+            else:
+                rows = (ppe.get("disposals") or []) + [
+                    {"description": ln["description"], "category": DEP.category_of(ln["description"], policy), "date": ln.get("date") or "",
+                     "cost": ln["amount"], "accumulated_bf": "", "proceeds": ln.get("comparative") or "", "source": f"{cite} {ln['cite']}".strip()}
+                    for ln in lines if ln["amount"]]
+                key = "disposals"
+            try:
+                _, clean = V.update({"data": {"ppe": {key: rows}}})
+            except V.Invalid as exc:
+                return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+            ppe[key] = clean["ppe"][key]
+            data["ppe"] = ppe
+            eng.data = data
+            S.touch(eng, "fs", request.user)
+            eng.save()
         elif use_as == "trial_balance":
             try:
                 rows = _tb_rows([{"code": ln["code"], "name": ln["description"], "amount": ln["amount"], "comparative": ln["comparative"] or None}
@@ -524,7 +627,8 @@ class ExtractionDecideView(APIView):
             S.touch(eng, "questionnaire", request.user)
             eng.save()
         else:
-            return Response({"use_as": ["trial_balance, general_ledger, income, payments, prior_return or fixed_assets"]},
+            return Response({"use_as": ["trial_balance, general_ledger, income, payments, prior_return, fixed_assets, comparatives, ppe_additions "
+                                        "or ppe_disposals"]},
                             status=status.HTTP_400_BAD_REQUEST)
         ex.status, ex.decided_by = Extraction.Status.CONFIRMED, request.user
         ex.save()
@@ -843,3 +947,87 @@ class FlagResolveView(APIView):
             return Response({"resolution": ["Say how it was resolved."]}, status=status.HTTP_400_BAD_REQUEST)
         prefill.resolve(eng, f, text, request.user)
         return _docs_response(request, eng)
+
+
+# --- PPE & depreciation, prior-year comparatives (AFIT, 24 Nov 2026) -------------------------------------------------
+
+class PpePolicyView(APIView):
+    """PUT {policy: [{key, label, method, rate, residual}]} - the client's depreciation policy, kept with the client
+    for every later year."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def put(self, request, key):
+        from . import ppe as PPE
+
+        eng = _engagement(request, key)
+        try:
+            PPE.save_policy(eng, request.data.get("policy"), request.user)
+        except V.Invalid as exc:
+            return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
+        return _state(request, eng)
+
+
+class PpeApproveView(APIView):
+    """POST - the depreciation schedule approved: the depreciation journal (JE-DEP) posted or replaced."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        from . import ppe as PPE
+
+        eng = _engagement(request, key)
+        if not S.can_approve(request.user, eng.issue):
+            raise PermissionDenied("Only a reviewer, a lead or an admin can approve the depreciation.")
+        try:
+            PPE.approve(eng, request.user)
+        except PPE.NotReady as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return _state(request, eng)
+
+
+class PriorFsView(APIView):
+    """POST {link} or {attachment_id} - last year's financial statements read by Local_Tax_AI for this year's
+    comparatives: the lines read, each with the trial balance account code proposes. Nothing changes until the
+    accountant confirms (extractions/<id>/decide/ with use_as "comparatives" and the mapping)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        import base64
+
+        from django.core.files.base import ContentFile
+
+        from . import comparatives as CMP
+        from .models import Extraction
+
+        eng = _engagement(request, key)
+        if not eng.tb_lines.exists():
+            return Response({"detail": "Load this year's trial balance first: the comparatives are matched to its accounts."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        att_id = request.data.get("attachment_id")
+        link = str(request.data.get("link") or "").strip()
+        try:
+            if not att_id:
+                file_id = CMP.file_id_from(link)
+                if not file_id:
+                    return Response({"link": ["Paste the Google Drive link to last year's financial statements (https://drive.google.com/file/d/...)."]},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                got = ai._call("/v1/drive/download", {"file_id": file_id}, timeout=180)
+                att = Attachment.objects.create(issue=eng.issue, file=ContentFile(base64.b64decode(got["content_b64"]), name=got["name"][:200]),
+                                                filename=got["name"][:255], uploaded_by=request.user)
+                att_id = att.id
+                S.log(eng, request.user, "prior_fs_downloaded", {"link": link[:500], "document": got["name"][:255]})
+            out = ai.run("extract", eng, S.state(eng, request.user), {"attachment_id": att_id, "kind": "prior_fs"}, request.user)
+        except ai.Refused as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except ai.Unavailable as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        ex = Extraction.objects.get(pk=out["extraction"]["id"])
+        ex.kind = "prior_fs"
+        ex.data = {**ex.data, "proposals": CMP.propose(ex.data.get("lines") or [], S.tb_lines(eng)), "link": link[:500]}
+        ex.save()
+        return Response({"extraction": ai.extraction_dict(ex), "state": S.state(eng, request.user)})

@@ -231,6 +231,9 @@ class _Report:
         self.has_comp = bool(self.fin.get("has_comparative"))
         fs_stage = (e.get("stages") or {}).get("fs", {})
         self.draft = fs_stage.get("status") != "approved"
+        # A trial balance Local_Tax_AI made up from a story: dummy data, said on every page.
+        self.dummy = ((e.get("data") or {}).get("tb_source") or {}).get("kind") == "story"
+        self.ppe = st.get("ppe") or {}
         self.approved_on = None
         if not self.draft and fs_stage.get("at"):
             try:
@@ -707,7 +710,7 @@ class _Report:
                 block = self.tax_note(no)
             elif h == "ppe":
                 v = fin["bs"]["ppe"]
-                table = self.ppe_note(v)
+                table = self.ppe_schedule_note() or self.ppe_note(v)
                 block = [self.note_head(no, labels[h]), table or self.note_table(acc(v["lines"], 1), (v["amount"], v["comparative"]))]
             elif h in labels:
                 bs = fin["bs"]
@@ -784,6 +787,62 @@ class _Report:
         rows.append((f"{cap} – {shares}" if shares and self.entity == "company" else cap, amt("share_capital"),
                      amt("share_capital", "comparative") if hc else None))
         return [self.note_head(no, self.L["related"]), self.note_table(rows), self.P(text("related", self.L["related_text"]), "nt")]
+
+    def ppe_schedule_note(self):
+        """The PPE note from the depreciation schedule (AFIT, 24 Nov 2026), by category: the cost from the opening
+        balance to the closing one, the accumulated depreciation likewise, and the net book value this year and last.
+        Used once the schedule is approved; its closing balances are checked against the trial balance."""
+        from reportlab.platypus import Table, TableStyle
+
+        sched = self.ppe.get("schedule") or {}
+        cats = sched.get("categories") or []
+        if not cats or self.ppe.get("status") == "not_approved":
+            return None
+        c, mm = self.colors, self.mm
+        names = [x["label"] for x in cats]
+        cols = names + (["Total"] if len(names) > 1 else [])
+        start = date.fromisoformat(sched["start"]) - timedelta(days=1)
+
+        def vals(fn):
+            xs = [_d(fn(x)) for x in cats]
+            return [r(v) for v in xs] + ([r(sum(xs, ZERO))] if len(names) > 1 else [])
+
+        rows, kinds = [], {}
+
+        def add(label, values=None, kind="line"):
+            kinds[len(rows)] = kind
+            rows.append(["", self.P(f"<b>{escape(label)}</b>" if kind in ("head", "net") else escape(label), "cell")] + (values or [""] * len(cols)))
+
+        add("Cost", kind="head")
+        add(f"At {_long(start)}", vals(lambda x: x["cost"]["opening"]))
+        add("Additions", vals(lambda x: x["cost"]["additions"]))
+        add("Disposals", vals(lambda x: -_d(x["cost"]["disposals"])))
+        add(f"At {self.ye_text}", vals(lambda x: x["cost"]["closing"]), "net")
+        add("Accumulated depreciation", kind="head")
+        add(f"At {_long(start)}", vals(lambda x: x["accumulated"]["opening"]))
+        add("Charge for the year", vals(lambda x: x["accumulated"]["charge"]))
+        add("On disposals", vals(lambda x: -_d(x["accumulated"]["disposals"])))
+        add(f"At {self.ye_text}", vals(lambda x: x["accumulated"]["closing"]), "net")
+        add("Net book value", kind="head")
+        add(f"At {self.ye_text}", vals(lambda x: x["nbv"]["closing"]), "net")
+        add(f"At {_long(start)}", vals(lambda x: x["nbv"]["opening"]))
+        header = ["", ""] + [self.P(escape(x).replace(" ", "<br/>", 1) if len(x) > 10 else escape(x), "cellh") for x in cols]
+        style = [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
+                 ("TOPPADDING", (0, 0), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 0), (-1, -1), 1.2), ("BOTTOMPADDING", (0, 0), (-1, 0), 8)]
+        for i, kind in kinds.items():
+            if kind == "head":
+                style.append(("TOPPADDING", (0, i + 1), (-1, i + 1), 8))
+            if kind == "net":
+                style += [("FONTNAME", (2, i + 1), (-1, i + 1), "Helvetica-Bold"), ("BACKGROUND", (1, i + 1), (1, i + 1), c.HexColor(GREY)),
+                          ("LINEABOVE", (2, i + 1), (-1, i + 1), 0.6, c.black), ("LINEBELOW", (2, i + 1), (-1, i + 1), 1.6, c.black)]
+        width = min(27.0, 104.0 / len(cols))
+        t = Table([header] + rows, colWidths=[10 * mm, (160 - width * len(cols)) * mm] + [width * mm] * len(cols), hAlign="LEFT")
+        t.setStyle(TableStyle(style))
+        rates = "; ".join(f"{x['label']} {_d(x['rate']) * 100:g}% {'reducing balance' if x['method'] == 'reducing_balance' else 'straight-line'}"
+                          for x in cats if _d(x["rate"]))
+        from reportlab.platypus import KeepTogether
+
+        return KeepTogether([t, self.P(escape(f"Depreciation is charged monthly at: {rates}. " + (sched.get("convention") or "")), "nt")])
 
     def ppe_note(self, v):
         """Cost, accumulated depreciation and the year's movement, by class, from the PPE accounts (cost accounts and
@@ -927,6 +986,11 @@ class _Report:
         mm = self.mm
         canvas.saveState()
         p = doc.page
+        if self.dummy:
+            canvas.setFont("Helvetica-Bold", 8)
+            canvas.setFillColorRGB(0.75, 0.1, 0.1)
+            canvas.drawCentredString(105 * mm, 290 * mm, "ILLUSTRATIVE - DUMMY DATA MADE UP FROM A STORY; NOT A CLIENT'S ACCOUNTS")
+            canvas.setFillColorRGB(0, 0, 0)
         if self.draft:
             canvas.setFont("Helvetica-Bold", 7)
             canvas.setFillColorRGB(0.7, 0.14, 0.1)
