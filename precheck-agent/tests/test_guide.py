@@ -88,13 +88,13 @@ def test_code_checks_figures_confirmations_follow_through_and_questions(env):
         ],
         steps=[{"phase": "finalise", "step": "File the return.", "depends_on": "the review", "can_start_now": False, "escalate": "", "events": "", "sources": ""},
                {"phase": "reconcile", "step": "Reconcile the ASB loan statements.", "depends_on": "Annual loan summary", "can_start_now": False,
-                "escalate": "", "events": "a, zz", "sources": "B1"},
+                "escalate": "", "sources": "B1, a, zz"},
                {"phase": "nowhere", "step": "Open the folder.", "depends_on": "nothing", "can_start_now": True, "escalate": "", "events": "", "sources": ""}],
-        points=[{"kind": "action", "text": "Agree the refinance to the bank's settlement letter.", "events": "a", "sources": ""},
+        points=[{"kind": "action", "text": "Agree the refinance to the bank's settlement letter.", "sources": "a"},
                 {"kind": "note", "text": "Was the ASB loan refinanced, and on what date?", "events": "a", "sources": ""}],
         judgments=[{"area": "", "judgment": "Repairs or capital for the deck.", "evidence": "The invoice.", "manager_approval": True,
                     "reference": "IR 264", "events": "", "sources": ""}],
-        checklist=[{"check": "Refinance reconciled.", "status": "open", "events": "a"},
+        checklist=[{"check": "Refinance reconciled.", "status": "open", "sources": "a"},
                    {"check": "Bank reconciled.", "status": "maybe", "events": ""}],
     )))
     guide = env.run("1", mode="guide")["guide"]
@@ -109,7 +109,8 @@ def test_code_checks_figures_confirmations_follow_through_and_questions(env):
     assert [(s["phase"], s["step"]) for s in guide["steps"]] == [
         ("start", "Open the folder."), ("reconcile", "Reconcile the ASB loan statements."),
         ("review", guide["steps"][2]["step"]), ("finalise", "File the return.")]
-    assert guide["steps"][1]["events"] == ["E1"]  # an unknown event reference is dropped
+    # the event ids come in the sources: "a" is the refinance (E1), "zz" is unknown and dropped, B1 stays a source
+    assert guide["steps"][1]["events"] == ["E1"] and [x["id"] for x in guide["steps"][1]["sources"]] == ["B1"]
     assert [p["text"] for p in guide["points"]] == ["Agree the refinance to the bank's settlement letter."]
     assert guide["judgments"][0]["area"] == "General" and guide["judgments"][0]["manager_approval"] is True
     assert guide["checklist"][1]["status"] == "open"  # an unknown status is read as open
@@ -174,4 +175,7 @@ def test_the_answer_shape_stays_small_enough_for_the_api():
         return sum(arrays_of_strings(x) for x in v) if isinstance(v, list) else 0
 
     assert arrays_of_strings(SCHEMA) == 0
+    # a separate "events" field on every item made it too large again (24 Nov 2026): event ids go in sources
+    for name in ("risks", "steps", "judgments", "points", "checklist"):
+        assert "events" not in SCHEMA["properties"][name]["items"]["properties"], name
     assert "queries" not in SCHEMA["properties"] and SCHEMA["properties"]["points"]["type"] == "array"

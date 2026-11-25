@@ -51,7 +51,9 @@ MAX_WORDS = 1200
 
 _STR = {"type": "string"}
 # Ids as one comma-separated string ("B1, G2.1"), not an array: the API compiles the answer shape into a
-# grammar, and with an array of ids on every item it refused it as too large (21 Oct 2026).
+# grammar, and with an array of ids on every item it refused it as too large (21 Oct 2026). The event ids an
+# item follows through (E1, E2) go in the same string: a separate "events" field on every item made the
+# grammar too large again and every guide failed (400 "compiled grammar is too large", 24 Nov 2026).
 _IDS = _STR
 
 
@@ -68,18 +70,18 @@ SCHEMA = _obj({
     "prior_year": {"type": "array", "items": _obj({
         "item": _STR, "kind": {"type": "string", "enum": PRIOR_KINDS}, "follow_through": _STR, "sources": _IDS})},
     "risks": {"type": "array", "items": _obj({
-        "area": _STR, "what_could_be_wrong": _STR, "examine": _STR, "evidence": _STR, "events": _IDS, "sources": _IDS})},
+        "area": _STR, "what_could_be_wrong": _STR, "examine": _STR, "evidence": _STR, "sources": _IDS})},
     "steps": {"type": "array", "items": _obj({
         "phase": {"type": "string", "enum": PHASES}, "step": _STR, "depends_on": _STR, "can_start_now": {"type": "boolean"}, "escalate": _STR,
-        "events": _IDS, "sources": _IDS})},
+        "sources": _IDS})},
     "judgments": {"type": "array", "items": _obj({
-        "area": _STR, "judgment": _STR, "evidence": _STR, "manager_approval": {"type": "boolean"}, "reference": _STR, "events": _IDS, "sources": _IDS})},
-    "points": {"type": "array", "items": _obj({"kind": {"type": "string", "enum": POINT_KINDS}, "text": _STR, "events": _IDS, "sources": _IDS})},
-    "checklist": {"type": "array", "items": _obj({"check": _STR, "status": {"type": "string", "enum": CHECK_STATUSES}, "events": _IDS})},
+        "area": _STR, "judgment": _STR, "evidence": _STR, "manager_approval": {"type": "boolean"}, "reference": _STR, "sources": _IDS})},
+    "points": {"type": "array", "items": _obj({"kind": {"type": "string", "enum": POINT_KINDS}, "text": _STR, "sources": _IDS})},
+    "checklist": {"type": "array", "items": _obj({"check": _STR, "status": {"type": "string", "enum": CHECK_STATUSES}, "sources": _IDS})},
     "roll_forward": {"type": "array", "items": _obj({"item": _STR, "why": _STR, "sources": _IDS})},
 })
 
-ANSWER = """Answer in the JSON shape given, following the preparation guide skill: cautions, snapshot, events (worked out for the follow-through; not shown as a section), prior_year, risks, steps (from the start of preparation to finalisation, each with its phase, in order), judgments (each with its area), points, checklist and roll_forward. Write statements and instructions, never questions: no item may be a question to the accountant, the manager or the client. Do not list the documents still requested from the client: code lists them from the pre-check. Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; give "sources" as the ids each item rests on and "events" as the event ids it follows through (E1, E2, ...), each as one comma-separated string ("B1, G2.1"; "" for none); list in "roll_forward" what next year's preparer must pick up; take up every rolled-forward (Y) line in "prior_year"."""
+ANSWER = """Answer in the JSON shape given, following the preparation guide skill: cautions, snapshot, events (worked out for the follow-through; not shown as a section), prior_year, risks, steps (from the start of preparation to finalisation, each with its phase, in order), judgments (each with its area), points, checklist and roll_forward. Write statements and instructions, never questions: no item may be a question to the accountant, the manager or the client. Do not list the documents still requested from the client: code lists them from the pre-check. Use only figures, names and dates in the input; mark an event confirmed only when a document shows it; give each event the id E1, E2, ...; give in "sources" the ids each item rests on together with the event ids it follows through, as one comma-separated string ("B1, G2.1, E1"; "" for none); list in "roll_forward" what next year's preparer must pick up; take up every rolled-forward (Y) line in "prior_year"."""
 
 # Words kept per field: about half as much again as the skill asks for, so an answer that runs a
 # little long is kept whole rather than cut mid-sentence (the page limit is checked on the total).
@@ -208,8 +210,9 @@ def clean(raw: dict, index: dict, known_text: str, outstanding: list[dict] | Non
         item["flags"] += figures(item, "event", "why_it_matters", "action", "effect")
         events.append(item)
 
-    def refs(ids) -> list[str]:
-        return list(dict.fromkeys(renumber[i] for i in _ids(ids) if i in renumber))
+    def refs(*values) -> list[str]:
+        """The events an item follows through: E ids in its sources (or, in older answers, its "events")."""
+        return list(dict.fromkeys(renumber[i] for v in values for i in _ids(v) if i in renumber))
 
     def rows(items, limit: int, fields: dict, extra=None) -> list[dict]:
         """Clean a list: text fields clipped, duplicates and empty rows dropped, sources and event
@@ -222,7 +225,7 @@ def clean(raw: dict, index: dict, known_text: str, outstanding: list[dict] | Non
                 continue
             dup.add(_norm(row[first]))
             row.update(extra(r) if extra else {})
-            row["events"] = refs(r.get("events"))
+            row["events"] = refs(r.get("events"), r.get("sources"))
             if "sources" in r:
                 row["sources"] = sources(r.get("sources"))
             row["flags"] = figures(row, *fields)
