@@ -15,6 +15,8 @@ import { useJobPrecheck } from '@/api/precheck'
 import { useJobReview } from '@/api/review'
 import { useWpAgent } from '@/api/wpAgent'
 import { Dialog, DialogContent } from '@/design-system'
+import { withSpoken } from '@/api/coordinator'
+import { VoiceButton } from '@/features/chat/VoiceButton'
 
 type Tool = 'precheck' | 'guide' | 'wp' | 'ask' | 'review'
 
@@ -158,6 +160,8 @@ export function AIAssistant({ jobKey }: { jobKey: string }) {
             maxLength={2000}
             onChange={(e) => setQuestion(e.target.value)}
           />
+          <VoiceButton label="Speak your question" title="Ask aloud (Amazon Transcribe): the question appears here to check before you send"
+            onText={(t) => (setQuestion((q) => withSpoken(q, t).slice(0, 2000)), questionRef.current?.focus())} />
           <button type="submit" className={styles.askSend} aria-label="Ask" disabled={!question.trim() || ask.isPending}>
             <ArrowRight size={18} aria-hidden="true" />
           </button>

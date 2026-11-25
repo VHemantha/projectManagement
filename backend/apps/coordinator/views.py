@@ -352,13 +352,14 @@ class RatingsView(APIView):
 
 
 class VoiceView(APIView):
-    """POST /api/coordinator/voice/ (multipart "audio") — speech to text for a message to the Practice Manager AI
-    (AFIT, 21 Nov 2026), by Amazon Transcribe. Returns {"text"} for the person to check and send."""
+    """POST /api/coordinator/voice/ (multipart "audio", optional "language": en-NZ, en-IN...) — speech to text for the
+    AI agents (AFIT, 21 Nov 2026; every agent's voice box from 25 Nov 2026), by Amazon Transcribe. Returns {"text"}
+    for the person to check and send."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        from .voice import MAX_BYTES, VoiceUnavailable, media_format, transcribe
+        from .voice import LANGUAGES, MAX_BYTES, VoiceUnavailable, media_format, transcribe
 
         audio = request.FILES.get("audio")
         if audio is None:
@@ -368,11 +369,14 @@ class VoiceView(APIView):
         fmt = media_format(audio.content_type, audio.name)
         if fmt is None:
             return Response({"audio": ["This kind of recording can't be read."]}, status=status.HTTP_400_BAD_REQUEST)
+        language = request.data.get("language") or None
+        if language is not None and language not in LANGUAGES:
+            return Response({"language": [f"Use one of {', '.join(LANGUAGES)}."]}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            text = transcribe(audio.read(), fmt)
+            text = transcribe(audio.read(), fmt, language)
         except VoiceUnavailable as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        services.audit(request.user, "voice_message", allowed=True, seconds=round(audio.size / 16000))
+        services.audit(request.user, "voice_message", allowed=True, seconds=round(audio.size / 16000), language=language or "default")
         return Response({"text": text})
 
 

@@ -6,6 +6,8 @@ import styles from './SpecialNotes.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import { type NoteAgent, type NoteConsidered, useAddAgentNote, useAgentNotes, useRemoveAgentNote } from '@/api/precheck'
 import { Button } from '@/design-system'
+import { withSpoken } from '@/api/coordinator'
+import { VoiceButton } from '@/features/chat/VoiceButton'
 
 const LABEL = Object.fromEntries(NOTE_AGENTS.map((a) => [a.value, a.label])) as Record<NoteAgent, string>
 
@@ -90,6 +92,8 @@ export function SpecialNotes({ jobKey }: { jobKey: string }) {
             <span className={styles.hint}>{agents.length ? '' : 'None ticked: every agent.'}</span>
           </fieldset>
           <div className={styles.actions}>
+            <VoiceButton label="Speak the note" title="Say the note (Amazon Transcribe): it appears here to check before it is added"
+              onText={(t) => setText((x) => withSpoken(x, t).slice(0, 1000))} />
             <Button type="submit" size="sm" disabled={text.trim().length < 3 || add.isPending}>
               {add.isPending ? 'Adding…' : 'Add note'}
             </Button>

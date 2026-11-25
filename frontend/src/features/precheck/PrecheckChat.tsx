@@ -6,6 +6,8 @@ import styles from './PrecheckChat.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import { useAddAgentNote, useRunPrecheck } from '@/api/precheck'
 import { Button } from '@/design-system'
+import { withSpoken } from '@/api/coordinator'
+import { VoiceButton } from '@/features/chat/VoiceButton'
 
 const SUGGESTIONS = [
   'Why is the first item on the request list?',
@@ -62,6 +64,8 @@ export function PrecheckChat({ jobKey, running }: { jobKey: string; running: boo
         />
         <div className={styles.correctActions}>
           <span className={styles.muted}>Kept as a special note for the pre-check, so it is on record and every later run follows it.</span>
+          <VoiceButton label="Speak the correction" title="Say the correction (Amazon Transcribe): it appears here to check before it is saved"
+            onText={(t) => (setCorrection((c) => withSpoken(c, t).slice(0, 1000)), setDone(false))} />
           <Button type="submit" size="sm" disabled={correction.trim().length < 3 || addNote.isPending || run.isPending || running}>
             {addNote.isPending || run.isPending ? 'Saving…' : 'Save and re-run'}
           </Button>

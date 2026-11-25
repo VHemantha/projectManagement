@@ -114,12 +114,18 @@ def test_a_spoken_message_is_turned_into_text_by_amazon_transcribe(world, monkey
     assert off.status_code == 503 and "isn't set up" in off.data["detail"]
     sent = {}
 
-    def fake(data, fmt):
-        sent.update(data=data, fmt=fmt)
+    def fake(data, fmt, language=None):
+        sent.update(data=data, fmt=fmt, language=language)
         return "Create a job for Jones Family Trust in Smith."
 
     monkeypatch.setattr(voice, "transcribe", fake)
     ok = api(world.pat).post("/api/coordinator/voice/", {"audio": clip("audio/webm;codecs=opus")}, format="multipart")
     assert ok.status_code == 200 and ok.data["text"] == "Create a job for Jones Family Trust in Smith." and sent["fmt"] == "webm"
+    assert sent["language"] is None  # the server's default English
+    # Other agents ask for their own English (AFIT, 25 Nov 2026): the Sri Lankan Local Tax story in Indian English.
+    lk = api(world.pat).post("/api/coordinator/voice/", {"audio": clip(), "language": "en-IN"}, format="multipart")
+    assert lk.status_code == 200 and sent["language"] == "en-IN"
+    odd = api(world.pat).post("/api/coordinator/voice/", {"audio": clip(), "language": "fr-FR"}, format="multipart")
+    assert odd.status_code == 400 and "language" in odd.data
     bad = api(world.pat).post("/api/coordinator/voice/", {"audio": SimpleUploadedFile("x.txt", b"hi", content_type="text/plain")}, format="multipart")
     assert bad.status_code == 400

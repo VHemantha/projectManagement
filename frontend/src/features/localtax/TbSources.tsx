@@ -18,6 +18,8 @@ import {
   useUseStoryTb,
 } from '@/api/localTax'
 import { Button } from '@/design-system'
+import { withSpoken } from '@/api/coordinator'
+import { VoiceButton } from '@/features/chat/VoiceButton'
 
 const headingLabel = (h: string) => HEADINGS.find(([k]) => k === h)?.[1] ?? h
 
@@ -47,6 +49,9 @@ export function StoryTrialBalance({ taskKey, state }: { taskKey: string; state: 
           placeholder="e.g. A family bakery in Kandy, two outlets, sales of about LKR 30 million (up 15%), bought a delivery van in July, a bank loan of LKR 5 million…" />
       </label>
       <div className={styles.actions}>
+        <VoiceButton language="en-IN" label="Speak the story"
+          title="Tell the story aloud (Amazon Transcribe): the words appear in the box to check before the trial balance is made"
+          onText={(t) => setStory((s) => withSpoken(s, t).slice(0, 4000))} />
         <Button size="sm" variant="primary" disabled={story.trim().length < 20 || make.isPending} onClick={() => make.mutate(story, { onSuccess: setPreview })}>
           <Sparkles size={13} /> {make.isPending ? 'Making the trial balance…' : 'Make the trial balance'}
         </Button>

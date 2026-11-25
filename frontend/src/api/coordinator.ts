@@ -298,11 +298,21 @@ export function useRatings(days?: number) {
 
 // --- speaking to the Practice Manager AI, and the CEO's reports (AFIT, 21 Nov 2026) -----------------------
 
+/** The Englishes Amazon Transcribe is asked for: New Zealand by default; Indian English for the Sri Lankan Local Tax
+ * work (Transcribe has no Sri Lankan English). */
+export type VoiceLanguage = 'en-NZ' | 'en-IN' | 'en-AU' | 'en-GB' | 'en-US'
+
+/** Spoken words added to what is already typed (a space between), so a person can type, speak, then type again. */
+export function withSpoken(typed: string, spoken: string): string {
+  return typed.trim() ? `${typed.trimEnd()} ${spoken}` : spoken
+}
+
 /** A recording turned into text by Amazon Transcribe, for the person to check and send. */
-export async function transcribeVoice(audio: Blob): Promise<string> {
+export async function transcribeVoice(audio: Blob, language?: VoiceLanguage): Promise<string> {
   const form = new FormData()
   const type = audio.type || 'audio/webm'
   form.append('audio', new File([audio], `message.${type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'mp4' : 'webm'}`, { type }))
+  if (language) form.append('language', language)
   const { data } = await apiClient.post<{ text: string }>('/coordinator/voice/', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   return data.text
 }

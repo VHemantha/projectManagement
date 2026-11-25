@@ -5,6 +5,8 @@ import styles from './AskPanel.module.css'
 import { type AnswerBasis, type AnswerPoint, type AnswerSource, type AssistantQuestion, useAsk, useConversation, useStopQuestion } from '@/api/ask'
 import { extractErrorMessage } from '@/api/errors'
 import { Button, Skeleton } from '@/design-system'
+import { withSpoken } from '@/api/coordinator'
+import { VoiceButton } from '@/features/chat/VoiceButton'
 
 const STATUS_LABEL: Record<string, string> = {
   answered: 'Answered from the documents',
@@ -104,6 +106,8 @@ export function AskPanel({ jobKey, suggestions = SUGGESTIONS, lead, variant, pla
             }
           }}
         />
+        <VoiceButton label="Speak your question" title="Ask aloud (Amazon Transcribe): the question appears here to check before you send"
+          onText={(t) => setQuestion((q) => withSpoken(q, t))} />
         <Button type="submit" variant="primary" size="sm" disabled={question.trim().length < 3 || ask.isPending}>
           {ask.isPending ? <Loader2 size={14} className={styles.spin} aria-hidden="true" /> : <Send size={14} aria-hidden="true" />}
           Ask

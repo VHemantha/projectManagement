@@ -1,15 +1,28 @@
 import { Loader2, Mic, Square } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { transcribeVoice } from '@/api/coordinator'
+import { type VoiceLanguage, transcribeVoice } from '@/api/coordinator'
 import { extractErrorMessage } from '@/api/errors'
 import { Button } from '@/design-system'
 
 const MAX_SECONDS = 120
 
-/** Speak to the Practice Manager AI (AFIT, 21 Nov 2026): record in the browser, Amazon Transcribe turns it into
- * text, and the text goes into the message box to check and send - "create a job for ..." works as typed. */
-export function VoiceButton({ onText }: { onText: (text: string) => void }) {
+/** Speak instead of typing (AFIT, 21 Nov 2026; for the agents' boxes from 25 Nov 2026): record in the browser, Amazon
+ * Transcribe turns it into text, and the text goes into the box to check before it is sent - nothing is sent by voice
+ * alone. Used only where speaking beats typing: the Practice Manager AI chat, the Local Tax story for a dummy trial
+ * balance, questions to the job's assistant, corrections to the pre-check and special notes to the agents. */
+export function VoiceButton({
+  onText,
+  label = 'Speak to the Practice Manager AI',
+  title = 'Speak your message (Amazon Transcribe): it appears here to check before you send',
+  language,
+}: {
+  onText: (text: string) => void
+  /** What the button does, for screen readers ("Speak the story"). */
+  label?: string
+  title?: string
+  language?: VoiceLanguage
+}) {
   const [state, setState] = useState<'idle' | 'recording' | 'reading'>('idle')
   const [seconds, setSeconds] = useState(0)
   const [error, setError] = useState('')
@@ -39,7 +52,7 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
         stream.getTracks().forEach((t) => t.stop())
         setState('reading')
         try {
-          const text = await transcribeVoice(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }))
+          const text = await transcribeVoice(new Blob(chunks, { type: rec.mimeType || 'audio/webm' }), language)
           if (text) onText(text)
           else setError('No words were heard. Try again.')
         } catch (e) {
@@ -57,7 +70,7 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
         return s + 1
       }), 1000)
     } catch {
-      setError('The microphone could not be used. Allow it in the browser, or type your message.')
+      setError('The microphone could not be used. Allow it in the browser, or type instead.')
     }
   }
 
@@ -65,13 +78,12 @@ export function VoiceButton({ onText }: { onText: (text: string) => void }) {
   return (
     <>
       {state === 'recording' ? (
-        <Button variant="danger" size="sm" onClick={stop} aria-label="Stop recording">
+        <Button type="button" variant="danger" size="sm" onClick={stop} aria-label="Stop recording">
           <Square size={12} /> {seconds}s
         </Button>
       ) : (
-        <Button variant="subtle" size="sm" iconOnly onClick={start} disabled={state === 'reading'}
-          aria-label={state === 'reading' ? 'Turning your recording into text' : 'Speak to the Practice Manager AI'}
-          title="Speak your message (Amazon Transcribe): it appears here to check before you send">
+        <Button type="button" variant="subtle" size="sm" iconOnly onClick={start} disabled={state === 'reading'}
+          aria-label={state === 'reading' ? 'Turning your recording into text' : label} title={title}>
           {state === 'reading' ? <Loader2 size={14} /> : <Mic size={14} />}
         </Button>
       )}
