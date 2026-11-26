@@ -120,7 +120,7 @@ describe('The Local Tax workflow (Team 3 > Local cards, AFIT 22 Nov 2026)', () =
     expect(docs).toHaveTextContent('bank.pdf — p1')
     expect(within(win).getByRole('region', { name: 'Issues to resolve' })).toHaveTextContent('TIN differs between documents.')
     expect(within(win).getByRole('region', { name: "Client's Google Drive folder" })).toHaveTextContent('tasko@example.iam')
-    await userEvent.click(within(win).getByRole('button', { name: /Back: Client Details/ }))
+    await userEvent.click(within(win).getByRole('button', { name: /^Back$/ }))  // the Supporting docs footer (the AFIT design)
     expect(within(win).getAllByRole('textbox')[1]).toHaveValue('999')
   })
 })

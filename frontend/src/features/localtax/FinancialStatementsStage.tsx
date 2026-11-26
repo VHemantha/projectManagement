@@ -12,7 +12,7 @@ import { TbMapping } from './TbMapping'
 import { UpdateButton } from './Update'
 import { extractErrorMessage } from '@/api/errors'
 import { type Financials, type FsEdits, type LocalTaxState, type PlFigures, downloadLocalTax, money, useSaveLocalTax } from '@/api/localTax'
-import { Button } from '@/design-system'
+import { Button, Dialog, DialogContent } from '@/design-system'
 
 type Section = 'report' | 'pl' | 'bs' | 'equity' | 'cash' | 'notes' | 'policies' | 'journals' | 'ppe'
 type Edited = Record<string, { from: string; by: string }>
@@ -61,6 +61,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
   const blocked = !!state.fs_edits && !state.fs_edits.balanced
   const edited = editedOf(state.fs_edits)
   const [downloadError, setDownloadError] = useState('')
+  const [tbOpen, setTbOpen] = useState(false)
   const download = (doc: 'fs', fmt: 'pdf' | 'xlsx' | 'docx') => {
     setDownloadError('')
     downloadLocalTax(taskKey, doc, fmt).catch((err) => setDownloadError(extractErrorMessage(err, 'The download failed.')))
@@ -71,20 +72,22 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
 
   return (
     <>
-      <div className={styles.stageHead}>
-        <FileText size={22} className={styles.stageIcon} aria-hidden="true" />
-        <div>
-          <h2 className={styles.stageTitle}>Financial Statements</h2>
-          <p className={styles.stageLead}>Generate, review and edit financial statements{company && e.audited ? ' and the audit report' : ''}.</p>
-        </div>
+      {/* The AFIT design (26 Nov 2026): the title, and TB Mapping at the top right. */}
+      <div className={`${styles.card} ${styles.fsHead}`}>
+        <h2>Financial Statements</h2>
         <span className={styles.spacer} />
-        <div className={styles.actions}>
-          <UpdateButton taskKey={taskKey} stage="fs" label="Update FS" />
-          <Button variant="secondary" onClick={() => setSection('journals')}>
-            <Scale size={15} /> Journal Entries ({state.adjustments.filter((a) => a.scope === 'accounting' && a.status !== 'rejected').length})
+        <UpdateButton taskKey={taskKey} stage="fs" label="Update FS" />
+        {company && (
+          <Button variant="secondary" className={styles.outlinePrimary} onClick={() => setTbOpen(true)}>
+            TB Mapping{fin?.unmapped?.length ? ` (${fin.unmapped.length} to map)` : ''}
           </Button>
-        </div>
+        )}
       </div>
+      <Dialog open={tbOpen} onOpenChange={setTbOpen}>
+        <DialogContent title="TB Mapping" maxWidth={720} hideTitle>
+          <TbMapping taskKey={taskKey} fin={fin} />
+        </DialogContent>
+      </Dialog>
       {company && (
         <div className={styles.card}>
           <div className={styles.formGrid} style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' }}>
@@ -105,10 +108,10 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
               <input readOnly value={year ? `${year.getDate()} ${year.toLocaleString('en-GB', { month: 'short' })} ${year.getFullYear() - 1}` : '—'} />
             </label>
             <label className={styles.field}>
-              <span>Report</span>
+              <span>Engagement Type</span>
               <select value={e.audited ? 'audit' : 'compilation'} onChange={(ev) => save.mutate({ audited: ev.target.value === 'audit', stage: 'fs' })}>
-                <option value="audit">Audit report</option>
-                <option value="compilation">Compilation report</option>
+                <option value="audit">Audit</option>
+                <option value="compilation">Compilation</option>
               </select>
             </label>
             <div className={styles.field}>
@@ -196,7 +199,6 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         </section>
 
         <div className={styles.side}>
-          {company && <TbMapping taskKey={taskKey} fin={fin} />}
           <AiAssistant taskKey={taskKey} lead="I can help you review the financial statements, check compliance with the framework and draft the audit report."
             suggestions={['Are there unusual balances I should look at?', 'Which disclosures are missing?']} />
           <section className={styles.card} aria-label="Key Insights">

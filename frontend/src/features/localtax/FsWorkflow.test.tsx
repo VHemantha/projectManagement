@@ -75,6 +75,7 @@ describe('Team 3 > Local: report, editable statements, Update (AFIT, 26 Nov 2026
     expect(screen.getAllByRole('alert').some((a) => /out of balance by 50,000/.test(a.textContent ?? ''))).toBe(true)
     expect(screen.getAllByRole('button', { name: /Next: Tax Computation/ }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true)
     // the TB mapping sits at the top right, the edit shown there until posted
+    await userEvent.click(screen.getByRole('button', { name: /^TB Mapping/ }))
     const tb = screen.getByRole('region', { name: 'TB Mapping' })
     expect(within(tb).getByText(/Edited on the statements: not in the TB/)).toBeInTheDocument()
   })

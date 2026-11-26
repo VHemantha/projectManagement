@@ -174,3 +174,21 @@ def test_update_works_everything_out_and_says_what_changed(world):  # noqa: F811
     changed = {x["key"]: x for x in r.data["changes"]}
     assert not r.data["first"] and {"revenue", "profit", "tb_difference", "blocking"} <= set(changed)
     assert changed["revenue"]["from"] == "1450000.00" and changed["revenue"]["to"] == "1500000.00"
+
+
+# --- the trial balance drafted from the accountant's instructions -----------------------------------------------------
+
+def test_a_tb_drafted_from_the_accountants_own_figures_is_not_dummy_data(world, monkeypatch):  # noqa: F811
+    c = api(world.pat)
+    c.patch(world.url, {"entity_type": "company", "fy_end": "2025-03-31"}, format="json")
+    reply = {"accounts": [{"code": "1100", "name": "Cash at bank", "heading": "cash", "amount": "500000", "comparative": ""},
+                          {"code": "3000", "name": "Stated capital", "heading": "share_capital", "amount": "-500000", "comparative": ""}],
+             "assumptions": [], "notes": [], "made_up": False}
+    monkeypatch.setattr(ai, "_call", lambda path, body, timeout=180: reply)
+    draft = c.post(world.url + "ai/tb-story/", {"story": "Cash at bank 500,000; stated capital 500,000."}, format="json").data
+    assert draft["made_up"] is False and {r["code"] for r in draft["rows"]} >= {"1100", "3000"}  # (with a nil retained earnings line)
+    st = c.put(world.url + "tb/", {"rows": draft["rows"], "source": "instructions", "story": draft["story"]}, format="json").data
+    assert st["engagement"]["data"]["tb_source"]["kind"] == "instructions"
+    # a draft with made-up figures stays dummy data
+    reply["made_up"] = True
+    assert c.post(world.url + "ai/tb-story/", {"story": "A bakery in Kandy with sales of about 30 million."}, format="json").data["made_up"] is True

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { JournalRegister } from './Journals'
 import { PpeSection } from './Ppe'
-import { PriorYearComparatives, StoryTrialBalance } from './TbSources'
+import { PriorYearComparatives, TbDraftPreview, TbInstructions } from './TbSources'
 import type { LocalTaxState } from '@/api/localTax'
 
 const m = vi.hoisted(() => {
@@ -108,18 +108,27 @@ describe('PPE & depreciation, journals, the dummy trial balance and comparatives
     expect(m.approve.mutate).toHaveBeenCalled()
   })
 
-  it('makes a dummy trial balance from a story, previewed before use', async () => {
-    m.story.mutate = vi.fn((_story: string, opts?: { onSuccess?: (d: unknown) => void }) => opts?.onSuccess?.({
+  it('drafts a trial balance from instructions, previewed before it is added; made-up figures are dummy data', async () => {
+    const draft = (made_up: boolean) => ({
       rows: [{ code: '4000', name: 'Sales', heading: 'revenue', amount: '-30000000', comparative: '-26000000' },
         { code: '3100', name: 'Retained earnings', heading: 'retained_earnings', amount: '30000000', comparative: '26000000' }],
-      story: 'A bakery with sales of 30 million', assumptions: ['One shop.'], notes: [] }))
-    render(<StoryTrialBalance taskKey="LOC-1" state={base as unknown as LocalTaxState} />)
-    await userEvent.click(screen.getByText(/Create a dummy trial balance from a story/))
-    await userEvent.type(screen.getByRole('textbox', { name: 'The story' }), 'A bakery with sales of 30 million')
-    await userEvent.click(screen.getByRole('button', { name: /Make the trial balance/ }))
-    expect(screen.getByText(/DUMMY DATA, check before use/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /Replace the trial balance with this dummy one/ }))
-    expect(m.useStory.mutate.mock.calls[0][0]).toMatchObject({ story: 'A bakery with sales of 30 million' })
+      story: 'A bakery with sales of 30 million', assumptions: made_up ? ['One shop.'] : [], notes: [], made_up })
+    let got: unknown = null
+    m.story.mutate = vi.fn((_text: string, opts?: { onSuccess?: (d: unknown) => void }) => opts?.onSuccess?.(draft(true)))
+    const st = base as unknown as LocalTaxState
+    const { rerender } = render(<TbInstructions taskKey="LOC-1" state={st} onDraft={(d) => (got = d)} />)
+    await userEvent.type(screen.getByRole('textbox', { name: 'Instructions for the trial balance' }), 'A bakery with sales of 30 million')
+    await userEvent.click(screen.getByRole('button', { name: 'Generate draft' }))
+    expect(got).toMatchObject({ made_up: true })
+    rerender(<TbDraftPreview taskKey="LOC-1" state={st} preview={draft(true)} onDone={() => {}} />)
+    expect(screen.getByText(/DUMMY DATA \(figures made up by Local_Tax_AI\)/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Replace the trial balance with this draft \(dummy data\)/ }))
+    expect(m.useStory.mutate.mock.calls[0][0]).toMatchObject({ story: 'A bakery with sales of 30 million', made_up: true })
+    // the accountant's own balances: not dummy data
+    rerender(<TbDraftPreview taskKey="LOC-1" state={st} preview={draft(false)} onDone={() => {}} />)
+    expect(screen.getByText(/drafted from your instructions/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Replace the trial balance with this draft' }))
+    expect(m.useStory.mutate.mock.calls[1][0]).toMatchObject({ made_up: false })
   })
 
   it('reads last year\'s statements from a Drive link and applies the confirmed matches', async () => {

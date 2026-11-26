@@ -1,4 +1,4 @@
-import { BookOpenText, Link2, Sparkles, Upload } from 'lucide-react'
+import { Link2, Sparkles, Upload } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
@@ -23,73 +23,67 @@ import { VoiceButton } from '@/features/chat/VoiceButton'
 
 const headingLabel = (h: string) => HEADINGS.find(([k]) => k === h)?.[1] ?? h
 
-/** No trial balance yet (training, a demonstration, a quick illustration)? The accountant tells the business's story and
- * Local_Tax_AI makes up a dummy trial balance from it: previewed first, balanced by code, and labelled DUMMY DATA wherever
- * it is used - the statements are then prepared from it like any other trial balance. */
-export function StoryTrialBalance({ taskKey, state }: { taskKey: string; state: LocalTaxState }) {
+/** Or generate one from instructions (AFIT, 26 Nov 2026): the accountant gives the account balances, opening balances or
+ * adjustments - or tells the business's story - and Local_Tax_AI drafts the trial balance. The figures given are used as
+ * given; the draft is previewed and added only when the accountant says so. A draft with figures the AI made up (a story)
+ * is labelled DUMMY DATA wherever it is used. */
+export function TbInstructions({ taskKey, state, onDraft }: { taskKey: string; state: LocalTaxState; onDraft: (draft: StoryTb) => void }) {
   const make = useTbStory(taskKey)
-  const use = useUseStoryTb(taskKey)
-  const [story, setStory] = useState(state.engagement.data.tb_source?.story ?? '')
-  const [preview, setPreview] = useState<StoryTb | null>(null)
-  const isDummy = state.engagement.data.tb_source?.kind === 'story'
+  const [text, setText] = useState(state.engagement.data.tb_source?.story ?? '')
   return (
-    <details className={styles.card} open={isDummy}>
-      <summary>
-        <BookOpenText size={15} aria-hidden="true" /> <strong>Create a dummy trial balance from a story</strong>{' '}
-        <span className={styles.muted}>{isDummy ? '— the trial balance in use is dummy data' : 'for training or a demonstration'}</span>
-      </summary>
-      <p className={styles.hint} style={{ margin: 0 }}>
-        Describe the business: what it does, its size (e.g. sales of about LKR 30 million), how the year went, its assets, loans and staff. Local_Tax_AI makes up
-        realistic figures for this year and last year. They are illustrative only — every statement made from them says DUMMY DATA. The year's depreciation is
-        left to the PPE & Depreciation schedule.
-      </p>
-      <label className={`${styles.field} ${styles.wide}`}>
-        <span>The story</span>
-        <textarea rows={4} value={story} maxLength={4000} onChange={(ev) => setStory(ev.target.value)}
-          placeholder="e.g. A family bakery in Kandy, two outlets, sales of about LKR 30 million (up 15%), bought a delivery van in July, a bank loan of LKR 5 million…" />
-      </label>
-      <div className={styles.actions}>
-        <VoiceButton language="en-IN" label="Speak the story"
-          title="Tell the story aloud (Amazon Transcribe): the words appear in the box to check before the trial balance is made"
-          onText={(t) => setStory((s) => withSpoken(s, t).slice(0, 4000))} />
-        <Button size="sm" variant="primary" disabled={story.trim().length < 20 || make.isPending} onClick={() => make.mutate(story, { onSuccess: setPreview })}>
-          <Sparkles size={13} /> {make.isPending ? 'Making the trial balance…' : 'Make the trial balance'}
+    <div className={styles.genBox}>
+      <strong>Or generate one from instructions</strong>
+      <textarea rows={4} value={text} maxLength={4000} aria-label="Instructions for the trial balance" onChange={(ev) => setText(ev.target.value)}
+        placeholder="Enter account balances, opening balances or adjustments..." />
+      <div className={styles.genFoot}>
+        <span className={styles.muted}>You will review the draft before it is added.</span>
+        <VoiceButton language="en-IN" label="Speak the instructions"
+          title="Say the balances or the story (Amazon Transcribe): the words appear in the box to check before the draft is made"
+          onText={(t) => setText((s) => withSpoken(s, t).slice(0, 4000))} />
+        <Button size="sm" variant="primary" className={styles.darkButton} disabled={text.trim().length < 20 || make.isPending} onClick={() => make.mutate(text, { onSuccess: onDraft })}>
+          {make.isPending ? <><Sparkles size={13} /> Drafting…</> : 'Generate draft'}
         </Button>
-        {make.isError && <span className={styles.error}>{extractErrorMessage(make.error)}</span>}
       </div>
-      {preview && (
-        <div aria-label="Dummy trial balance preview">
-          <strong>{preview.rows.length} accounts — DUMMY DATA, check before use</strong>
-          {[...preview.assumptions, ...preview.notes].map((n, i) => <p key={i} className={styles.muted} style={{ margin: 0 }}>{n}</p>)}
-          <div className={styles.tableWrap} style={{ maxHeight: 280 }}>
-            <table className={styles.table}>
-              <thead><tr><th>Code</th><th>Account</th><th>Heading</th><th className={styles.num}>This year</th><th className={styles.num}>Last year</th></tr></thead>
-              <tbody>
-                {preview.rows.map((r) => (
-                  <tr key={r.code}><td>{r.code}</td><td>{r.name}</td><td>{headingLabel(r.heading)}</td><td className={styles.num}>{money(r.amount)}</td>
-                    <td className={styles.num}>{money(r.comparative)}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className={styles.actions}>
-            <Button size="sm" variant="primary" disabled={use.isPending}
-              onClick={() => use.mutate({ rows: preview.rows, story: preview.story }, { onSuccess: () => setPreview(null) })}>
-              {state.financials?.tb?.length ? 'Replace the trial balance with this dummy one' : 'Use as the trial balance (dummy data)'}
-            </Button>
-            <Button size="sm" variant="subtle" onClick={() => setPreview(null)}>Discard</Button>
-          </div>
-          {use.isError && <p className={styles.error}>{extractErrorMessage(use.error)}</p>}
-        </div>
-      )}
-    </details>
+      {make.isError && <p className={styles.error}>{extractErrorMessage(make.error)}</p>}
+    </div>
+  )
+}
+
+/** The draft Local_Tax_AI made from the instructions, for the accountant to check and add (or discard). */
+export function TbDraftPreview({ taskKey, state, preview, onDone }: { taskKey: string; state: LocalTaxState; preview: StoryTb; onDone: () => void }) {
+  const use = useUseStoryTb(taskKey)
+  const dummy = preview.made_up !== false
+  return (
+    <div aria-label="Draft trial balance preview" className={styles.genPreview}>
+      <strong>{preview.rows.length} accounts — {dummy ? 'DUMMY DATA (figures made up by Local_Tax_AI), check before use' : 'drafted from your instructions, check before use'}</strong>
+      {[...preview.assumptions, ...preview.notes].map((n) => <p key={n} className={styles.muted} style={{ margin: 0 }}>{n}</p>)}
+      <div className={styles.tableWrap} style={{ maxHeight: 280 }}>
+        <table className={styles.table}>
+          <thead><tr><th>Code</th><th>Account</th><th>Heading</th><th className={styles.num}>This year</th><th className={styles.num}>Last year</th></tr></thead>
+          <tbody>
+            {preview.rows.map((r) => (
+              <tr key={r.code}><td>{r.code}</td><td>{r.name}</td><td>{headingLabel(r.heading)}</td><td className={styles.num}>{money(r.amount)}</td>
+                <td className={styles.num}>{money(r.comparative)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className={styles.actions}>
+        <Button size="sm" variant="primary" disabled={use.isPending}
+          onClick={() => use.mutate({ rows: preview.rows, story: preview.story, made_up: dummy }, { onSuccess: onDone })}>
+          {state.financials?.tb?.length ? 'Replace the trial balance with this draft' : 'Add as the trial balance'}{dummy ? ' (dummy data)' : ''}
+        </Button>
+        <Button size="sm" variant="subtle" onClick={onDone}>Discard</Button>
+      </div>
+      {use.isError && <p className={styles.error}>{extractErrorMessage(use.error)}</p>}
+    </div>
   )
 }
 
 /** Last year's financial statements as this year's comparatives: a Google Drive link (shared with TASKO's service account)
  * or a document uploaded. Local_Tax_AI reads each figure; code proposes the trial balance account for each; the accountant
  * confirms the matches before they become the prior-year column (and the PPE note's figures the opening balances). */
-export function PriorYearComparatives({ taskKey, state }: { taskKey: string; state: LocalTaxState }) {
+export function PriorYearComparatives({ taskKey, state, bare = false }: { taskKey: string; state: LocalTaxState; bare?: boolean }) {
   const read = usePriorFs(taskKey)
   const apply = useApplyComparatives(taskKey)
   const reject = useDecideExtraction(taskKey)
@@ -104,11 +98,13 @@ export function PriorYearComparatives({ taskKey, state }: { taskKey: string; sta
   const busy = read.isPending || apply.isPending || upload.isPending
   const set = (i: number, p: Partial<PriorProposal>) => setMap(map.map((m) => (m.index === i ? { ...m, ...p } : m)))
   return (
-    <section className={styles.card} aria-label="Comparatives from last year's financial statements">
-      <div className={styles.actions}>
-        <Link2 size={15} aria-hidden="true" /> <strong>Comparatives from last year's financial statements</strong>
-        {done && <span className={styles.muted}>— {done.accounts} accounts from {done.document} ({done.by})</span>}
-      </div>
+    <section className={bare ? styles.side : styles.card} style={bare ? { gap: 8 } : undefined} aria-label="Comparatives from last year's financial statements">
+      {!bare && (
+        <div className={styles.actions}>
+          <Link2 size={15} aria-hidden="true" /> <strong>Comparatives from last year's financial statements</strong>
+          {done && <span className={styles.muted}>— {done.accounts} accounts from {done.document} ({done.by})</span>}
+        </div>
+      )}
       {!tb.length ? <p className={styles.muted} style={{ margin: 0 }}>Load this year's trial balance first: last year's figures are matched to its accounts.</p> : (
         <div className={styles.actions}>
           <input aria-label="Google Drive link to last year's financial statements" style={{ flex: 1, minWidth: 260 }} value={link} onChange={(ev) => setLink(ev.target.value)}

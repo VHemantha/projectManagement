@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { withSpoken } from '@/api/coordinator'
 import type { LocalTaxState } from '@/api/localTax'
-import { StoryTrialBalance } from '@/features/localtax/TbSources'
+import { TbInstructions } from '@/features/localtax/TbSources'
 import { SpecialNotes } from '@/features/precheck/SpecialNotes'
 
 const m = vi.hoisted(() => ({ transcribe: vi.fn(), idle: () => ({ mutate: vi.fn(), isPending: false, isError: false, error: null }) }))
@@ -54,10 +54,10 @@ describe('speaking to the agents (AFIT, 25 Nov 2026)', () => {
 
   it('tells the Local Tax story by voice, in Indian English, into the box to check before the trial balance is made', async () => {
     m.transcribe.mockResolvedValue('Sales of about LKR 30 million, up 15 percent.')
-    render(<StoryTrialBalance taskKey="LOC-1" state={state} />)
-    const box = screen.getByRole('textbox', { name: 'The story' })
+    render(<TbInstructions taskKey="LOC-1" state={state} onDraft={() => {}} />)
+    const box = screen.getByRole('textbox', { name: 'Instructions for the trial balance' })
     await userEvent.type(box, 'A family bakery in Kandy.')
-    await userEvent.click(screen.getByRole('button', { name: 'Speak the story' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Speak the instructions' }))
     await userEvent.click(screen.getByRole('button', { name: 'Stop recording' }))
     await waitFor(() => expect(box).toHaveValue('A family bakery in Kandy. Sales of about LKR 30 million, up 15 percent.'))
     expect(m.transcribe.mock.calls[0][1]).toBe('en-IN')

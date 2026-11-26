@@ -3,7 +3,7 @@ import { AlertTriangle, Check, CheckCircle2, FileText, FolderOpen, HelpCircle, L
 import { useRef, useState } from 'react'
 
 import styles from './LocalTax.module.css'
-import { PriorYearComparatives, StoryTrialBalance } from './TbSources'
+import { PriorYearComparatives, TbDraftPreview, TbInstructions } from './TbSources'
 import { TbUpload } from './TbUpload'
 import { extractErrorMessage } from '@/api/errors'
 import { useUploadAttachment } from '@/api/issues'
@@ -12,6 +12,7 @@ import {
   type DocFlag,
   type DocSource,
   type Suggestion,
+  type StoryTb,
   money,
   useDecideSuggestion,
   useDocuments,
@@ -33,18 +34,119 @@ const GROUPS: [string, string][] = [['field', 'Client details'], ['trial_balance
 const FLAG_ICON = { missing: <HelpCircle size={14} aria-hidden="true" />, unclear: <AlertTriangle size={14} aria-hidden="true" />,
   inconsistent: <AlertTriangle size={14} aria-hidden="true" /> }
 
-/** Client Info > Supporting Documents (Team 3 > Local cards): the trial balance and the client's other documents,
- * uploaded here or copied from the client's Google Drive folder once it is shared with TASKO. Local_Tax_AI reads
- * them and pre-fills the client info: every value shows where it came from, and is used only once the accountant
- * confirms it (as it is, or edited). What is missing, unclear or inconsistent across the documents is flagged. */
-export function SupportingDocuments({ taskKey, isCompany, tbCount, state }: { taskKey: string; isCompany: boolean; tbCount: number; state?: LocalTaxState }) {
+/** Client Info > Supporting docs (Team 3 > Local cards; the AFIT design of 26 Nov 2026): the current-year trial balance
+ * (uploaded, or drafted by Local_Tax_AI from the accountant's instructions), last year's financial statements for the
+ * comparatives, and the client's other documents from their Google Drive folder - with what is ready on the right.
+ * Local_Tax_AI reads the documents and pre-fills the client info: every value shows where it came from, and is used only
+ * once the accountant confirms it. What is missing, unclear or inconsistent across the documents is flagged. */
+export function SupportingDocuments({ taskKey, isCompany, tbCount, state, onBack, onContinue, onClientInfo, continueBusy }: {
+  taskKey: string; isCompany: boolean; tbCount: number; state?: LocalTaxState
+  onBack?: () => void; onContinue?: () => void; onClientInfo?: () => void; continueBusy?: boolean
+}) {
   const { data, isLoading, error } = useDocuments(taskKey)
+  const [draft, setDraft] = useState<StoryTb | null>(null)
+  const [priorOpen, setPriorOpen] = useState(false)
+  if (isLoading) return <Skeleton height={160} />
+  if (!data) return <p className={styles.error}>{extractErrorMessage(error, 'The documents could not be loaded.')}</p>
+  const prior = state?.engagement.data.comparatives_source
+  const tbSource = state?.engagement.data.tb_source
+  const linked = !!data.drive.url
+  const required = isCompany ? 1 : 0
+  const added = isCompany && tbCount > 0 ? 1 : 0
+  const canContinue = !isCompany || tbCount > 0
+
+  return (
+    <div className={styles.docsPage}>
+      <div className={styles.docsMain}>
+        <nav className={styles.crumbs} aria-label="Breadcrumb">
+          {onClientInfo ? <button type="button" className={styles.linkButton} onClick={onClientInfo}>Client info</button> : <span>Client info</span>}
+          <span aria-hidden="true">/</span><span>B. Supporting docs</span>
+        </nav>
+        <h2 className={styles.docsTitle}>Supporting docs</h2>
+        <p className={styles.docsLead}>
+          {isCompany ? 'Add what Tasko needs to build the return. Only the trial balance is required.'
+            : 'Add what Tasko needs to build the return. A trial balance is optional for an individual: add one when the business keeps books.'}
+        </p>
+
+        <section className={styles.docsCard} aria-label="1. Current-year trial balance">
+          <div className={styles.docsCardHead}>
+            <h3>1. Current-year trial balance</h3>
+            <span className={styles.badge} data-tone={isCompany ? 'required' : undefined}>{isCompany ? 'Required' : 'Optional'}</span>
+          </div>
+          <div className={styles.tbGrid}>
+            <TbUpload taskKey={taskKey} accounts={tbCount} variant="drop" />
+            {state && <TbInstructions taskKey={taskKey} state={state} onDraft={setDraft} />}
+          </div>
+          {tbSource && tbCount > 0 && (
+            <p className={tbSource.kind === 'story' ? styles.error : styles.muted} style={{ margin: 0 }}>
+              {tbSource.kind === 'story' ? 'DUMMY DATA: ' : ''}{tbSource.label} — {tbCount} accounts{tbSource.by ? `, ${tbSource.by}` : ''}.
+            </p>
+          )}
+          {state && draft && <TbDraftPreview taskKey={taskKey} state={state} preview={draft} onDone={() => setDraft(null)} />}
+        </section>
+
+        <section className={styles.docsCard} aria-label="2. Prior-year financial statements">
+          <div className={styles.docsCardHead}>
+            <div>
+              <h3>2. Prior-year financial statements <span className={styles.badge}>Optional</span></h3>
+              <p className={styles.muted} style={{ margin: '4px 0 0' }}>
+                Used to compare balances and flag unusual movements. {prior ? `${prior.document}: ${prior.accounts} accounts compared (${prior.by}).` : 'No file attached.'}
+              </p>
+            </div>
+            <Button variant="secondary" onClick={() => setPriorOpen(!priorOpen)} aria-expanded={priorOpen}>
+              {priorOpen ? 'Close' : prior ? 'Attach again' : 'Attach statements'}
+            </Button>
+          </div>
+          {priorOpen && state && <PriorYearComparatives taskKey={taskKey} state={state} bare />}
+        </section>
+
+        <section className={styles.docsCard} aria-label="3. Other supporting documents">
+          <div className={styles.docsCardHead}>
+            <div>
+              <h3>3. Other supporting documents <span className={styles.badge}>Optional</span></h3>
+              <p className={styles.muted} style={{ margin: '4px 0 0' }}>Link the client&apos;s Google Drive folder for bank statements, confirmations and other records.</p>
+            </div>
+          </div>
+          <DriveFolder taskKey={taskKey} url={data.drive.url} syncedAt={data.drive.synced_at} />
+          <DocumentsList taskKey={taskKey} data={data} />
+        </section>
+      </div>
+
+      <aside className={styles.readiness} aria-label="Readiness">
+        <strong>Readiness</strong>
+        <span className={styles.muted}>
+          {required ? `${added} of ${required} required item added` : 'Nothing is required: add a trial balance if the business keeps books.'}
+        </span>
+        <span className={styles.bar}><span style={{ width: `${required ? Math.max(added / required * 100, 3) : 100}%` }} /></span>
+        <dl>
+          <dt>Trial balance</dt>
+          <dd data-tone={tbCount ? 'done' : isCompany ? 'needed' : undefined}>{tbCount ? `${tbCount} accounts` : isCompany ? 'Needed' : 'Not added'}</dd>
+          <dt>Prior-year statements</dt>
+          <dd data-tone={prior ? 'done' : undefined}>{prior ? 'Added' : 'Not added'}</dd>
+          <dt>Drive folder</dt>
+          <dd data-tone={linked ? 'done' : undefined}>{linked ? 'Linked' : 'Not linked'}</dd>
+        </dl>
+      </aside>
+
+      {(onBack || onContinue) && (
+        <div className={styles.docsFooter}>
+          {onBack && <Button variant="secondary" onClick={onBack}>Back</Button>}
+          <span className={styles.spacer} />
+          {!canContinue && <span className={styles.muted}>Add a trial balance to continue</span>}
+          {onContinue && <Button variant="primary" disabled={!canContinue || continueBusy} onClick={onContinue}>Save &amp; continue</Button>}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The documents uploaded or copied from Drive, read by Local_Tax_AI: the values to verify and the issues to resolve. */
+function DocumentsList({ taskKey, data }: { taskKey: string; data: NonNullable<ReturnType<typeof useDocuments>['data']> }) {
   const queryClient = useQueryClient()
   const upload = useUploadAttachment(taskKey)
   const prefill = usePrefill(taskKey)
   const files = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState<string | null>(null)
-
   const uploadAll = async (list: FileList) => {
     for (const f of Array.from(list)) {
       setUploading(f.name)
@@ -53,70 +155,41 @@ export function SupportingDocuments({ taskKey, isCompany, tbCount, state }: { ta
     setUploading(null)
     void queryClient.invalidateQueries({ queryKey: ['local-tax', taskKey, 'documents'] })
   }
-  if (isLoading) return <Skeleton height={160} />
-  if (!data) return <p className={styles.error}>{extractErrorMessage(error, 'The documents could not be loaded.')}</p>
   const unread = data.documents.filter((d) => !d.read_at).length
   const pending = data.suggestions.filter((s) => s.status === 'pending')
   const decided = data.suggestions.filter((s) => s.status !== 'pending')
   const open = data.flags.filter((f) => f.status === 'open')
   const names = Object.fromEntries(data.documents.map((d) => [d.id, d.name]))
-
   return (
-    <div className={styles.side} style={{ gap: 12 }}>
-      <p className={styles.hint} style={{ margin: 0 }}>
-        Upload the trial balance and the client&apos;s supporting documents — bank statements, bank balance confirmations, prior returns, certificates,
-        registers — or link the client&apos;s Google Drive folder. Local_Tax_AI reads them and pre-fills the client info; you verify each value against its source
-        before it flows into the financial statements and the tax computation.
-      </p>
-
-      {!isCompany && (
-        <p className={styles.hint} style={{ margin: 0 }}>
-          A trial balance is optional for an individual: upload one when the business keeps books (a sole proprietor), and the financial statements are
-          prepared from it.
-        </p>
-      )}
-      <TbUpload taskKey={taskKey} accounts={tbCount} />
-      {state && <StoryTrialBalance taskKey={taskKey} state={state} />}
-      {state && (isCompany || tbCount > 0) && <PriorYearComparatives taskKey={taskKey} state={state} />}
-
-      <section className={styles.card} aria-label="Upload supporting documents">
-        <div className={styles.actions}>
-          <strong><Upload size={15} aria-hidden="true" /> Supporting documents</strong>
-          <span className={styles.spacer} />
-          <input ref={files} type="file" multiple hidden aria-label="Supporting documents files"
-            onChange={(ev) => { if (ev.target.files?.length) void uploadAll(ev.target.files); ev.target.value = '' }} />
-          <Button size="sm" variant="secondary" disabled={!!uploading} onClick={() => files.current?.click()}>
-            <Upload size={13} /> {uploading ? `Uploading ${uploading}…` : 'Upload documents'}
-          </Button>
-        </div>
-        {upload.isError && <p className={styles.error}>{extractErrorMessage(upload.error)}</p>}
-      </section>
-
-      <DriveFolder taskKey={taskKey} url={data.drive.url} syncedAt={data.drive.synced_at} />
-
-      <section className={styles.card} aria-label="Documents">
-        <div className={styles.actions}>
-          <strong><FileText size={15} aria-hidden="true" /> Documents ({data.documents.length})</strong>
-          <span className={styles.spacer} />
-          <Button size="sm" variant="primary" disabled={prefill.isPending || !data.documents.length}
-            onClick={() => prefill.mutate({ names })}>
-            <Sparkles size={13} /> {unread ? `Read ${unread} new document${unread === 1 ? '' : 's'} with AI & pre-fill` : 'Check the documents again'}
-          </Button>
-          {data.documents.length > 0 && unread === 0 && (
-            <Button size="sm" variant="subtle" disabled={prefill.isPending} onClick={() => prefill.mutate({ again: true, names })}>Read all again</Button>
-          )}
-        </div>
-        {prefill.progress && (
-          <div role="status" aria-label="Reading progress">
-            <span className={styles.bar}><span style={{ width: `${prefill.progress.total ? (prefill.progress.done / prefill.progress.total) * 100 : 100}%` }} /></span>
-            <span className={styles.muted}>
-              {prefill.progress.done < prefill.progress.total
-                ? `Local_Tax_AI is reading ${prefill.progress.done + 1} of ${prefill.progress.total}: ${prefill.progress.current}`
-                : 'Checking the documents against each other and the client info…'}
-            </span>
-          </div>
+    <>
+      <div className={styles.actions}>
+        <strong><FileText size={15} aria-hidden="true" /> Documents ({data.documents.length})</strong>
+        <span className={styles.spacer} />
+        <input ref={files} type="file" multiple hidden aria-label="Supporting documents files"
+          onChange={(ev) => { if (ev.target.files?.length) void uploadAll(ev.target.files); ev.target.value = '' }} />
+        <Button size="sm" variant="subtle" disabled={!!uploading} onClick={() => files.current?.click()}>
+          <Upload size={13} /> {uploading ? `Uploading ${uploading}…` : 'Upload documents'}
+        </Button>
+        <Button size="sm" variant="primary" disabled={prefill.isPending || !data.documents.length} onClick={() => prefill.mutate({ names })}>
+          <Sparkles size={13} /> {unread ? `Read ${unread} new document${unread === 1 ? '' : 's'} with AI & pre-fill` : 'Check the documents again'}
+        </Button>
+        {data.documents.length > 0 && unread === 0 && (
+          <Button size="sm" variant="subtle" disabled={prefill.isPending} onClick={() => prefill.mutate({ again: true, names })}>Read all again</Button>
         )}
-        {prefill.isError && <p className={styles.error}>{extractErrorMessage(prefill.error)}</p>}
+      </div>
+      {upload.isError && <p className={styles.error}>{extractErrorMessage(upload.error)}</p>}
+      {prefill.progress && (
+        <div role="status" aria-label="Reading progress">
+          <span className={styles.bar}><span style={{ width: `${prefill.progress.total ? (prefill.progress.done / prefill.progress.total) * 100 : 100}%` }} /></span>
+          <span className={styles.muted}>
+            {prefill.progress.done < prefill.progress.total
+              ? `Local_Tax_AI is reading ${prefill.progress.done + 1} of ${prefill.progress.total}: ${prefill.progress.current}`
+              : 'Checking the documents against each other and the client info…'}
+          </span>
+        </div>
+      )}
+      {prefill.isError && <p className={styles.error}>{extractErrorMessage(prefill.error)}</p>}
+      {data.documents.length > 0 && (
         <div className={styles.tableWrap}>
           <table className={styles.table} aria-label="Supporting documents">
             <thead><tr><th>Document</th><th>From</th><th>What it is</th><th>Read</th></tr></thead>
@@ -129,12 +202,10 @@ export function SupportingDocuments({ taskKey, isCompany, tbCount, state }: { ta
                   <td>{d.read_error ? <span className={styles.error}>{d.read_error}</span> : d.read_at ? <><CheckCircle2 size={13} aria-hidden="true" /> Read</> : 'Not yet'}</td>
                 </tr>
               ))}
-              {!data.documents.length && <tr><td colSpan={4} className={styles.muted}>No documents yet: upload them or link the client&apos;s Drive folder.</td></tr>}
             </tbody>
           </table>
         </div>
-      </section>
-
+      )}
       {open.length > 0 && <Flags taskKey={taskKey} flags={open} />}
       {pending.length > 0 && <Review taskKey={taskKey} suggestions={pending} />}
       {decided.length > 0 && (
@@ -155,7 +226,7 @@ export function SupportingDocuments({ taskKey, isCompany, tbCount, state }: { ta
           </ul>
         </details>
       )}
-    </div>
+    </>
   )
 }
 
@@ -168,21 +239,15 @@ function DriveFolder({ taskKey, url, syncedAt }: { taskKey: string; url: string;
   const email = account.data?.account_email
   const err = (link.error ?? sync.error) as { response?: { data?: { account_email?: string } } } | null
   return (
-    <section className={styles.card} aria-label="Client's Google Drive folder">
-      <strong><FolderOpen size={15} aria-hidden="true" /> Client&apos;s Google Drive folder</strong>
-      <ol className={styles.muted} style={{ margin: '4px 0', paddingLeft: 18 }}>
-        <li>In Google Drive, open the client&apos;s folder › <b>Share</b> › add <b>{email || 'TASKO’s service account'}</b> as <b>Viewer</b>.</li>
-        <li>Paste the folder&apos;s link here. TASKO copies its documents to this card (read-only — nothing is changed in Drive).</li>
-        <li>When the client adds documents, press <b>Sync now</b>, then read them with AI.</li>
-      </ol>
+    <section className={styles.side} style={{ gap: 8 }} aria-label="Client's Google Drive folder">
       {account.data && !account.data.configured && <p className={styles.hint}>{account.data.detail}</p>}
       {editing ? (
-        <div className={styles.actions}>
-          <input aria-label="Google Drive folder link" style={{ flex: 1, minWidth: 240 }} placeholder="https://drive.google.com/drive/folders/…" value={text}
+        <div className={styles.actions} style={{ flexWrap: 'nowrap' }}>
+          <input aria-label="Google Drive folder link" className={styles.driveInput} placeholder="Paste Google Drive folder link" value={text}
             onChange={(ev) => setText(ev.target.value)} />
-          <Button size="sm" variant="primary" disabled={link.isPending || !text.trim()}
+          <Button variant="secondary" disabled={link.isPending || !text.trim()}
             onClick={() => link.mutate(text.trim(), { onSuccess: () => { setEditing(false); sync.mutate() } })}>
-            <Link2 size={13} /> {link.isPending ? 'Checking access…' : 'Link folder'}
+            {link.isPending ? 'Checking access…' : <><Link2 size={13} /> Link folder</>}
           </Button>
           {url && <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>Cancel</Button>}
         </div>
@@ -204,6 +269,14 @@ function DriveFolder({ taskKey, url, syncedAt }: { taskKey: string; url: string;
           {sync.data.sync.skipped.map((s) => ` · ${s.name}: ${s.reason}`).join('')}
         </p>
       )}
+      <details className={styles.hint}>
+        <summary>How to share the folder with Tasko</summary>
+        <ol style={{ margin: '4px 0', paddingLeft: 18 }}>
+          <li>In Google Drive, open the client&apos;s folder › <b>Share</b> › add <b>{email || 'TASKO’s service account'}</b> as <b>Viewer</b>.</li>
+          <li>Paste the folder&apos;s link here. TASKO copies its documents to this card (read-only — nothing is changed in Drive).</li>
+          <li>When the client adds documents, press <b>Sync now</b>, then read them with AI.</li>
+        </ol>
+      </details>
       {(link.isError || sync.isError) && (
         <p className={styles.error}>
           {extractErrorMessage(link.error ?? sync.error)}

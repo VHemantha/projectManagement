@@ -172,6 +172,9 @@ class TrialBalanceView(APIView):
             if len(story) < 20:
                 return Response({"story": ["Give the story the dummy trial balance was made from."]}, status=status.HTTP_400_BAD_REQUEST)
             _replace_tb(eng, rows, request.user, "Dummy trial balance made by Local_Tax_AI from a story", kind="story", story=story)
+        elif request.data.get("source") == "instructions":
+            # drafted by Local_Tax_AI from the accountant's own figures (AFIT, 26 Nov 2026), reviewed before it was added: not dummy data
+            _replace_tb(eng, rows, request.user, "Drafted by Local_Tax_AI from the accountant's instructions", kind="instructions", story=story)
         else:
             _replace_tb(eng, rows, request.user, "entered", kind="entered")
         return _state(request, eng)

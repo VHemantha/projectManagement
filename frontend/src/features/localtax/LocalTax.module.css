@@ -1111,3 +1111,222 @@ details > summary:hover {
   justify-content: space-between;
   gap: 8px;
 }
+
+/* Client Info > Supporting docs (the AFIT design, 26 Nov 2026) */
+.docsPage {
+  display: grid;
+  grid-template-columns: minmax(0, 700px) 268px;
+  justify-content: center;
+  gap: 28px;
+  align-items: start;
+  padding-bottom: 76px;
+}
+@media (max-width: 1000px) {
+  .docsPage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.docsMain {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+.crumbs {
+  display: flex;
+  gap: 6px;
+  color: var(--tf-text-secondary);
+  font-size: 12.5px;
+}
+.docsTitle {
+  margin: -6px 0 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.docsLead {
+  margin: -8px 0 4px;
+  color: var(--tf-text-secondary);
+  font-size: 14.5px;
+}
+.docsCard {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: 12px;
+  background: var(--tf-surface);
+}
+.docsCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.docsCardHead h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.badge[data-tone='required'] {
+  background: var(--tf-primary-subtle);
+  color: var(--tf-primary);
+}
+.tbGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+@media (max-width: 720px) {
+  .tbGrid {
+    grid-template-columns: 1fr;
+  }
+}
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 186px;
+  padding: 18px;
+  border: 1.5px dashed var(--tf-border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+}
+.dropzone[data-over] {
+  border-color: var(--tf-primary);
+  background: var(--tf-primary-subtle);
+}
+.dropIcon {
+  color: var(--tf-primary);
+}
+.linkButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tf-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.genBox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+.genBox textarea {
+  width: 100%;
+  min-height: 82px;
+  box-sizing: border-box;
+  resize: vertical;
+}
+.genFoot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.genFoot > :first-child {
+  flex: 1;
+}
+.darkButton {
+  border-color: var(--tf-text) !important;
+  background: var(--tf-text) !important;
+  color: var(--tf-surface) !important;
+}
+.genPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tf-border-subtle);
+}
+.driveInput {
+  flex: 1;
+  min-width: 0;
+}
+.readiness {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 28px;
+  padding: 18px;
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: 12px;
+  background: var(--tf-surface);
+  font-size: 13px;
+}
+.readiness dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px 8px;
+  margin: 6px 0 0;
+}
+.readiness dd {
+  margin: 0;
+  color: var(--tf-text-secondary);
+  text-align: right;
+}
+.readiness dd[data-tone='needed'] {
+  color: var(--tf-primary);
+  font-weight: 650;
+}
+.readiness dd[data-tone='done'] {
+  color: var(--tf-success);
+  font-weight: 600;
+}
+.docsFooter {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 36px;
+  border-top: 1px solid var(--tf-border-subtle);
+  background: var(--tf-surface);
+  font-size: 12.5px;
+}
+
+/* the Financial Statements header (the AFIT design, 26 Nov 2026) */
+.fsHead {
+  flex-direction: row;
+  align-items: center;
+}
+.fsHead h2 {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 650;
+}
+.outlinePrimary {
+  border-color: var(--tf-primary) !important;
+  color: var(--tf-primary) !important;
+  font-weight: 650;
+}

@@ -82,7 +82,7 @@ def prepare(state: State) -> State:
     elif state["agent"] == "ppe_classify":
         content = "REQUEST (the PPE accounts and the client's categories):\n" + json.dumps((r.get("policies") or [{}])[0], ensure_ascii=False)
     elif state["agent"] == "tb_story":
-        content = f"{ctx}\n\nREQUEST (the accountant's story):\n{r.get('request') or ''}"
+        content = f"{ctx}\n\nREQUEST (the accountant's instructions or story):\n{r.get('request') or ''}"
     else:
         content = f"{ctx}\n\nREQUEST:\n{r.get('request') or '(review the engagement)'}"
     return {"content": content}

@@ -143,12 +143,14 @@ def run(agent: str, eng, st: dict, body: dict, user) -> dict:
     if agent == "tb-story":
         story = " ".join(str(body.get("story") or "").split())[:4000]
         if len(story) < 20:
-            raise Refused("Tell the story of the business in a few sentences: what it does, its size, the year's events.")
+            raise Refused("Give the account balances, opening balances or adjustments - or the business's story - in a few lines.")
         out = _call("/v1/tb-story", {"context": ctx, "request": story}, timeout=240)
         rows, notes = story_rows(out.get("accounts") or [], ctx["fs_scope"])
         S.log(eng, user, "ai_tb_story", {"accounts": len(rows)}, actor="ai")
         return {"rows": rows, "story": story, "assumptions": [str(a)[:400] for a in out.get("assumptions") or []][:12],
-                "notes": notes + [str(n)[:400] for n in out.get("notes") or []][:8]}
+                "notes": notes + [str(n)[:400] for n in out.get("notes") or []][:8],
+                # dummy data unless every figure came from the accountant's instructions
+                "made_up": out.get("made_up") is not False}
     if agent == "ppe-classify":
         ppe = st.get("ppe") or {}
         accounts = [{"code": a["code"], "name": a["name"]} for a in ppe.get("accounts") or []]

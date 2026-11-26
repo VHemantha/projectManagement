@@ -167,6 +167,12 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
       <StageControls taskKey={taskKey} state={state} stage="questionnaire" />
       {save.isError && <p className={styles.error}>{Object.values(errors).join(' ') || extractErrorMessage(save.error)}</p>}
 
+      {section === 'documents' ? (
+        // The Supporting docs design (AFIT, 26 Nov 2026): a page of its own, with what is ready on the right.
+        <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type !== 'individual'} tbCount={state.financials?.tb?.length ?? 0} state={state}
+          onClientInfo={() => go('client')} onBack={() => go(SECTIONS_SHOWN[idx - 1].key)} continueBusy={save.isPending}
+          onContinue={() => flush(() => (idx < SECTIONS_SHOWN.length - 1 ? go(SECTIONS_SHOWN[idx + 1].key) : onNext()))} />
+      ) : (
       <div className={styles.columns}>
         <div className={styles.card}>
           <SectionNav items={SECTIONS_SHOWN} value={section} onChange={go} label="Client info sections" />
@@ -417,7 +423,6 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
             </>
           )}
 
-          {section === 'documents' && <SupportingDocuments taskKey={taskKey} isCompany={basics.entity_type !== 'individual'} tbCount={state.financials?.tb?.length ?? 0} state={state} />}
 
           {section === 'expected' && (
             <div className={styles.formGrid}>
@@ -475,6 +480,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
           <Alerts alerts={state.alerts.filter((a) => a.stage === 'questionnaire')} />
         </div>
       </div>
+      )}
     </>
   )
 }

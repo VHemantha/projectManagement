@@ -65,7 +65,9 @@ describe('The Local Tax workflow, Phases 2-4 (AFIT)', () => {
     expect(within(nav).getAllByRole('button').map((b) => b.textContent?.trim())[0]).toBe('Audit Report')
     expect(screen.getByRole('article', { name: "Independent auditor's report" })).toHaveTextContent('To Shareholders of ABC.')
     expect(within(nav).queryByRole('button', { name: /TB Mapping/ })).toBeNull()  // TB Mapping is at the top right
+    await userEvent.click(screen.getByRole('button', { name: 'TB Mapping' }))  // the button at the top right (the AFIT design)
     expect(screen.getByRole('region', { name: 'TB Mapping' })).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
     await userEvent.click(within(nav).getByRole('button', { name: /Changes in Equity/ }))
     expect(within(screen.getByRole('table', { name: 'Statement of changes in equity' })).getByText('29,500')).toBeInTheDocument()
     await userEvent.click(within(nav).getByRole('button', { name: /Cash Flows/ }))

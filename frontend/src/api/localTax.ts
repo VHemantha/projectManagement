@@ -51,7 +51,7 @@ export interface EngagementData {
   shares_issued?: string
   note_text?: Record<string, string>
   ppe?: PpeData
-  tb_source?: { kind: 'upload' | 'entered' | 'story'; label: string; story?: string; at: string; by: string }
+  tb_source?: { kind: 'upload' | 'entered' | 'story' | 'instructions'; label: string; story?: string; at: string; by: string }
   comparatives_source?: { document: string; at: string; by: string; accounts: number; notes: string[] }
   /** The audit or compilation report's wording as edited, by report and section (AFIT, 26 Nov 2026). */
   report_text?: Partial<Record<'audit' | 'compilation', Record<string, string>>>
@@ -319,13 +319,20 @@ export function usePutTb(key: string) {
 }
 
 /** A dummy trial balance made up by Local_Tax_AI from the accountant's story (previewed, then used). */
-export interface StoryTb { rows: { code: string; name: string; heading: string; amount: string; comparative: string }[]; story: string; assumptions: string[]; notes: string[] }
+export interface StoryTb {
+  rows: { code: string; name: string; heading: string; amount: string; comparative: string }[]
+  story: string
+  assumptions: string[]
+  notes: string[]
+  /** Any figure made up (dummy data); false when every figure came from the accountant's instructions. */
+  made_up?: boolean
+}
 export function useTbStory(key: string) {
   return useMutation({ mutationFn: async (story: string) => (await apiClient.post<StoryTb>(`${base(key)}ai/tb-story/`, { story })).data })
 }
 export function useUseStoryTb(key: string) {
-  return useStateMutation(key, async ({ rows, story }: { rows: StoryTb['rows']; story: string }) =>
-    (await apiClient.put<LocalTaxState>(`${base(key)}tb/`, { rows, source: 'story', story })).data)
+  return useStateMutation(key, async ({ rows, story, made_up = true }: { rows: StoryTb['rows']; story: string; made_up?: boolean }) =>
+    (await apiClient.put<LocalTaxState>(`${base(key)}tb/`, { rows, source: made_up ? 'story' : 'instructions', story })).data)
 }
 
 /** Last year's financial statements read for this year's comparatives: a Drive link or a document attached. */

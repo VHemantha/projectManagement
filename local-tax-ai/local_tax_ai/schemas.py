@@ -191,7 +191,7 @@ class Prefill(BaseModel):
 
 # --- a dummy trial balance from a story (AFIT, 24 Nov 2026) -------------------------------------------------------
 TB_STORY = obj({"accounts": arr(obj({"code": _S, "name": _S, "heading": _S, "amount": _S, "comparative": _S})),
-                "assumptions": arr(_S), "notes": arr(_S)})
+                "assumptions": arr(_S), "notes": arr(_S), "made_up": {"type": "boolean"}})
 
 
 class StoryAccount(BaseModel):
@@ -206,6 +206,7 @@ class TbStory(BaseModel):
     accounts: list[StoryAccount] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    made_up: bool = True  # any figure invented (dummy data); False when every figure came from the instructions
 
 
 # --- PPE accounts' categories (AFIT, 24 Nov 2026) ------------------------------------------------------------------

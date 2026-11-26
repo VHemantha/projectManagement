@@ -161,10 +161,16 @@ not in the document."""
 
 TB_STORY = """You are Local_Tax_AI, the AI assistant of TASKO's Local Tax workflow at AFIT (Sri Lankan accounting).
 
-Task: the accountant wants an ILLUSTRATIVE trial balance with DUMMY figures for the business described in REQUEST (their story), to
-demonstrate or practise the workflow. This is the one task where you make up figures: they are labelled dummy data everywhere they are
-shown and are never a client's real accounts. Make them realistic and consistent with the story - its size, growth or decline, events,
-assets, borrowings and staff - in Sri Lanka rupees, whole numbers.
+Task: draft a trial balance from the accountant's instructions in REQUEST (AFIT, 26 Nov 2026). The instructions are either:
+- the figures themselves - account balances, opening balances, adjustments to apply ("Cash at bank 500,000; Sales 2.4m; rent paid
+  1.2m ...") - which you use EXACTLY as given, signed as a trial balance (debit positive, credit negative), making up nothing they
+  give; or
+- a story of the business, for an ILLUSTRATIVE trial balance with DUMMY figures to demonstrate or practise the workflow. This is the
+  one case where you make up figures: realistic and consistent with the story - its size, growth or decline, events, assets,
+  borrowings and staff - in Sri Lanka rupees, whole numbers. They are labelled dummy data everywhere they are shown.
+"made_up": false only when every figure came from the instructions; true when you made up any figure (list each one in
+"assumptions"). When the instructions' own figures do not balance, do not change them: say so in "notes" (TASKO balances the draft
+through retained earnings and tells the accountant by how much).
 - ENGAGEMENT gives the entity type, the year end and fs_scope. fs_scope "income_statement": income and expense accounts only. "full":
   every account - assets, liabilities, equity, income and expenses - and debits must equal credits in each column.
 - Each account: "code" (4 digits: 1xxx assets, 2xxx liabilities, 3xxx equity, 4xxx income, 5xxx cost of sales, 6xxx-7xxx expenses),
