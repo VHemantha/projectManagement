@@ -249,3 +249,29 @@ def rule_check(rule: dict, name: str, data: bytes) -> dict:
     return {"agrees": out.get("agrees") if out.get("agrees") in ("yes", "no", "unclear") else "unclear",
             "value_in_document": str(out.get("value_in_document") or "")[:200], "quote": str(out.get("quote") or "")[:1500],
             "cite": str(out.get("cite") or "")[:300], "note": str(out.get("note") or "")[:1000], "document": name}
+
+
+def pick_accounts(eng, base_lines: list[dict]) -> tuple[dict[str, str], list[str]]:
+    """For each heading edited on the statements, the trial balance account the change belongs to, chosen by
+    Local_Tax_AI from the heading's accounts (AFIT, 26 Nov 2026). Only accounts under that heading are kept; when the
+    agent is not available, code uses the heading's largest account. Returns ({heading: code}, notes)."""
+    from . import fs_edits as FE
+
+    items = FE.stored(eng).get("items") or {}
+    accounts = {h: [{"code": str(ln["code"]), "name": ln.get("name"), "amount": str(ln.get("amount"))} for ln in base_lines
+                    if ln.get("heading") == h and not ln.get("edit")] for h in items}
+    ctx = {"engagement": {"legal_name": eng.legal_name, "activity": eng.activity, "entity_type": eng.entity_type},
+           "edits": [{"heading": h, "label": FS.HEADINGS[h][1], "from": e["from"], "to": e["to"], "change": e["delta"]} for h, e in items.items()],
+           "accounts": accounts}
+    try:
+        out = _call("/v1/fs-edit-accounts", {"context": ctx, "request": "Choose the account for each edited figure."})
+    except (Unavailable, Refused):
+        return {}, ["Local_Tax_AI was not available: each change goes to the heading's largest account."]
+    picks, notes = {}, [str(n)[:300] for n in out.get("notes") or []][:6]
+    for p in out.get("picks") or []:
+        h, code = p.get("heading"), str(p.get("code") or "")
+        if h in accounts and any(a["code"] == code for a in accounts[h]):
+            picks[h] = code
+            if p.get("reason"):
+                notes.append(f"{FS.HEADINGS[h][1]} → {code}: {str(p['reason'])[:200]}")
+    return picks, notes

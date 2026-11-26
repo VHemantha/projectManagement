@@ -210,6 +210,9 @@ class _Report:
         self.dp = st.get("statements") or {}
         self.full = (self.dp.get("scope") or self.fin.get("scope") or "full") == "full"
         self.audited = bool(e.get("audited")) and self.full
+        # The auditor's / compilation report is issued as its own document (reports.py, AFIT 26 Nov 2026): the statements
+        # no longer carry it.
+        self.with_report = False
         self.legal = e.get("legal_name") or e.get("task") or ""
         self.name = self.legal.upper()
         self.entity = e.get("entity_type") if e.get("entity_type") in ENTITY else "company"
@@ -396,7 +399,7 @@ class _Report:
 
         c, mm = self.colors, self.mm
         items = []
-        if self.audited:
+        if self.with_report:
             items.append(("Independent auditor’s report", "auditor", "auditor_end"))
         items += [("Comprehensive income statement", "is", None), ("Statement of financial position", "sofp", None),
                   ("Statement of changes in equity", "soce", None), ("Cash flow statement", "cf", None),
@@ -970,7 +973,7 @@ class _Report:
         if not self.full:
             return self.proprietor()
         out = self.cover() + self.contents()
-        if self.audited:
+        if self.with_report:
             out += self.auditor()
         return out + self.income_statement() + self.financial_position() + self.changes_in_equity() + self.cash_flow() + self.policies() + \
             self.notes_pages()
@@ -1016,7 +1019,7 @@ class _Report:
                 canvas.setFont("Helvetica", 7.5)
                 a, b = self.shown("policies", ""), self.shown("notes_end", "")
                 canvas.drawString(20 * mm, 24 * mm, f"The accounting policies and notes on pages {a} to {b} form an integral part of these financial statements.")
-                if self.audited:
+                if self.with_report:
                     x, y = self.shown("auditor", ""), self.shown("auditor_end", "")
                     canvas.drawString(20 * mm, 20.5 * mm, f"Report of the auditors on page {x}" if x == y else f"Report of the auditors on pages {x} and {y}")
         canvas.restoreState()

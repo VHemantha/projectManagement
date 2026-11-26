@@ -223,3 +223,18 @@ class PpeSuggestion(BaseModel):
 class PpeClassify(BaseModel):
     suggestions: list[PpeSuggestion] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+
+# --- statement edits: which account takes each change (AFIT, 26 Nov 2026) --------------------------------------------
+FS_EDIT_ACCOUNTS = obj({"picks": arr(obj({"heading": _S, "code": _S, "reason": _S})), "notes": arr(_S)})
+
+
+class Pick(BaseModel):
+    heading: str
+    code: str
+    reason: str = ""
+
+
+class FsEditAccounts(BaseModel):
+    picks: list[Pick] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)

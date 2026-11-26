@@ -151,3 +151,17 @@ def test_a_clients_request_comes_back_as_changes_to_apply(monkeypatch):
         {"type": "note", "target": "events", "value": "  ", "reason": ""}]})
     out = client().post("/v1/chat", json={"context": ctx, "question": "x"}, headers={"X-Local-Tax-Token": "t"}).json()
     assert [c["type"] for c in out["changes"]] == ["field"]
+
+
+def test_the_account_for_each_statement_edit_is_one_under_its_heading(monkeypatch):
+    """Statement edits posted to the TB (AFIT, 26 Nov 2026): the agent picks an account per heading; a code from another
+    heading or none at all is dropped (code then uses the largest account)."""
+    ctx = {"edits": [{"heading": "admin_expenses", "change": "50000"}, {"heading": "trade_payables", "change": "-50000"}],
+           "accounts": {"admin_expenses": [{"code": "6100", "name": "Rent", "amount": "900000"}, {"code": "6090", "name": "Audit fee", "amount": "10000"}],
+                        "trade_payables": [{"code": "2110", "name": "Accruals", "amount": "-40000"}]}}
+    out = client().post("/v1/fs-edit-accounts", json={"context": ctx, "request": "x"}, headers={"X-Local-Tax-Token": "t"}).json()
+    assert {p["heading"]: p["code"] for p in out["picks"]} == {"admin_expenses": "6100", "trade_payables": "2110"}
+    monkeypatch.setattr(graphs, "demo", lambda agent, req, content: {"picks": [{"heading": "admin_expenses", "code": "6090", "reason": "audit fee"},
+                                                                              {"heading": "trade_payables", "code": "6100", "reason": ""}], "notes": []})
+    out = client().post("/v1/fs-edit-accounts", json={"context": ctx, "request": "x"}, headers={"X-Local-Tax-Token": "t"}).json()
+    assert [(p["heading"], p["code"]) for p in out["picks"]] == [("admin_expenses", "6090")]

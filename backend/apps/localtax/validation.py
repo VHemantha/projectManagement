@@ -246,6 +246,14 @@ def update(payload: dict) -> tuple[dict, dict]:
         # The notes only the accountant can write (events after the reporting period, contingencies, related parties).
         nt = raw["note_text"] if isinstance(raw["note_text"], dict) else {}
         data["note_text"] = {str(k)[:30]: str(v or "").strip()[:4000] for k, v in list(nt.items())[:30] if str(v or "").strip()}
+    if "report_text" in raw:
+        # The audit or compilation report's wording, edited by the accountant (AFIT, 26 Nov 2026): {kind: {section: text}};
+        # "" goes back to the format's wording.
+        rt = raw["report_text"] if isinstance(raw["report_text"], dict) else {}
+        data["report_text"] = {k: {str(s)[:30]: str(t or "").strip()[:4000] for s, t in list((rt.get(k) or {}).items())[:40] if str(t or "").strip()}
+                               for k in ("audit", "compilation") if isinstance(rt.get(k), dict)}
+    if "report_date" in raw:
+        data["report_date"] = _date(raw["report_date"], errors, "report_date") or ""
     if "return_overrides" in raw:
         ro = raw["return_overrides"] if isinstance(raw["return_overrides"], dict) else {}
         data["return_overrides"] = {str(k)[:10]: (str(v)[:500] if v is not None else None) for k, v in list(ro.items())[:200]}

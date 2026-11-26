@@ -201,10 +201,12 @@ def test_the_house_format_has_the_policies_the_tax_note_and_the_company_details(
     rec = notes["tax_reconciliation"]["rows"]
     assert rec[0]["amount"] == D("368039.00") and rec[-1]["amount"] == D("121248.00")
     assert any(r["label"].startswith("Tax at the standard rate of") for r in rec)
-    report = st["statements"]["audit_report"]
-    assert report["label"].startswith("DRAFT TEMPLATE") and "section 163(2)" in report["sections"][-1]["text"]
+    # The auditor's report is the firm's format, issued as its own document (AFIT, 26 Nov 2026): not inside the statements.
+    report = st["report"]
+    assert report["kind"] == "audit" and st["statements"]["audit_report"] is None
+    assert any(x["key"] == "legal" and "Companies Act No. 07 of 2007" in x["text"] for x in report["sections"])
     pdf = c.get(world.url + "export/fs.pdf").content
-    assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 14  # cover, contents and 12 numbered pages
+    assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 12  # cover, contents and 10 numbered pages
 
 
 def test_a_partnership_keeps_books_and_is_taxed_at_the_partnership_rate(world):  # noqa: F811

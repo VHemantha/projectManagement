@@ -33,6 +33,7 @@ import {
   money,
   useSaveLocalTax,
 } from '@/api/localTax'
+import { UpdateButton } from './Update'
 import { Button } from '@/design-system'
 
 export type ClientInfoSection = 'client' | 'documents' | 'income' | 'expenses' | 'assets' | 'payments' | 'expected'
@@ -61,14 +62,21 @@ const PAYMENT_TYPES: [string, string][] = [
 ]
 
 const TAX_TYPE = { company: 'CIT', partnership: 'PIT', individual: 'IIT' } as const
+// A company's figures come from its trial balance (AFIT, 26 Nov 2026): no income, expense or asset and liability
+// sections to fill in - the TB is attached under Supporting Documents.
+const COMPANY_HIDDEN = new Set<Section>(['income', 'expenses', 'assets'])
+const sectionsFor = (entity: string) =>
+  SECTIONS.filter((s) => entity !== 'company' || !COMPANY_HIDDEN.has(s.key))
+    .map((s, n) => ({ ...s, label: `${String.fromCharCode(65 + n)}. ${s.label.slice(3)}` }))
 
 type Basics = Pick<Engagement, 'legal_name' | 'client_name' | 'tin' | 'nic_or_reg' | 'address' | 'entity_type' | 'residency' | 'year_of_assessment' |
-  'fy_end' | 'tax_type' | 'activity' | 'expected_tax' | 'expected_basis'>
+  'fy_end' | 'tax_type' | 'activity' | 'expected_tax' | 'expected_basis' | 'audited'>
 
 function basicsOf(e: Engagement): Basics {
   const { legal_name, client_name, tin, nic_or_reg, address, entity_type, residency, year_of_assessment, fy_end, tax_type, activity, expected_tax,
-    expected_basis } = e
-  return { legal_name, client_name, tin, nic_or_reg, address, entity_type, residency, year_of_assessment, fy_end, tax_type, activity, expected_tax, expected_basis }
+    expected_basis, audited } = e
+  return { legal_name, client_name, tin, nic_or_reg, address, entity_type, residency, year_of_assessment, fy_end, tax_type, activity, expected_tax, expected_basis,
+    audited }
 }
 
 const emptyIncome = (): IncomeLine => ({ category: 'business', description: '', amount: '', treatment: 'auto', expenses: [] })
@@ -82,7 +90,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
 }) {
   const e = state.engagement
   const save = useSaveLocalTax(taskKey)
-  const [section, setSection] = useState<Section>(initial)
+  const [chosen, setSection] = useState<Section>(initial)
   const [basics, setBasics] = useState<Basics>(() => basicsOf(e))
   const [data, setData] = useState<EngagementData>(() => e.data ?? {})
   const [dirty, setDirty] = useState(false)
@@ -127,7 +135,10 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
   const income = data.income ?? []
   const setIncome = (i: number, patch: Partial<IncomeLine>) => setD({ income: income.map((x, n) => (n === i ? { ...x, ...patch } : x)) })
   const errors = (save.error as { response?: { data?: Record<string, string> } } | null)?.response?.data ?? {}
-  const idx = SECTIONS.findIndex((s) => s.key === section)
+  const SECTIONS_SHOWN = sectionsFor(basics.entity_type)
+  const section: Section = SECTIONS_SHOWN.some((s) => s.key === chosen) ? chosen : 'client'
+  const idx = SECTIONS_SHOWN.findIndex((s) => s.key === section)
+  const saveFirst = () => (dirty ? save.mutateAsync(payload()).then(() => setDirty(false)) : Promise.resolve())
 
   return (
     <>
@@ -135,11 +146,16 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
         <ClipboardList size={22} className={styles.stageIcon} aria-hidden="true" />
         <div>
           <h2 className={styles.stageTitle}>Client Info</h2>
-          <p className={styles.stageLead}>Client details, supporting documents (pre-filled by AI, verified by you), income, expenses, assets, liabilities and tax payments.</p>
+          <p className={styles.stageLead}>
+            {basics.entity_type === 'company'
+              ? 'Client details, the report required, the trial balance and supporting documents, and tax payments.'
+              : 'Client details, supporting documents (pre-filled by AI, verified by you), income, expenses, assets, liabilities and tax payments.'}
+          </p>
         </div>
         <span className={styles.spacer} />
         <div className={styles.actions}>
           <span className={styles.muted} role="status">{save.isPending ? 'Saving…' : dirty ? 'Unsaved changes' : 'All changes saved'}</span>
+          <UpdateButton taskKey={taskKey} stage="questionnaire" before={saveFirst} />
           <Button variant="secondary" onClick={() => flush()} disabled={save.isPending}>
             <Save size={15} /> Save Draft
           </Button>
@@ -153,12 +169,12 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
 
       <div className={styles.columns}>
         <div className={styles.card}>
-          <SectionNav items={SECTIONS} value={section} onChange={go} label="Client info sections" />
+          <SectionNav items={SECTIONS_SHOWN} value={section} onChange={go} label="Client info sections" />
           <Completion pct={state.progress?.questionnaire ?? 0} />
         </div>
 
-        <section className={styles.card} aria-label={SECTIONS[idx].label}>
-          <h3 className={styles.cardTitle}>{SECTIONS[idx].label}</h3>
+        <section className={styles.card} aria-label={SECTIONS_SHOWN[idx].label}>
+          <h3 className={styles.cardTitle}>{SECTIONS_SHOWN[idx].label}</h3>
           {section === 'client' && (
             <div className={styles.formGrid}>
               <label className={styles.field}>
@@ -242,6 +258,24 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                         ? 'Income statement, financial position, changes in equity, cash flows, accounting policies and notes.'
                         : 'A one-page income statement, account by account (the sole proprietor format); the trial balance may hold just the income and expense accounts.'}
                       {basics.entity_type === 'individual' && ' For an individual, the statements are prepared from the trial balance (Supporting Documents) when the business keeps books; otherwise from the income and expenses entered.'}
+                    </span>
+                  </fieldset>
+                  <fieldset className={`${styles.field} ${styles.wide}`} style={{ border: 0, padding: 0, margin: 0 }}>
+                    <legend><span>Report on the financial statements <span className={styles.req}>*</span></span></legend>
+                    <div className={styles.actions}>
+                      <label className={styles.check}>
+                        <input type="radio" name="report_type" checked={!!basics.audited} onChange={() => setB('audited', true)} />
+                        Audit report
+                      </label>
+                      <label className={styles.check}>
+                        <input type="radio" name="report_type" checked={!basics.audited} onChange={() => setB('audited', false)} />
+                        Compilation report
+                      </label>
+                    </div>
+                    <span className={styles.hint}>
+                      {basics.audited
+                        ? "The independent auditor's report, in the firm's format, issued with the financial statements."
+                        : "The compilation report (SLSRS 4410), in the firm's format: no assurance is expressed."}
                     </span>
                   </fieldset>
                   <label className={`${styles.field} ${styles.wide}`}>
@@ -410,13 +444,13 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
 
           <div className={styles.actions} style={{ justifyContent: 'flex-end' }}>
             {idx > 0 && (
-              <Button variant="secondary" onClick={() => go(SECTIONS[idx - 1].key)}>
-                <ArrowLeft size={14} /> Back: {SECTIONS[idx - 1].label.slice(3)}
+              <Button variant="secondary" onClick={() => go(SECTIONS_SHOWN[idx - 1].key)}>
+                <ArrowLeft size={14} /> Back: {SECTIONS_SHOWN[idx - 1].label.slice(3)}
               </Button>
             )}
-            {idx < SECTIONS.length - 1 ? (
-              <Button variant="primary" onClick={() => go(SECTIONS[idx + 1].key)}>
-                Next: {SECTIONS[idx + 1].label.slice(3)} <ArrowRight size={14} />
+            {idx < SECTIONS_SHOWN.length - 1 ? (
+              <Button variant="primary" onClick={() => go(SECTIONS_SHOWN[idx + 1].key)}>
+                Next: {SECTIONS_SHOWN[idx + 1].label.slice(3)} <ArrowRight size={14} />
               </Button>
             ) : (
               <Button variant="primary" onClick={() => flush(onNext)}>

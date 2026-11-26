@@ -15,6 +15,9 @@ GET    /api/local-tax/tasks/<key>/events/                   the audit trail
 GET    /api/local-tax/tasks/<key>/export/<doc>.<fmt>        fs | computation | return, as pdf or xlsx
 POST   /api/local-tax/tasks/<key>/ai/<agent>/               Local_Tax_AI: chat, map-tb, analyse, reverse, return, extract
 POST   /api/local-tax/tasks/<key>/messages/<id>/changes/<n>/  a change the client asked for (from the chat): apply | dismiss
+POST   /api/local-tax/tasks/<key>/fs/edit/                  a statement line's figure edited (DELETE: an edit, or all, undone)
+POST   /api/local-tax/tasks/<key>/fs/edits/post/            balanced statement edits posted to the trial balance (a journal)
+POST   /api/local-tax/tasks/<key>/update/                   Update: everything worked out again, and what changed since the last update
 GET    /api/local-tax/rules/                                 the years with rules; /rules/<ya>/ one year's rules
 """
 from decimal import Decimal, InvalidOperation
@@ -349,6 +352,15 @@ class AdjustmentDecideView(APIView):
         adj.status = Adjustment.Status.APPROVED if decision == "approve" else Adjustment.Status.REJECTED
         adj.decided_by, adj.decided_at, adj.decision_note = request.user, timezone.now(), str(request.data.get("note") or "")[:500]
         adj.save()
+        if adj.target == "auto:fs_edits":
+            from . import fs_edits as FE
+
+            edits = FE.stored(eng)
+            if adj.status == Adjustment.Status.APPROVED:
+                eng.data = {**(eng.data or {}), "fs_edits": {"items": {}, "journal": None, "posted": adj.ref}}
+            elif edits.get("journal") == adj.id:
+                eng.data = {**(eng.data or {}), "fs_edits": {**edits, "journal": None}}
+            eng.save()
         if adj.status == Adjustment.Status.APPROVED:
             S.touch(eng, "fs" if adj.scope == "accounting" else "computation", request.user)
             eng.save()
@@ -417,6 +429,13 @@ class StageView(APIView):
         wanted = request.data.get("status")
         if wanted not in TaxEngagement.STATUSES:
             return Response({"status": ["not_started, in_progress, ready_for_review or approved"]}, status=status.HTTP_400_BAD_REQUEST)
+        if wanted in ("ready_for_review", "approved") and stage != "questionnaire":
+            from . import fs_edits as FE
+
+            edits = FE.summary(eng, S.fs_scope(eng) == "full")
+            if edits and not edits["balanced"]:
+                return Response({"detail": f"The statement edits are out of balance by {Decimal(edits['difference']):,.2f}: edit the other side "
+                                           "before you continue."}, status=status.HTTP_409_CONFLICT)
         if wanted == "approved":
             if not S.can_approve(request.user, eng.issue):
                 raise PermissionDenied("Only a reviewer, a lead or an admin can approve a stage.")
@@ -456,15 +475,50 @@ class ExportView(APIView):
         from . import exports
 
         eng = _engagement(request, key)
-        if doc not in ("fs", "computation", "return", "journals") or fmt not in ("pdf", "xlsx"):
+        allowed = {"fs": ("pdf", "xlsx", "docx"), "report": ("pdf", "docx"), "computation": ("pdf", "xlsx"), "return": ("pdf", "xlsx"),
+                   "journals": ("pdf", "xlsx")}
+        if fmt not in allowed.get(doc, ()):
             raise Http404
         st = S.state(eng, request.user)
-        data, name = exports.render(doc, fmt, eng, st)
+        try:
+            data, name = _document(doc, fmt, eng, st) if doc == "report" or fmt == "docx" else exports.render(doc, fmt, eng, st)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except RuntimeError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         S.log(eng, request.user, "exported", {"doc": doc, "format": fmt})
-        content_type = "application/pdf" if fmt == "pdf" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        content_type = {"pdf": "application/pdf", "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}[fmt]
         response = HttpResponse(data, content_type=content_type)
         response["Content-Disposition"] = f'attachment; filename="{name}"'
         return response
+
+
+def _document(doc: str, fmt: str, eng, st: dict) -> tuple[bytes, str]:
+    """The report (audit or compilation, its own document) as Word or PDF, and the statements as Word."""
+    from . import exports, fs_docx, reports
+
+    e = st["engagement"]
+    base = f"{e['legal_name'] or eng.issue.key}"
+    if doc == "report":
+        if not st.get("report"):
+            raise ValueError("The report needs the trial balance first.")
+        rep = st["report"]
+        title = "Auditor's report" if rep["kind"] == "audit" else "Compilation report"
+        if fmt == "docx":
+            try:
+                return reports.docx(eng, st), f"{base} - {title}.docx"
+            except reports.ReportError as exc:
+                raise RuntimeError(str(exc)) from exc
+        return reports.pdf(eng, st), f"{base} - {title}.pdf"
+    fy = f"YA {e['year_of_assessment'].replace('/', '-')}"
+    if doc == "fs" and (st.get("financials") or {}).get("kind") == "company":
+        try:
+            return fs_docx.render(st), f"{base} - Financial statements - {fy}.docx"
+        except fs_docx.DocxUnavailable as exc:
+            raise RuntimeError(str(exc)) from exc
+    title, sections = exports._rows(doc, eng, st)
+    return fs_docx.render_sections(title, sections, e), f"{base} - {title} - {fy}.docx"
 
 
 class AiView(APIView):
@@ -1130,3 +1184,102 @@ class ClientChangeView(APIView):
         save(status="applied", result=result)
         S.log(eng, request.user, "client_change_applied", {"message": msg.id, "change": n, "type": kind, "label": change.get("label"), "result": result})
         return _state(request, eng)
+
+
+class FsEditView(APIView):
+    """POST {heading, value} — a line of the statements shown at a new figure (AFIT, 26 Nov 2026); never a total.
+    DELETE {heading?} — that edit (or every edit) undone. The statements show the edit at once and are flagged until the
+    edits balance (fs_edits.py)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        from . import fs_edits as FE
+
+        eng = _engagement(request, key)
+        base = S.financials(eng, with_edits=False)
+        if not base or base.get("kind") != "company":
+            return Response({"detail": "Statement figures are edited once there is a trial balance."}, status=status.HTTP_400_BAD_REQUEST)
+        heading = request.data.get("heading")
+        try:
+            out = FE.set_edit(eng, request.user, heading, request.data.get("value"), base["lines"])
+        except ValueError as exc:
+            return Response({"value": [str(exc)]}, status=status.HTTP_400_BAD_REQUEST)
+        S.touch(eng, "fs", request.user)
+        eng.save()
+        S.log(eng, request.user, "fs_edited", {"heading": heading, "edit": out["item"], "withdrew": out["replaced"]})
+        return _state(request, eng)
+
+    @transaction.atomic
+    def delete(self, request, key):
+        from . import fs_edits as FE
+
+        eng = _engagement(request, key)
+        heading = request.data.get("heading") if isinstance(request.data, dict) else None
+        FE.clear(eng, heading or None)
+        S.touch(eng, "fs", request.user)
+        eng.save()
+        S.log(eng, request.user, "fs_edit_undone", {"heading": heading or "all"})
+        return _state(request, eng)
+
+
+class FsEditsPostView(APIView):
+    """POST — the statement edits, once they balance, posted to the trial balance: Local_Tax_AI chooses the account under
+    each heading (code falls back to the largest), and one journal is proposed, approved like any other. Approving it
+    clears the edits - the trial balance carries them from then on."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        from . import fs_edits as FE
+
+        eng = _engagement(request, key)
+        full = S.fs_scope(eng) == "full"
+        summary = FE.summary(eng, full)
+        if not summary or not summary["items"]:
+            return Response({"detail": "No statement figures have been edited."}, status=status.HTTP_400_BAD_REQUEST)
+        if not summary["balanced"]:
+            return Response({"detail": f"The edits are out of balance by {Decimal(summary['difference']):,.2f}: edit the other side first."},
+                            status=status.HTTP_409_CONFLICT)
+        if not summary["can_post"]:
+            return Response({"detail": "The edits are already in a journal waiting for approval."}, status=status.HTTP_409_CONFLICT)
+        base = S.financials(eng, with_edits=False)
+        picks, notes = ai.pick_accounts(eng, base["lines"])
+        lines, more = FE.journal_lines(eng, base["lines"], picks, full)
+        labels = ", ".join(i["label"] for i in summary["items"])
+        fields, errors = _adjustment_fields(eng, {"kind": "journal", "label": "Statement edits posted to the trial balance", "lines": lines,
+                                                  "reason": f"Figures edited on the statements ({labels}); accounts chosen by Local_Tax_AI."}, [])
+        if errors:
+            return Response({"detail": "; ".join(str(v) for v in errors.values())}, status=status.HTTP_400_BAD_REQUEST)
+        fields["target"] = FE.AUTO
+        adj = _propose(eng, request.user, fields)
+        edits = FE.stored(eng)
+        eng.data = {**(eng.data or {}), "fs_edits": {**edits, "journal": adj.id, "notes": notes + more}}
+        eng.save()
+        S.log(eng, request.user, "fs_edits_posted", {"journal": adj.ref, "lines": len(lines)})
+        return _state(request, eng)
+
+
+class UpdateView(APIView):
+    """POST {stage} — Update (AFIT, 26 Nov 2026): the workflow worked out again from everything entered - the statements,
+    depreciation, the computation and the return - with what changed since the last update."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key):
+        eng = _engagement(request, key)
+        st = S.state(eng, request.user)
+        now = S.key_figures(st)
+        last = (eng.data or {}).get("last_update") or {}
+        before = last.get("figures") or {}
+        changes = [{"key": k, "label": label, "from": before.get(k), "to": now.get(k)} for k, label in S.KEY_FIGURES
+                   if before and before.get(k) != now.get(k)]
+        stage = request.data.get("stage") if request.data.get("stage") in TaxEngagement.STAGES else ""
+        at = timezone.now().isoformat()
+        eng.data = {**(eng.data or {}), "last_update": {"at": at, "by": request.user.display_name, "stage": stage, "figures": now}}
+        eng.save(update_fields=["data", "updated_at"])
+        S.log(eng, request.user, "updated", {"stage": stage, "changes": changes})
+        return Response({"state": S.state(eng, request.user), "changes": changes, "first": not before, "at": at})

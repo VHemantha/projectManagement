@@ -134,7 +134,7 @@ def journal_lines(value: str, balances: dict[str, dict]) -> list[dict]:
 
 
 def balances(fs_result) -> dict[str, dict]:
-    return {str(ln["code"]): ln for ln in (fs_result or {}).get("lines") or []}
+    return {str(ln["code"]): ln for ln in (fs_result or {}).get("lines") or [] if not ln.get("edit")}  # not the statement edits
 
 
 def check(eng, st: dict, change: dict, fs_result) -> dict:

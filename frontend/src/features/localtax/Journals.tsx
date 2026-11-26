@@ -26,7 +26,7 @@ const num = (v: string) => Number(String(v).replace(/,/g, '')) || 0
  * depreciation journal (JE-DEP) is posted from the depreciation schedule. */
 export function JournalRegister({ taskKey, state }: { taskKey: string; state: LocalTaxState }) {
   const reg = state.journals
-  const tb = state.financials?.tb ?? []
+  const tb = (state.financials?.tb ?? []).filter((ln) => !ln.edit)  // not the statement edits waiting to be posted
   return (
     <>
       <div className={styles.actions}>
@@ -68,6 +68,7 @@ function JournalForm({ taskKey, accounts, fyEnd }: { taskKey: string; accounts: 
   const [label, setLabel] = useState('')
   const [date, setDate] = useState(fyEnd ?? '')
   const byCode = useMemo(() => new Map(accounts.map((a) => [a.code, a])), [accounts])
+  const byName = useMemo(() => new Map(accounts.map((a) => [a.name.trim().toLowerCase(), a])), [accounts])
   const dr = lines.reduce((s, l) => s + num(l.debit), 0)
   const cr = lines.reduce((s, l) => s + num(l.credit), 0)
   const used = lines.filter((l) => l.code && (num(l.debit) || num(l.credit)))
@@ -91,6 +92,9 @@ function JournalForm({ taskKey, accounts, fyEnd }: { taskKey: string; accounts: 
       <datalist id={`accounts-${taskKey}`}>
         {accounts.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
       </datalist>
+      <datalist id={`account-names-${taskKey}`}>
+        {accounts.map((a) => <option key={a.code} value={a.name}>{a.code}</option>)}
+      </datalist>
       <div className={styles.tableWrap}>
         <table className={styles.table} aria-label="Journal lines">
           <thead><tr><th>Account</th><th>Name / new account</th><th className={styles.num}>Debit</th><th className={styles.num}>Credit</th><th /></tr></thead>
@@ -102,15 +106,24 @@ function JournalForm({ taskKey, accounts, fyEnd }: { taskKey: string; accounts: 
                 <tr key={i}>
                   <td className={styles.cell}><input aria-label="Account code" list={`accounts-${taskKey}`} placeholder="Code" value={l.code} onChange={(ev) => set({ code: ev.target.value })} /></td>
                   <td className={styles.cell}>
-                    {known ? <span>{known.name}</span> : l.code ? (
-                      <span className={styles.actions} style={{ flexWrap: 'nowrap' }}>
-                        <input aria-label="New account name" placeholder="New account name" value={l.name} onChange={(ev) => set({ name: ev.target.value })} />
+                    {/* The account found by its name as well as its code (AFIT, 26 Nov 2026): picking a name fills the code;
+                        a name the trial balance doesn't have is a new account, given a code and a heading. */}
+                    <span className={styles.actions} style={{ flexWrap: 'nowrap' }}>
+                      <input aria-label="Account name" list={`account-names-${taskKey}`} placeholder="Search by name…"
+                        value={known ? known.name : l.name}
+                        onChange={(ev) => {
+                          const v = ev.target.value
+                          const match = byName.get(v.trim().toLowerCase())
+                          set(match ? { code: match.code, name: match.name, heading: match.heading } : { name: v, code: known ? '' : l.code })
+                        }} />
+                      {!known && l.code && (
                         <select aria-label="New account heading" value={l.heading} onChange={(ev) => set({ heading: ev.target.value })}>
                           <option value="">Heading…</option>
                           {HEADINGS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
                         </select>
-                      </span>
-                    ) : <span className={styles.muted}>Choose an account</span>}
+                      )}
+                    </span>
+                    {!known && l.name && !l.code && <span className={styles.hint}>New account: give it a code.</span>}
                   </td>
                   <td className={styles.cell}><input aria-label="Debit" inputMode="decimal" value={l.debit} onChange={(ev) => set({ debit: ev.target.value, credit: ev.target.value ? '' : l.credit })} /></td>
                   <td className={styles.cell}><input aria-label="Credit" inputMode="decimal" value={l.credit} onChange={(ev) => set({ credit: ev.target.value, debit: ev.target.value ? '' : l.debit })} /></td>

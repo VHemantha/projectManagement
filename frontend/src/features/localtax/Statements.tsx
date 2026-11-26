@@ -1,4 +1,4 @@
-import { BookOpen, Check, CheckCircle2, Info, PenLine, ShieldCheck, Sparkles } from 'lucide-react'
+import { BookOpen, Check, CheckCircle2, Info, PenLine, Sparkles } from 'lucide-react'
 import { useState } from 'react'
 
 import styles from './LocalTax.module.css'
@@ -8,8 +8,8 @@ import { Button } from '@/design-system'
 
 /** Phase 3 of the Local Tax workflow (AFIT): the rest of a full set of financial statements, every figure the
  * engine's - the statement of changes in equity, the statement of cash flows (indirect), the notes, the accounting
- * policies (standard wording the accountant tailors, with Local_Tax_AI's suggestions) and the draft auditor's
- * report template. */
+ * policies (standard wording the accountant tailors, with Local_Tax_AI's suggestions). The auditor's or compilation
+ * report is its own document (Report.tsx). */
 
 function CheckLine({ check }: { check: { label: string; passed: boolean; difference: string | null } }) {
   return (
@@ -188,30 +188,6 @@ export function PoliciesView({ taskKey, state }: { taskKey: string; state: Local
       })}
       {tailor.data?.notes.map((n) => <p key={n} className={styles.hint}>{n}</p>)}
       {save.isError && <p className={styles.error}>{extractErrorMessage(save.error)}</p>}
-    </>
-  )
-}
-
-export function AuditReport({ state }: { state: LocalTaxState }) {
-  const ar = state.statements?.audit_report
-  if (!state.engagement.audited) return <p className={styles.muted}>Unaudited engagement: no auditor&apos;s report.</p>
-  if (!ar) return <p className={styles.muted}>The draft report template needs the mapped trial balance.</p>
-  return (
-    <>
-      <h3 className={styles.cardTitle}><ShieldCheck size={18} aria-hidden="true" /> {ar.title} — {ar.label}</h3>
-      <p className={styles.validation}>
-        A draft template only. It is not an audit opinion and must be reviewed, completed and approved by the responsible auditor. TASKO never issues an opinion.
-      </p>
-      <div className={styles.card} style={{ background: 'var(--tf-surface-sunken)' }}>
-        <p style={{ margin: 0, fontWeight: 600 }}>{ar.addressee}</p>
-        {ar.sections.map((s) => (
-          <div key={s.title}>
-            <h4 style={{ margin: '8px 0 2px' }}>{s.title}</h4>
-            {s.text && <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{s.text}</p>}
-          </div>
-        ))}
-        <p style={{ whiteSpace: 'pre-wrap', marginTop: 12 }}>{ar.signature}</p>
-      </div>
     </>
   )
 }

@@ -49,6 +49,7 @@ AGENTS = {
     "prefill": (prompts.PREFILL, schemas.PREFILL, schemas.Prefill),
     "tb_story": (prompts.TB_STORY, schemas.TB_STORY, schemas.TbStory),
     "ppe_classify": (prompts.PPE_CLASSIFY, schemas.PPE_CLASSIFY, schemas.PpeClassify),
+    "fs_edit_accounts": (prompts.FS_EDIT_ACCOUNTS, schemas.FS_EDIT_ACCOUNTS, schemas.FsEditAccounts),
 }
 
 
@@ -111,6 +112,9 @@ def check(state: State) -> State:
         for item in out["items"]:
             if item.get("lever") not in levers:
                 item["lever"] = ""
+    if state["agent"] == "fs_edit_accounts":
+        accounts = ctx.get("accounts") or {}
+        out["picks"] = [p for p in out["picks"] if any(str(a.get("code")) == p["code"] for a in accounts.get(p["heading"]) or [])]
     if state["agent"] == "map_tb":
         headings = set((ctx.get("headings") or {}).keys())
         codes = {str(ln.get("code")) for ln in ((ctx.get("financials") or {}).get("tb") or [])}
@@ -239,6 +243,14 @@ def demo_changes(q: str, ctx: dict) -> list[dict]:
 def demo(agent: str, request: dict, content) -> dict:
     """What the demo answers: built from the engagement only, labelled as a demo, never a figure of its own."""
     ctx = request.get("context") or {}
+    if agent == "fs_edit_accounts":
+        picks = []
+        for e in ctx.get("edits") or []:
+            under = (ctx.get("accounts") or {}).get(e.get("heading")) or []
+            if under:
+                best = max(under, key=lambda a: abs(float(a.get("amount") or 0)))
+                picks.append({"heading": e["heading"], "code": str(best["code"]), "reason": "(Demo) the heading's largest account"})
+        return {"picks": picks, "notes": []}
     comp = ctx.get("computation") or {}
     if agent == "chat":
         q = str(request.get("question") or "")

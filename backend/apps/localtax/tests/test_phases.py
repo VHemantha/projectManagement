@@ -156,7 +156,7 @@ def test_the_card_shows_the_full_statements_and_the_schedules(world):  # noqa: F
     rows = [{"code": c_, "name": n, "amount": a, "comparative": p} for c_, n, a, p in TB2]
     st = c.put(world.url + "tb/", {"rows": rows}, format="json").data
     dp = st["statements"]
-    assert dp["cash_flows"]["check"]["passed"] and dp["equity"]["check"]["passed"] and dp["audit_report"]["label"].startswith("DRAFT")
+    assert dp["cash_flows"]["check"]["passed"] and dp["equity"]["check"]["passed"] and st["report"]["kind"] == "audit"
     comp = st["computation"]
     assert comp["capital_allowance_schedule"]["totals"]["allowance"] == D("2000.00")
     assert comp["loss_schedule"]["totals"]["utilised"] == D("1000.00")

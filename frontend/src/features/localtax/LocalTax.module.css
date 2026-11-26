@@ -938,3 +938,176 @@ details > summary {
 details > summary:hover {
   color: var(--tf-text);
 }
+
+/* Update, on every stage (AFIT, 26 Nov 2026) */
+.update {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.updateResult {
+  max-width: 340px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--tf-surface-sunken);
+  color: var(--tf-text-secondary);
+  font-size: 12px;
+}
+.updateResult ul {
+  margin: 2px 0 0;
+  padding-left: 16px;
+}
+.spin {
+  animation: localtax-spin 0.9s linear infinite;
+}
+@keyframes localtax-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* the audit / compilation report, every paragraph editable */
+.report {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 20px 24px;
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: 10px;
+  background: var(--tf-surface);
+  font-family: Georgia, 'Times New Roman', serif;
+  line-height: 1.55;
+}
+.reportPara {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.reportPara > :first-child {
+  flex: 1;
+  margin: 0;
+  text-align: justify;
+}
+.reportPara h3 {
+  font-size: 18px;
+  font-weight: 400;
+}
+.reportPara h4 {
+  margin-top: 6px;
+  font-size: 14px;
+}
+.reportTools {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  opacity: 0.55;
+}
+.reportPara:hover .reportTools,
+.reportTools:focus-within {
+  opacity: 1;
+}
+.reportSign {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 18px;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+/* a statement figure the accountant may overwrite */
+.figure {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 4px;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.figure svg {
+  opacity: 0;
+}
+.figure:hover,
+.figure:focus-visible {
+  border-color: var(--tf-primary);
+}
+.figure:hover svg,
+.figure:focus-visible svg {
+  opacity: 0.7;
+}
+.figure[data-edited='true'] {
+  border-color: var(--tf-warning, #b7791f);
+  background: var(--tf-warning-bg, #fff7e6);
+}
+.figureEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.figureEdit input {
+  width: 130px;
+  text-align: right;
+}
+.editsOff,
+.editsOk {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.editsOff {
+  border: 1px solid var(--tf-danger);
+  background: var(--tf-danger-bg);
+  color: var(--tf-danger);
+}
+.editsOk {
+  border: 1px solid var(--tf-success);
+  background: var(--tf-success-bg);
+}
+.editsOff ul,
+.editsOk ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--tf-text);
+}
+
+/* TB mapping, top right of the Financial Statements stage */
+.tbList {
+  display: flex;
+  flex-direction: column;
+  max-height: 460px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.tbList li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--tf-border-subtle);
+  font-size: 12.5px;
+}
+.tbList li[data-missing] {
+  background: var(--tf-danger-bg);
+}
+.tbList li[data-edit] {
+  background: var(--tf-warning-bg, #fff7e6);
+}
+.tbList select {
+  width: 100%;
+}
+.tbLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}

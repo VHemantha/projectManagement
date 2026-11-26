@@ -13,7 +13,7 @@ from .llm import Unusable
 
 app = FastAPI(title="Local_Tax_AI", version=__version__)
 ROUTES = {"chat": "chat", "map-tb": "map_tb", "analyse": "analyse", "reverse": "reverse", "return": "return_prep", "extract": "extract", "policies": "policies", "rule-check": "rule_check", "prefill": "prefill",
-          "tb-story": "tb_story", "ppe-classify": "ppe_classify"}
+          "tb-story": "tb_story", "ppe-classify": "ppe_classify", "fs-edit-accounts": "fs_edit_accounts"}
 
 
 def require_token(x_local_tax_token: str = Header(default="")) -> None:

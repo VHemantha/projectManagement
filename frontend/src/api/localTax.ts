@@ -53,7 +53,34 @@ export interface EngagementData {
   ppe?: PpeData
   tb_source?: { kind: 'upload' | 'entered' | 'story'; label: string; story?: string; at: string; by: string }
   comparatives_source?: { document: string; at: string; by: string; accounts: number; notes: string[] }
+  /** The audit or compilation report's wording as edited, by report and section (AFIT, 26 Nov 2026). */
+  report_text?: Partial<Record<'audit' | 'compilation', Record<string, string>>>
+  report_date?: string
+  last_update?: { at: string; by: string; stage: string; figures: Record<string, string | null> }
+  fs_edits?: { items?: Record<string, FsEditItem>; journal?: number | null; notes?: string[]; posted?: string }
 }
+
+/** A figure edited on the statements (AFIT, 26 Nov 2026): the change it makes in trial balance signs (debit +). */
+export interface FsEditItem { delta: string; from: string; to: string; by: string; at: string }
+export interface FsEdits {
+  items: (FsEditItem & { heading: string; label: string })[]
+  difference: string
+  balanced: boolean
+  needs_balance: boolean
+  journal: { id: number; ref: string; status: string } | null
+  can_post: boolean
+}
+/** The practitioner's report in the firm's format - the auditor's or the compilation report - a document of its own. */
+export interface PractitionerReport {
+  kind: 'audit' | 'compilation'
+  label: string
+  date: string
+  date_text: string
+  sections: { key: string; kind: 'title' | 'addressee' | 'heading' | 'para'; text: string; standard: string; edited: boolean }[]
+  signature: string[]
+  draft_note: string
+}
+export interface UpdateChange { key: string; label: string; from: string | null; to: string | null }
 
 // --- PPE & depreciation (AFIT, 24 Nov 2026) ------------------------------------------------------------------------
 export interface PpeAddition { id?: string; description: string; category: string; purchase_date: string; available_date: string; cost: string; source?: string; confirmed?: boolean }
@@ -153,7 +180,7 @@ export interface Statements {
   notes: Note[]
   audit_report: { label: string; title: string; addressee: string; sections: { title: string; text: string }[]; signature: string } | null
 }
-export interface TbRow { code: string; name: string; amount: Money; comparative: Money; heading: string; heading_by?: string; adjusted?: boolean; original?: Money }
+export interface TbRow { code: string; name: string; amount: Money; comparative: Money; heading: string; heading_by?: string; adjusted?: boolean; original?: Money; edit?: boolean }
 export interface PlFigures { revenue: Money; cost_of_sales: Money; gross_profit: Money; other_income: Money; admin_expenses: Money; distribution_expenses: Money; finance_costs: Money; pbt: Money; income_tax_expense: Money; profit: Money; oci: Money; total_comprehensive_income: Money }
 export interface Financials {
   kind: 'company' | 'individual'
@@ -230,6 +257,8 @@ export interface LocalTaxState {
   documents?: { documents: number; unread: number; to_verify: number; open_flags: number }
   ppe?: PpeState | null
   journals?: JournalRegister
+  fs_edits?: FsEdits | null
+  report?: PractitionerReport | null
 }
 
 /** A change the client asked for, proposed by Local_Tax_AI in the chat and checked by code (AFIT, 26 Nov 2026): applied by
@@ -457,6 +486,35 @@ export function useClientChange(key: string) {
   })
 }
 
+/** Update (AFIT, 26 Nov 2026): the workflow worked out again from everything entered, with what changed since the last update. */
+export function useUpdateWorkflow(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (stage: StageKey) =>
+      (await apiClient.post<{ state: LocalTaxState; changes: UpdateChange[]; first: boolean; at: string }>(`${base(key)}update/`, { stage })).data,
+    onSuccess: (data) => {
+      queryClient.setQueryData(qk(key), data.state)
+      void queryClient.invalidateQueries({ queryKey: [...qk(key), 'messages'] })
+    },
+  })
+}
+
+/** A line of the statements shown at a new figure (never a total); flagged until the edits balance. */
+export function useFsEdit(key: string) {
+  return useStateMutation(key, async ({ heading, value }: { heading: string; value: string }) =>
+    (await apiClient.post<LocalTaxState>(`${base(key)}fs/edit/`, { heading, value })).data)
+}
+
+export function useUndoFsEdit(key: string) {
+  return useStateMutation(key, async (heading?: string) =>
+    (await apiClient.delete<LocalTaxState>(`${base(key)}fs/edit/`, { data: heading ? { heading } : {} })).data)
+}
+
+/** The balanced statement edits to the trial balance: Local_Tax_AI chooses the accounts; a journal is proposed. */
+export function usePostFsEdits(key: string) {
+  return useStateMutation(key, async () => (await apiClient.post<LocalTaxState>(`${base(key)}fs/edits/post/`, {})).data)
+}
+
 export function useAiAgent<T>(key: string, agent: 'map-tb' | 'analyse' | 'reverse' | 'return' | 'policies') {
   return useMutation({ mutationFn: async (request?: string) => (await apiClient.post<T>(`${base(key)}ai/${agent}/`, { request })).data })
 }
@@ -483,7 +541,7 @@ export function useDecideExtraction(key: string) {
 }
 
 /** A document (fs, computation or return) as PDF or Excel, saved by the browser - or, for a preview, opened. */
-export async function downloadLocalTax(key: string, doc: 'fs' | 'computation' | 'return' | 'journals', fmt: 'pdf' | 'xlsx', open = false) {
+export async function downloadLocalTax(key: string, doc: 'fs' | 'computation' | 'return' | 'journals' | 'report', fmt: 'pdf' | 'xlsx' | 'docx', open = false) {
   const res = await apiClient.get<Blob>(`${base(key)}export/${doc}.${fmt}`, { responseType: 'blob' })
   const url = URL.createObjectURL(res.data)
   if (open) {

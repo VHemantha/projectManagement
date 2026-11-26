@@ -22,6 +22,7 @@ vi.mock('@/api/localTax', async (orig) => ({
   useEditAdjustment: m.idle, useDecideAdjustment: m.idle, useUploadTb: m.idle, useExtract: m.idle, useDecideExtraction: m.idle,
   useSetStage: () => m.stage, useReviewRule: () => m.review, useReviewField: () => m.field, useRuleCheck: () => m.check,
   useRuleRegister: () => ({ data: m.register, isLoading: false, isError: false, error: null }),
+  useUpdateWorkflow: m.idle, useFsEdit: m.idle, useUndoFsEdit: m.idle, usePostFsEdits: m.idle,
 }))
 
 const state = {
@@ -44,9 +45,12 @@ const state = {
     notes: [{ no: 2, key: 'policies', title: 'Policies', policies: [{ key: 'ppe', title: 'Property, plant and equipment', text: 'Cost less depreciation.', standard: true }] },
       { no: 3, key: 'revenue', title: 'Revenue', total: '50000', total_comparative: '40000', lines: [{ code: '4000', name: 'Sales', amount: '50000', comparative: '40000' }] },
       { no: 4, key: 'events', title: 'Events after the reporting period', text: '[To be completed by the accountant.]', to_complete: true, editable: true }],
-    audit_report: { label: 'DRAFT TEMPLATE - NOT AN AUDIT OPINION', title: "Independent Auditor's Report", addressee: 'To the shareholders of ABC',
-      sections: [{ title: 'Opinion', text: '[To be completed by the auditor.]' }], signature: '[Auditor]' },
+    audit_report: null,
   },
+  report: { kind: 'audit', label: "Independent auditor's report", date: '2025-06-30', date_text: '30 June 2025', draft_note: '',
+    signature: ['AFIT CONNECT', 'CHARTERED ACCOUNTANTS', 'GAMPAHA, SRI LANKA'],
+    sections: [{ key: 'title', kind: 'title', text: 'INDEPENDENT AUDITOR’S REPORT', standard: '', edited: false },
+      { key: 'addressee', kind: 'addressee', text: 'To Shareholders of ABC.', standard: '', edited: false }] },
 } as unknown as LocalTaxState
 
 describe('The Local Tax workflow, Phases 2-4 (AFIT)', () => {
@@ -54,9 +58,14 @@ describe('The Local Tax workflow, Phases 2-4 (AFIT)', () => {
     for (const k of ['stage', 'review', 'field', 'check'] as const) m[k] = m.idle()
   })
 
-  it('shows the full statements: changes in equity, cash flows, notes, policies and the draft audit report', async () => {
+  it('shows the audit report first, then the full statements: changes in equity, cash flows, notes and policies', async () => {
     render(<MemoryRouter><FinancialStatementsStage taskKey="LOC-1" state={state} onNext={() => {}} /></MemoryRouter>)
     const nav = screen.getByRole('list', { name: 'Financial statement sections' })
+    // the report comes before the profit or loss (AFIT, 26 Nov 2026), and opens first
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent?.trim())[0]).toBe('Audit Report')
+    expect(screen.getByRole('article', { name: "Independent auditor's report" })).toHaveTextContent('To Shareholders of ABC.')
+    expect(within(nav).queryByRole('button', { name: /TB Mapping/ })).toBeNull()  // TB Mapping is at the top right
+    expect(screen.getByRole('region', { name: 'TB Mapping' })).toBeInTheDocument()
     await userEvent.click(within(nav).getByRole('button', { name: /Changes in Equity/ }))
     expect(within(screen.getByRole('table', { name: 'Statement of changes in equity' })).getByText('29,500')).toBeInTheDocument()
     await userEvent.click(within(nav).getByRole('button', { name: /Cash Flows/ }))
@@ -67,8 +76,6 @@ describe('The Local Tax workflow, Phases 2-4 (AFIT)', () => {
     expect(screen.getByRole('textbox', { name: 'Events after the reporting period text' })).toBeInTheDocument()
     await userEvent.click(within(nav).getByRole('button', { name: /Accounting Policies/ }))
     expect(screen.getByText('Standard wording')).toBeInTheDocument()
-    await userEvent.click(within(nav).getByRole('button', { name: /Audit Report/ }))
-    expect(screen.getByRole('heading', { name: /DRAFT TEMPLATE - NOT AN AUDIT OPINION/ })).toBeInTheDocument()
   })
 
   it('saves the fixed asset register the capital allowance schedule is worked out from', async () => {

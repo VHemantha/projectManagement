@@ -1,27 +1,24 @@
-import { BarChart3, BookOpen, Layers, Download, FileSpreadsheet, FileText, GitBranch, Landmark, Plus, Scale, ShieldCheck, Sparkles, Table2, Trash2, Wallet } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { BarChart3, BookOpen, Download, FileSpreadsheet, FileText, Landmark, Layers, Scale, ShieldCheck, Sparkles, Wallet } from 'lucide-react'
+import { Fragment, useState } from 'react'
 
-import styles from './LocalTax.module.css'
-import { HEADINGS } from './headings'
+import { EditableAmount, FsEditsBanner } from './FsFigures'
 import { JournalRegister } from './Journals'
+import styles from './LocalTax.module.css'
 import { PpeSection } from './Ppe'
-import { AuditReport, CashFlowStatement, EquityStatement, NotesView, PoliciesView } from './Statements'
+import { ReportView } from './Report'
 import { AiAssistant, Alerts, Completion, SectionNav, StageControls } from './Shared'
+import { CashFlowStatement, EquityStatement, NotesView, PoliciesView } from './Statements'
+import { TbMapping } from './TbMapping'
+import { UpdateButton } from './Update'
 import { extractErrorMessage } from '@/api/errors'
-import {
-  type Financials,
-  type LocalTaxState,
-  type PlFigures,
-  downloadLocalTax,
-  money,
-  useAiAgent,
-  useMapLine,
-  usePutTb,
-  useSaveLocalTax,
-} from '@/api/localTax'
+import { type Financials, type FsEdits, type LocalTaxState, type PlFigures, downloadLocalTax, money, useSaveLocalTax } from '@/api/localTax'
 import { Button } from '@/design-system'
 
-type Section = 'pl' | 'bs' | 'equity' | 'cash' | 'notes' | 'policies' | 'audit' | 'tb' | 'journals' | 'ppe'
+type Section = 'report' | 'pl' | 'bs' | 'equity' | 'cash' | 'notes' | 'policies' | 'journals' | 'ppe'
+type Edited = Record<string, { from: string; by: string }>
+
+const editedOf = (edits: FsEdits | null | undefined): Edited =>
+  Object.fromEntries((edits?.items ?? []).map((i) => [i.heading, { from: i.from, by: i.by }]))
 
 /** Stage 2 (AFIT screens, 22 Nov 2026): the statements from the mapped trial balance (companies) or the statement
  * of income and expenses (individuals), with the framework, the comparatives, the checks, journals and the draft
@@ -34,32 +31,40 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
   const save = useSaveLocalTax(taskKey)
   // the books: companies and partnerships, and an individual (sole proprietor) whose trial balance is uploaded
   const company = e.entity_type !== 'individual' || fin?.kind === 'company'
-  const [section, setSection] = useState<Section>('pl')
   const incomeOnly = (e.data.fs_scope ?? 'full') === 'income_statement'
+  // The report comes first, before the statements (AFIT, 26 Nov 2026): the auditor's or the compilation report, as chosen in Client Info.
+  const report = { key: 'report' as Section, label: e.audited ? 'Audit Report' : 'Compilation Report', icon: <ShieldCheck size={16} /> }
   const sections: { key: Section; label: string; icon: React.ReactNode }[] = company && incomeOnly
     ? [
+        report,
         { key: 'pl', label: 'Income Statement', icon: <BarChart3 size={16} /> },
         { key: 'notes', label: 'Notes', icon: <FileText size={16} /> },
         { key: 'policies', label: 'Accounting Policies', icon: <BookOpen size={16} /> },
-        ...(e.audited ? [{ key: 'audit' as Section, label: 'Audit Report (Draft)', icon: <ShieldCheck size={16} /> }] : []),
         { key: 'ppe', label: 'PPE & Depreciation', icon: <Layers size={16} /> },
-        { key: 'tb', label: 'TB Mapping', icon: <GitBranch size={16} /> },
         { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> },
       ]
     : company
     ? [
+        report,
         { key: 'pl', label: 'Profit or Loss (P&L)', icon: <BarChart3 size={16} /> },
         { key: 'bs', label: 'Financial Position', icon: <FileText size={16} /> },
         { key: 'equity', label: 'Changes in Equity', icon: <Landmark size={16} /> },
         { key: 'cash', label: 'Cash Flows', icon: <Wallet size={16} /> },
         { key: 'notes', label: 'Notes to the FS', icon: <FileText size={16} /> },
         { key: 'policies', label: 'Accounting Policies', icon: <BookOpen size={16} /> },
-        { key: 'audit', label: 'Audit Report (Draft)', icon: <ShieldCheck size={16} /> },
         { key: 'ppe', label: 'PPE & Depreciation', icon: <Layers size={16} /> },
-        { key: 'tb', label: 'TB Mapping', icon: <GitBranch size={16} /> },
         { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> },
       ]
     : [{ key: 'pl', label: 'Income & Expenses', icon: <BarChart3 size={16} /> }, { key: 'journals', label: 'Journal Entries', icon: <Scale size={16} /> }]
+  const [section, setSection] = useState<Section>(sections[0].key)
+  // Statement figures edited and out of balance: nothing goes forward until the other side is edited.
+  const blocked = !!state.fs_edits && !state.fs_edits.balanced
+  const edited = editedOf(state.fs_edits)
+  const [downloadError, setDownloadError] = useState('')
+  const download = (doc: 'fs', fmt: 'pdf' | 'xlsx' | 'docx') => {
+    setDownloadError('')
+    downloadLocalTax(taskKey, doc, fmt).catch((err) => setDownloadError(extractErrorMessage(err, 'The download failed.')))
+  }
   const year = e.fy_end ? new Date(e.fy_end) : null
   const ye = year ? year.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : 'the year end'
   const checks = fin?.checks ?? []
@@ -74,7 +79,7 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         </div>
         <span className={styles.spacer} />
         <div className={styles.actions}>
-          <Button variant="secondary" onClick={() => setSection('tb')} disabled={!company}><GitBranch size={15} /> View TB Mapping</Button>
+          <UpdateButton taskKey={taskKey} stage="fs" label="Update FS" />
           <Button variant="secondary" onClick={() => setSection('journals')}>
             <Scale size={15} /> Journal Entries ({state.adjustments.filter((a) => a.scope === 'accounting' && a.status !== 'rejected').length})
           </Button>
@@ -100,10 +105,10 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
               <input readOnly value={year ? `${year.getDate()} ${year.toLocaleString('en-GB', { month: 'short' })} ${year.getFullYear() - 1}` : '—'} />
             </label>
             <label className={styles.field}>
-              <span>Engagement Type</span>
-              <select value={e.audited ? 'audit' : 'unaudited'} onChange={(ev) => save.mutate({ audited: ev.target.value === 'audit', stage: 'fs' })}>
-                <option value="audit">Audit</option>
-                <option value="unaudited">Unaudited</option>
+              <span>Report</span>
+              <select value={e.audited ? 'audit' : 'compilation'} onChange={(ev) => save.mutate({ audited: ev.target.value === 'audit', stage: 'fs' })}>
+                <option value="audit">Audit report</option>
+                <option value="compilation">Compilation report</option>
               </select>
             </label>
             <div className={styles.field}>
@@ -135,36 +140,34 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
         </div>
 
         <section className={styles.card} aria-label={sections.find((s) => s.key === section)?.label}>
-          {!fin && company && section !== 'tb' && section !== 'journals' && section !== 'ppe' ? (
+          {company && fin && section !== 'journals' && section !== 'ppe' && <FsEditsBanner taskKey={taskKey} edits={state.fs_edits} notes={e.data.fs_edits?.notes} />}
+          {!fin && company && section !== 'journals' && section !== 'ppe' ? (
             <>
-              <p className={styles.muted}>No trial balance yet. Upload it in Client Info › Supporting Documents (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand under TB Mapping.</p>
+              <p className={styles.muted}>No trial balance yet. Upload it in Client Info › Supporting Documents (Excel, CSV, or a PDF read by Local_Tax_AI), or enter it by hand in TB Mapping (right).</p>
               <div className={styles.actions}>
                 {onDocuments && <Button variant="primary" onClick={onDocuments}>Upload the trial balance</Button>}
-                <Button variant="secondary" onClick={() => setSection('tb')}>Enter it by hand</Button>
               </div>
             </>
+          ) : section === 'report' ? (
+            <ReportView taskKey={taskKey} state={state} />
           ) : section === 'pl' && company && fin?.pl ? (
             <>
               <h3 className={styles.cardTitle}>Statement of Profit or Loss and Other Comprehensive Income</h3>
-              <p className={styles.muted}>For the year ended {ye}</p>
-              <ProfitOrLoss cur={fin.pl.current} comp={fin.pl.comparative} />
+              <p className={styles.muted}>For the year ended {ye}. Click a figure to change it; totals follow from the lines.</p>
+              <ProfitOrLoss taskKey={taskKey} cur={fin.pl.current} comp={fin.pl.comparative} edited={edited} />
             </>
           ) : section === 'pl' && !company && fin ? (
             <IndividualStatement fin={fin} />
           ) : section === 'bs' && fin?.bs ? (
             <>
               <h3 className={styles.cardTitle}>Statement of Financial Position</h3>
-              <p className={styles.muted}>As at {ye}</p>
-              <Position fin={fin} />
+              <p className={styles.muted}>As at {ye}. Click a figure to change it; totals follow from the lines.</p>
+              <Position taskKey={taskKey} fin={fin} edited={edited} />
             </>
-          ) : section === 'tb' ? (
-            <TbMapping taskKey={taskKey} fin={fin} />
           ) : section === 'journals' ? (
             <JournalRegister taskKey={taskKey} state={state} />
           ) : section === 'ppe' ? (
             <PpeSection taskKey={taskKey} state={state} />
-          ) : section === 'audit' ? (
-            <AuditReport state={state} />
           ) : section === 'equity' && state.statements ? (
             <EquityStatement st={state.statements} ye={ye} />
           ) : section === 'cash' && state.statements ? (
@@ -187,12 +190,13 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
                 Next: {sections[sections.findIndex((x) => x.key === section) + 1].label} →
               </Button>
             ) : (
-              <Button variant="primary" onClick={onNext}>Next: Tax Computation →</Button>
+              <Button variant="primary" onClick={onNext} disabled={blocked} title={blocked ? 'Balance the edited figures first' : undefined}>Next: Tax Computation →</Button>
             )}
           </div>
         </section>
 
         <div className={styles.side}>
+          {company && <TbMapping taskKey={taskKey} fin={fin} />}
           <AiAssistant taskKey={taskKey} lead="I can help you review the financial statements, check compliance with the framework and draft the audit report."
             suggestions={['Are there unusual balances I should look at?', 'Which disclosures are missing?']} />
           <section className={styles.card} aria-label="Key Insights">
@@ -210,22 +214,28 @@ export function FinancialStatementsStage({ taskKey, state, onNext, onBack, onDoc
           </section>
           <Alerts alerts={state.alerts.filter((a) => a.stage === 'fs')} />
           <div className={styles.actions}>
-            <Button variant="primary" onClick={() => downloadLocalTax(taskKey, 'fs', 'pdf')}><Download size={14} /> Download Financial Statements (PDF)</Button>
-            <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'fs', 'xlsx')}><FileSpreadsheet size={14} /> Download FS (Excel)</Button>
+            <Button variant="primary" onClick={() => download('fs', 'pdf')}><Download size={14} /> Financial Statements (PDF)</Button>
+            <Button variant="secondary" onClick={() => download('fs', 'docx')}><FileText size={14} /> FS (Word)</Button>
+            <Button variant="secondary" onClick={() => download('fs', 'xlsx')}><FileSpreadsheet size={14} /> FS (Excel)</Button>
           </div>
+          {downloadError && <p className={styles.error} role="alert">{downloadError}</p>}
           {save.isError && <p className={styles.error}>{extractErrorMessage(save.error)}</p>}
         </div>
       </div>
       <div className={styles.actions}>
         {onBack && <Button variant="secondary" onClick={onBack}>← Back: Client Info</Button>}
         <span className={styles.spacer} />
-        <Button variant="primary" onClick={onNext}>Next: Tax Computation →</Button>
+        {blocked && <span className={styles.error}>Balance the edited figures before you continue.</span>}
+        <Button variant="primary" onClick={onNext} disabled={blocked}>Next: Tax Computation →</Button>
       </div>
     </>
   )
 }
 
-function ProfitOrLoss({ cur, comp }: { cur: PlFigures; comp: PlFigures | null }) {
+// The lines of the statement of profit or loss the accountant may overwrite: never gross profit, profit before tax or the profit.
+const PL_EDITABLE = new Set<keyof PlFigures>(['revenue', 'cost_of_sales', 'other_income', 'admin_expenses', 'distribution_expenses', 'finance_costs', 'income_tax_expense'])
+
+function ProfitOrLoss({ taskKey, cur, comp, edited }: { taskKey: string; cur: PlFigures; comp: PlFigures | null; edited: Edited }) {
   const rows: [keyof PlFigures, string, number, string?][] = [
     ['revenue', 'Revenue', 1], ['cost_of_sales', 'Cost of Sales', -1], ['gross_profit', 'Gross Profit', 1, 'subtotal'], ['other_income', 'Other Income', 1],
     ['admin_expenses', 'Administrative Expenses', -1], ['distribution_expenses', 'Selling and Distribution Expenses', -1], ['finance_costs', 'Finance Costs', -1],
@@ -241,7 +251,11 @@ function ProfitOrLoss({ cur, comp }: { cur: PlFigures; comp: PlFigures | null })
           {rows.map(([k, label, sign, kind]) => (
             <tr key={k} data-kind={kind}>
               <th scope="row">{label}</th>
-              <td className={styles.num}>{money(sign * Number(cur[k]))}</td>
+              <td className={styles.num}>
+                {PL_EDITABLE.has(k)
+                  ? <EditableAmount taskKey={taskKey} heading={k} label={label} value={cur[k]} shown={sign * Number(cur[k])} edited={edited[k]} />
+                  : money(sign * Number(cur[k]))}
+              </td>
               {comp && <td className={styles.num}>{money(sign * Number(comp[k]))}</td>}
             </tr>
           ))}
@@ -251,7 +265,7 @@ function ProfitOrLoss({ cur, comp }: { cur: PlFigures; comp: PlFigures | null })
   )
 }
 
-function Position({ fin }: { fin: Financials }) {
+function Position({ taskKey, fin, edited }: { taskKey: string; fin: Financials; edited: Edited }) {
   const groups: [string, string][] = [['asset', 'Assets'], ['equity', 'Equity'], ['liability', 'Liabilities']]
   return (
     <div className={styles.tableWrap}>
@@ -266,7 +280,9 @@ function Position({ fin }: { fin: Financials }) {
               {Object.entries(fin.bs ?? {}).filter(([, v]) => v.kind === kind && (Number(v.amount) || Number(v.comparative))).map(([h, v]) => (
                 <tr key={h} data-level="1">
                   <th scope="row">{v.label}</th>
-                  <td className={styles.num}>{money(v.amount)}</td>
+                  <td className={styles.num}>
+                    <EditableAmount taskKey={taskKey} heading={h} label={v.label} value={v.amount} shown={Number(v.amount)} edited={edited[h]} />
+                  </td>
                   {fin.has_comparative && <td className={styles.num}>{money(v.comparative)}</td>}
                 </tr>
               ))}
@@ -305,100 +321,6 @@ function IndividualStatement({ fin }: { fin: Financials }) {
             <td className={styles.num}>{money(fin.net)}</td></tr>
         </tbody>
       </table>
-    </>
-  )
-}
-
-/** The trial balance: each account's heading (a person's choice kept across re-uploads), AI suggestions to
- * accept one by one, and entering accounts by hand. */
-function TbMapping({ taskKey, fin }: { taskKey: string; fin: Financials | null }) {
-  const map = useMapLine(taskKey)
-  const put = usePutTb(taskKey)
-  const suggest = useAiAgent<{ suggestions: { code: string; heading: string; reason: string }[]; notes: string[] }>(taskKey, 'map-tb')
-  const [rows, setRows] = useState<{ code: string; name: string; amount: string; comparative: string }[]>([])
-  const tb = fin?.tb ?? []
-  const unmapped = fin?.unmapped?.length ?? 0
-  const asked = useRef(false)
-  useEffect(() => {
-    if (unmapped > 0 && !asked.current) {
-      asked.current = true
-      suggest.mutate(undefined)
-    }
-  }, [unmapped, suggest])
-  return (
-    <>
-      <h3 className={styles.cardTitle}><Table2 size={18} aria-hidden="true" /> Trial balance mapping</h3>
-      <div className={styles.actions}>
-        <Button size="sm" variant="secondary" disabled={!tb.length || suggest.isPending} onClick={() => suggest.mutate(undefined)}>
-          <Sparkles size={13} /> {suggest.isPending ? 'Local_Tax_AI is checking…' : 'Suggest headings with AI'}
-        </Button>
-        {suggest.isError && <span className={styles.error}>{extractErrorMessage(suggest.error)}</span>}
-      </div>
-      {suggest.data && (
-        <div className={styles.card} aria-label="AI mapping suggestions">
-          <strong>Local_Tax_AI suggests ({suggest.data.suggestions.length})</strong>
-          {suggest.data.suggestions.map((s) => (
-            <div key={s.code} className={styles.actions}>
-              <span>{s.code} → {HEADINGS.find((h) => h[0] === s.heading)?.[1]} <span className={styles.muted}>{s.reason}</span></span>
-              <Button size="sm" variant="subtle" onClick={() => map.mutate({ code: s.code, heading: s.heading })}>Accept</Button>
-            </div>
-          ))}
-          {suggest.data.notes.map((n) => <p key={n} className={styles.muted}>{n}</p>)}
-        </div>
-      )}
-      <div className={styles.tableWrap}>
-        <table className={styles.table} aria-label="Trial balance">
-          <thead>
-            <tr><th>Code</th><th>Account</th><th className={styles.num}>Current (Dr +)</th><th className={styles.num}>Prior</th><th>Heading</th></tr>
-          </thead>
-          <tbody>
-            {tb.map((ln) => (
-              <tr key={ln.code} data-missing={!ln.heading || undefined}>
-                <td>{ln.code}</td>
-                <th scope="row">{ln.name}{ln.adjusted ? ' (adjusted)' : ''}</th>
-                <td className={styles.num}>{money(ln.amount)}</td>
-                <td className={styles.num}>{money(ln.comparative)}</td>
-                <td className={styles.cell}>
-                  <select aria-label={`Heading for ${ln.name}`} value={ln.heading} onChange={(ev) => map.mutate({ code: ln.code, heading: ev.target.value })}>
-                    <option value="">Not mapped</option>
-                    {HEADINGS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                  </select>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <details>
-        <summary>Enter or replace the trial balance by hand</summary>
-        <table className={styles.table}>
-          <thead>
-            <tr><th>Code</th><th>Account</th><th className={styles.num}>Current (Dr + / Cr −)</th><th className={styles.num}>Prior</th><th /></tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => {
-              const set = (p: Partial<typeof r>) => setRows(rows.map((x, n) => (n === i ? { ...x, ...p } : x)))
-              return (
-                <tr key={i}>
-                  <td className={styles.cell}><input aria-label="Code" value={r.code} onChange={(ev) => set({ code: ev.target.value })} /></td>
-                  <td className={styles.cell}><input aria-label="Account" value={r.name} onChange={(ev) => set({ name: ev.target.value })} /></td>
-                  <td className={styles.cell}><input aria-label="Current" inputMode="decimal" value={r.amount} onChange={(ev) => set({ amount: ev.target.value })} /></td>
-                  <td className={styles.cell}><input aria-label="Prior" inputMode="decimal" value={r.comparative} onChange={(ev) => set({ comparative: ev.target.value })} /></td>
-                  <td><Button size="sm" variant="subtle" iconOnly aria-label="Remove" onClick={() => setRows(rows.filter((_, n) => n !== i))}><Trash2 size={13} /></Button></td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        <div className={styles.actions}>
-          <Button size="sm" variant="subtle" onClick={() => setRows([...rows, { code: '', name: '', amount: '', comparative: '' }])}><Plus size={13} /> Add account</Button>
-          <Button size="sm" variant="primary" disabled={!rows.length || put.isPending}
-            onClick={() => put.mutate(rows.map((r) => ({ ...r, comparative: r.comparative || null })), { onSuccess: () => setRows([]) })}>
-            Replace the trial balance
-          </Button>
-        </div>
-        {put.isError && <p className={styles.error}>{extractErrorMessage(put.error)}</p>}
-      </details>
     </>
   )
 }

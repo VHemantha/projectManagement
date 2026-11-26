@@ -5,6 +5,7 @@ import styles from './LocalTax.module.css'
 import { AiAssistant, Alerts, SectionNav, StageControls, UnvalidatedConfirm } from './Shared'
 import { extractErrorMessage } from '@/api/errors'
 import { type AiItems, type LocalTaxState, downloadLocalTax, money, needsAcknowledgement, useAiAgent, useSaveLocalTax, useSetStage } from '@/api/localTax'
+import { UpdateButton } from './Update'
 import { Button } from '@/design-system'
 
 /** Stage 4 (AFIT screens, 22 Nov 2026): the draft income tax return from the approved figures - its sections and
@@ -42,6 +43,7 @@ export function ReturnStage({ taskKey, state, onBack }: { taskKey: string; state
           <p className={styles.stageLead}>Generate, review and finalise the Income Tax Return ({e.tax_type}) for submission to the Inland Revenue Department (IRD).</p>
         </div>
         <span className={styles.spacer} />
+        <UpdateButton taskKey={taskKey} stage="return" />
         <div className={styles.actions}>
           <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'return', 'pdf', true)}><Eye size={15} /> Preview (PDF)</Button>
           <Button variant="secondary" onClick={() => downloadLocalTax(taskKey, 'return', 'pdf')}><Download size={15} /> Download Draft</Button>

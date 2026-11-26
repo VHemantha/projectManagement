@@ -8,6 +8,7 @@ import { FixedAssetRegister, LossHistory } from './Schedules'
 import { AiAssistant, Alerts, SectionNav, StageControls } from './Shared'
 import { extractErrorMessage } from '@/api/errors'
 import { type AiItems, type CompLine, type LocalTaxState, downloadLocalTax, money, useAiAgent, useSaveLocalTax } from '@/api/localTax'
+import { UpdateButton } from './Update'
 import { Button } from '@/design-system'
 
 type Section = 'computation' | 'add_backs' | 'deductions' | 'capital_allowances' | 'losses' | 'credits' | 'special' | 'reverse' | 'notes'
@@ -53,6 +54,7 @@ export function ComputationStage({ taskKey, state, onNext, onBack, onQuestionnai
           <p className={styles.stageLead}>Calculate taxable income, apply the applicable tax rates (including concessionary rates), credits and final tax payable.</p>
         </div>
         <span className={styles.spacer} />
+        <UpdateButton taskKey={taskKey} stage="computation" />
         <div className={styles.actions}>
           <span className={styles.chip}>{taxName} Income Tax</span>
           <Link to={`/local-tax/rules/${e.year_of_assessment.replace('/', '-')}`} className={styles.chip}><BookOpen size={12} /> Tax Rules (YA {e.year_of_assessment})</Link>

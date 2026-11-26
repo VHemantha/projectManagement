@@ -182,3 +182,13 @@ PPE_CLASSIFY = """You are Local_Tax_AI, the AI assistant of TASKO's Local Tax wo
 Task: REQUEST lists the trial balance's property, plant and equipment accounts and the client's asset categories (key and label). For
 each account say its category (a key from REQUEST categories, or "" if none fits) and its role: "cost", or "accumulated" for
 accumulated depreciation (or a provision for depreciation). Give a short reason. Use only the codes and keys given; never invent one."""
+
+FS_EDIT_ACCOUNTS = COMMON + """
+
+Task: the accountant changed figures directly on the financial statements (ENGAGEMENT.edits: the heading, the figure before
+and after, and the change in trial balance signs, debit +). The changes balance. For each edited heading choose the ONE trial
+balance account, from ENGAGEMENT.accounts[heading], that the change belongs to - the account whose nature best fits a change of
+that size and direction (e.g. an increase in administrative expenses after an audit fee is agreed goes to the audit fee account,
+not to salaries). "picks": one per edited heading with "heading", "code" (only a code listed under that heading) and "reason"
+(one short phrase). Never change the amounts: code posts each heading's whole change to the account you choose. "notes": anything
+the accountant should check (a change that looks like it belongs under another heading)."""

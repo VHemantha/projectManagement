@@ -145,7 +145,7 @@ def keeps_books(eng: TaxEngagement) -> bool:
     return eng.entity_type != TaxEngagement.Entity.INDIVIDUAL or eng.tb_lines.exists()
 
 
-def financials(eng: TaxEngagement) -> dict | None:
+def financials(eng: TaxEngagement, with_edits: bool = True) -> dict | None:
     """Companies, partnerships and individuals with a trial balance: the statements from the TB with the approved
     accounting adjustments ("kind": "company" - the books). Other individuals: the income and expenses by source.
     None for a company or partnership without a trial balance."""
@@ -156,6 +156,10 @@ def financials(eng: TaxEngagement) -> dict | None:
     if not lines:
         return None
     adjusted = FS.apply_adjustments(lines, [{"lines": a.lines} for a in approved(eng, "accounting")])
+    if with_edits:  # figures edited on the statements, shown at once (fs_edits.py)
+        from . import fs_edits as FE
+
+        adjusted = adjusted + FE.edit_lines(eng)
     return {"kind": "company", **FS.statements(adjusted, fs_scope(eng)), "lines": adjusted}
 
 
@@ -169,7 +173,7 @@ def pl_accounts(fs_result: dict | None) -> list[dict]:
     if not fs_result or fs_result.get("kind") != "company":
         return []
     out = []
-    for ln in fs_result["lines"]:
+    for ln in (x for x in fs_result["lines"] if not x.get("edit")):  # not the statement edits waiting to be posted
         h = ln.get("heading")
         if h in FS.INCOME_HEADINGS or h in FS.EXPENSE_HEADINGS:
             if h == "income_tax_expense":
@@ -230,6 +234,10 @@ def state(eng: TaxEngagement, user=None) -> dict:
     if eng.entity_type != TaxEngagement.Entity.INDIVIDUAL and fs_result is None:
         alerts.append({"stage": "fs", "severity": "blocking",
                        "text": "Upload the current year's trial balance in Client Info > Supporting Documents to prepare the financial statements."})
+    from . import fs_edits as FE
+
+    edits = FE.summary(eng, fs_scope(eng) == "full") if fs_result and fs_result.get("kind") == "company" else None
+    alerts += FE.alerts(edits)
     if fs_result and fs_result.get("kind") == "company":
         for c in fs_result["checks"]:
             if not c["passed"]:
@@ -262,7 +270,8 @@ def state(eng: TaxEngagement, user=None) -> dict:
     except MissingRules as exc:
         return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": None, "reverse": None, "return": None,
                 "alerts": alerts + [{"stage": "computation", "severity": "blocking", "text": str(exc)}], "years": years(), "documents": docs,
-                "ppe": _jsonable(ppe_state), "journals": journal_register(eng),
+                "ppe": _jsonable(ppe_state), "journals": journal_register(eng), "fs_edits": _jsonable(edits),
+                "report": _report(eng, fs_result),
                 "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")]}
     ins = inputs(eng, fs_result)
     comp = compute(ins, rules.fresh())
@@ -285,7 +294,7 @@ def state(eng: TaxEngagement, user=None) -> dict:
             alerts.append({"stage": "fs", "severity": "review", "text": f"{chk['label']}: difference {chk['difference']:,.2f}."})
     return {"engagement": engagement_dict(eng, user), "financials": _clean(fs_result), "computation": comp, "reverse": rev, "return": ret,
             "statements": statements, "alerts": alerts, "years": years(), "rules_status": rules.data.get("status", ""), "documents": docs,
-            "ppe": _jsonable(ppe_state), "journals": journal_register(eng),
+            "ppe": _jsonable(ppe_state), "journals": journal_register(eng), "fs_edits": _jsonable(edits), "report": _report(eng, fs_result),
             "adjustments": [adjustment_dict(a) for a in eng.adjustments.select_related("created_by", "decided_by", "evidence")],
             "levers": [{k: lv[k] for k in ("key", "label", "group", "amount", "scope")} for lv in RV.levers(ins, pl_accounts(fs_result))],
             "progress": progress(eng, fs_result, comp)}
@@ -299,7 +308,37 @@ def depth(eng: TaxEngagement, fs_result, comp) -> dict | None:
     ye = eng.fy_end.strftime("%d %B %Y").lstrip("0") if eng.fy_end else "[year end]"
     full = fs_scope(eng) == "full"
     return {"scope": fs_scope(eng), "equity": DP.equity_changes(fs_result) if full else None, "cash_flows": DP.cash_flows(fs_result) if full else None,
-            "notes": DP.notes(fs_result, info, comp, _standard_rate(eng)), "audit_report": DP.audit_report(info, ye) if eng.audited else None}
+            # The auditor's or compilation report is its own document now (reports.py; state["report"]), not part of the statements.
+            "notes": DP.notes(fs_result, info, comp, _standard_rate(eng)), "audit_report": None}
+
+
+def _report(eng: TaxEngagement, fs_result) -> dict | None:
+    """The practitioner's report (audit or compilation) for books-based engagements."""
+    if not fs_result or fs_result.get("kind") != "company":
+        return None
+    from . import reports
+
+    return _jsonable(reports.report(eng, {"financials": fs_result}))
+
+
+# The figures an Update reports on (AFIT, 26 Nov 2026): what changed since the last update.
+KEY_FIGURES = [("revenue", "Revenue"), ("profit", "Profit for the year"), ("assets", "Total assets"), ("equity_liabilities", "Total equity and liabilities"),
+               ("tb_difference", "Trial balance difference"), ("taxable_income", "Taxable income"), ("income_tax", "Income tax"),
+               ("payable", "Tax payable"), ("blocking", "Issues to resolve")]
+
+
+def key_figures(st: dict) -> dict:
+    fin = st.get("financials") or {}
+    comp = st.get("computation") or {}
+    totals = fin.get("totals") or {}
+    tb_check = next((c for c in fin.get("checks") or [] if c.get("label", "").startswith("Trial balance")), None)
+    out = {"revenue": ((fin.get("pl") or {}).get("current") or {}).get("revenue"), "profit": fin.get("profit"),
+           "assets": totals.get("assets"),
+           "equity_liabilities": (Decimal(str(totals["equity"])) + Decimal(str(totals["liabilities"]))) if totals.get("equity") is not None else None,
+           "tb_difference": tb_check.get("difference") if tb_check else None, "taxable_income": comp.get("taxable_income"),
+           "income_tax": comp.get("income_tax"), "payable": comp.get("payable"),
+           "blocking": sum(1 for a in st.get("alerts") or [] if a.get("severity") == "blocking")}
+    return {k: (None if v is None else str(v)) for k, v in out.items()}
 
 
 def _standard_rate(eng: TaxEngagement):
