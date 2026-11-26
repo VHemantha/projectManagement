@@ -30,6 +30,7 @@ urlpatterns = [
     path("tasks/<str:key>/stages/<str:stage>/", v.StageView.as_view(), name="localtax-stage"),
     path("tasks/<str:key>/events/", v.EventsView.as_view(), name="localtax-events"),
     path("tasks/<str:key>/messages/", v.MessagesView.as_view(), name="localtax-messages"),
+    path("tasks/<str:key>/messages/<int:pk>/changes/<int:n>/", v.ClientChangeView.as_view(), name="localtax-client-change"),
     path("tasks/<str:key>/extractions/<int:pk>/decide/", v.ExtractionDecideView.as_view(), name="localtax-extraction-decide"),
     path("tasks/<str:key>/export/<str:doc>.<str:fmt>", v.ExportView.as_view(), name="localtax-export"),
     path("tasks/<str:key>/ai/<str:agent>/", v.AiView.as_view(), name="localtax-ai"),

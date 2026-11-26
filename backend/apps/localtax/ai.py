@@ -3,7 +3,8 @@
 the agent answers in a fixed shape; the answer is checked again here before it is shown or stored. The agent
 explains, suggests and asks - every figure stays the engine's:
 - chat: questions about the engagement. A "what if" names the line and the amount; the engine works out the
-  effect, marked hypothetical.
+  effect, marked hypothetical. A change the client asked for comes back as changes to apply, checked by code
+  (client_requests.py) and applied only by the accountant, one at a time.
 - map-tb: an FS heading suggested for each trial balance account (a person accepts each).
 - analyse: the income's treatment, possible tax adjustments and reliefs, with reasons and references.
 - reverse: the questions to ask the accountant about the difference from the expected tax, and the lines to look at.
@@ -21,6 +22,7 @@ from decimal import Decimal
 
 from django.conf import settings
 
+from . import client_requests as CR
 from .engine import fs as FS
 from .engine import reverse as RV
 from .models import AiMessage, Extraction
@@ -79,6 +81,11 @@ def context(eng, st: dict) -> dict:
         "headings": {k: v[1] for k, v in FS.HEADINGS.items()},
         "asset_classes": asset_classes(e.get("year_of_assessment")),
         "fs_scope": (e.get("data") or {}).get("fs_scope") or "full",
+        # What a client's request may change (AFIT, 26 Nov 2026): the client information, the notes the accountant writes
+        # and the accounting policies, by the keys a change names.
+        "client_info": CR.client_info(eng),
+        "notes_editable": CR.notes_editable(eng),
+        "policy_keys": CR.policy_keys(),
     }
 
 
@@ -112,6 +119,10 @@ def run(agent: str, eng, st: dict, body: dict, user) -> dict:
                                             eng.expected_tax, eng.expected_basis, S.pl_accounts(fs_result))
             except Exception:  # noqa: BLE001 - a line the engagement does not have: the answer stands without figures
                 data["what_if"] = None
+        if out.get("changes"):
+            data["changes"], data["changes_dropped"] = CR.propose(eng, st, out["changes"], S.financials(eng))
+            if data["changes"]:
+                S.log(eng, user, "ai_client_request", {"changes": len(data["changes"]), "dropped": len(data["changes_dropped"])}, actor="ai")
         msg = AiMessage.objects.create(engagement=eng, role="ai", text=answer, data=S._jsonable(data))
         return {"message": message_dict(msg)}
     if agent == "map-tb":

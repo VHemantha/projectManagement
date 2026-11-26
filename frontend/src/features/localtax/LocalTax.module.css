@@ -858,6 +858,47 @@ button.chip:hover {
   border-radius: 8px;
   background: var(--tf-surface);
 }
+/* a change the client asked for, from the chat (AFIT, 26 Nov 2026) */
+.changes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  white-space: normal;
+}
+.change {
+  padding: 8px 10px;
+  border: 1px solid var(--tf-border-subtle);
+  border-radius: 8px;
+  background: var(--tf-surface);
+}
+.change[data-status='applied'] {
+  border-color: var(--tf-success, #2f7d4f);
+}
+.change[data-status='dismissed'] {
+  opacity: 0.6;
+}
+.changeHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fromTo {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 4px 0;
+  font-size: 12.5px;
+}
+.fromTo dt {
+  color: var(--tf-text-secondary);
+}
+.fromTo dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
 .prompt {
   display: block;
   width: 100%;

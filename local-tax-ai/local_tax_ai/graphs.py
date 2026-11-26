@@ -105,6 +105,8 @@ def check(state: State) -> State:
             out["what_if"] = None
         else:
             out["what_if"] = {"lever": wi["lever"], "proposed": str(wi["proposed"]).replace(",", "")}
+        out["changes"] = [c for c in out.get("changes") or [] if c.get("type") in schemas.CHANGE_TYPES and str(c.get("value") or "").strip()
+                          and str(c.get("target") or "").strip()][:12]
     if state["agent"] in ("analyse", "reverse", "return_prep"):
         for item in out["items"]:
             if item.get("lever") not in levers:
@@ -214,6 +216,26 @@ def run(agent: str, request: dict) -> dict:
 
 # --- the demo stand-in ----------------------------------------------------------------------------------------
 
+def demo_changes(q: str, ctx: dict) -> list[dict]:
+    """The demo's reading of a client's request: "change the address to ..." and "<account> should be Rs. N"."""
+    out = []
+    m = re.search(r"address (?:to|is now|should be)\s+(.+?)(?:\.\s|\.?$)", q, re.I)
+    if m:
+        out.append({"type": "field", "target": "address", "value": m.group(1).strip(), "reason": "(Demo) The client's new address."})
+    m = re.search(r"([a-z][a-z ]{2,40}?)\s+(?:should be|was|is)\s+(?:rs\.?|lkr)?\s*([\d,]+(?:\.\d+)?)", q, re.I)
+    tb = ((ctx.get("financials") or {}).get("tb")) or []
+    if m:
+        words = [w for w in re.findall(r"[a-z]{4,}", m.group(1).lower()) if w not in ("client", "says", "that", "the")]
+        acct = next((ln for ln in tb if any(w in str(ln.get("name", "")).lower() for w in words)), None)
+        other = next((ln for ln in tb if re.search(r"accru|payable|creditor", str(ln.get("name", "")), re.I)), None)
+        if acct and other and acct is not other:
+            amount = m.group(2).replace(",", "")
+            sign = "-" if float(acct.get("amount") or 0) < 0 else ""
+            out.append({"type": "journal", "target": f"Client: {acct['name']} corrected", "value": f"{acct['code']} | ={sign}{amount}; {other['code']} | balance",
+                        "reason": f"(Demo) The client says {acct['name']} should be {amount}."})
+    return out
+
+
 def demo(agent: str, request: dict, content) -> dict:
     """What the demo answers: built from the engagement only, labelled as a demo, never a figure of its own."""
     ctx = request.get("context") or {}
@@ -229,8 +251,12 @@ def demo(agent: str, request: dict, content) -> dict:
                 change = float(m.group(1).replace(",", ""))
                 sign = -1 if re.search(r"\b(fall|decrease|reduce|less|lower)", q, re.I) else 1
                 wi = {"lever": lever["key"], "proposed": str(float(lever.get("amount") or 0) + sign * change)}
+        changes = demo_changes(q, ctx)
+        if changes:
+            return {"answer": "(Demo) The change the client asked for, ready to check and apply.", "points": ["Demo mode: no AI reading."],
+                    "uncertain": True, "what_if": {"lever": "", "proposed": ""}, "changes": changes}
         return {"answer": f"(Demo) The engine's calculated tax payable is {comp.get('payable')}. Ask Local_Tax_AI with Claude switched on for an "
-                          "explanation.", "points": ["Demo mode: no AI reading."], "uncertain": True, "what_if": wi}
+                          "explanation.", "points": ["Demo mode: no AI reading."], "uncertain": True, "what_if": wi, "changes": []}
     if agent == "map_tb":
         tb = ((ctx.get("financials") or {}).get("tb")) or []
         return {"suggestions": [{"code": ln["code"], "heading": "admin_expenses", "reason": "(Demo) unmapped expense"}

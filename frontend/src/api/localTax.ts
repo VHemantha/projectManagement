@@ -232,7 +232,32 @@ export interface LocalTaxState {
   journals?: JournalRegister
 }
 
-export interface AiMessage { id: number; role: 'person' | 'ai'; text: string; data: { points?: string[]; uncertain?: boolean; what_if?: WhatIf | null }; by: string; at: string }
+/** A change the client asked for, proposed by Local_Tax_AI in the chat and checked by code (AFIT, 26 Nov 2026): applied by
+ * the accountant one at a time; a journal or a tax adjustment is applied as a proposal, approved like any other. */
+export interface ClientChange {
+  n: number
+  type: 'field' | 'journal' | 'tax_adjustment' | 'note' | 'policy' | 'heading'
+  target: string
+  value: string
+  label: string
+  from: string
+  to: string
+  reason: string
+  /** A journal's lines, with the amounts worked out by code ("sets"/"was": the balance asked for, and the one before). */
+  lines?: { code: string; name: string; heading: string; amount: string; sets?: string; was?: string }[]
+  status: 'proposed' | 'applied' | 'dismissed'
+  result?: string
+  by?: string
+  at?: string
+}
+export interface AiMessage {
+  id: number
+  role: 'person' | 'ai'
+  text: string
+  data: { points?: string[]; uncertain?: boolean; what_if?: WhatIf | null; changes?: ClientChange[]; changes_dropped?: string[] }
+  by: string
+  at: string
+}
 export interface WhatIf { lever: { key: string; label: string }; original: Money; proposed: Money; difference: Money; taxable_before: Money; taxable_after: Money; tax_before: Money; tax_after: Money; remaining_variance?: Money; hypothetical: true }
 export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'ignore'; code: string; heading: string; why?: string; category?: string }
 export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string; proposals?: PriorProposal[]; link?: string } }
@@ -416,6 +441,18 @@ export function useAskLocalTax(key: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (question: string) => (await apiClient.post<{ message: AiMessage }>(`${base(key)}ai/chat/`, { question })).data,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: [...qk(key), 'messages'] }),
+  })
+}
+
+/** Apply or dismiss a change the client asked for (from the chat). A journal whose balances have moved since comes back
+ * worked out again (409) for the accountant to check: the conversation is reloaded either way. */
+export function useClientChange(key: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ message, n, decision }: { message: number; n: number; decision: 'apply' | 'dismiss' }) =>
+      (await apiClient.post<LocalTaxState>(`${base(key)}messages/${message}/changes/${n}/`, { decision })).data,
+    onSuccess: (data) => queryClient.setQueryData(qk(key), data),
     onSettled: () => queryClient.invalidateQueries({ queryKey: [...qk(key), 'messages'] }),
   })
 }

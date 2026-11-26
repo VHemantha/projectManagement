@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Info, Sparkles } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 
+import { ClientChanges } from './ClientChanges'
 import styles from './LocalTax.module.css'
 import { extractErrorMessage } from '@/api/errors'
 import {
@@ -134,6 +135,10 @@ export function AiAssistant({ taskKey, lead, suggestions = [] }: { taskKey: stri
         <Sparkles size={18} aria-hidden="true" /> AI Assistant
       </h3>
       <p className={styles.muted}>{lead}</p>
+      <p className={styles.hint} style={{ margin: 0 }}>
+        Pass on a client&apos;s request (“the client says rent was Rs. 1.2 million”, “the address is now …”) and I&apos;ll set out the changes for you to
+        check and apply. A journal or a tax adjustment goes in as a proposal, approved like any other.
+      </p>
       {isLoading ? (
         <Skeleton height={40} />
       ) : messages.length > 0 ? (
@@ -156,6 +161,9 @@ export function AiAssistant({ taskKey, lead, suggestions = [] }: { taskKey: stri
                 </div>
               )}
               {m.data?.uncertain && <div className={styles.validation}>Needs professional review.</div>}
+              {(m.data?.changes?.length || m.data?.changes_dropped?.length) ? (
+                <ClientChanges taskKey={taskKey} message={m.id} changes={m.data.changes ?? []} dropped={m.data.changes_dropped ?? []} />
+              ) : null}
             </div>
           ))}
         </div>
@@ -177,7 +185,7 @@ export function AiAssistant({ taskKey, lead, suggestions = [] }: { taskKey: stri
           submit(q)
         }}
       >
-        <input aria-label="Ask a question" placeholder="Ask a question…" value={q} onChange={(e) => setQ(e.target.value)} maxLength={2000} />
+        <input aria-label="Ask a question" placeholder="Ask a question, or pass on the client's request…" value={q} onChange={(e) => setQ(e.target.value)} maxLength={2000} />
         <Button type="submit" variant="primary" size="sm" disabled={ask.isPending || q.trim().length < 2} aria-label="Ask">
           <ArrowRight size={14} />
         </Button>

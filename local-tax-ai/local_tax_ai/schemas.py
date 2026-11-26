@@ -16,8 +16,13 @@ def arr(item: dict) -> dict:
 
 
 # --- chat ---------------------------------------------------------------------------------------------------
+# A change the client asked for (AFIT, 26 Nov 2026), proposed for the accountant to apply: kept to four strings (with one
+# enum) so the answer's grammar stays small. "value" holds the journal's lines as text ("6100 | =1200000; 2020 | balance"),
+# worked into amounts by the backend's code - the agent never does the arithmetic.
+CHANGE_TYPES = ["field", "journal", "tax_adjustment", "note", "policy", "heading"]
 CHAT = obj({"answer": _S, "points": arr(_S), "uncertain": {"type": "boolean"},
-            "what_if": obj({"lever": _S, "proposed": _S})})
+            "what_if": obj({"lever": _S, "proposed": _S}),
+            "changes": arr(obj({"type": {"type": "string", "enum": CHANGE_TYPES}, "target": _S, "value": _S, "reason": _S}))})
 
 
 class WhatIf(BaseModel):
@@ -25,11 +30,19 @@ class WhatIf(BaseModel):
     proposed: str = ""
 
 
+class Change(BaseModel):
+    type: str
+    target: str = ""
+    value: str = ""
+    reason: str = ""
+
+
 class Chat(BaseModel):
     answer: str
     points: list[str] = Field(default_factory=list, max_length=8)
     uncertain: bool = False
     what_if: WhatIf | None = None
+    changes: list[Change] = Field(default_factory=list, max_length=12)
 
 
 # --- TB mapping ----------------------------------------------------------------------------------------------

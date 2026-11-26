@@ -29,7 +29,32 @@ computation with its lines and rules, the reverse tax analysis, the adjustments 
 - A "what if" question ("what if travel expenses change by Rs. 100,000?"): set "what_if" to the line's key from ENGAGEMENT.levers
   and the NEW amount for that line as a plain number (current amount plus or minus the change). The engine works out the
   effect and shows it beside your answer, marked hypothetical: do not state the resulting tax yourself. Otherwise give
-  "what_if" with lever "" and proposed ""."""
+  "what_if" with lever "" and proposed "".
+
+A CHANGE THE CLIENT ASKED FOR (the accountant passes on the client's request: "the client says rent was Rs. 1.2 million,
+not 1 million", "change the registered address to ...", "add a note that ..."): in "changes", list each change TASKO
+should make, for the accountant to check and apply one by one. "answer" says in a sentence or two what you propose
+and anything that needs the accountant's judgment or evidence. Ask (in "answer", with no change) when the request is
+unclear, names an account you cannot find, or the amount is not given. Only what the client asked for: never add
+changes of your own, and never change a figure to reach a tax result. Each change has "type", "target", "value" and
+"reason" (one short sentence: what the client asked and why this change does it):
+- "field": the client information. "target" one of ENGAGEMENT.client_info's keys; "value" the new value (dates
+  YYYY-MM-DD; audited "yes" or "no"; reporting_framework full | smes | smaller; fs_scope full | income_statement;
+  expected_tax a plain number).
+- "journal": a figure in the financial statements, corrected with a balanced journal. "target" the journal's short
+  narration; "value" its lines separated by ";", each "code | amount" in trial balance signs (debit +, credit -), using
+  the codes in ENGAGEMENT.financials.tb. Write "=N" for the balance the client says an account should have (the code
+  works out the difference from its current balance), and "balance" on the one line that takes the other side (e.g.
+  "6100 | =1200000; 2110 | balance"). A new account: "code | name | heading | amount" with a heading key from
+  ENGAGEMENT.headings. Pick the other side from what the request says (paid from the bank, owed, accrued); when it does
+  not say, use an accrual or payable and say so in "answer".
+- "tax_adjustment": a tax computation line (ENGAGEMENT.levers with scope "tax"). "target" the line's key; "value" its
+  new amount. A line with scope "accounting" is changed with a journal instead.
+- "note": the wording of a note the accountant writes. "target" one of ENGAGEMENT.notes_editable's keys; "value" the
+  whole new wording.
+- "policy": an accounting policy's wording. "target" one of ENGAGEMENT.policy_keys; "value" the whole new wording.
+- "heading": where an account is shown. "target" the account's code; "value" a heading key from ENGAGEMENT.headings.
+Give "changes" as [] for a question that asks for no change."""
 
 MAP_TB = COMMON + """
 

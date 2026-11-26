@@ -14,6 +14,7 @@ POST   /api/local-tax/tasks/<key>/stages/<stage>/           a stage's status
 GET    /api/local-tax/tasks/<key>/events/                   the audit trail
 GET    /api/local-tax/tasks/<key>/export/<doc>.<fmt>        fs | computation | return, as pdf or xlsx
 POST   /api/local-tax/tasks/<key>/ai/<agent>/               Local_Tax_AI: chat, map-tb, analyse, reverse, return, extract
+POST   /api/local-tax/tasks/<key>/messages/<id>/changes/<n>/  a change the client asked for (from the chat): apply | dismiss
 GET    /api/local-tax/rules/                                 the years with rules; /rules/<ya>/ one year's rules
 """
 from decimal import Decimal, InvalidOperation
@@ -35,7 +36,8 @@ from . import ai, services as S, validation as V
 from .engine import fs as FS
 from .engine import reverse as RV
 from .engine.rules import MissingRules, load, years
-from .models import Adjustment, TaxEngagement, TbLine
+from . import client_requests as CR
+from .models import Adjustment, AiMessage, TaxEngagement, TbLine
 
 
 def _engagement(request, key) -> TaxEngagement:
@@ -62,39 +64,46 @@ class EngagementView(APIView):
     def patch(self, request, key):
         eng = _engagement(request, key)
         try:
-            fields, data = V.update(request.data if isinstance(request.data, dict) else {})
+            _edit(eng, request.user, request.data if isinstance(request.data, dict) else {})
         except V.Invalid as exc:
             return Response(exc.errors, status=status.HTTP_400_BAD_REQUEST)
-        changes = {}
-        for f, v in fields.items():
-            old = getattr(eng, f)
-            if old != v:
-                changes[f] = {"from": S._jsonable(old), "to": S._jsonable(v)}
-                setattr(eng, f, v)
-        new_data = dict(eng.data or {})
-        for section, v in data.items():
-            if section == "computation":
-                v = {**(new_data.get("computation") or {}), **v}
-            if section == "ppe":  # only the parts sent change; the approval record stays as it is
-                v = {**(new_data.get("ppe") or {}), **v}
-            if new_data.get(section) != v:
-                changes[f"data.{section}"] = {"from": new_data.get(section), "to": v}
-                new_data[section] = v
-        if not changes:
-            return _state(request, eng)
-        # A value pre-filled from a document and then changed by hand keeps its trail.
-        sources = dict(new_data.get("field_sources") or {})
-        for f in fields:
-            if f in changes and f in sources and "changed by" not in sources[f]:
-                sources[f] = f"{sources[f]} - changed by {request.user.display_name}"
-                new_data["field_sources"] = sources
-        eng.data = new_data
-        stage = request.data.get("stage") if request.data.get("stage") in TaxEngagement.STAGES else (
-            "computation" if set(data) & {"computation"} else "return" if set(data) & {"return_overrides"} else "questionnaire")
-        S.touch(eng, stage, request.user)
-        eng.save()
-        S.log(eng, request.user, "edited", {"stage": stage, "changes": changes, "reason": str(request.data.get("reason") or "")[:500]})
         return _state(request, eng)
+
+
+def _edit(eng, user, payload: dict) -> dict:
+    """The questionnaire / client information edited (the PATCH, and a client's change applied from the chat): the
+    changes made, logged with their reason. Raises V.Invalid."""
+    fields, data = V.update(payload)
+    changes = {}
+    for f, v in fields.items():
+        old = getattr(eng, f)
+        if old != v:
+            changes[f] = {"from": S._jsonable(old), "to": S._jsonable(v)}
+            setattr(eng, f, v)
+    new_data = dict(eng.data or {})
+    for section, v in data.items():
+        if section == "computation":
+            v = {**(new_data.get("computation") or {}), **v}
+        if section == "ppe":  # only the parts sent change; the approval record stays as it is
+            v = {**(new_data.get("ppe") or {}), **v}
+        if new_data.get(section) != v:
+            changes[f"data.{section}"] = {"from": new_data.get(section), "to": v}
+            new_data[section] = v
+    if not changes:
+        return changes
+    # A value pre-filled from a document and then changed by hand keeps its trail.
+    sources = dict(new_data.get("field_sources") or {})
+    for f in fields:
+        if f in changes and f in sources and "changed by" not in sources[f]:
+            sources[f] = f"{sources[f]} - changed by {user.display_name}"
+            new_data["field_sources"] = sources
+    eng.data = new_data
+    stage = payload.get("stage") if payload.get("stage") in TaxEngagement.STAGES else (
+        "computation" if set(data) & {"computation"} else "return" if set(data) & {"return_overrides"} else "questionnaire")
+    S.touch(eng, stage, user)
+    eng.save()
+    S.log(eng, user, "edited", {"stage": stage, "changes": changes, "reason": str(payload.get("reason") or "")[:500]})
+    return changes
 
 
 def _tb_rows(rows) -> list[dict]:
@@ -281,12 +290,18 @@ class AdjustmentListView(APIView):
         fields, errors = _adjustment_fields(eng, request.data, state.get("levers") or [])
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-        if fields["kind"] in ("journal", "reclass"):
-            fields["ref"] = S.next_ref(eng)
-            fields.setdefault("entry_date", eng.fy_end)
-        adj = Adjustment.objects.create(engagement=eng, created_by=request.user, **fields)
-        S.log(eng, request.user, "adjustment_proposed", {"id": adj.id, **S.adjustment_dict(adj)})
+        _propose(eng, request.user, fields)
         return _state(request, eng)
+
+
+def _propose(eng, user, fields: dict) -> Adjustment:
+    """A checked journal or adjustment proposed (a journal gets the register's next reference)."""
+    if fields["kind"] in ("journal", "reclass"):
+        fields["ref"] = S.next_ref(eng)
+        fields.setdefault("entry_date", eng.fy_end)
+    adj = Adjustment.objects.create(engagement=eng, created_by=user, **fields)
+    S.log(eng, user, "adjustment_proposed", {"id": adj.id, **S.adjustment_dict(adj)})
+    return adj
 
 
 class AdjustmentDetailView(APIView):
@@ -1031,3 +1046,87 @@ class PriorFsView(APIView):
         ex.data = {**ex.data, "proposals": CMP.propose(ex.data.get("lines") or [], S.tb_lines(eng)), "link": link[:500]}
         ex.save()
         return Response({"extraction": ai.extraction_dict(ex), "state": S.state(eng, request.user)})
+
+
+class ClientChangeView(APIView):
+    """POST {decision: apply|dismiss} — a change the client asked for, proposed by Local_Tax_AI in the chat (AFIT,
+    26 Nov 2026), applied by the accountant: client information, a note's or a policy's wording and an account's heading
+    change at once (as if edited by hand); a journal or a tax adjustment is PROPOSED, to be approved like any other. The
+    change is checked again first: a journal whose accounts' balances have moved since is worked out again and shown
+    (409) for the accountant to check before applying."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, key, pk, n):
+        eng = _engagement(request, key)
+        msg = get_object_or_404(AiMessage.objects.select_for_update(), engagement=eng, pk=pk, role="ai")
+        changes = list((msg.data or {}).get("changes") or [])
+        if not 0 <= n < len(changes):
+            raise Http404
+        change = dict(changes[n])
+        if change.get("status") != "proposed":
+            return Response({"detail": f"Already {change.get('status')}."}, status=status.HTTP_409_CONFLICT)
+        decision = request.data.get("decision")
+        if decision not in ("apply", "dismiss"):
+            return Response({"decision": ["apply or dismiss"]}, status=status.HTTP_400_BAD_REQUEST)
+
+        def save(**updates):
+            changes[n] = {**change, **updates, "by": request.user.display_name, "at": timezone.now().isoformat()}
+            msg.data = {**msg.data, "changes": changes}
+            msg.save(update_fields=["data"])
+
+        if decision == "dismiss":
+            save(status="dismissed")
+            S.log(eng, request.user, "client_change_dismissed", {"message": msg.id, "change": n, "label": change.get("label")})
+            return _state(request, eng)
+        st = S.state(eng, request.user)
+        try:
+            fresh = CR.check(eng, st, change, S.financials(eng))
+        except ValueError as exc:
+            return Response({"detail": f"This change can't be made now: {exc}"}, status=status.HTTP_400_BAD_REQUEST)
+        if change["type"] == "journal" and fresh["lines"] != change.get("lines"):
+            changes[n] = {**change, "lines": fresh["lines"]}
+            msg.data = {**msg.data, "changes": changes}
+            msg.save(update_fields=["data"])
+            return Response({"detail": "The accounts' balances have changed since this was proposed: the journal has been worked out again. "
+                                       "Check it and apply."}, status=status.HTTP_409_CONFLICT)
+        why = f"Client request (via the AI Assistant): {change.get('reason') or ''}".strip()
+        kind, target, value = change["type"], change["target"], change["value"]
+        try:
+            if kind == "field":
+                _edit(eng, request.user, {**CR.field_payload(target, value), "reason": why})
+                result = f"{fresh['label']} changed."
+            elif kind == "note":
+                texts = {**((eng.data or {}).get("note_text") or {}), target: value}
+                _edit(eng, request.user, {"data": {"note_text": texts}, "stage": "fs", "reason": why})
+                result = "Note wording changed."
+            elif kind == "policy":
+                texts = {**((eng.data or {}).get("policy_text") or {}), target: value}
+                _edit(eng, request.user, {"data": {"policy_text": texts}, "stage": "fs", "reason": why})
+                result = "Policy wording changed."
+            elif kind == "heading":
+                line = eng.tb_lines.get(code=target)
+                old = line.heading
+                line.heading, line.heading_by, line.heading_note = fresh["heading"], "person", why[:300]
+                line.save()
+                S.touch(eng, "fs", request.user)
+                eng.save()
+                S.log(eng, request.user, "mapping", {"code": target, "from": old, "to": fresh["heading"], "reason": why})
+                result = f"Account {target} now shown under {fresh['to']}."
+            else:
+                data = ({"kind": "journal", "label": change["label"], "lines": fresh["lines"], "reason": why}
+                        if kind == "journal" else {"kind": "tax", "target": target, "proposed": fresh["to"], "label": fresh["label"], "reason": why})
+                fields, errors = _adjustment_fields(eng, data, st.get("levers") or [])
+                if errors:
+                    return Response({"detail": "This change can't be made now: " + "; ".join(str(v) for v in errors.values())},
+                                    status=status.HTTP_400_BAD_REQUEST)
+                adj = _propose(eng, request.user, fields)
+                result = (f"{adj.ref} proposed: it changes the statements once approved in Journal Entries." if kind == "journal"
+                          else "Tax adjustment proposed: it changes the computation once approved.")
+        except V.Invalid as exc:
+            return Response({"detail": "This change can't be made now: " + "; ".join(str(v) for v in exc.errors.values())},
+                            status=status.HTTP_400_BAD_REQUEST)
+        save(status="applied", result=result)
+        S.log(eng, request.user, "client_change_applied", {"message": msg.id, "change": n, "type": kind, "label": change.get("label"), "result": result})
+        return _state(request, eng)

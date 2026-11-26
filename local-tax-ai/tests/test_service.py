@@ -134,3 +134,20 @@ def test_prefill_keeps_only_known_fields_and_plain_numbers():
     assert [ln["amount"] for ln in out["lines"]] == ["-1200.50"]
     assert out["balances"][0]["balance"] == "554300.00" and out["period_end"] == ""
     assert out["flags"][0]["kind"] == "inconsistent"
+
+
+def test_a_clients_request_comes_back_as_changes_to_apply(monkeypatch):
+    """The accountant passes on the client's request; the agent lists the changes (AFIT, 26 Nov 2026). A change with no
+    target or value, or of a kind TASKO cannot make, is dropped."""
+    ctx = {**CONTEXT, "financials": {"tb": [{"code": "6100", "name": "Rent", "amount": "1000000", "heading": "admin_expenses"},
+                                            {"code": "2110", "name": "Accruals", "amount": "-50000", "heading": "trade_payables"}]}}
+    out = client().post("/v1/chat", json={"context": ctx, "question": "The client says rent should be Rs. 1,200,000. Also change the address to 12 Galle Road, Colombo 3."},
+                        headers={"X-Local-Tax-Token": "t"}).json()
+    assert {"type": "field", "target": "address", "value": "12 Galle Road, Colombo 3", "reason": "(Demo) The client's new address."} in out["changes"]
+    journal = next(c for c in out["changes"] if c["type"] == "journal")
+    assert journal["value"] == "6100 | =1200000; 2110 | balance"
+    monkeypatch.setattr(graphs, "demo", lambda agent, req, content: {"answer": "x", "points": [], "uncertain": False, "what_if": None, "changes": [
+        {"type": "field", "target": "address", "value": "New", "reason": ""}, {"type": "delete_everything", "target": "x", "value": "y", "reason": ""},
+        {"type": "note", "target": "events", "value": "  ", "reason": ""}]})
+    out = client().post("/v1/chat", json={"context": ctx, "question": "x"}, headers={"X-Local-Tax-Token": "t"}).json()
+    assert [c["type"] for c in out["changes"]] == ["field"]
