@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     max_tokens: int = 4000
     reader_max_tokens: int = 12000
     timeout_s: int = 180
+    # Answers that grow with the trial balance (a dummy TB from a story, mapping every account, classifying the
+    # assets): 4000 tokens cut the dummy TB short, so every "create from a story" failed (25 Nov 2026).
+    long_max_tokens: int = 16000
+    long_timeout_s: int = 230  # inside the PM application's 240 s wait
     # Google Drive (read-only), for a Local client's supporting documents folder
     drive_mode: str = "google"  # "google" | "local" (tests, demo: a directory stands in for a folder)
     local_drive_root: str = "demo_drive"

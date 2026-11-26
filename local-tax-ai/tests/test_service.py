@@ -134,3 +134,22 @@ def test_prefill_keeps_only_known_fields_and_plain_numbers():
     assert [ln["amount"] for ln in out["lines"]] == ["-1200.50"]
     assert out["balances"][0]["balance"] == "554300.00" and out["period_end"] == ""
     assert out["flags"][0]["kind"] == "inconsistent"
+
+
+def test_answers_as_long_as_the_trial_balance_get_the_larger_budget(monkeypatch):
+    """A dummy TB from a story stopped at 4000 tokens ("The model stopped early (max_tokens)"), so creating a trial
+    balance from a story always failed (25 Nov 2026): the agents that list every account get the long budget."""
+    from local_tax_ai import llm
+
+    s = config.Settings(llm_mode="anthropic", anthropic_api_key="x")
+    assert llm.model(s).max_tokens == 4000
+    long = llm.model(s, long=True)
+    assert long.max_tokens == s.long_max_tokens == 16000 and long.default_request_timeout == s.long_timeout_s
+    assert llm.model(s, reader=True, long=True).max_tokens == 16000
+    assert set(graphs.LONG_ANSWERS) == {"tb_story", "map_tb", "ppe_classify"}
+    seen = {}
+    monkeypatch.setattr(graphs, "ask", lambda *a, **k: seen.update(k) or {})
+    graphs.call({"agent": "tb_story", "content": "x", "request": {}})
+    assert seen["long"] is True
+    graphs.call({"agent": "chat", "content": "x", "request": {}})
+    assert seen["long"] is False

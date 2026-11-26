@@ -52,6 +52,10 @@ AGENTS = {
 }
 
 
+# Agents whose answer lists every account (or asset): they get the larger token budget (llm.ask long=True).
+LONG_ANSWERS = ("tb_story", "map_tb", "ppe_classify")
+
+
 def prepare(state: State) -> State:
     r = state["request"]
     ctx = "ENGAGEMENT (worked out by TASKO's engine):\n" + _context_text(r.get("context") or {})
@@ -90,7 +94,7 @@ def prepare(state: State) -> State:
 def call(state: State) -> State:
     system, schema, _ = AGENTS[state["agent"]]
     return {"raw": ask(system, state["content"], schema, reader=state["agent"] in ("extract", "rule_check", "prefill"),
-                       fake=lambda content: demo(state["agent"], state["request"], content))}
+                       long=state["agent"] in LONG_ANSWERS, fake=lambda content: demo(state["agent"], state["request"], content))}
 
 
 def check(state: State) -> State:

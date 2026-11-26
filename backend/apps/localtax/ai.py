@@ -52,6 +52,8 @@ def _call(path: str, body: dict, timeout: int = 180) -> dict:
             pass
         if exc.code == 400:
             raise Refused(detail or "Local_Tax_AI refused the request.") from exc
+        if exc.code == 502 and detail:  # it answered, but the AI's answer couldn't be used: say why
+            raise Unavailable(detail) from exc
         raise Unavailable("Local_Tax_AI is not available just now. Try again shortly.") from exc
     except (urllib.error.URLError, TimeoutError, ValueError) as exc:
         raise Unavailable("Local_Tax_AI is not available just now. Try again shortly.") from exc

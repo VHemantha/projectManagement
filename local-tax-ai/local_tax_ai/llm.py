@@ -11,25 +11,30 @@ class Unusable(Exception):
     """The model's answer could not be used (refused, cut short, not the shape asked)."""
 
 
-def model(settings: Settings | None = None, *, reader: bool = False):
+def model(settings: Settings | None = None, *, reader: bool = False, long: bool = False):
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return None
     from langchain_anthropic import ChatAnthropic
 
-    kwargs = {"max_retries": 2, "timeout": s.timeout_s}
+    max_tokens = s.reader_max_tokens if reader else s.max_tokens
+    timeout = s.timeout_s
+    if long:  # an answer as long as the trial balance itself
+        max_tokens, timeout = max(max_tokens, s.long_max_tokens), max(timeout, s.long_timeout_s)
+    kwargs = {"max_retries": 2, "timeout": timeout}
     if s.api_key:
         kwargs["api_key"] = s.api_key
-    return ChatAnthropic(model=s.reader_model if reader else s.model, max_tokens=s.reader_max_tokens if reader else s.max_tokens, **kwargs)
+    return ChatAnthropic(model=s.reader_model if reader else s.model, max_tokens=max_tokens, **kwargs)
 
 
-def ask(system: str, content, schema: dict, *, reader: bool = False, fake=None, settings: Settings | None = None) -> dict:
+def ask(system: str, content, schema: dict, *, reader: bool = False, long: bool = False, fake=None, settings: Settings | None = None) -> dict:
     """One call: the system prompt, the user content (text, or content blocks with a document), the JSON schema the
-    answer must follow. In fake mode, `fake(content)` gives the answer."""
+    answer must follow. In fake mode, `fake(content)` gives the answer. `long`: the answer grows with the trial
+    balance, so it gets the larger token budget."""
     s = settings or get_settings()
     if s.llm_mode == "fake":
         return json.loads(json.dumps(fake(content) if fake else {}))  # as the real answer arrives: plain JSON
-    message = model(s, reader=reader).invoke([SystemMessage(content=system), HumanMessage(content=content)],
+    message = model(s, reader=reader, long=long).invoke([SystemMessage(content=system), HumanMessage(content=content)],
                                               output_config={"format": {"type": "json_schema", "schema": schema}})
     stop = (getattr(message, "response_metadata", None) or {}).get("stop_reason", "")
     if stop in ("refusal", "max_tokens"):
