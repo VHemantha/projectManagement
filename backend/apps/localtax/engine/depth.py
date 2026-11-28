@@ -66,6 +66,16 @@ def equity_changes(fin: dict) -> dict:
                                     "passed": total == fin["totals"]["equity"], "difference": total - fin["totals"]["equity"]}, "notes": notes}
 
 
+OVERDRAFT = re.compile(r"overdraft|\bo/?d\b", re.I)
+
+
+def overdraft(fin: dict, which: str = "amount") -> Decimal:
+    """Bank overdrafts (short-term borrowings named as overdrafts), as a positive amount owed. For the statement of cash
+    flows they are part of cash and cash equivalents (LKAS 7.8), not financing (AFIT, 28 Nov 2026)."""
+    lines = ((fin.get("bs") or {}).get("borrowings_current") or {}).get("lines") or []
+    return -sum(((ln.get(which) or ZERO) for ln in lines if OVERDRAFT.search(ln.get("name") or "")), ZERO)
+
+
 def cash_flows(fin: dict) -> dict:
     """The statement of cash flows, indirect method, from the movement between the comparative and current balances."""
     if not fin.get("has_comparative"):
@@ -76,6 +86,7 @@ def cash_flows(fin: dict) -> dict:
         return _bs(fin, h) - _bs(fin, h, "comparative")
 
     dep, amort = depreciation(fin)
+    od, od_prior = overdraft(fin), overdraft(fin, "comparative")
     op = [("Profit before tax", cur["pbt"], ""), ("Depreciation", dep, "Expense accounts named depreciation"),
           ("Amortisation", amort, "Expense accounts named amortisation"), ("Finance costs", cur["finance_costs"], ""),
           ("(Increase) / decrease in inventories", -mv("inventories"), ""),
@@ -94,12 +105,14 @@ def cash_flows(fin: dict) -> dict:
            ("(Increase) / decrease in investments", -mv("investments"), "")]
     investing = sum((a for _, a, _ in inv), ZERO)
     fin_rows = [("Proceeds from the issue of shares", mv("share_capital"), ""),
-                ("Net movement in borrowings", mv("borrowings_non_current") + mv("borrowings_current"), "Including any overdraft in current borrowings"),
+                ("Net movement in borrowings", mv("borrowings_non_current") + mv("borrowings_current") - (od - od_prior),
+                 "Bank overdrafts excluded: they are part of cash and cash equivalents"),
                 ("Net movement in shareholder's current account", mv("shareholder_current_account"), ""),
                 ("Dividends paid", _bs(fin, "dividends"), "")]
     financing = sum((a for _, a, _ in fin_rows), ZERO)
     net = operating + investing + financing
-    opening, closing = _bs(fin, "cash", "comparative"), _bs(fin, "cash")
+    # cash and cash equivalents: cash at bank and in hand less bank overdrafts
+    opening, closing = _bs(fin, "cash", "comparative") - od_prior, _bs(fin, "cash") - od
 
     def rows(items):
         return [{"label": lb, "amount": a, "note": n} for lb, a, n in items if a or not n]
@@ -115,6 +128,8 @@ def cash_flows(fin: dict) -> dict:
         s["total"] = {"label": s["total"][0], "amount": s["total"][1]}
     diff = opening + net - closing
     return {"available": True, "sections": sections, "net_change": net, "opening_cash": opening, "closing_cash": closing,
+            "cash_components": {"cash": _bs(fin, "cash"), "overdraft": od, "cash_comparative": _bs(fin, "cash", "comparative"),
+                                "overdraft_comparative": od_prior},
             "check": {"label": "Opening cash + net change = closing cash", "passed": diff == ZERO, "difference": diff},
             "notes": ["Derived from the balance movements (indirect method): check the derived lines against the ledgers."] +
                      ([f"A difference of {diff:,.2f}: a non-cash movement (e.g. a revaluation or a reserve transfer) to reflect."] if diff else [])}
@@ -273,15 +288,33 @@ def notes(fin: dict, engagement: dict, comp: dict | None = None, rate: Decimal |
         if accounting - tax:
             rows.append({"label": "Deferred tax and under- / (over-) provision", "amount": accounting - tax})
         rows.append({"label": "Income tax expense in profit or loss", "amount": accounting, "kind": "total"})
-        out.append({"no": n, "key": "tax_reconciliation", "title": "Income tax - reconciliation", "rows": rows})
+        out.append({"no": n, "key": "tax_reconciliation", "title": "Income tax - reconciliation", "rows": rows, "rate": rate})
         n += 1
     for key, title in (("events", "Events after the reporting period"), ("contingencies", "Contingent liabilities and commitments"),
                        ("related", "Related party transactions")):
-        written = ((engagement.get("data") or {}).get("note_text") or {}).get(key)
-        out.append({"no": n, "key": key, "title": title, "text": written or "[To be completed by the accountant.]", "to_complete": not written,
-                    "editable": True})
+        data = engagement.get("data") or {}
+        written = (data.get("note_text") or {}).get(key)
+        # From the questionnaire when the accountant hasn't written it (AFIT, 28 Nov 2026): the client's details for a
+        # yes, the nil wording for a no; unanswered, the nil wording too, with the question still to be answered.
+        answer = (data.get("disclosures") or {}).get(key) or {}
+        if key == "contingencies":
+            more = (data.get("disclosures") or {}).get("commitments") or {}
+            details = " ".join(x.get("details", "") for x in (more, answer) if x.get("answer") == "yes" and x.get("details"))
+            answered = bool(more.get("answer") and answer.get("answer"))
+        else:
+            details = answer.get("details", "") if answer.get("answer") == "yes" else ""
+            answered = bool(answer.get("answer"))
+        text = written or details or NIL_WORDING[key]
+        out.append({"no": n, "key": key, "title": title, "text": text, "to_complete": not (written or answered), "editable": True})
         n += 1
     return out
+
+
+NIL_WORDING = {
+    "events": "No events have arisen after the reporting date that require adjustment to, or disclosure in, the financial statements.",
+    "contingencies": "There were no material capital commitments or contingent liabilities at the reporting date.",
+    "related": "There were no related party transactions other than those disclosed in these financial statements.",
+}
 
 
 def audit_report(engagement: dict, year_end: str) -> dict:

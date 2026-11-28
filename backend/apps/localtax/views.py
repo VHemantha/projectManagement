@@ -579,13 +579,28 @@ class ExtractionDecideView(APIView):
             for n in got["new"]:
                 TbLine.objects.create(engagement=eng, code=n["code"], name=n["name"], amount=Decimal("0"), comparative=n["comparative"].quantize(Decimal("0.01")),
                                       heading=n["heading"], heading_by="person")
+            cats = got["ppe_categories"]
+            if cats["new"] or cats["labels"]:
+                # The asset categories are last year's (AFIT, 28 Nov 2026): the client's categories take last year's names
+                # and gain last year's classes they lack (rate 0 until the accountant sets it).
+                names = cats["labels"]
+                rows = [{**c, "label": names.get(c["key"], c["label"])} for c in policy] +                     [{"key": c["key"], "label": c["label"], "method": "straight_line", "rate": "0", "residual": "0"} for c in cats["new"]]
+                if PPE.client_of(eng) is not None:
+                    PPE.save_policy(eng, rows, request.user)
             data = dict(eng.data or {})
+            if cats["labels"]:
+                data["ppe"] = {**(data.get("ppe") or {}), "prior_categories": sorted(cats["labels"]),
+                               "rate_needed": sorted({c["key"] for c in cats["new"]} | set((data.get("ppe") or {}).get("rate_needed") or []))}
             if got["opening"]:
                 ppe = dict(data.get("ppe") or {})
                 ppe["opening"] = {**(ppe.get("opening") or {}), **{k: {"cost": str(v["cost"]), "accumulated": str(v["accumulated"]),
                                                                        "source": f"Last year's financial statements ({cite}), PPE note"}
                                                                    for k, v in got["opening"].items()}}
                 data["ppe"] = ppe
+            if got["tax_rec"]:  # last year's tax reconciliation, as printed: its comparatives
+                data["prior_tax_rec"] = {"document": cite, "lines": [{**x, "amount": str(x["amount"])} for x in got["tax_rec"]]}
+            if got["revenue_nature"]:  # the revenue note discloses revenue by nature, as last year's statements did
+                data["revenue_nature"] = {**(data.get("revenue_nature") or {}), **got["revenue_nature"]}
             if got["cash_flow"]:  # last year's cash flow statement, as printed: this year's cash flow comparatives
                 data["prior_cash_flow"] = {"document": cite, "lines": [{**x, "amount": str(x["amount"])} for x in got["cash_flow"]]}
             data["comparatives_source"] = {"document": cite, "at": timezone.now().isoformat(), "by": request.user.display_name,

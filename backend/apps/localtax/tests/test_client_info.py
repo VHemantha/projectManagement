@@ -204,7 +204,7 @@ def test_the_house_format_has_the_policies_the_tax_note_and_the_company_details(
     report = st["statements"]["audit_report"]
     assert report["label"].startswith("DRAFT TEMPLATE") and "section 163(2)" in report["sections"][-1]["text"]
     pdf = c.get(world.url + "export/fs.pdf").content
-    assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 14  # cover, contents and 12 numbered pages
+    assert pdf[:4] == b"%PDF" and len(re.findall(rb"/Type /Page\b", pdf)) == 15  # cover, contents and 13 numbered pages (with the 28 Nov 2026 notes)
 
 
 def test_a_partnership_keeps_books_and_is_taxed_at_the_partnership_rate(world):  # noqa: F811

@@ -29,6 +29,8 @@ export interface SpecialIncome { id?: string; label: string; amount: string; rat
 
 export interface FixedAsset { id?: string; description: string; asset_class: string; acquired?: string; cost: string; ca_claimed_bf?: string; allowance?: string; disposed?: string; proceeds?: string; source?: string }
 export interface LossYear { id?: string; ya: string; amount: string; source?: string }
+export type DisclosureKey = 'commitments' | 'contingencies' | 'events' | 'related' | 'risk'
+
 export interface EngagementData {
   income?: IncomeLine[]
   assets?: AssetLine[]
@@ -49,6 +51,9 @@ export interface EngagementData {
   directors?: string
   company_secretary?: string
   shares_issued?: string
+  /** The questionnaire's answers the notes are written from (28 Nov 2026): commitments, contingencies, events after
+   * the reporting period, related parties and financial risk - "yes" with the details, or "no". */
+  disclosures?: Partial<Record<DisclosureKey, { answer: '' | 'yes' | 'no'; details: string }>>
   note_text?: Record<string, string>
   ppe?: PpeData
   tb_source?: { kind: 'upload' | 'entered' | 'story'; label: string; story?: string; at: string; by: string }
@@ -261,7 +266,7 @@ export interface AiMessage {
   at: string
 }
 export interface WhatIf { lever: { key: string; label: string }; original: Money; proposed: Money; difference: Money; taxable_before: Money; taxable_after: Money; tax_before: Money; tax_after: Money; remaining_variance?: Money; hypothetical: true }
-export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'cash_flow' | 'ignore'; code: string; heading: string; why?: string; category?: string }
+export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'cash_flow' | 'tax_rec' | 'ignore'; code: string; heading: string; why?: string; category?: string }
 export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string; proposals?: PriorProposal[]; link?: string } }
 export const EXTRACTION_USES: { key: string; label: string }[] = [
   { key: 'trial_balance', label: 'Trial balance' }, { key: 'general_ledger', label: 'General ledger (summed into the TB)' },

@@ -269,7 +269,11 @@ def cash_flow_comparatives(rows: list[dict], prior: list[dict], fin: dict) -> li
         elif role == "pbt":
             row["py"] = (((fin.get("pl") or {}).get("comparative") or {}).get("pbt"))
         elif role == "end":
-            row["py"] = ((fin.get("bs") or {}).get("cash") or {}).get("comparative")
+            cash = ((fin.get("bs") or {}).get("cash") or {}).get("comparative")
+            if cash is not None:  # cash and cash equivalents: less bank overdrafts
+                from .engine.depth import overdraft
+
+                row["py"] = _d(cash) - overdraft(fin, "comparative")
         if row.get("py") is None:
             row["py"] = ZERO  # last year's statement was read in full: a line it doesn't show was nil last year
         if role == "total":  # last year's lines that have nothing this year go in before the section's total
@@ -279,6 +283,72 @@ def cash_flow_comparatives(rows: list[dict], prior: list[dict], fin: dict) -> li
                 out.append({"label": p["label"], "cy": ZERO, "py": p["amount"]})
         out.append(row)
     return out
+
+
+# --- the tax reconciliation's comparatives (28 Nov 2026) --------------------------------------------------------------
+def _rec_role(label: str) -> str:
+    low = (label or "").lower()
+    if re.search(r"deferred|under.?\s*/?\s*\(?over|over.?provision", low):
+        return "deferred"
+    if re.search(r"profit before tax|accounting profit|loss before tax", low) and not re.search(r"\btax (at|on)\b|rate", low):
+        return "pbt"
+    if re.search(r"standard rate|statutory rate|at the rate|tax at \d|@ ?\d|\d+ ?%", low):
+        return "at_rate"
+    if re.search(r"taxable income|per the tax computation|current (income )?tax", low):
+        return "current"
+    if re.search(r"tax expense|charge for the year|in profit or loss|total", low):
+        return "total"
+    return "line"
+
+
+def tax_rec_comparatives(rows: list[dict], prior: list[dict], computed: dict) -> list[tuple]:
+    """The reconciliation to accounting profit with last year's figures: (label, this year, last year, kind). Last
+    year's reconciliation as printed when it was read - each line to this year's by what it is (profit before tax, tax
+    at the standard rate, current tax, deferred tax, the tax expense) or by wording; a line printed only last year comes
+    in before current tax. Without it (last year's statements have none), it is worked out from last year's figures:
+    tax at the standard rate on last year's profit before tax, the balance to last year's current tax as one line, then
+    deferred tax - so it adds up to last year's tax expense."""
+    out = [[x["label"], _d(x["amount"]), None, {"subtotal": "sub", "total": "total"}.get(x.get("kind") or "")] for x in rows]
+    if prior:
+        pool = [{"i": i, "label": x.get("label", ""), "role": _rec_role(x.get("label", "")), "amount": _d(x.get("amount"))} for i, x in enumerate(prior)]
+        used: set[int] = set()
+        for row in out:
+            role = "current" if row[3] == "sub" else "total" if row[3] == "total" else _rec_role(row[0])
+            if role != "line":
+                hit = next((p for p in pool if p["i"] not in used and p["role"] == role), None)
+            else:
+                cands = [p for p in pool if p["i"] not in used and p["role"] == "line"]
+                hit = max(cands, key=lambda p: difflib.SequenceMatcher(None, row[0].lower(), p["label"].lower()).ratio(), default=None)
+                if hit and difflib.SequenceMatcher(None, row[0].lower(), hit["label"].lower()).ratio() < 0.6:
+                    hit = None
+            if hit:
+                used.add(hit["i"])
+                row[2] = hit["amount"]
+        at = next((i for i, row in enumerate(out) if row[3] == "sub"), len(out))
+        extra = [[p["label"], None, p["amount"], None] for p in pool if p["i"] not in used and p["role"] in ("line", "at_rate", "deferred")]
+        out[at:at] = extra
+        for row in out:
+            if row[2] is None and row[1] is not None:
+                row[2] = ZERO  # last year's reconciliation was read in full: a line it doesn't show was nil
+        return [tuple(r) for r in out]
+    pbt, rate, cur, dfr = computed.get("pbt"), computed.get("rate"), computed.get("current"), computed.get("deferred") or ZERO
+    if pbt is None or cur is None:
+        return [tuple(r) for r in out]
+    expense = cur + dfr
+    for row in out:
+        role = "current" if row[3] == "sub" else "total" if row[3] == "total" else _rec_role(row[0])
+        row[2] = {"pbt": pbt, "current": cur, "total": expense, "deferred": dfr}.get(role)
+        if role == "at_rate" and rate:
+            row[2] = (pbt * _d(rate)).quantize(Decimal("0.01"))
+    if rate:
+        at_rate = (pbt * _d(rate)).quantize(Decimal("0.01"))
+        at = next((i for i, row in enumerate(out) if row[3] == "sub"), len(out))
+        if cur - at_rate:
+            out.insert(at, ["Tax effect of disallowable expenses, deductions and other items (prior year, net)", None, cur - at_rate, None])
+    if dfr and not any(_rec_role(r[0]) == "deferred" for r in out):
+        at = next((i for i, row in enumerate(out) if row[3] == "total"), len(out))
+        out.insert(at, ["Deferred tax and under- / (over-) provision", None, dfr, None])
+    return [tuple(r) for r in out]
 
 
 def _long(d: date) -> str:
@@ -390,6 +460,9 @@ class _Report:
             if lines and not (h == "other_income" and len(lines) == 1):  # a single other income line is shown on the face
                 self.notes[h] = n
                 n += 1
+        if self._pbt_items():
+            self.notes["pbt"] = n
+            n += 1
         cur, comp = (self.fin.get("pl") or {}).get("current") or {}, (self.fin.get("pl") or {}).get("comparative") or {}
         if cur.get("income_tax_expense") or comp.get("income_tax_expense") or self._tax_rec():
             self.notes["tax"] = n
@@ -405,6 +478,29 @@ class _Report:
             self.notes[key] = n
             n += 1
         self.notes["share_capital"] = self.notes["shareholder_current_account"] = self.notes["related"]
+
+    # "Profit before tax is stated after charging" (AFIT, 28 Nov 2026): auditors' remuneration, depreciation and
+    # amortisation and directors' remuneration, from the expense accounts' names - each only when the books have it.
+    PBT_ITEMS = (("Auditors' remuneration", re.compile(r"\baudit", re.I)), ("Depreciation", re.compile(r"depreciation", re.I)),
+                 ("Amortisation", re.compile(r"amorti[sz]", re.I)), ("Directors' remuneration", None))
+
+    def _pbt_items(self) -> list[tuple]:
+        lines = [ln for row in (self.fin.get("pl") or {}).get("rows") or [] if row["kind"] == "expense" for ln in row["lines"]]
+        out = []
+        for label, pattern in self.PBT_ITEMS:
+            pat = pattern or DIRECTOR
+            hits = [ln for ln in lines if pat.search(ln.get("name") or "")]
+            if label == "Directors' remuneration" and self.entity != "company":
+                continue
+            cy = sum((_d(ln["amount"]) for ln in hits), ZERO)
+            py = sum((_d(ln.get("comparative")) for ln in hits), ZERO) if self.has_comp else None
+            if hits and (cy or py):
+                out.append((label, cy, py))
+        return out
+
+    def pbt_note(self, no):
+        return [self.note_head(no, "Profit before tax"), self.P("Profit before tax is stated after charging:", "nt"),
+                self.note_table(self._pbt_items())]
 
     def _tax_rec(self):
         return next((x for x in self.dp.get("notes") or [] if x.get("key") == "tax_reconciliation"), None)
@@ -607,7 +703,7 @@ class _Report:
             ("Borrowings", "borrowings_non_current"), ("Deferred tax", "deferred_tax")])
         cl, cl_cy, cl_py = group("Current liabilities", "Total current liabilities", [
             ("Trade and other payables", ("trade_payables", "tax_payable")), (L["owner_account"], "shareholder_current_account"),
-            ("Borrowings", "borrowings_current"), ("Other current liabilities", "other_current_liabilities")])
+            ("Short-term borrowings", "borrowings_current"), ("Other current liabilities", "other_current_liabilities")])
         rows += ncl + cl + [{"label": "Total liabilities", "cy": ncl_cy + cl_cy, "py": (ncl_py + cl_py) if hc else None, "kind": "sub"},
                             {"label": "Total equity and liabilities", "cy": eq_cy + ncl_cy + cl_cy, "py": (eq_py + ncl_py + cl_py) if hc else None,
                              "kind": "grand"}]
@@ -808,24 +904,37 @@ class _Report:
                   "ppe": "Property, plant and equipment", "intangibles": "Intangible assets", "investments": "Investments",
                   "other_non_current_assets": "Other non-current assets", "inventories": "Inventories", "trade_receivables": "Trade and other receivables",
                   "other_current_assets": "Other current assets", "cash": "Cash and cash equivalents", "borrowings_non_current": "Non-current borrowings",
-                  "trade_payables": "Trade and other payables", "borrowings_current": "Current borrowings",
+                  "trade_payables": "Trade and other payables", "borrowings_current": "Short-term borrowings",
                   "other_current_liabilities": "Other current liabilities"}
 
         def acc(lines, sign):
             return [(ln["name"], sign * _d(ln["amount"]), sign * _d(ln["comparative"]) if ln.get("comparative") is not None else None) for ln in lines]
 
+        answers = self.data.get("disclosures") or {}
+
         def text(key, default):
+            """The accountant's own wording; else the questionnaire's answer - the client's details for a yes, the
+            standard nil wording for a no (AFIT, 28 Nov 2026); else the standard wording."""
             t = texts.get(key)
-            return escape(t) if t else escape(("[To be confirmed by the accountant] " if draft else "") + default)
+            if t:
+                return escape(t)
+            a = answers.get(key) or {}
+            if a.get("answer") == "yes" and a.get("details"):
+                return escape(a["details"])
+            return escape(default)
 
         for h, no in n.items():
             block = None
             if h in rows_by_heading:
                 row = rows_by_heading[h]
                 lines = acc(row["lines"], -1 if row["kind"] == "income" else 1)
+                if h == "revenue":
+                    lines = self.revenue_by_nature(row["lines"], lines)
                 block = [self.note_head(no, labels[h]), self.note_table(lines, (row["amount"], row["comparative"]))]
                 if texts.get(h):
                     block.append(self.P(escape(texts[h]), "nt"))
+            elif h == "pbt":
+                block = self.pbt_note(no)
             elif h == "tax":
                 block = self.tax_note(no)
             elif h == "ppe":
@@ -846,6 +955,8 @@ class _Report:
                     lines += tax_lines
                     total = (total[0] + _d(tp.get("amount")), (total[1] + _d(tp.get("comparative"))) if self.has_comp else None)
                 block = [self.note_head(no, labels[h]), self.note_table(lines, total)]
+                if h == "cash":
+                    block += self.cash_equivalents_table()
             elif h == "commitments":
                 block = [self.note_head(no, "Commitments"),
                          self.P(text(h, f"The {self.L['noun']} had no material capital or other contractual commitments at the reporting date."), "nt")]
@@ -869,6 +980,41 @@ class _Report:
                 out.append(KeepTogether(block))
         return out + [_flowable_mark(_toc="notes_end")]
 
+    def revenue_by_nature(self, accounts: list[dict], lines: list[tuple]) -> list[tuple]:
+        """Revenue by its nature (AFIT, 28 Nov 2026): each revenue account under the description last year's statements
+        gave it (e.g. "Sale of goods", "Rendering of services"), accounts of one nature added together; an account
+        last year's statements don't describe keeps its own name."""
+        nature = self.data.get("revenue_nature") or {}
+        if not nature:
+            return lines
+        out: dict[str, list] = {}
+        for ln, (name, cy, py) in zip(accounts, lines):
+            label = nature.get(str(ln.get("code"))) or name
+            row = out.setdefault(label, [ZERO, None])
+            row[0] += cy
+            if py is not None:
+                row[1] = (row[1] or ZERO) + py
+        return [(label, cy, py) for label, (cy, py) in out.items()]
+
+    def cash_equivalents_table(self) -> list:
+        """The cash note's second part (AFIT, 28 Nov 2026): cash and cash equivalents as the statement of cash flows has
+        them - cash and bank balances less bank overdrafts (which are in short-term borrowings) - so the note agrees with
+        the cash flow statement's closing balance."""
+        from reportlab.platypus import Spacer
+
+        cf = self.dp.get("cash_flows") or {}
+        parts = cf.get("cash_components")
+        if not cf.get("available") or not parts:
+            return []
+        hc = self.has_comp
+        od_note = self.notes.get("borrowings_current")
+        rows = [("Cash and bank balances", _d(parts["cash"]), _d(parts["cash_comparative"]) if hc else None),
+                (f"Bank overdrafts (Note {od_note})" if od_note and (parts["overdraft"] or parts["overdraft_comparative"]) else "Bank overdrafts",
+                 -_d(parts["overdraft"]), -_d(parts["overdraft_comparative"]) if hc else None)]
+        total = (_d(cf["closing_cash"]), _d(cf["opening_cash"]) if hc else None)
+        return [Spacer(1, 6), self.P("For the purpose of the statement of cash flows, the year end cash and cash equivalents comprise the following:", "nt"),
+                self.note_table(rows, total)]
+
     def tax_note(self, no):
         from reportlab.platypus import Spacer
 
@@ -885,11 +1031,21 @@ class _Report:
         block = [self.note_head(no, "Income tax"), self.note_table(body, (tot(lines, "amount"), tot(lines, "comparative") if self.has_comp else None))]
         rec = self._tax_rec()
         if rec:
-            kinds = {i: {"subtotal": "sub", "total": "total"}[x["kind"]] for i, x in enumerate(rec["rows"]) if x.get("kind")}
+            if self.has_comp:  # with last year's figures (28 Nov 2026)
+                prior = (self.data.get("prior_tax_rec") or {}).get("lines") or []
+                comp = (self.fin.get("pl") or {}).get("comparative") or {}
+                computed = {"pbt": _d(comp["pbt"]) if comp.get("pbt") is not None else None, "rate": rec.get("rate"),
+                            "current": tot(cur_lines, "comparative"), "deferred": tot(dfr, "comparative")}
+                rec_rows = tax_rec_comparatives(rec["rows"], prior, computed)
+                cols = self.years()
+            else:
+                rec_rows = [(x["label"], _d(x["amount"]), None, {"subtotal": "sub", "total": "total"}.get(x.get("kind") or "")) for x in rec["rows"]]
+                cols = [self.cy]
+            kinds = {i: k for i, (_, _, _, k) in enumerate(rec_rows) if k}
             block += [Spacer(1, 6), self.P("Reconciliation to accounting profit", "sub"),
-                      self.note_table([(x["label"], _d(x["amount"]), None) for x in rec["rows"]], header=True, cols=[self.cy], kinds=kinds)]
+                      self.note_table([(lb, cy, py) for lb, cy, py, _ in rec_rows], header=True, cols=cols, kinds=kinds)]
         text = (self.data.get("note_text") or {}).get("tax") or \
-            "Current tax is based on the taxable income worked out under the Inland Revenue Act No. 24 of 2017. The reconciliation is for the current year."
+            "Current tax is based on the taxable income worked out under the Inland Revenue Act No. 24 of 2017."
         return block + [Spacer(1, 4), self.P(escape(text), "nt")]
 
     def related_note(self, no, text):
@@ -971,11 +1127,19 @@ class _Report:
 
         c, mm = self.colors, self.mm
         classes: dict[str, dict] = {}
+        # The classes are the asset categories (AFIT, 28 Nov 2026): last year's, once last year's statements are read,
+        # each account in the category and role the PPE section gives it; by the account's name only without them.
+        cats = {a["code"]: a for a in self.ppe.get("accounts") or [] if a.get("category")}
+        labels = {p["key"]: p["label"] for p in self.ppe.get("policy") or []}
         for ln in v["lines"]:
             name = ln["name"]
-            dep = bool(re.search(r"accum|acc\.|depreciation|provision for dep", name, re.I))
-            key = re.sub(r"(?i)\b(accumulated|acc\.?|provision for|depreciation|at cost|cost|on|of|-|–|\(|\))\b", " ", name)
-            key = " ".join(re.sub(r"[^A-Za-z& ]", " ", key).split()).capitalize() or "Other"
+            a = cats.get(str(ln.get("code")))
+            if a:
+                dep, key = a.get("role") == "accumulated", labels.get(a["category"], a["category"])
+            else:
+                dep = bool(re.search(r"accum|acc\.|depreciation|provision for dep", name, re.I))
+                key = re.sub(r"(?i)\b(accumulated|acc\.?|provision for|depreciation|at cost|cost|on|of|-|–|\(|\))\b", " ", name)
+                key = " ".join(re.sub(r"[^A-Za-z& ]", " ", key).split()).capitalize() or "Other"
             k = classes.setdefault(key, {"cost": ZERO, "dep": ZERO, "cost_p": ZERO, "dep_p": ZERO})
             k["dep" if dep else "cost"] += _d(ln["amount"])
             k["dep_p" if dep else "cost_p"] += _d(ln.get("comparative"))
@@ -1007,7 +1171,7 @@ class _Report:
             add("Closing net book amount", vals(lambda k: k["cost"] + k["dep"]), "net")
         add(self.ye_text if self.ye else "At the end of the year", kind="head")
         add("Cost", vals(lambda k: k["cost"]))
-        add("Accum. depreciation and impairment", vals(lambda k: k["dep"]))
+        add("Accumulated depreciation", vals(lambda k: k["dep"]))
         add("Net book amount", vals(lambda k: k["cost"] + k["dep"]), "net")
         header = ["", ""] + [self.P(escape(x).replace(" ", "<br/>", 1) if len(x) > 10 else escape(x), "cellh") for x in cols]
         style = [("FONTSIZE", (0, 0), (-1, -1), 8.5), ("ALIGN", (2, 0), (-1, -1), "RIGHT"), ("VALIGN", (0, 0), (-1, -1), "BOTTOM"),
@@ -1110,11 +1274,6 @@ class _Report:
             canvas.setFont("Helvetica-Bold", 8)
             canvas.setFillColorRGB(0.75, 0.1, 0.1)
             canvas.drawCentredString(105 * mm, 290 * mm, "ILLUSTRATIVE - DUMMY DATA MADE UP FROM A STORY; NOT A CLIENT'S ACCOUNTS")
-            canvas.setFillColorRGB(0, 0, 0)
-        if self.draft:
-            canvas.setFont("Helvetica-Bold", 7)
-            canvas.setFillColorRGB(0.7, 0.14, 0.1)
-            canvas.drawString(20 * mm, 7 * mm, "DRAFT - prepared in TASKO's Local Tax workflow; not approved")
             canvas.setFillColorRGB(0, 0, 0)
         if not self.full:
             canvas.restoreState()

@@ -11,6 +11,7 @@ engine/depreciation.py.
 - Approving posts the depreciation journal (JE-DEP, one per card), or replaces it. A schedule that has changed since
   its approval says so, and is posted again only when it is approved again.
 """
+import re
 from datetime import date
 
 from django.utils import timezone
@@ -105,9 +106,21 @@ def state(eng: TaxEngagement, fs_result: dict | None) -> dict | None:
     has_comp = any(ln.get("comparative") is not None for ln in tb)
     opening = DEP.openings(accounts, policy, data.get("opening") or {}, has_comp)
     sched = DEP.schedule(policy, opening, additions, disposals, eng.fy_end)
+    prior = set(data.get("prior_categories") or [])
+    labels = {c["key"]: c["label"] for c in policy}
     for a in accounts:
         if not a["category"]:
             sched["flags"].insert(0, {"severity": "blocking", "text": f"PPE account {a['code']} {a['name']}: choose its category."})
+        elif prior and a["category"] not in prior and a.get("by") == "rule":
+            # last year's statements set the categories (AFIT, 28 Nov 2026): a category they don't have is confirmed by a person
+            sched["flags"].insert(0, {"severity": "blocking", "text": f"PPE account {a['code']} {a['name']} is put in "
+                                      f"“{labels.get(a['category'], a['category'])}”, a category last year's statements don't have: choose its category "
+                                      "(one of last year's, or confirm this new one)."})
+    for k in data.get("rate_needed") or []:
+        c = next((c for c in policy if c["key"] == k), None)
+        if c and not DEP.d(c.get("rate")) and not re.search(r"\bland\b", c["label"], re.I):
+            sched["flags"].append({"severity": "review", "text": f"“{c['label']}” comes from last year's statements: set its depreciation rate in the "
+                                                                 "client's depreciation policy."})
     if not has_comp and not data.get("opening"):
         sched["flags"].append({"severity": "review", "text": "The trial balance has no prior-year column: enter the opening balances, or read them "
                                                              "from last year's financial statements."})
