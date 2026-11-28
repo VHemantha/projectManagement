@@ -21,6 +21,7 @@ All figures come from the engine's statements (services.state). Nothing is compu
 the cash flow's interest received, which is moved out of the operating activities. The statements say DRAFT until the
 Financial Statements stage is approved.
 """
+import difflib
 import io
 import re
 from datetime import date, datetime, timedelta
@@ -30,6 +31,8 @@ from xml.sax.saxutils import escape
 
 ZERO = Decimal("0")
 GREY = "#e8e8e8"
+# Totals stand out (27 Nov 2026): a tinted band across the row, bold, ruled above and below.
+TOTAL_BG = "#dce6f2"
 OFFSET = 2  # the cover and the contents are not numbered
 LOGO = Path(__file__).resolve().parent / "assets" / "afit_logo.png"  # optional: drawn on the auditor's report when present
 FIRM = {
@@ -173,6 +176,109 @@ def r(v) -> str:
 
 def _d(v) -> Decimal:
     return Decimal(str(v)) if v not in (None, "") else ZERO
+
+
+# --- the cash flow statement's comparatives (27 Nov 2026) -------------------------------------------------------------
+_CF_HEADS = {"operating activities": "operating", "investing activities": "investing", "financing activities": "financing",
+             "movement in cash and cash equivalents": "cash"}
+_CF_NOISE = re.compile(r"\(?\b(increase|decrease)\b\)?|\b(net|in|of|the|and|from|for|by|paid|received|generated|used|cash|"
+                       r"flows?|activities|movement|change|changes)\b")
+
+
+def _cf_norm(text: str) -> str:
+    return " ".join(_CF_NOISE.sub(" ", re.sub(r"[^a-z0-9() ]", " ", (text or "").lower().replace("&", " and "))).replace("(", " ").replace(")", " ").split())
+
+
+def _cf_role(section: str, label: str) -> str:
+    """What a printed line of last year's statement is: a section's total, the net change, cash at the start or end of
+    the year, the profit before tax, or an ordinary line."""
+    low = (label or "").lower()
+    if re.search(r"\b(at|as at|on)?\s*(the\s+)?(beginning|start|opening|brought forward)\b", low):
+        return "start"
+    if re.search(r"\b(end of|closing|carried forward)\b", low):
+        return "end"
+    if re.search(r"net (increase|decrease|\(decrease\)|change)|increase\s*/\s*\(?decrease\)?\s+in cash", low):
+        return "net"
+    if re.search(r"\bnet cash\b|\btotal\b", low):
+        return "total"
+    if re.search(r"profit|loss", low) and re.search(r"before tax|before taxation|before income tax", low):
+        return "pbt"
+    return "line"
+
+
+def cash_flow_comparatives(rows: list[dict], prior: list[dict], fin: dict) -> list[dict]:
+    """This year's cash flow rows with last year's figures ("py") from last year's statement as printed: a section's
+    total to that section's total, the net change, cash at the start and end of the year to theirs, any other line to
+    the closest wording in the same section. A line printed only last year is added with Nil for this year, before its
+    section's total. Profit before tax and the closing cash fall back to the trial balance's comparative figures; a line
+    last year's statement doesn't show is Nil."""
+    pool = []
+    for i, x in enumerate(prior):
+        sec = x.get("section") or ""
+        role = _cf_role(sec, x.get("label", ""))
+        if role in ("start", "end", "net"):
+            sec = "cash"
+        pool.append({"i": i, "section": sec, "role": role, "label": x.get("label", ""), "norm": _cf_norm(x.get("label", "")),
+                     "amount": _d(x.get("amount"))})
+    used: set[int] = set()
+
+    def take(pred):
+        hit = next((p for p in pool if p["i"] not in used and pred(p)), None)
+        if hit:
+            used.add(hit["i"])
+        return hit
+
+    out, sec = [], ""
+    for row in rows:
+        row = dict(row)
+        kind, label = row.get("kind", "line"), row.get("label", "")
+        if kind == "head":
+            sec = _CF_HEADS.get(label.lower(), sec)
+        if kind in ("head", "blank"):
+            out.append(row)
+            continue
+        if label == "Profit before tax":
+            role = "pbt"
+        elif label.lower().startswith("net cash"):
+            role = "total"
+        elif re.match(r"net (increase|decrease) in cash", label.lower()) or (sec == "cash" and label in ("Increase", "Decrease")):
+            role = "net"
+        elif label == "At start of year":
+            role = "start"
+        elif label == "At end of year":
+            role = "end"
+        else:
+            role = "line"
+        if role in ("net", "start", "end"):
+            hit = take(lambda p: p["role"] == role)
+            if hit is None and role == "net":  # the same net change shown twice (after financing, and in the movement)
+                hit = next((p for p in pool if p["role"] == "net"), None)
+        elif role == "total":
+            hit = take(lambda p: p["role"] == "total" and p["section"] == sec) or take(lambda p: p["role"] == "total" and not p["section"])
+        elif role == "pbt":
+            hit = take(lambda p: p["role"] == "pbt")
+        else:
+            norm = _cf_norm(label)
+            cands = [p for p in pool if p["i"] not in used and p["role"] == "line" and p["section"] in (sec, "")]
+            best = max(cands, key=lambda p: difflib.SequenceMatcher(None, norm, p["norm"]).ratio(), default=None)
+            hit = best if best and difflib.SequenceMatcher(None, norm, best["norm"]).ratio() >= 0.6 else None
+            if hit:
+                used.add(hit["i"])
+        if hit is not None:
+            row["py"] = hit["amount"]
+        elif role == "pbt":
+            row["py"] = (((fin.get("pl") or {}).get("comparative") or {}).get("pbt"))
+        elif role == "end":
+            row["py"] = ((fin.get("bs") or {}).get("cash") or {}).get("comparative")
+        if row.get("py") is None:
+            row["py"] = ZERO  # last year's statement was read in full: a line it doesn't show was nil last year
+        if role == "total":  # last year's lines that have nothing this year go in before the section's total
+            extra = [p for p in pool if p["i"] not in used and p["role"] == "line" and p["section"] == sec]
+            for p in extra:
+                used.add(p["i"])
+                out.append({"label": p["label"], "cy": ZERO, "py": p["amount"]})
+        out.append(row)
+    return out
 
 
 def _long(d: date) -> str:
@@ -338,9 +444,9 @@ class _Report:
             data.append([self.P(label, "cellb" if bold else "cell"), str(row.get("note") or "")] +
                         (["" for _ in vals] if kind in ("head", "caps", "blank") else [r(v) for v in vals]))
             if kind in ("sub", "grand"):
-                style += [("FONTNAME", (2, i), (-1, i), "Helvetica-Bold"), ("LINEABOVE", (2, i), (-1, i), 0.7, c.black)]
-            if kind == "grand":
-                style.append(("LINEBELOW", (2, i), (-1, i), 1.8, c.black))
+                style += [("BACKGROUND", (0, i), (-1, i), c.HexColor(TOTAL_BG)), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold"),
+                          ("LINEABOVE", (2, i), (-1, i), 0.7, c.black)]
+                style.append(("LINEBELOW", (2, i), (-1, i), 1.8 if kind == "grand" else 0.7, c.black))
             if kind == "blank":
                 style += [("TOPPADDING", (0, i), (-1, i), 1), ("BOTTOMPADDING", (0, i), (-1, i), 1)]
         widths = [98 * mm, 16 * mm] + ([29 * mm] * len(years) if len(years) > 1 else [36 * mm])
@@ -373,13 +479,15 @@ class _Report:
             kind = (kinds or {}).get(i)
             data.append(["", self.P(escape(label), "cellb" if kind else "cell")] + ([r(a)] + ([r(b)] if len(years) > 1 else []) if kind != "head" else [""] * len(years)))
             if kind in ("sub", "total"):
-                style += [("FONTNAME", (2, off + i), (-1, off + i), "Helvetica-Bold"), ("LINEABOVE", (2, off + i), (-1, off + i), 0.6, c.black)]
+                style += [("BACKGROUND", (1, off + i), (-1, off + i), c.HexColor(TOTAL_BG)), ("FONTNAME", (2, off + i), (-1, off + i), "Helvetica-Bold"),
+                          ("LINEABOVE", (2, off + i), (-1, off + i), 0.6, c.black)]
             if kind == "total":
                 style.append(("LINEBELOW", (2, off + i), (-1, off + i), 1.6, c.black))
         if total is not None:
             data.append(["", ""] + [r(total[0])] + ([r(total[1])] if len(years) > 1 else []))
-            style += [("FONTNAME", (2, -1), (-1, -1), "Helvetica-Bold"), ("LINEABOVE", (2, -1), (-1, -1), 0.6, c.black),
-                      ("LINEBELOW", (2, -1), (-1, -1), 1.6, c.black)]
+            data[-1][1] = self.P("Total", "cellb")
+            style += [("BACKGROUND", (1, -1), (-1, -1), c.HexColor(TOTAL_BG)), ("FONTNAME", (2, -1), (-1, -1), "Helvetica-Bold"),
+                      ("LINEABOVE", (2, -1), (-1, -1), 0.6, c.black), ("LINEBELOW", (2, -1), (-1, -1), 1.6, c.black)]
         t = Table(data, colWidths=[10 * mm, 102 * mm] + [29 * mm] * len(years), hAlign="LEFT")
         t.setStyle(TableStyle(style))
         return t
@@ -565,8 +673,8 @@ class _Report:
                 if kind == "open":
                     style += [("LINEABOVE", (1, i), (-1, i), 0.7, c.black), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold")]
                 if kind == "close":
-                    style += [("BACKGROUND", (0, i), (0, i), c.HexColor(GREY)), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold"),
-                              ("LINEBELOW", (1, i), (-1, i), 1.8, c.black)]
+                    style += [("BACKGROUND", (0, i), (-1, i), c.HexColor(TOTAL_BG)), ("FONTNAME", (1, i), (-1, i), "Helvetica-Bold"),
+                              ("LINEABOVE", (1, i), (-1, i), 0.7, c.black), ("LINEBELOW", (1, i), (-1, i), 1.8, c.black)]
         w = 25 * mm if with_res else 28 * mm
         t = Table(data, colWidths=[170 * mm - w * (len(header) - 1)] + [w] * (len(header) - 1), hAlign="LEFT")
         t.setStyle(TableStyle(style))
@@ -631,11 +739,23 @@ class _Report:
         rows += [{"label": f"Net {word} in cash and cash equivalents", "cy": net, "kind": "sub"}, {"label": "", "kind": "blank"},
                  {"label": "Movement in cash and cash equivalents", "kind": "head"}, {"label": "At start of year", "cy": cf["opening_cash"]},
                  {"label": word.capitalize(), "cy": net}, {"label": "At end of year", "cy": cf["closing_cash"], "kind": "grand", "note": n.get("cash", "")}]
+        # The comparatives (27 Nov 2026): last year's cash flow statement as printed (read with last year's financial
+        # statements), each figure on the line it matches. Working them out again would need the balances at the start
+        # of the prior year, which the trial balance doesn't hold.
+        prior = [x for x in ((self.data.get("prior_cash_flow") or {}).get("lines") or []) if x.get("amount") not in (None, "")]
         has = self.has_comp
-        self.has_comp = False  # the comparative year's cash flows need the balances at the start of the prior year
+        out = [_flowable_mark(_toc="cf", _sec="cf")]
+        if has and prior:
+            rows = cash_flow_comparatives(rows, prior, self.fin)
+        else:
+            self.has_comp = False
         t = self.statement_table(rows, self._period(), pad=3.4)
         self.has_comp = has
-        return [_flowable_mark(_toc="cf", _sec="cf"), t, PageBreak()]
+        out.append(t)
+        if has and not prior:
+            out.append(self.P("Comparatives are shown once last year's financial statements, with their statement of cash flows, are read "
+                              "(Trial balance › Comparatives from last year).", "body"))
+        return out + [PageBreak()]
 
     def policies(self):
         from reportlab.platypus import KeepTogether, PageBreak

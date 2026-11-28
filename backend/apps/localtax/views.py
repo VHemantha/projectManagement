@@ -586,6 +586,8 @@ class ExtractionDecideView(APIView):
                                                                        "source": f"Last year's financial statements ({cite}), PPE note"}
                                                                    for k, v in got["opening"].items()}}
                 data["ppe"] = ppe
+            if got["cash_flow"]:  # last year's cash flow statement, as printed: this year's cash flow comparatives
+                data["prior_cash_flow"] = {"document": cite, "lines": [{**x, "amount": str(x["amount"])} for x in got["cash_flow"]]}
             data["comparatives_source"] = {"document": cite, "at": timezone.now().isoformat(), "by": request.user.display_name,
                                            "accounts": len(got["comparatives"]) + len(got["new"]), "notes": got["notes"]}
             eng.data = data

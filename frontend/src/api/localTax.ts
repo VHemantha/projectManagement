@@ -53,6 +53,8 @@ export interface EngagementData {
   ppe?: PpeData
   tb_source?: { kind: 'upload' | 'entered' | 'story'; label: string; story?: string; at: string; by: string }
   comparatives_source?: { document: string; at: string; by: string; accounts: number; notes: string[] }
+  /** Last year's cash flow statement as printed: this year's cash flow comparatives (27 Nov 2026). */
+  prior_cash_flow?: { document: string; lines: { section: string; label: string; amount: string }[] }
 }
 
 // --- PPE & depreciation (AFIT, 24 Nov 2026) ------------------------------------------------------------------------
@@ -259,7 +261,7 @@ export interface AiMessage {
   at: string
 }
 export interface WhatIf { lever: { key: string; label: string }; original: Money; proposed: Money; difference: Money; taxable_before: Money; taxable_after: Money; tax_before: Money; tax_after: Money; remaining_variance?: Money; hypothetical: true }
-export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'ignore'; code: string; heading: string; why?: string; category?: string }
+export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'cash_flow' | 'ignore'; code: string; heading: string; why?: string; category?: string }
 export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string; proposals?: PriorProposal[]; link?: string } }
 export const EXTRACTION_USES: { key: string; label: string }[] = [
   { key: 'trial_balance', label: 'Trial balance' }, { key: 'general_ledger', label: 'General ledger (summed into the TB)' },

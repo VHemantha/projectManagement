@@ -21,6 +21,8 @@ from .engine import fs as FS
 
 ZERO = Decimal("0")
 PPE_NOTE = "ppe_note"
+CASH_FLOW = "cash_flow"  # last year's statement of cash flows: this year's cash flow comparatives (27 Nov 2026)
+CF_SECTIONS = ("operating", "investing", "financing", "cash")
 
 
 def _norm(s: str) -> str:
@@ -59,6 +61,9 @@ def propose(lines: list[dict], tb: list[dict]) -> list[dict]:
         if cat.startswith(PPE_NOTE):
             out.append({"index": i, "action": "ppe", "code": "", "heading": "ppe", "why": "PPE note: the opening balances for depreciation."})
             continue
+        if cat == CASH_FLOW:
+            out.append({"index": i, "action": "cash_flow", "code": "", "heading": "", "why": "Cash flow statement: this year's cash flow comparatives."})
+            continue
         heading = cat if cat in FS.HEADINGS else FS.suggest_heading(ln.get("description") or "")
         n = _norm(ln.get("description") or "")
         code, why = "", ""
@@ -82,11 +87,11 @@ def propose(lines: list[dict], tb: list[dict]) -> list[dict]:
 
 def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) -> dict:
     """The confirmed mapping applied: {"comparatives": {code: amount}, "new": [{code, name, heading, comparative}],
-    "opening": {category: {cost, accumulated}}, "notes": [...]}. Nothing is saved here."""
+    "opening": {category: {cost, accumulated}}, "cash_flow": [{section, label, amount}], "notes": [...]}. Nothing is saved here."""
     by_index = {int(m.get("index", -1)): m for m in mapping if isinstance(m, dict)}
     codes = {str(t.code): t for t in tb_lines}
     comps: dict[str, Decimal] = {}
-    new, opening, notes, used_new = [], {}, [], set()
+    new, opening, notes, used_new, cash_flow = [], {}, [], set(), []
     for i, ln in enumerate(lines):
         m = by_index.get(i) or {}
         action = m.get("action")
@@ -101,6 +106,13 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
                 continue
             row = opening.setdefault(cat, {"cost": ZERO, "accumulated": ZERO})
             row["accumulated" if re.search(r"accum|depreciation", part or label, re.I) else "cost"] += abs(amount)
+            continue
+        if action == "cash_flow":
+            section, _, label = (ln.get("description") or "").partition("|")
+            section = section.strip().lower()
+            if not label.strip() or section not in CF_SECTIONS:
+                section, label = "", ln.get("description") or ""
+            cash_flow.append({"section": section, "label": label.strip()[:200], "amount": amount})
             continue
         heading = m.get("heading") if m.get("heading") in FS.HEADINGS else ""
         if action == "match":
@@ -128,7 +140,7 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
         comps[re_codes[0]] += prior_profit
         notes.append(f"Retained earnings: the prior year's profit of {prior_profit:,.2f} is taken off the closing balance shown, as the trial "
                      "balance holds the balance before that year's profit.")
-    return {"comparatives": comps, "new": new, "opening": opening, "notes": notes}
+    return {"comparatives": comps, "new": new, "opening": opening, "cash_flow": cash_flow, "notes": notes}
 
 
 def file_id_from(link: str) -> str:
