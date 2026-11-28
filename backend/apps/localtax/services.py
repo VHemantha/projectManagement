@@ -307,7 +307,17 @@ def depth(eng: TaxEngagement, fs_result, comp) -> dict | None:
     info = engagement_dict(eng)
     ye = eng.fy_end.strftime("%d %B %Y").lstrip("0") if eng.fy_end else "[year end]"
     full = fs_scope(eng) == "full"
-    return {"scope": fs_scope(eng), "equity": DP.equity_changes(fs_result) if full else None, "cash_flows": DP.cash_flows(fs_result) if full else None,
+    cf = DP.cash_flows(fs_result) if full else None
+    prior_cf = (eng.data or {}).get("prior_cash_flow") or {}
+    if cf and cf.get("available") and prior_cf.get("lines") and fs_result.get("has_comparative"):
+        # last year's figures on each line, from last year's statement of cash flows as printed (28 Nov 2026)
+        from .engine import cf_compare as CFC
+
+        prior_pl = (fs_result.get("pl") or {}).get("comparative") or {}  # not `comp`: that is the tax computation, for the notes
+        cash = ((fs_result.get("bs") or {}).get("cash") or {}).get("comparative")
+        cf = CFC.with_comparatives(cf, prior_cf["lines"], {"pbt": prior_pl.get("pbt"), "end": (cash - DP.overdraft(fs_result, "comparative")) if cash is not None else None},
+                                   prior_cf.get("document") or "")
+    return {"scope": fs_scope(eng), "equity": DP.equity_changes(fs_result) if full else None, "cash_flows": cf,
             # The auditor's or compilation report is its own document now (reports.py; state["report"]), not part of the statements.
             "notes": DP.notes(fs_result, info, comp, _standard_rate(eng)), "audit_report": None}
 
@@ -339,6 +349,7 @@ def key_figures(st: dict) -> dict:
            "income_tax": comp.get("income_tax"), "payable": comp.get("payable"),
            "blocking": sum(1 for a in st.get("alerts") or [] if a.get("severity") == "blocking")}
     return {k: (None if v is None else str(v)) for k, v in out.items()}
+
 
 
 def _standard_rate(eng: TaxEngagement):

@@ -136,6 +136,8 @@ export function PriorYearComparatives({ taskKey, state, bare = false }: { taskKe
                           <option value="match">An account of this year's TB</option>
                           <option value="new">A new account</option>
                           <option value="ppe">PPE note (opening balances)</option>
+                          <option value="cash_flow">Cash flow comparative</option>
+                          <option value="tax_rec">Tax reconciliation comparative</option>
                           <option value="ignore">Ignore</option>
                         </select>
                       </td>
@@ -150,7 +152,7 @@ export function PriorYearComparatives({ taskKey, state, bare = false }: { taskKe
                             <option value="">Heading…</option>
                             {HEADINGS.map(([k, t]) => <option key={k} value={k}>{t}</option>)}
                           </select>
-                        ) : m.action === 'ppe' ? <span className={styles.muted}>{ln.description}</span> : null}
+                        ) : m.action === 'ppe' || m.action === 'cash_flow' || m.action === 'tax_rec' ? <span className={styles.muted}>{ln.description}</span> : null}
                       </td>
                     </tr>
                   )

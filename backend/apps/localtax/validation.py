@@ -95,6 +95,9 @@ def income_item(i: dict, key: str, errors: dict) -> dict:
     return out
 
 
+DISCLOSURE_KEYS = ("commitments", "contingencies", "events", "related", "risk")
+
+
 def update(payload: dict) -> tuple[dict, dict]:
     """(model fields, data sections) from a PATCH, or Invalid with the errors by field."""
     errors: dict = {}
@@ -242,6 +245,12 @@ def update(payload: dict) -> tuple[dict, dict]:
         # The accountant's wording of an accounting policy (Phase 3), by policy key; "" goes back to the standard wording.
         pt = raw["policy_text"] if isinstance(raw["policy_text"], dict) else {}
         data["policy_text"] = {str(k)[:30]: str(v or "").strip()[:4000] for k, v in list(pt.items())[:30] if str(v or "").strip()}
+    if "disclosures" in raw:
+        # The questionnaire's answers the notes from Commitments on are written from (AFIT, 28 Nov 2026).
+        dc = raw["disclosures"] if isinstance(raw["disclosures"], dict) else {}
+        data["disclosures"] = {k: {"answer": v.get("answer") if v.get("answer") in ("yes", "no") else "",
+                                   "details": " ".join(str(v.get("details") or "").split())[:4000]}
+                               for k, v in dc.items() if k in DISCLOSURE_KEYS and isinstance(v, dict)}
     if "note_text" in raw:
         # The notes only the accountant can write (events after the reporting period, contingencies, related parties).
         nt = raw["note_text"] if isinstance(raw["note_text"], dict) else {}

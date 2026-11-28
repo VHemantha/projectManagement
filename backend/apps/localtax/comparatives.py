@@ -21,6 +21,9 @@ from .engine import fs as FS
 
 ZERO = Decimal("0")
 PPE_NOTE = "ppe_note"
+CASH_FLOW = "cash_flow"  # last year's statement of cash flows: this year's cash flow comparatives (27 Nov 2026)
+CF_SECTIONS = ("operating", "investing", "financing", "cash")
+TAX_REC = "tax_reconciliation"  # last year's reconciliation of the tax expense to the accounting profit (28 Nov 2026)
 
 
 def _norm(s: str) -> str:
@@ -59,6 +62,12 @@ def propose(lines: list[dict], tb: list[dict]) -> list[dict]:
         if cat.startswith(PPE_NOTE):
             out.append({"index": i, "action": "ppe", "code": "", "heading": "ppe", "why": "PPE note: the opening balances for depreciation."})
             continue
+        if cat == TAX_REC:
+            out.append({"index": i, "action": "tax_rec", "code": "", "heading": "", "why": "Tax reconciliation: this year's comparatives."})
+            continue
+        if cat == CASH_FLOW:
+            out.append({"index": i, "action": "cash_flow", "code": "", "heading": "", "why": "Cash flow statement: this year's cash flow comparatives."})
+            continue
         heading = cat if cat in FS.HEADINGS else FS.suggest_heading(ln.get("description") or "")
         n = _norm(ln.get("description") or "")
         code, why = "", ""
@@ -82,11 +91,15 @@ def propose(lines: list[dict], tb: list[dict]) -> list[dict]:
 
 def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) -> dict:
     """The confirmed mapping applied: {"comparatives": {code: amount}, "new": [{code, name, heading, comparative}],
-    "opening": {category: {cost, accumulated}}, "notes": [...]}. Nothing is saved here."""
+    "opening": {category: {cost, accumulated}}, "cash_flow": [{section, label, amount}], "notes": [...]}. Nothing is saved here."""
     by_index = {int(m.get("index", -1)): m for m in mapping if isinstance(m, dict)}
     codes = {str(t.code): t for t in tb_lines}
     comps: dict[str, Decimal] = {}
-    new, opening, notes, used_new = [], {}, [], set()
+    new, opening, notes, used_new, cash_flow = [], {}, [], set(), []
+    nature: dict[str, str] = {}  # revenue account -> its nature as last year's statements describe it
+    tax_rec: list[dict] = []
+    new_categories: list[dict] = []  # PPE classes of last year's statements the policy doesn't have
+    prior_labels: dict[str, str] = {}  # category -> its name in last year's PPE note
     for i, ln in enumerate(lines):
         m = by_index.get(i) or {}
         action = m.get("action")
@@ -95,12 +108,31 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
             continue
         if action == "ppe":
             label, _, part = (ln.get("description") or "").partition("|")
+            label = " ".join(label.split())
             cat = m.get("category") or DEP.category_of(label, policy)
+            if not cat and label:
+                # A class last year's statements have and the policy doesn't: it becomes one of the client's categories,
+                # under last year's name (its rate is for the accountant to set) - AFIT, 28 Nov 2026.
+                cat = "_".join(re.sub(r"[^a-z0-9 ]", " ", label.lower()).split())[:40] or "other"
+                if cat not in {c["key"] for c in policy} and cat not in {c["key"] for c in new_categories}:
+                    new_categories.append({"key": cat, "label": label[:80]})
             if not cat:
                 notes.append(f"PPE note line “{ln.get('description')}”: no category - not used.")
                 continue
+            if label:
+                prior_labels.setdefault(cat, label[:80])
             row = opening.setdefault(cat, {"cost": ZERO, "accumulated": ZERO})
             row["accumulated" if re.search(r"accum|depreciation", part or label, re.I) else "cost"] += abs(amount)
+            continue
+        if action == "tax_rec":
+            tax_rec.append({"label": " ".join((ln.get("description") or "").split())[:200], "amount": amount})
+            continue
+        if action == "cash_flow":
+            section, _, label = (ln.get("description") or "").partition("|")
+            section = section.strip().lower()
+            if not label.strip() or section not in CF_SECTIONS:
+                section, label = "", ln.get("description") or ""
+            cash_flow.append({"section": section, "label": label.strip()[:200], "amount": amount})
             continue
         heading = m.get("heading") if m.get("heading") in FS.HEADINGS else ""
         if action == "match":
@@ -109,6 +141,8 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
                 notes.append(f"“{ln.get('description')}”: account {code} is not in the trial balance - not used.")
                 continue
             comps[code] = comps.get(code, ZERO) + tb_amount(heading or codes[code].heading, amount)
+            if (heading or codes[code].heading) == "revenue":
+                nature[code] = " ".join((ln.get("description") or "").split())[:120]
         elif action == "new":
             if not heading:
                 notes.append(f"“{ln.get('description')}”: choose its heading to add it as an account - not used.")
@@ -118,6 +152,8 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
                 code += "A"
             used_new.add(code)
             new.append({"code": code, "name": (ln.get("description") or code)[:200], "heading": heading, "comparative": tb_amount(heading, amount)})
+            if heading == "revenue":
+                nature[code] = " ".join((ln.get("description") or "").split())[:120]
     # retained earnings: the balance before the prior year's profit (see the module's note)
     headings = {c: t.heading for c, t in codes.items()} | {n["code"]: n["heading"] for n in new}
     pl = sum((v for c, v in comps.items() if FS.HEADINGS.get(headings.get(c, ""), ("",))[0] == "pl"), ZERO)
@@ -128,7 +164,8 @@ def apply(lines: list[dict], mapping: list[dict], tb_lines, policy: list[dict]) 
         comps[re_codes[0]] += prior_profit
         notes.append(f"Retained earnings: the prior year's profit of {prior_profit:,.2f} is taken off the closing balance shown, as the trial "
                      "balance holds the balance before that year's profit.")
-    return {"comparatives": comps, "new": new, "opening": opening, "notes": notes}
+    return {"comparatives": comps, "new": new, "opening": opening, "cash_flow": cash_flow, "revenue_nature": nature, "tax_rec": tax_rec,
+            "ppe_categories": {"new": new_categories, "labels": prior_labels}, "notes": notes}
 
 
 def file_id_from(link: str) -> str:

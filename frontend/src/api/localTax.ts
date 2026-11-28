@@ -29,6 +29,8 @@ export interface SpecialIncome { id?: string; label: string; amount: string; rat
 
 export interface FixedAsset { id?: string; description: string; asset_class: string; acquired?: string; cost: string; ca_claimed_bf?: string; allowance?: string; disposed?: string; proceeds?: string; source?: string }
 export interface LossYear { id?: string; ya: string; amount: string; source?: string }
+export type DisclosureKey = 'commitments' | 'contingencies' | 'events' | 'related' | 'risk'
+
 export interface EngagementData {
   income?: IncomeLine[]
   assets?: AssetLine[]
@@ -49,6 +51,9 @@ export interface EngagementData {
   directors?: string
   company_secretary?: string
   shares_issued?: string
+  /** The questionnaire's answers the notes are written from (28 Nov 2026): commitments, contingencies, events after
+   * the reporting period, related parties and financial risk - "yes" with the details, or "no". */
+  disclosures?: Partial<Record<DisclosureKey, { answer: '' | 'yes' | 'no'; details: string }>>
   note_text?: Record<string, string>
   ppe?: PpeData
   tb_source?: { kind: 'upload' | 'entered' | 'story' | 'instructions'; label: string; story?: string; at: string; by: string }
@@ -58,6 +63,8 @@ export interface EngagementData {
   report_date?: string
   last_update?: { at: string; by: string; stage: string; figures: Record<string, string | null> }
   fs_edits?: { items?: Record<string, FsEditItem>; journal?: number | null; notes?: string[]; posted?: string }
+  /** Last year's cash flow statement as printed: this year's cash flow comparatives (27 Nov 2026). */
+  prior_cash_flow?: { document: string; lines: { section: string; label: string; amount: string }[] }
 }
 
 /** A figure edited on the statements (AFIT, 26 Nov 2026): the change it makes in trial balance signs (debit +). */
@@ -171,12 +178,14 @@ export interface Computation {
 export interface CaRow { id: string; description: string; asset_class: string; label: string; cost: Money; claimed_bf: Money; wdv_bf: Money; rate: Money; allowance: Money; balancing_charge: Money; balancing_allowance: Money; wdv_cf: Money; disposed: string; manual?: boolean; ref: string }
 export interface CaSchedule { rows: CaRow[]; totals: Record<'cost' | 'claimed_bf' | 'allowance' | 'balancing_charge' | 'balancing_allowance' | 'wdv_cf', Money>; flags: { severity: string; text: string }[] }
 export interface Check { label: string; passed: boolean; difference: Money }
-export interface CashSection { key: string; title: string; rows: { label: string; amount: Money; note: string }[]; subtotal: { label: string; amount: Money } | null; after?: { label: string; amount: Money; note: string }[]; total: { label: string; amount: Money } }
+/** A cash flow line; comparative: last year's figure from last year's statement of cash flows (28 Nov 2026). */
+export interface CashRow { label: string; amount: Money; note: string; comparative?: Money; prior_only?: boolean }
+export interface CashSection { key: string; title: string; rows: CashRow[]; subtotal: { label: string; amount: Money; comparative?: Money } | null; after?: CashRow[]; total: { label: string; amount: Money; comparative?: Money } }
 export interface Note { no: number; key: string; title: string; text?: string; to_complete?: boolean; editable?: boolean; total?: Money; total_comparative?: Money; lines?: { code: string; name: string; amount: Money; comparative: Money }[]; rows?: { label: string; amount: Money }[]; policies?: { key: string; title: string; text: string; standard: boolean }[] }
 export interface Statements {
   scope?: 'income_statement' | 'full'
   equity: null | { rows: { label: string; share_capital: Money; reserves: Money; retained_earnings: Money; total: Money; kind?: string }[]; check: Check; notes: string[] }
-  cash_flows: null | { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[] }
+  cash_flows: null | { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[]; has_comparative?: boolean; comparative_source?: string; net_change_comparative?: Money; opening_cash_comparative?: Money; closing_cash_comparative?: Money }
   notes: Note[]
   audit_report: { label: string; title: string; addressee: string; sections: { title: string; text: string }[]; signature: string } | null
 }
@@ -288,7 +297,7 @@ export interface AiMessage {
   at: string
 }
 export interface WhatIf { lever: { key: string; label: string }; original: Money; proposed: Money; difference: Money; taxable_before: Money; taxable_after: Money; tax_before: Money; tax_after: Money; remaining_variance?: Money; hypothetical: true }
-export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'ignore'; code: string; heading: string; why?: string; category?: string }
+export interface PriorProposal { index: number; action: 'match' | 'new' | 'ppe' | 'cash_flow' | 'tax_rec' | 'ignore'; code: string; heading: string; why?: string; category?: string }
 export interface Extraction { id: number; kind: string; document: string; status: string; created_at: string; data: { lines: { description: string; amount: string; category: string; code: string; comparative: string; date?: string; cite: string }[]; gaps: string[]; summary: string; year_of_assessment?: string; proposals?: PriorProposal[]; link?: string } }
 export const EXTRACTION_USES: { key: string; label: string }[] = [
   { key: 'trial_balance', label: 'Trial balance' }, { key: 'general_ledger', label: 'General ledger (summed into the TB)' },

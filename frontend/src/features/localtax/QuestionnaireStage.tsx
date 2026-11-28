@@ -30,13 +30,14 @@ import {
   type LiabilityLine,
   type LocalTaxState,
   type PaymentLine,
+  type DisclosureKey,
   money,
   useSaveLocalTax,
 } from '@/api/localTax'
 import { UpdateButton } from './Update'
 import { Button } from '@/design-system'
 
-export type ClientInfoSection = 'client' | 'documents' | 'income' | 'expenses' | 'assets' | 'payments' | 'expected'
+export type ClientInfoSection = 'client' | 'documents' | 'income' | 'expenses' | 'assets' | 'payments' | 'expected' | 'disclosures'
 type Section = ClientInfoSection
 const SECTIONS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'client', label: 'A. Client Details', icon: <User size={16} /> },
@@ -46,6 +47,16 @@ const SECTIONS: { key: Section; label: string; icon: React.ReactNode }[] = [
   { key: 'assets', label: 'E. Assets & Liabilities', icon: <Home size={16} /> },
   { key: 'payments', label: 'F. Tax Credits & Payments', icon: <Receipt size={16} /> },
   { key: 'expected', label: 'G. Expected Tax Payment', icon: <Target size={16} /> },
+  { key: 'disclosures', label: 'H. Disclosures for the Notes', icon: <ClipboardList size={16} /> },
+]
+// The notes from Commitments on are written from these answers (AFIT, 28 Nov 2026): "yes" with the client's details,
+// or "no" for the standard nil wording.
+const DISCLOSURES: { key: DisclosureKey; question: string; hint: string }[] = [
+  { key: 'commitments', question: 'Any capital or other contractual commitments at the year end?', hint: 'e.g. assets ordered but not received, contracts signed, leases' },
+  { key: 'contingencies', question: 'Any contingent liabilities at the year end?', hint: 'e.g. guarantees given, legal claims or disputes, tax assessments under appeal' },
+  { key: 'events', question: 'Any significant events after the year end, up to the date the accounts are signed?', hint: 'e.g. a new loan, sale of a major asset, a dividend declared' },
+  { key: 'related', question: "Any transactions or balances with related parties (other than the shareholders' current accounts and directors' pay)?", hint: "e.g. sales to or purchases from a director's other business, loans to relatives" },
+  { key: 'risk', question: 'Anything particular about financial risk (foreign currency, variable-rate loans, a customer the business depends on)?', hint: 'Answer no for the standard credit and liquidity risk wording' },
 ]
 const CATEGORIES: [string, string][] = [
   ['employment', 'Employment income'], ['business', 'Business / professional'], ['rent', 'Rental income'], ['interest', 'Interest income'],
@@ -115,7 +126,7 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
   const payload = () => ({ ...basics, data: { income: data.income ?? [], assets: data.assets ?? [], liabilities: data.liabilities ?? [],
     payments: data.payments ?? [], qualifying_payments: data.qualifying_payments ?? '', losses_bf: data.losses_bf ?? '',
     expected_skipped: !!data.expected_skipped, fs_scope: data.fs_scope ?? 'full', directors: data.directors ?? '',
-    company_secretary: data.company_secretary ?? '', shares_issued: data.shares_issued ?? '' }, stage: 'questionnaire' as const })
+    company_secretary: data.company_secretary ?? '', shares_issued: data.shares_issued ?? '', disclosures: data.disclosures ?? {} }, stage: 'questionnaire' as const })
   const flush = (then?: () => void) => {
     if (timer.current) window.clearTimeout(timer.current)
     save.mutate(payload(), { onSuccess: () => (setDirty(false), then?.()) })
@@ -444,6 +455,31 @@ export function QuestionnaireStage({ taskKey, state, onNext, section: initial = 
                 <input type="checkbox" checked={!!data.expected_skipped} onChange={(ev) => setD({ expected_skipped: ev.target.checked })} />
                 The client has not given an expected payment
               </label>
+            </div>
+          )}
+
+          {section === 'disclosures' && (
+            <div className={styles.formGrid}>
+              <p className={`${styles.hint} ${styles.wide}`}>
+                The notes from Commitments onwards are written from these answers: the details for a yes, the standard nil wording for a no.
+              </p>
+              {DISCLOSURES.map((q) => {
+                const a = data.disclosures?.[q.key] ?? { answer: '' as const, details: '' }
+                const set = (patch: Partial<typeof a>) => setD({ disclosures: { ...(data.disclosures ?? {}), [q.key]: { ...a, ...patch } } })
+                return (
+                  <fieldset key={q.key} className={`${styles.field} ${styles.wide}`} style={{ border: 0, padding: 0, margin: 0 }}>
+                    <legend>{q.question}</legend>
+                    <span>
+                      <label className={styles.check}><input type="radio" name={`disc-${q.key}`} checked={a.answer === 'no'} onChange={() => set({ answer: 'no' })} /> No</label>{' '}
+                      <label className={styles.check}><input type="radio" name={`disc-${q.key}`} checked={a.answer === 'yes'} onChange={() => set({ answer: 'yes' })} /> Yes</label>
+                    </span>
+                    {a.answer === 'yes' && (
+                      <textarea aria-label={`Details: ${q.question}`} rows={3} placeholder={q.hint} value={a.details}
+                        onChange={(ev) => set({ details: ev.target.value })} />
+                    )}
+                  </fieldset>
+                )
+              })}
             </div>
           )}
 

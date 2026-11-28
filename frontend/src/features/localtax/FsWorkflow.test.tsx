@@ -117,7 +117,7 @@ describe('Team 3 > Local: report, editable statements, Update (AFIT, 26 Nov 2026
     render(<MemoryRouter><QuestionnaireStage taskKey="LOC-1" state={state} onNext={() => {}} /></MemoryRouter>)
     const nav = screen.getByRole('list', { name: 'Client info sections' })
     const labels = within(nav).getAllByRole('button').map((b) => b.textContent?.trim())
-    expect(labels).toEqual(['A. Client Details', 'B. Supporting Documents', 'C. Tax Credits & Payments', 'D. Expected Tax Payment'])
+    expect(labels).toEqual(['A. Client Details', 'B. Supporting Documents', 'C. Tax Credits & Payments', 'D. Expected Tax Payment', 'E. Disclosures for the Notes'])
     await userEvent.click(screen.getByRole('radio', { name: 'Audit report' }))
     expect(screen.getByRole('radio', { name: 'Audit report' })).toBeChecked()
     expect(screen.getByRole('button', { name: /Update/ })).toBeInTheDocument()

@@ -115,6 +115,14 @@ Task: read the attached document and extract what the Local Tax workflow can use
   "category" (the FS heading the line belongs to: one of the keys of ENGAGEMENT headings). From the property, plant and equipment
   note, also one line per asset class for its closing cost and one for its closing accumulated depreciation: "category"
   "ppe_note" and "description" "<class> | cost" or "<class> | accumulated depreciation" (amounts positive).
+  From the statement of cash flows, one line per line as printed, its subtotals and totals included (they are the
+  comparatives of this year's cash flow statement): "category" "cash_flow", "description" "<section> | <line as printed>"
+  with section one of operating, investing, financing or cash (the net increase or decrease, and cash at the start and
+  end of the year), "amount" the figure for the year as printed (an outflow in brackets is a minus).
+  From the income tax note's reconciliation of the tax expense to the accounting profit, one line per line as printed
+  (its subtotals and total included): "category" "tax_reconciliation", "description" the line as printed, "amount" the
+  figure for the year as printed. The revenue lines are revenue by its nature as the revenue note gives it (e.g. sale of
+  goods, rendering of services), each with "category" "revenue".
 - Otherwise "kind": "other" with a summary.
 Copy numbers exactly as printed (as plain numbers); never total or adjust them. "gaps": what is missing or unreadable."""
 

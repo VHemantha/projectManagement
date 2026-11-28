@@ -40,7 +40,7 @@ HEADINGS = {
     "dividends": ("bs", "Dividends", "equity"),
     "borrowings_non_current": ("bs", "Non-current borrowings", "liability"),
     "deferred_tax": ("bs", "Deferred tax", "liability"),
-    "borrowings_current": ("bs", "Current borrowings", "liability"),
+    "borrowings_current": ("bs", "Short-term borrowings", "liability"),
     "trade_payables": ("bs", "Trade and other payables", "liability"),
     "tax_payable": ("bs", "Income tax payable", "liability"),
     "shareholder_current_account": ("bs", "Shareholder's current account", "liability"),  # amounts due to shareholders / directors
@@ -70,6 +70,8 @@ KEYWORDS = [
     ("inventories", r"inventor|stock\b|stock in trade|work in progress"),
     ("other_non_current_assets", r"rent(al)? deposit|refundable deposit|security deposit|long[- ]term deposit"),
     ("trade_receivables", r"debtor|receivable|advance|deposit paid|prepayment|pre-payment|staff loan"),
+    # an overdraft is a short-term borrowing, even when it is named "Bank overdraft" (AFIT, 28 Nov 2026)
+    ("borrowings_current", r"overdraft|\bo/?d\b"),
     ("cash", r"\bcash\b|bank|petty cash|current account|savings"),
     ("share_capital", r"stated capital|share capital|capital account"),
     ("reserves", r"reserve"),
