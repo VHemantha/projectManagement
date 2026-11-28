@@ -151,12 +151,14 @@ export interface Computation {
 export interface CaRow { id: string; description: string; asset_class: string; label: string; cost: Money; claimed_bf: Money; wdv_bf: Money; rate: Money; allowance: Money; balancing_charge: Money; balancing_allowance: Money; wdv_cf: Money; disposed: string; manual?: boolean; ref: string }
 export interface CaSchedule { rows: CaRow[]; totals: Record<'cost' | 'claimed_bf' | 'allowance' | 'balancing_charge' | 'balancing_allowance' | 'wdv_cf', Money>; flags: { severity: string; text: string }[] }
 export interface Check { label: string; passed: boolean; difference: Money }
-export interface CashSection { key: string; title: string; rows: { label: string; amount: Money; note: string }[]; subtotal: { label: string; amount: Money } | null; after?: { label: string; amount: Money; note: string }[]; total: { label: string; amount: Money } }
+/** A cash flow line; comparative: last year's figure from last year's statement of cash flows (28 Nov 2026). */
+export interface CashRow { label: string; amount: Money; note: string; comparative?: Money; prior_only?: boolean }
+export interface CashSection { key: string; title: string; rows: CashRow[]; subtotal: { label: string; amount: Money; comparative?: Money } | null; after?: CashRow[]; total: { label: string; amount: Money; comparative?: Money } }
 export interface Note { no: number; key: string; title: string; text?: string; to_complete?: boolean; editable?: boolean; total?: Money; total_comparative?: Money; lines?: { code: string; name: string; amount: Money; comparative: Money }[]; rows?: { label: string; amount: Money }[]; policies?: { key: string; title: string; text: string; standard: boolean }[] }
 export interface Statements {
   scope?: 'income_statement' | 'full'
   equity: null | { rows: { label: string; share_capital: Money; reserves: Money; retained_earnings: Money; total: Money; kind?: string }[]; check: Check; notes: string[] }
-  cash_flows: null | { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[] }
+  cash_flows: null | { available: false; reason: string } | { available: true; sections: CashSection[]; net_change: Money; opening_cash: Money; closing_cash: Money; check: Check; notes: string[]; has_comparative?: boolean; comparative_source?: string; net_change_comparative?: Money; opening_cash_comparative?: Money; closing_cash_comparative?: Money }
   notes: Note[]
   audit_report: { label: string; title: string; addressee: string; sections: { title: string; text: string }[]; signature: string } | null
 }
